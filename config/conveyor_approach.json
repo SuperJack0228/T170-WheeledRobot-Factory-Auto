@@ -1,0 +1,16 @@
+{
+  "paths": {
+    "left_pick": {
+      "note": "挡板传送带取加工件：相对主码的接近路径。示教后路径点会跟着二维码走。",
+      "arm": "left",
+      "side": "left",
+      "include_target": true,
+      "marker_id": 0,
+      "marker_id_b": 0,
+      "dual_pos_thresh_m": 0.015,
+      "dual_rot_thresh_deg": 3.0,
+      "dual_rel": null,
+      "waypoints": []
+    }
+  }
+}

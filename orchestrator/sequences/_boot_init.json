@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "name": "boot_init",
+  "steps": [
+    {
+      "id": "c288b42a99",
+      "kind": "head",
+      "note": "启动：头 M0=0° M1=40° M2=0°",
+      "m0": 0.0,
+      "m1": 40.0,
+      "m2": 0.0
+    },
+    {
+      "id": "c0a771ec0e",
+      "kind": "waist",
+      "note": "启动：腰 yaw=0°",
+      "mode": "rotate",
+      "angle_deg": 0.0,
+      "delta_m": 0.0,
+      "speed": 0.1,
+      "speed_deg_s": 30.0
+    },
+    {
+      "id": "ef7dd544ad",
+      "kind": "sleep",
+      "note": "转腰后等待",
+      "seconds": 1.0
+    },
+    {
+      "id": "87debea7a4",
+      "kind": "waist",
+      "note": "启动：腰到 layer3_home",
+      "mode": "goto",
+      "angle_deg": 0.0,
+      "delta_m": 0.0,
+      "speed": 0.1,
+      "speed_deg_s": 30.0,
+      "pose": {
+        "x": 0.0,
+        "y": 4.1173699705089896e-17,
+        "z": 0.5,
+        "rx": -90.0,
+        "ry": -90.0,
+        "rz": 180.0
+      }
+    },
+    {
+      "id": "1d4cb8060e",
+      "kind": "sleep",
+      "note": "腰到位等待",
+      "seconds": 2.0
+    },
+    {
+      "id": "6a4e789de9",
+      "kind": "arm",
+      "note": "启动：双臂待机",
+      "left": {
+        "x": 0.45,
+        "y": 0.36,
+        "z": -0.08,
+        "rx": 90.0,
+        "ry": 0.0,
+        "rz": 0.0
+      },
+      "right": {
+        "x": 0.45,
+        "y": -0.36,
+        "z": -0.08,
+        "rx": -90.0,
+        "ry": 0.0,
+        "rz": 0.0
+      },
+      "speed": 0.2
+    }
+  ],
+  "chassis": null
+}

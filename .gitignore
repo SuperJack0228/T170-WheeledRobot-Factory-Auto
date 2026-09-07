@@ -1,0 +1,98 @@
+# --- build / compile ---
+build/
+**/build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+*.o
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+dist/
+.venv/
+venv/
+env/
+# 本地编出来的库在 build/ 下；lib/、sdk/ 里预编译 .so 要入库
+build/**/*.a
+build/**/*.so
+build/**/*.so.*
+**/build/**/*.a
+**/build/**/*.so
+**/build/**/*.so.*
+
+# --- docs build artifacts ---
+**/.doctrees/
+**/.buildinfo
+**/_build/
+*.doctree
+environment.pickle
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.cursor/
+
+# --- logs / runtime dumps ---
+*.log
+*.tmp
+*.bak
+*.cache
+vision_time.log
+piancha.txt
+piancha copy.txt
+1.TXT
+config.txt
+
+# --- debug images / captures (large, machine-local) ---
+picture_debug/
+**/picture_debug/
+左右手夹取/
+
+# --- YOLO / vision weights (large; keep configs, not .pt) ---
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt
+*.weights
+
+# --- archives / accidental dumps ---
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+
+# --- camera / secret-ish local overrides (keep tracked defaults) ---
+# Uncomment if you later put secrets here:
+# config/local_*.yaml
+# **/.env
+# **/.env.*
+
+# --- Python tooling ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- ROS / misc ---
+.catkin_tools/
+devel/
+install/
+log/
+
+# --- OS ---
+Thumbs.db
+Desktop.ini

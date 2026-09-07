@@ -1,0 +1,605 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Documentation &mdash; VMR AMR SDK Python Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="audio" href="audio.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            VMR AMR SDK 2.0
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">VMR AMR SDK 2.0</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API Documentation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-documentation">
+<h1>API Documentation<a class="headerlink" href="#api-documentation" title="Link to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.AudioPlayRequest"><code class="docutils literal notranslate"><span class="pre">AudioPlayRequest</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.AudioState"><code class="docutils literal notranslate"><span class="pre">AudioState</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.async_play_audio"><code class="docutils literal notranslate"><span class="pre">async_play_audio()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.async_query_audio_volume"><code class="docutils literal notranslate"><span class="pre">async_query_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.async_set_audio_volume"><code class="docutils literal notranslate"><span class="pre">async_set_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.async_stop_audio"><code class="docutils literal notranslate"><span class="pre">async_stop_audio()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.audio_state"><code class="docutils literal notranslate"><span class="pre">audio_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.has_audio_dev"><code class="docutils literal notranslate"><span class="pre">has_audio_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.play_audio"><code class="docutils literal notranslate"><span class="pre">play_audio()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.query_audio_volume"><code class="docutils literal notranslate"><span class="pre">query_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.set_audio_volume"><code class="docutils literal notranslate"><span class="pre">set_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio.html#audio.stop_audio"><code class="docutils literal notranslate"><span class="pre">stop_audio()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.AudioPlayRequest"><code class="docutils literal notranslate"><span class="pre">AudioPlayRequest</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.AudioState"><code class="docutils literal notranslate"><span class="pre">AudioState</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.async_play_audio"><code class="docutils literal notranslate"><span class="pre">async_play_audio()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.async_query_audio_volume"><code class="docutils literal notranslate"><span class="pre">async_query_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.async_set_audio_volume"><code class="docutils literal notranslate"><span class="pre">async_set_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.async_stop_audio"><code class="docutils literal notranslate"><span class="pre">async_stop_audio()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.audio_state"><code class="docutils literal notranslate"><span class="pre">audio_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.has_audio_dev"><code class="docutils literal notranslate"><span class="pre">has_audio_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.play_audio"><code class="docutils literal notranslate"><span class="pre">play_audio()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.query_audio_volume"><code class="docutils literal notranslate"><span class="pre">query_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.set_audio_volume"><code class="docutils literal notranslate"><span class="pre">set_audio_volume()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="audio_ex.html#audio_ex.stop_audio"><code class="docutils literal notranslate"><span class="pre">stop_audio()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="battery.html#battery.BatteryState"><code class="docutils literal notranslate"><span class="pre">BatteryState</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="battery.html#battery.ChargeStatus"><code class="docutils literal notranslate"><span class="pre">ChargeStatus</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="battery.html#battery.battery_state"><code class="docutils literal notranslate"><span class="pre">battery_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="battery.html#battery.get_all_battery_dev"><code class="docutils literal notranslate"><span class="pre">get_all_battery_dev()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="battery_ex.html#battery_ex.BatteryState"><code class="docutils literal notranslate"><span class="pre">BatteryState</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="battery_ex.html#battery_ex.ChargeStatus"><code class="docutils literal notranslate"><span class="pre">ChargeStatus</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="battery_ex.html#battery_ex.battery_state"><code class="docutils literal notranslate"><span class="pre">battery_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="battery_ex.html#battery_ex.get_all_battery_dev"><code class="docutils literal notranslate"><span class="pre">get_all_battery_dev()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.BasicOdometry"><code class="docutils literal notranslate"><span class="pre">BasicOdometry</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.Header"><code class="docutils literal notranslate"><span class="pre">Header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.Pose"><code class="docutils literal notranslate"><span class="pre">Pose</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.Quaternion"><code class="docutils literal notranslate"><span class="pre">Quaternion</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.Twist"><code class="docutils literal notranslate"><span class="pre">Twist</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.Vector3"><code class="docutils literal notranslate"><span class="pre">Vector3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.has_bridge_drive_dev"><code class="docutils literal notranslate"><span class="pre">has_bridge_drive_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.setRobotTwist"><code class="docutils literal notranslate"><span class="pre">setRobotTwist()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive.html#bridge_drive.updateOdomInfo"><code class="docutils literal notranslate"><span class="pre">updateOdomInfo()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.BasicOdometry"><code class="docutils literal notranslate"><span class="pre">BasicOdometry</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.Header"><code class="docutils literal notranslate"><span class="pre">Header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.Pose"><code class="docutils literal notranslate"><span class="pre">Pose</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.Quaternion"><code class="docutils literal notranslate"><span class="pre">Quaternion</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.Twist"><code class="docutils literal notranslate"><span class="pre">Twist</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.Vector3"><code class="docutils literal notranslate"><span class="pre">Vector3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.has_bridge_drive_dev"><code class="docutils literal notranslate"><span class="pre">has_bridge_drive_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.setRobotTwist"><code class="docutils literal notranslate"><span class="pre">setRobotTwist()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_drive_ex.html#bridge_drive_ex.updateOdomInfo"><code class="docutils literal notranslate"><span class="pre">updateOdomInfo()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan.html#bridge_scan.Scan"><code class="docutils literal notranslate"><span class="pre">Scan</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan.html#bridge_scan.has_bridge_scan_dev"><code class="docutils literal notranslate"><span class="pre">has_bridge_scan_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan.html#bridge_scan.laser_scan"><code class="docutils literal notranslate"><span class="pre">laser_scan()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan.html#bridge_scan.updateLaserInfo"><code class="docutils literal notranslate"><span class="pre">updateLaserInfo()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan_ex.html#bridge_scan_ex.Scan"><code class="docutils literal notranslate"><span class="pre">Scan</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan_ex.html#bridge_scan_ex.has_bridge_scan_dev"><code class="docutils literal notranslate"><span class="pre">has_bridge_scan_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan_ex.html#bridge_scan_ex.laser_scan"><code class="docutils literal notranslate"><span class="pre">laser_scan()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bridge_scan_ex.html#bridge_scan_ex.updateLaserInfo"><code class="docutils literal notranslate"><span class="pre">updateLaserInfo()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.BoundingBox"><code class="docutils literal notranslate"><span class="pre">BoundingBox</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.Mat"><code class="docutils literal notranslate"><span class="pre">Mat</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.PointCloud"><code class="docutils literal notranslate"><span class="pre">PointCloud</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.PointXYZ"><code class="docutils literal notranslate"><span class="pre">PointXYZ</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.RecognitionResult"><code class="docutils literal notranslate"><span class="pre">RecognitionResult</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.get_all_depth_semantic_dev"><code class="docutils literal notranslate"><span class="pre">get_all_depth_semantic_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.recognition_state"><code class="docutils literal notranslate"><span class="pre">recognition_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic.html#depth_semantic.set_rgb_enable"><code class="docutils literal notranslate"><span class="pre">set_rgb_enable()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.BoundingBox"><code class="docutils literal notranslate"><span class="pre">BoundingBox</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.Mat"><code class="docutils literal notranslate"><span class="pre">Mat</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.PointCloud"><code class="docutils literal notranslate"><span class="pre">PointCloud</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.PointXYZ"><code class="docutils literal notranslate"><span class="pre">PointXYZ</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.RecognitionResult"><code class="docutils literal notranslate"><span class="pre">RecognitionResult</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.get_all_depth_semantic_dev"><code class="docutils literal notranslate"><span class="pre">get_all_depth_semantic_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.recognition_state"><code class="docutils literal notranslate"><span class="pre">recognition_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="depth_semantic_ex.html#depth_semantic_ex.set_rgb_enable"><code class="docutils literal notranslate"><span class="pre">set_rgb_enable()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="exception.html#exception.Exception"><code class="docutils literal notranslate"><span class="pre">Exception</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception.html#exception.ExceptionLevel"><code class="docutils literal notranslate"><span class="pre">ExceptionLevel</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception.html#exception.ExceptionsInfo"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception.html#exception.async_set_exception_level"><code class="docutils literal notranslate"><span class="pre">async_set_exception_level()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception.html#exception.exception_state"><code class="docutils literal notranslate"><span class="pre">exception_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception.html#exception.has_exception_dev"><code class="docutils literal notranslate"><span class="pre">has_exception_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception.html#exception.set_exception_level"><code class="docutils literal notranslate"><span class="pre">set_exception_level()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="exception_ex.html#exception_ex.Exception"><code class="docutils literal notranslate"><span class="pre">Exception</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception_ex.html#exception_ex.ExceptionLevel"><code class="docutils literal notranslate"><span class="pre">ExceptionLevel</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception_ex.html#exception_ex.ExceptionsInfo"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception_ex.html#exception_ex.async_set_exception_level"><code class="docutils literal notranslate"><span class="pre">async_set_exception_level()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception_ex.html#exception_ex.exception_state"><code class="docutils literal notranslate"><span class="pre">exception_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception_ex.html#exception_ex.has_exception_dev"><code class="docutils literal notranslate"><span class="pre">has_exception_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="exception_ex.html#exception_ex.set_exception_level"><code class="docutils literal notranslate"><span class="pre">set_exception_level()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="imu.html#imu.Quaternion"><code class="docutils literal notranslate"><span class="pre">Quaternion</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html#imu.Vector3"><code class="docutils literal notranslate"><span class="pre">Vector3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html#imu.VmrImuInfo"><code class="docutils literal notranslate"><span class="pre">VmrImuInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html#imu.VmrImuType"><code class="docutils literal notranslate"><span class="pre">VmrImuType</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html#imu.get_all_imu_dev"><code class="docutils literal notranslate"><span class="pre">get_all_imu_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu.html#imu.imu_state"><code class="docutils literal notranslate"><span class="pre">imu_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="imu_ex.html#imu_ex.Quaternion"><code class="docutils literal notranslate"><span class="pre">Quaternion</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu_ex.html#imu_ex.Vector3"><code class="docutils literal notranslate"><span class="pre">Vector3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu_ex.html#imu_ex.VmrImuInfo"><code class="docutils literal notranslate"><span class="pre">VmrImuInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu_ex.html#imu_ex.VmrImuType"><code class="docutils literal notranslate"><span class="pre">VmrImuType</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu_ex.html#imu_ex.get_all_imu_dev"><code class="docutils literal notranslate"><span class="pre">get_all_imu_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="imu_ex.html#imu_ex.imu_state"><code class="docutils literal notranslate"><span class="pre">imu_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="io_manager.html#io_manager.IoDataReport"><code class="docutils literal notranslate"><span class="pre">IoDataReport</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="io_manager.html#io_manager.get_all_io_dev"><code class="docutils literal notranslate"><span class="pre">get_all_io_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="io_manager.html#io_manager.io_state"><code class="docutils literal notranslate"><span class="pre">io_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="io_manager.html#io_manager.set_do_bit"><code class="docutils literal notranslate"><span class="pre">set_do_bit()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="io_manager_ex.html#io_manager_ex.IoDataReport"><code class="docutils literal notranslate"><span class="pre">IoDataReport</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="io_manager_ex.html#io_manager_ex.get_all_io_dev"><code class="docutils literal notranslate"><span class="pre">get_all_io_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="io_manager_ex.html#io_manager_ex.io_state"><code class="docutils literal notranslate"><span class="pre">io_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="io_manager_ex.html#io_manager_ex.set_do_bit"><code class="docutils literal notranslate"><span class="pre">set_do_bit()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d.html#laser_2d.BasicLaserScan"><code class="docutils literal notranslate"><span class="pre">BasicLaserScan</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d.html#laser_2d.Header"><code class="docutils literal notranslate"><span class="pre">Header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d.html#laser_2d.get_all_laser2_d_dev"><code class="docutils literal notranslate"><span class="pre">get_all_laser2_d_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d.html#laser_2d.laser_scan"><code class="docutils literal notranslate"><span class="pre">laser_scan()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d_ex.html#laser_2d_ex.BasicLaserScan"><code class="docutils literal notranslate"><span class="pre">BasicLaserScan</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d_ex.html#laser_2d_ex.Header"><code class="docutils literal notranslate"><span class="pre">Header</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d_ex.html#laser_2d_ex.get_all_laser2_d_dev"><code class="docutils literal notranslate"><span class="pre">get_all_laser2_d_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="laser_2d_ex.html#laser_2d_ex.laser_scan"><code class="docutils literal notranslate"><span class="pre">laser_scan()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lift.html#lift.AsyncLiftCtrTask"><code class="docutils literal notranslate"><span class="pre">AsyncLiftCtrTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift.html#lift.LiftInfo"><code class="docutils literal notranslate"><span class="pre">LiftInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift.html#lift.ResultLiftCtr"><code class="docutils literal notranslate"><span class="pre">ResultLiftCtr</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift.html#lift.async_lift_ctr"><code class="docutils literal notranslate"><span class="pre">async_lift_ctr()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift.html#lift.has_lift_dev"><code class="docutils literal notranslate"><span class="pre">has_lift_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift.html#lift.lift_state"><code class="docutils literal notranslate"><span class="pre">lift_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="lift_ex.html#lift_ex.AsyncLiftCtrTask"><code class="docutils literal notranslate"><span class="pre">AsyncLiftCtrTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift_ex.html#lift_ex.LiftInfo"><code class="docutils literal notranslate"><span class="pre">LiftInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift_ex.html#lift_ex.ResultLiftCtr"><code class="docutils literal notranslate"><span class="pre">ResultLiftCtr</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift_ex.html#lift_ex.async_lift_ctr"><code class="docutils literal notranslate"><span class="pre">async_lift_ctr()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift_ex.html#lift_ex.has_lift_dev"><code class="docutils literal notranslate"><span class="pre">has_lift_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="lift_ex.html#lift_ex.lift_state"><code class="docutils literal notranslate"><span class="pre">lift_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="light.html#light.LightInfo"><code class="docutils literal notranslate"><span class="pre">LightInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light.html#light.LightState"><code class="docutils literal notranslate"><span class="pre">LightState</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light.html#light.ctr_light"><code class="docutils literal notranslate"><span class="pre">ctr_light()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light.html#light.has_light_dev"><code class="docutils literal notranslate"><span class="pre">has_light_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light.html#light.light_state"><code class="docutils literal notranslate"><span class="pre">light_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="light_ex.html#light_ex.LightInfo"><code class="docutils literal notranslate"><span class="pre">LightInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light_ex.html#light_ex.LightState"><code class="docutils literal notranslate"><span class="pre">LightState</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light_ex.html#light_ex.ctr_light"><code class="docutils literal notranslate"><span class="pre">ctr_light()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light_ex.html#light_ex.has_light_dev"><code class="docutils literal notranslate"><span class="pre">has_light_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="light_ex.html#light_ex.light_state"><code class="docutils literal notranslate"><span class="pre">light_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="localization.html#localization.LocationInfo"><code class="docutils literal notranslate"><span class="pre">LocationInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization.html#localization.ReLocationInfo"><code class="docutils literal notranslate"><span class="pre">ReLocationInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization.html#localization.has_location_dev"><code class="docutils literal notranslate"><span class="pre">has_location_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization.html#localization.loc_state"><code class="docutils literal notranslate"><span class="pre">loc_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization.html#localization.relocate"><code class="docutils literal notranslate"><span class="pre">relocate()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="localization_ex.html#localization_ex.LocationInfo"><code class="docutils literal notranslate"><span class="pre">LocationInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization_ex.html#localization_ex.ReLocationInfo"><code class="docutils literal notranslate"><span class="pre">ReLocationInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization_ex.html#localization_ex.has_location_dev"><code class="docutils literal notranslate"><span class="pre">has_location_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization_ex.html#localization_ex.loc_state"><code class="docutils literal notranslate"><span class="pre">loc_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="localization_ex.html#localization_ex.relocate"><code class="docutils literal notranslate"><span class="pre">relocate()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="map_reader.html#map_reader.Goal"><code class="docutils literal notranslate"><span class="pre">Goal</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader.html#map_reader.Line"><code class="docutils literal notranslate"><span class="pre">Line</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader.html#map_reader.MapPoints"><code class="docutils literal notranslate"><span class="pre">MapPoints</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader.html#map_reader.async_get_current_map_info"><code class="docutils literal notranslate"><span class="pre">async_get_current_map_info()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader.html#map_reader.get_current_map_info"><code class="docutils literal notranslate"><span class="pre">get_current_map_info()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader.html#map_reader.has_map_reader"><code class="docutils literal notranslate"><span class="pre">has_map_reader()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="map_reader_ex.html#map_reader_ex.Goal"><code class="docutils literal notranslate"><span class="pre">Goal</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader_ex.html#map_reader_ex.Line"><code class="docutils literal notranslate"><span class="pre">Line</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader_ex.html#map_reader_ex.MapPoints"><code class="docutils literal notranslate"><span class="pre">MapPoints</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader_ex.html#map_reader_ex.async_get_current_map_info"><code class="docutils literal notranslate"><span class="pre">async_get_current_map_info()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader_ex.html#map_reader_ex.get_current_map_info"><code class="docutils literal notranslate"><span class="pre">get_current_map_info()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="map_reader_ex.html#map_reader_ex.has_map_reader"><code class="docutils literal notranslate"><span class="pre">has_map_reader()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.AsyncMoveRelativeTask"><code class="docutils literal notranslate"><span class="pre">AsyncMoveRelativeTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.MoveRelativeInfo"><code class="docutils literal notranslate"><span class="pre">MoveRelativeInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.ResultMoveRelative"><code class="docutils literal notranslate"><span class="pre">ResultMoveRelative</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.Twist"><code class="docutils literal notranslate"><span class="pre">Twist</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.Vector3"><code class="docutils literal notranslate"><span class="pre">Vector3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.async_close_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">async_close_third_speed_ctrl()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.async_ctrl_speed_factor"><code class="docutils literal notranslate"><span class="pre">async_ctrl_speed_factor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.async_moveRelative"><code class="docutils literal notranslate"><span class="pre">async_moveRelative()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.async_send_third_expected_speed"><code class="docutils literal notranslate"><span class="pre">async_send_third_expected_speed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.async_set_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">async_set_third_speed_ctrl()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.close_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">close_third_speed_ctrl()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.ctrl_speed_factor"><code class="docutils literal notranslate"><span class="pre">ctrl_speed_factor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.has_nav_dev"><code class="docutils literal notranslate"><span class="pre">has_nav_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.send_third_expected_speed"><code class="docutils literal notranslate"><span class="pre">send_third_expected_speed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav.html#nav.set_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">set_third_speed_ctrl()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.AsyncMoveRelativeTask"><code class="docutils literal notranslate"><span class="pre">AsyncMoveRelativeTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.MoveRelativeInfo"><code class="docutils literal notranslate"><span class="pre">MoveRelativeInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.ResultMoveRelative"><code class="docutils literal notranslate"><span class="pre">ResultMoveRelative</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.Twist"><code class="docutils literal notranslate"><span class="pre">Twist</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.Vector3"><code class="docutils literal notranslate"><span class="pre">Vector3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.async_close_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">async_close_third_speed_ctrl()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.async_ctrl_speed_factor"><code class="docutils literal notranslate"><span class="pre">async_ctrl_speed_factor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.async_moveRelative"><code class="docutils literal notranslate"><span class="pre">async_moveRelative()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.async_send_third_expected_speed"><code class="docutils literal notranslate"><span class="pre">async_send_third_expected_speed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.async_set_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">async_set_third_speed_ctrl()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.close_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">close_third_speed_ctrl()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.ctrl_speed_factor"><code class="docutils literal notranslate"><span class="pre">ctrl_speed_factor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.has_nav_dev"><code class="docutils literal notranslate"><span class="pre">has_nav_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.send_third_expected_speed"><code class="docutils literal notranslate"><span class="pre">send_third_expected_speed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="nav_ex.html#nav_ex.set_third_speed_ctrl"><code class="docutils literal notranslate"><span class="pre">set_third_speed_ctrl()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.PoseXY"><code class="docutils literal notranslate"><span class="pre">PoseXY</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.VirtualObstacleInfo"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.VirtualObstacleInfoList"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfoList</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.add_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">add_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.async_add_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_add_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.async_query_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_query_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.async_remove_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_remove_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.has_obstacle_avoidance_dev"><code class="docutils literal notranslate"><span class="pre">has_obstacle_avoidance_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.query_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">query_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance.html#obstacle_avoidance.remove_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">remove_virtual_obstacle()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.PoseXY"><code class="docutils literal notranslate"><span class="pre">PoseXY</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.VirtualObstacleInfo"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.VirtualObstacleInfoList"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfoList</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.add_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">add_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.async_add_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_add_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.async_query_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_query_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.async_remove_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_remove_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.has_obstacle_avoidance_dev"><code class="docutils literal notranslate"><span class="pre">has_obstacle_avoidance_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.query_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">query_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="obstacle_avoidance_ex.html#obstacle_avoidance_ex.remove_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">remove_virtual_obstacle()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="odometry.html#odometry.OdomInfo"><code class="docutils literal notranslate"><span class="pre">OdomInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="odometry.html#odometry.has_odom_dev"><code class="docutils literal notranslate"><span class="pre">has_odom_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="odometry.html#odometry.odom_state"><code class="docutils literal notranslate"><span class="pre">odom_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="odometry_ex.html#odometry_ex.OdomInfo"><code class="docutils literal notranslate"><span class="pre">OdomInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="odometry_ex.html#odometry_ex.has_odom_dev"><code class="docutils literal notranslate"><span class="pre">has_odom_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="odometry_ex.html#odometry_ex.odom_state"><code class="docutils literal notranslate"><span class="pre">odom_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud.html#point_cloud.PointCloud"><code class="docutils literal notranslate"><span class="pre">PointCloud</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud.html#point_cloud.PointXYZ"><code class="docutils literal notranslate"><span class="pre">PointXYZ</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud.html#point_cloud.has_point_cloud_dev"><code class="docutils literal notranslate"><span class="pre">has_point_cloud_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud.html#point_cloud.point_cloud_pub"><code class="docutils literal notranslate"><span class="pre">point_cloud_pub()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud_ex.html#point_cloud_ex.PointCloud"><code class="docutils literal notranslate"><span class="pre">PointCloud</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud_ex.html#point_cloud_ex.PointXYZ"><code class="docutils literal notranslate"><span class="pre">PointXYZ</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud_ex.html#point_cloud_ex.has_point_cloud_dev"><code class="docutils literal notranslate"><span class="pre">has_point_cloud_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="point_cloud_ex.html#point_cloud_ex.point_cloud_pub"><code class="docutils literal notranslate"><span class="pre">point_cloud_pub()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.ClientConfig"><code class="docutils literal notranslate"><span class="pre">ClientConfig</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.RpcErrorType"><code class="docutils literal notranslate"><span class="pre">RpcErrorType</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.RpcException"><code class="docutils literal notranslate"><span class="pre">RpcException</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.close_client"><code class="docutils literal notranslate"><span class="pre">close_client()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.get_client_config"><code class="docutils literal notranslate"><span class="pre">get_client_config()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.init_client"><code class="docutils literal notranslate"><span class="pre">init_client()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.is_client_connected"><code class="docutils literal notranslate"><span class="pre">is_client_connected()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.reconnect"><code class="docutils literal notranslate"><span class="pre">reconnect()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common.html#py_client_common.update_server_addr"><code class="docutils literal notranslate"><span class="pre">update_server_addr()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.ClientConfig"><code class="docutils literal notranslate"><span class="pre">ClientConfig</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.DEFAULT_CLIENT_HANDLE"><code class="docutils literal notranslate"><span class="pre">DEFAULT_CLIENT_HANDLE</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.RpcErrorType"><code class="docutils literal notranslate"><span class="pre">RpcErrorType</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.RpcException"><code class="docutils literal notranslate"><span class="pre">RpcException</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.close_all_clients"><code class="docutils literal notranslate"><span class="pre">close_all_clients()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.close_client"><code class="docutils literal notranslate"><span class="pre">close_client()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.create_client"><code class="docutils literal notranslate"><span class="pre">create_client()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.get_client_config"><code class="docutils literal notranslate"><span class="pre">get_client_config()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.is_client_connected"><code class="docutils literal notranslate"><span class="pre">is_client_connected()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.reconnect"><code class="docutils literal notranslate"><span class="pre">reconnect()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="py_client_common_ex.html#py_client_common_ex.update_server_addr"><code class="docutils literal notranslate"><span class="pre">update_server_addr()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera.html#qrcamera.QRCameraResult"><code class="docutils literal notranslate"><span class="pre">QRCameraResult</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera.html#qrcamera.QRCameraSwitchRequest"><code class="docutils literal notranslate"><span class="pre">QRCameraSwitchRequest</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera.html#qrcamera.QRPose2D"><code class="docutils literal notranslate"><span class="pre">QRPose2D</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera.html#qrcamera.async_set_qrcamera_enable"><code class="docutils literal notranslate"><span class="pre">async_set_qrcamera_enable()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera.html#qrcamera.has_q_r_camera_dev"><code class="docutils literal notranslate"><span class="pre">has_q_r_camera_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera.html#qrcamera.qrcamera_result"><code class="docutils literal notranslate"><span class="pre">qrcamera_result()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera.html#qrcamera.set_qrcamera_enable"><code class="docutils literal notranslate"><span class="pre">set_qrcamera_enable()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera_ex.html#qrcamera_ex.QRCameraResult"><code class="docutils literal notranslate"><span class="pre">QRCameraResult</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera_ex.html#qrcamera_ex.QRCameraSwitchRequest"><code class="docutils literal notranslate"><span class="pre">QRCameraSwitchRequest</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera_ex.html#qrcamera_ex.QRPose2D"><code class="docutils literal notranslate"><span class="pre">QRPose2D</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera_ex.html#qrcamera_ex.async_set_qrcamera_enable"><code class="docutils literal notranslate"><span class="pre">async_set_qrcamera_enable()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera_ex.html#qrcamera_ex.has_q_r_camera_dev"><code class="docutils literal notranslate"><span class="pre">has_q_r_camera_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera_ex.html#qrcamera_ex.qrcamera_result"><code class="docutils literal notranslate"><span class="pre">qrcamera_result()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="qrcamera_ex.html#qrcamera_ex.set_qrcamera_enable"><code class="docutils literal notranslate"><span class="pre">set_qrcamera_enable()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.AsyncChargeTaskTask"><code class="docutils literal notranslate"><span class="pre">AsyncChargeTaskTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.AsyncTopoMoveTaskTask"><code class="docutils literal notranslate"><span class="pre">AsyncTopoMoveTaskTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.CmdResult"><code class="docutils literal notranslate"><span class="pre">CmdResult</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.ResultChargeTask"><code class="docutils literal notranslate"><span class="pre">ResultChargeTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.ResultTopoMoveTask"><code class="docutils literal notranslate"><span class="pre">ResultTopoMoveTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.RobotPose"><code class="docutils literal notranslate"><span class="pre">RobotPose</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.TopoPose"><code class="docutils literal notranslate"><span class="pre">TopoPose</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.async_charge_relay"><code class="docutils literal notranslate"><span class="pre">async_charge_relay()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.async_charge_task"><code class="docutils literal notranslate"><span class="pre">async_charge_task()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.async_topo_move_task"><code class="docutils literal notranslate"><span class="pre">async_topo_move_task()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.charge_relay"><code class="docutils literal notranslate"><span class="pre">charge_relay()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task.html#robot_task.has_robot_task_dev"><code class="docutils literal notranslate"><span class="pre">has_robot_task_dev()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.AsyncChargeTaskTask"><code class="docutils literal notranslate"><span class="pre">AsyncChargeTaskTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.AsyncTopoMoveTaskTask"><code class="docutils literal notranslate"><span class="pre">AsyncTopoMoveTaskTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.CmdResult"><code class="docutils literal notranslate"><span class="pre">CmdResult</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.ResultChargeTask"><code class="docutils literal notranslate"><span class="pre">ResultChargeTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.ResultTopoMoveTask"><code class="docutils literal notranslate"><span class="pre">ResultTopoMoveTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.RobotPose"><code class="docutils literal notranslate"><span class="pre">RobotPose</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.TopoPose"><code class="docutils literal notranslate"><span class="pre">TopoPose</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.async_charge_relay"><code class="docutils literal notranslate"><span class="pre">async_charge_relay()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.async_charge_task"><code class="docutils literal notranslate"><span class="pre">async_charge_task()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.async_topo_move_task"><code class="docutils literal notranslate"><span class="pre">async_topo_move_task()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.charge_relay"><code class="docutils literal notranslate"><span class="pre">charge_relay()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="robot_task_ex.html#robot_task_ex.has_robot_task_dev"><code class="docutils literal notranslate"><span class="pre">has_robot_task_dev()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.AsyncCmdNameTask"><code class="docutils literal notranslate"><span class="pre">AsyncCmdNameTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.ChildA"><code class="docutils literal notranslate"><span class="pre">ChildA</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.CmdParam"><code class="docutils literal notranslate"><span class="pre">CmdParam</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.ResultCmdName"><code class="docutils literal notranslate"><span class="pre">ResultCmdName</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.ReturnA"><code class="docutils literal notranslate"><span class="pre">ReturnA</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.RpcParam"><code class="docutils literal notranslate"><span class="pre">RpcParam</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.async_cmd_name"><code class="docutils literal notranslate"><span class="pre">async_cmd_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.async_topic_name"><code class="docutils literal notranslate"><span class="pre">async_topic_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.get_all_pallet_arrive_sensor"><code class="docutils literal notranslate"><span class="pre">get_all_pallet_arrive_sensor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.pub_name"><code class="docutils literal notranslate"><span class="pre">pub_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test.html#rpc_test.topic_name"><code class="docutils literal notranslate"><span class="pre">topic_name()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.AsyncCmdNameTask"><code class="docutils literal notranslate"><span class="pre">AsyncCmdNameTask</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.ChildA"><code class="docutils literal notranslate"><span class="pre">ChildA</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.CmdParam"><code class="docutils literal notranslate"><span class="pre">CmdParam</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.ResultCmdName"><code class="docutils literal notranslate"><span class="pre">ResultCmdName</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.ReturnA"><code class="docutils literal notranslate"><span class="pre">ReturnA</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.RpcParam"><code class="docutils literal notranslate"><span class="pre">RpcParam</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.async_cmd_name"><code class="docutils literal notranslate"><span class="pre">async_cmd_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.async_topic_name"><code class="docutils literal notranslate"><span class="pre">async_topic_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.get_all_pallet_arrive_sensor"><code class="docutils literal notranslate"><span class="pre">get_all_pallet_arrive_sensor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.pub_name"><code class="docutils literal notranslate"><span class="pre">pub_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_test_ex.html#rpc_test_ex.topic_name"><code class="docutils literal notranslate"><span class="pre">topic_name()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="sensor.html#sensor.MotorInfo"><code class="docutils literal notranslate"><span class="pre">MotorInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor.html#sensor.WeightInfo"><code class="docutils literal notranslate"><span class="pre">WeightInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor.html#sensor.WheelPlacement"><code class="docutils literal notranslate"><span class="pre">WheelPlacement</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor.html#sensor.get_all_motor_info_pub"><code class="docutils literal notranslate"><span class="pre">get_all_motor_info_pub()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor.html#sensor.get_all_weight"><code class="docutils literal notranslate"><span class="pre">get_all_weight()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor.html#sensor.motor"><code class="docutils literal notranslate"><span class="pre">motor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor.html#sensor.single_weight"><code class="docutils literal notranslate"><span class="pre">single_weight()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="sensor_ex.html#sensor_ex.MotorInfo"><code class="docutils literal notranslate"><span class="pre">MotorInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor_ex.html#sensor_ex.WeightInfo"><code class="docutils literal notranslate"><span class="pre">WeightInfo</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor_ex.html#sensor_ex.WheelPlacement"><code class="docutils literal notranslate"><span class="pre">WheelPlacement</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor_ex.html#sensor_ex.get_all_motor_info_pub"><code class="docutils literal notranslate"><span class="pre">get_all_motor_info_pub()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor_ex.html#sensor_ex.get_all_weight"><code class="docutils literal notranslate"><span class="pre">get_all_weight()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor_ex.html#sensor_ex.motor"><code class="docutils literal notranslate"><span class="pre">motor()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="sensor_ex.html#sensor_ex.single_weight"><code class="docutils literal notranslate"><span class="pre">single_weight()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="audio.html" class="btn btn-neutral float-right" title="audio" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

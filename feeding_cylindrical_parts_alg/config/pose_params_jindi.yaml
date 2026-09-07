@@ -1,0 +1,70 @@
+# 金帝四类分割（seg_model/best.pt）
+# 0 毛胚 original_product
+# 1 半加工 semi_finished_product
+# 2 加工 finished_product
+# 3 料盘孔 feeding_hole
+# 类别名必须与训练 data.yaml / 权重 names 一致
+
+yolo_class_names:
+  0: original_product
+  1: semi_finished_product
+  2: finished_product
+  3: feeding_hole
+
+units:
+  length: m
+
+algorithm:
+  default_id: 1          # 0=PnP  1=mask 深度重心；小零件优先重心
+
+segmentation:
+  model: ../seg_model/best.pt
+  conf: 0.45
+  iou: 0.5
+  imgsz: 1280
+  retina_masks: true
+  class_ids: null        # 四类都推理；抓取侧再过滤 class 0
+
+defaults:
+  radius_m: 0.0275
+  enabled: true
+  algorithm_id: 1
+
+classes:
+  original_product:
+    class_id: 0
+    radius_m: 0.0275
+    enabled: true
+    algorithm_id: 1
+
+  semi_finished_product:
+    class_id: 1
+    radius_m: 0.0275
+    enabled: true
+    algorithm_id: 1
+
+  finished_product:
+    class_id: 2
+    radius_m: 0.0275
+    enabled: true
+    algorithm_id: 1
+
+  feeding_hole:
+    class_id: 3
+    radius_m: 0.0315
+    enabled: true
+    algorithm_id: 1
+
+algorithm_pnp:
+  n_samples: 12
+  reproj_thresh: 6.0
+  max_reproj_mean: 10.0
+  min_depth_m: 0.02
+  min_normal_view_dot: 0.05
+  min_ellipse_area_px: 500.0
+
+algorithm_centroid:
+  mask_erode_kernel: [3, 3]
+  min_depth_m: 0.05
+  max_depth_m: 1.0
+  min_points: 10

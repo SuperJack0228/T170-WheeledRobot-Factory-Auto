@@ -1,0 +1,8 @@
+
+rpc_test_ex
+===========
+
+.. automodule:: rpc_test_ex
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "name": "untitled",
+  "steps": [
+    {
+      "id": "d2ece3ae2e",
+      "kind": "waist",
+      "note": "",
+      "mode": "rotate",
+      "angle_deg": 90.0,
+      "delta_m": 0.0,
+      "speed": 0.1,
+      "speed_deg_s": 30.0
+    },
+    {
+      "id": "57663c19ca",
+      "kind": "gripper",
+      "note": "",
+      "left": "open",
+      "right": "open"
+    },
+    {
+      "id": "a43f656a92",
+      "kind": "sleep",
+      "note": "",
+      "seconds": 3.0
+    },
+    {
+      "id": "f27ab904e2",
+      "kind": "waist",
+      "note": "",
+      "mode": "goto",
+      "angle_deg": 0.0,
+      "delta_m": 0.0,
+      "speed": 0.1,
+      "speed_deg_s": 30.0,
+      "pose": {
+        "x": 0.02,
+        "y": 3.9338760459728824e-17,
+        "z": 0.72,
+        "rx": -89.99999999999825,
+        "ry": -89.88464355468751,
+        "rz": 179.99999999999827
+      }
+    },
+    {
+      "id": "3127f3de21",
+      "kind": "vision_grasp",
+      "note": ""
+    },
+    {
+      "id": "895207f61c",
+      "kind": "sleep",
+      "note": "",
+      "seconds": 2.0
+    },
+    {
+      "id": "41f7c1bbaf",
+      "kind": "waist",
+      "note": "",
+      "mode": "rotate",
+      "angle_deg": 0.0,
+      "delta_m": 0.0,
+      "speed": 0.1,
+      "speed_deg_s": 30.0
+    },
+    {
+      "id": "01bd6101a6",
+      "kind": "arm",
+      "note": "",
+      "left": {
+        "x": 0.539914988100734,
+        "y": 0.020170526659323403,
+        "z": -0.14111998668251877,
+        "rx": 90.07785187546206,
+        "ry": 0.021285071694849726,
+        "rz": 0.06818637657716314
+      },
+      "right": null,
+      "speed": 0.2
+    },
+    {
+      "id": "8602b09adc",
+      "kind": "gripper",
+      "note": "",
+      "left": "open",
+      "right": null
+    },
+    {
+      "id": "d4b2db1410",
+      "kind": "arm",
+      "note": "",
+      "left": {
+        "x": 0.5599371132699416,
+        "y": 0.28,
+        "z": -0.08,
+        "rx": 90.07915463517293,
+        "ry": 0.0255679011688142,
+        "rz": 0.07958054901346345
+      },
+      "right": null,
+      "speed": 0.2
+    },
+    {
+      "id": "a12bfaa3c7",
+      "kind": "sleep",
+      "note": "",
+      "seconds": 1.0
+    },
+    {
+      "id": "686a85eb84",
+      "kind": "arm",
+      "note": "",
+      "left": null,
+      "right": {
+        "x": 0.55,
+        "y": -0.01,
+        "z": -0.14,
+        "rx": -89.92761077047562,
+        "ry": 0.12092829573294311,
+        "rz": -0.12179725418331099
+      },
+      "speed": 0.2
+    },
+    {
+      "id": "3f72544f22",
+      "kind": "gripper",
+      "note": "",
+      "left": null,
+      "right": "open"
+    },
+    {
+      "id": "f8c8aee6bf",
+      "kind": "arm",
+      "note": "",
+      "left": null,
+      "right": {
+        "x": 0.4497985189333581,
+        "y": -0.3608266855591883,
+        "z": -0.08086442249465552,
+        "rx": -89.92761077047562,
+        "ry": 0.12092829573294311,
+        "rz": -0.12179725418331099
+      },
+      "speed": 0.2
+    }
+  ],
+  "chassis": null
+}

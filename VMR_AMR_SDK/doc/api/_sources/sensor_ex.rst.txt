@@ -1,0 +1,8 @@
+
+sensor_ex
+=========
+
+.. automodule:: sensor_ex
+   :members:
+   :undoc-members:
+   :show-inheritance:

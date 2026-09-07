@@ -1,0 +1,379 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>qrcamera_ex &mdash; VMR AMR SDK Python Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="robot_task" href="robot_task.html" />
+    <link rel="prev" title="qrcamera" href="qrcamera.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VMR AMR SDK 2.0
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">qrcamera_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#qrcamera_ex.QRCameraResult"><code class="docutils literal notranslate"><span class="pre">QRCameraResult</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.base_in_qr"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.base_in_qr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.camera_in_qr"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.camera_in_qr</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.depth"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.depth</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.detected"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.detected</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.encode_type"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.encode_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.from_json"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.location"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.location</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.memb_obs_cnt"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.memb_obs_cnt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.memb_total_cnt"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.memb_total_cnt</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.qr_id"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.qr_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.qr_info"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.qr_info</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.qr_type"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.qr_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.tag_type"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.tag_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.timestamp_ns"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.timestamp_ns</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraResult.to_json"><code class="docutils literal notranslate"><span class="pre">QRCameraResult.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest"><code class="docutils literal notranslate"><span class="pre">QRCameraSwitchRequest</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest.enable"><code class="docutils literal notranslate"><span class="pre">QRCameraSwitchRequest.enable</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest.from_json"><code class="docutils literal notranslate"><span class="pre">QRCameraSwitchRequest.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest.location"><code class="docutils literal notranslate"><span class="pre">QRCameraSwitchRequest.location</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest.to_json"><code class="docutils literal notranslate"><span class="pre">QRCameraSwitchRequest.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#qrcamera_ex.QRPose2D"><code class="docutils literal notranslate"><span class="pre">QRPose2D</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRPose2D.from_json"><code class="docutils literal notranslate"><span class="pre">QRPose2D.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRPose2D.theta"><code class="docutils literal notranslate"><span class="pre">QRPose2D.theta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRPose2D.to_json"><code class="docutils literal notranslate"><span class="pre">QRPose2D.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRPose2D.x"><code class="docutils literal notranslate"><span class="pre">QRPose2D.x</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qrcamera_ex.QRPose2D.y"><code class="docutils literal notranslate"><span class="pre">QRPose2D.y</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#qrcamera_ex.async_set_qrcamera_enable"><code class="docutils literal notranslate"><span class="pre">async_set_qrcamera_enable()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#qrcamera_ex.has_q_r_camera_dev"><code class="docutils literal notranslate"><span class="pre">has_q_r_camera_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#qrcamera_ex.qrcamera_result"><code class="docutils literal notranslate"><span class="pre">qrcamera_result()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#qrcamera_ex.set_qrcamera_enable"><code class="docutils literal notranslate"><span class="pre">set_qrcamera_enable()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VMR AMR SDK 2.0</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">qrcamera_ex</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/qrcamera_ex.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-qrcamera_ex">
+<span id="qrcamera-ex"></span><h1>qrcamera_ex<a class="headerlink" href="#module-qrcamera_ex" title="Link to this heading"></a></h1>
+<p>qrcamera RPC 客户端 stub 模块</p>
+<p>该模块为 pybind 导出的 C++ 接口提供类型声明。
+自动生成的文件，请勿手动修改。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qrcamera_ex.</span></span><span class="sig-name descname"><span class="pre">QRCameraResult</span></span><a class="headerlink" href="#qrcamera_ex.QRCameraResult" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p><strong>简介:</strong> 二维码相机识别结果</p>
+<p><strong>参数:</strong> uint64_t timestamp_ns: 时间戳 ns</p>
+<p><strong>参数:</strong> int32_t location: 相机安装位置 上相机为0 下相机为1</p>
+<p><strong>参数:</strong> bool detected: 是否识别到二维码</p>
+<p><strong>参数:</strong> string qr_info: 二维码完整内容</p>
+<p><strong>参数:</strong> string qr_type: 二维码类型</p>
+<p><strong>参数:</strong> string qr_id: 二维码 ID</p>
+<p><strong>参数:</strong> QRPose2D base_in_qr: 车身在二维码坐标系下的位姿</p>
+<p><strong>参数:</strong> QRPose2D camera_in_qr: 相机在二维码坐标系下的位姿</p>
+<p><strong>参数:</strong> float depth: 二维码深度, 单位 m</p>
+<p><strong>参数:</strong> int32_t memb_total_cnt: 二维码组合总成员数</p>
+<p><strong>参数:</strong> int32_t memb_obs_cnt: 当前识别到的成员数</p>
+<p><strong>参数:</strong> int32_t tag_type: 标签类型, 0=DataMatrix, 1=Apriltag</p>
+<p><strong>参数:</strong> int32_t encode_type: 编码类型</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.base_in_qr">
+<span class="sig-name descname"><span class="pre">base_in_qr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#qrcamera_ex.QRPose2D" title="qrcamera_ex.QRPose2D"><span class="pre">QRPose2D</span></a></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.base_in_qr" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.camera_in_qr">
+<span class="sig-name descname"><span class="pre">camera_in_qr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#qrcamera_ex.QRPose2D" title="qrcamera_ex.QRPose2D"><span class="pre">QRPose2D</span></a></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.camera_in_qr" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.depth">
+<span class="sig-name descname"><span class="pre">depth</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.depth" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.detected">
+<span class="sig-name descname"><span class="pre">detected</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.detected" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.encode_type">
+<span class="sig-name descname"><span class="pre">encode_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.encode_type" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#qrcamera_ex.QRCameraResult" title="qrcamera_ex.QRCameraResult"><span class="pre">QRCameraResult</span></a></span></span><a class="headerlink" href="#qrcamera_ex.QRCameraResult.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.location">
+<span class="sig-name descname"><span class="pre">location</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.location" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.memb_obs_cnt">
+<span class="sig-name descname"><span class="pre">memb_obs_cnt</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.memb_obs_cnt" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.memb_total_cnt">
+<span class="sig-name descname"><span class="pre">memb_total_cnt</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.memb_total_cnt" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.qr_id">
+<span class="sig-name descname"><span class="pre">qr_id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.qr_id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.qr_info">
+<span class="sig-name descname"><span class="pre">qr_info</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.qr_info" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.qr_type">
+<span class="sig-name descname"><span class="pre">qr_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.qr_type" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.tag_type">
+<span class="sig-name descname"><span class="pre">tag_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.tag_type" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.timestamp_ns">
+<span class="sig-name descname"><span class="pre">timestamp_ns</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraResult.timestamp_ns" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraResult.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#qrcamera_ex.QRCameraResult.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraSwitchRequest">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qrcamera_ex.</span></span><span class="sig-name descname"><span class="pre">QRCameraSwitchRequest</span></span><a class="headerlink" href="#qrcamera_ex.QRCameraSwitchRequest" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p><strong>简介:</strong> 二维码相机开关请求</p>
+<p><strong>参数:</strong> bool enable: true 打开二维码识别, false 关闭二维码识别</p>
+<p><strong>参数:</strong> int32_t location: 相机安装位置 上相机为0 下相机为1</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraSwitchRequest.enable">
+<span class="sig-name descname"><span class="pre">enable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraSwitchRequest.enable" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraSwitchRequest.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest" title="qrcamera_ex.QRCameraSwitchRequest"><span class="pre">QRCameraSwitchRequest</span></a></span></span><a class="headerlink" href="#qrcamera_ex.QRCameraSwitchRequest.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraSwitchRequest.location">
+<span class="sig-name descname"><span class="pre">location</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#qrcamera_ex.QRCameraSwitchRequest.location" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qrcamera_ex.QRCameraSwitchRequest.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#qrcamera_ex.QRCameraSwitchRequest.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="qrcamera_ex.QRPose2D">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qrcamera_ex.</span></span><span class="sig-name descname"><span class="pre">QRPose2D</span></span><a class="headerlink" href="#qrcamera_ex.QRPose2D" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p><strong>简介:</strong> 二维码相对位姿</p>
+<p><strong>参数:</strong> float x: x 方向偏移, 单位 m</p>
+<p><strong>参数:</strong> float y: y 方向偏移, 单位 m</p>
+<p><strong>参数:</strong> float theta: 航向角偏移, 单位 rad</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="qrcamera_ex.QRPose2D.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#qrcamera_ex.QRPose2D" title="qrcamera_ex.QRPose2D"><span class="pre">QRPose2D</span></a></span></span><a class="headerlink" href="#qrcamera_ex.QRPose2D.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRPose2D.theta">
+<span class="sig-name descname"><span class="pre">theta</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#qrcamera_ex.QRPose2D.theta" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qrcamera_ex.QRPose2D.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#qrcamera_ex.QRPose2D.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRPose2D.x">
+<span class="sig-name descname"><span class="pre">x</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#qrcamera_ex.QRPose2D.x" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qrcamera_ex.QRPose2D.y">
+<span class="sig-name descname"><span class="pre">y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#qrcamera_ex.QRPose2D.y" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qrcamera_ex.async_set_qrcamera_enable">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qrcamera_ex.</span></span><span class="sig-name descname"><span class="pre">async_set_qrcamera_enable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">request</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest" title="qrcamera_ex.QRCameraSwitchRequest"><span class="pre">QRCameraSwitchRequest</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#qrcamera_ex.async_set_qrcamera_enable" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 开关二维码相机识别</p>
+<p><strong>参数:</strong> QRCameraSwitchRequest: 二维码相机开关请求</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qrcamera_ex.has_q_r_camera_dev">
+<span class="sig-prename descclassname"><span class="pre">qrcamera_ex.</span></span><span class="sig-name descname"><span class="pre">has_q_r_camera_dev</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#qrcamera_ex.has_q_r_camera_dev" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qrcamera_ex.qrcamera_result">
+<span class="sig-prename descclassname"><span class="pre">qrcamera_ex.</span></span><span class="sig-name descname"><span class="pre">qrcamera_result</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#qrcamera_ex.QRCameraResult" title="qrcamera_ex.QRCameraResult"><span class="pre">QRCameraResult</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#qrcamera_ex.qrcamera_result" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 实时获取二维码相机识别结果</p>
+<p><strong>参数:</strong> cb: 回调函数, 接收 QRCameraResult 参数</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qrcamera_ex.set_qrcamera_enable">
+<span class="sig-prename descclassname"><span class="pre">qrcamera_ex.</span></span><span class="sig-name descname"><span class="pre">set_qrcamera_enable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">request</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#qrcamera_ex.QRCameraSwitchRequest" title="qrcamera_ex.QRCameraSwitchRequest"><span class="pre">QRCameraSwitchRequest</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#qrcamera_ex.set_qrcamera_enable" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 开关二维码相机识别</p>
+<p><strong>参数:</strong> QRCameraSwitchRequest: 二维码相机开关请求</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="qrcamera.html" class="btn btn-neutral float-left" title="qrcamera" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="robot_task.html" class="btn btn-neutral float-right" title="robot_task" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

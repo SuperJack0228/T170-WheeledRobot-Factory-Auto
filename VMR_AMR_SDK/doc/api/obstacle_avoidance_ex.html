@@ -1,0 +1,314 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>obstacle_avoidance_ex &mdash; VMR AMR SDK Python Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="odometry" href="odometry.html" />
+    <link rel="prev" title="obstacle_avoidance" href="obstacle_avoidance.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VMR AMR SDK 2.0
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">obstacle_avoidance_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY"><code class="docutils literal notranslate"><span class="pre">PoseXY</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY.from_json"><code class="docutils literal notranslate"><span class="pre">PoseXY.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY.to_json"><code class="docutils literal notranslate"><span class="pre">PoseXY.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY.x"><code class="docutils literal notranslate"><span class="pre">PoseXY.x</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY.y"><code class="docutils literal notranslate"><span class="pre">PoseXY.y</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo.bottom_right"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo.bottom_right</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo.from_json"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo.obstacle_id"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo.obstacle_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo.to_json"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo.top_left"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfo.top_left</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfoList"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfoList</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfoList.from_json"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfoList.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfoList.to_json"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfoList.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfoList.virtual_obstacle_list"><code class="docutils literal notranslate"><span class="pre">VirtualObstacleInfoList.virtual_obstacle_list</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.add_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">add_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.async_add_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_add_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.async_query_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_query_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.async_remove_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">async_remove_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.has_obstacle_avoidance_dev"><code class="docutils literal notranslate"><span class="pre">has_obstacle_avoidance_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.query_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">query_virtual_obstacle()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#obstacle_avoidance_ex.remove_virtual_obstacle"><code class="docutils literal notranslate"><span class="pre">remove_virtual_obstacle()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VMR AMR SDK 2.0</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">obstacle_avoidance_ex</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/obstacle_avoidance_ex.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-obstacle_avoidance_ex">
+<span id="obstacle-avoidance-ex"></span><h1>obstacle_avoidance_ex<a class="headerlink" href="#module-obstacle_avoidance_ex" title="Link to this heading"></a></h1>
+<p>obstacle_avoidance RPC 客户端 stub 模块</p>
+<p>该模块为 pybind 导出的 C++ 接口提供类型声明。
+自动生成的文件，请勿手动修改。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.PoseXY">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">PoseXY</span></span><a class="headerlink" href="#obstacle_avoidance_ex.PoseXY" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.PoseXY.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY" title="obstacle_avoidance_ex.PoseXY"><span class="pre">PoseXY</span></a></span></span><a class="headerlink" href="#obstacle_avoidance_ex.PoseXY.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.PoseXY.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.PoseXY.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.PoseXY.x">
+<span class="sig-name descname"><span class="pre">x</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#obstacle_avoidance_ex.PoseXY.x" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.PoseXY.y">
+<span class="sig-name descname"><span class="pre">y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#obstacle_avoidance_ex.PoseXY.y" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">VirtualObstacleInfo</span></span><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfo" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfo.bottom_right">
+<span class="sig-name descname"><span class="pre">bottom_right</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY" title="obstacle_avoidance_ex.PoseXY"><span class="pre">PoseXY</span></a></em><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfo.bottom_right" title="Link to this definition"></a></dt>
+<dd><p>Bottom-right corner</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfo.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo" title="obstacle_avoidance_ex.VirtualObstacleInfo"><span class="pre">VirtualObstacleInfo</span></a></span></span><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfo.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfo.obstacle_id">
+<span class="sig-name descname"><span class="pre">obstacle_id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfo.obstacle_id" title="Link to this definition"></a></dt>
+<dd><p>Obstacle ID</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfo.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfo.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfo.top_left">
+<span class="sig-name descname"><span class="pre">top_left</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#obstacle_avoidance_ex.PoseXY" title="obstacle_avoidance_ex.PoseXY"><span class="pre">PoseXY</span></a></em><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfo.top_left" title="Link to this definition"></a></dt>
+<dd><p>Top-left corner</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfoList">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">VirtualObstacleInfoList</span></span><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfoList" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfoList.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfoList" title="obstacle_avoidance_ex.VirtualObstacleInfoList"><span class="pre">VirtualObstacleInfoList</span></a></span></span><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfoList.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfoList.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfoList.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.VirtualObstacleInfoList.virtual_obstacle_list">
+<span class="sig-name descname"><span class="pre">virtual_obstacle_list</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo" title="obstacle_avoidance_ex.VirtualObstacleInfo"><span class="pre">VirtualObstacleInfo</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#obstacle_avoidance_ex.VirtualObstacleInfoList.virtual_obstacle_list" title="Link to this definition"></a></dt>
+<dd><p>Virtual Obstacle List</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.add_virtual_obstacle">
+<span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">add_virtual_obstacle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obstacle_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo" title="obstacle_avoidance_ex.VirtualObstacleInfo"><span class="pre">VirtualObstacleInfo</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.add_virtual_obstacle" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 新增虚拟障碍物</p>
+<p><strong>参数:</strong> VirtualObstacleInfo: 障碍物信息</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.async_add_virtual_obstacle">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">async_add_virtual_obstacle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obstacle_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfo" title="obstacle_avoidance_ex.VirtualObstacleInfo"><span class="pre">VirtualObstacleInfo</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.async_add_virtual_obstacle" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 新增虚拟障碍物</p>
+<p><strong>参数:</strong> VirtualObstacleInfo: 障碍物信息</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.async_query_virtual_obstacle">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">async_query_virtual_obstacle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfoList" title="obstacle_avoidance_ex.VirtualObstacleInfoList"><span class="pre">VirtualObstacleInfoList</span></a></span></span><a class="headerlink" href="#obstacle_avoidance_ex.async_query_virtual_obstacle" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 查询虚拟障碍物列表</p>
+<p><strong>参数:</strong> VirtualObstacleInfoList: 虚拟障碍物列表</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.async_remove_virtual_obstacle">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">async_remove_virtual_obstacle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obstacle_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.async_remove_virtual_obstacle" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 删除虚拟障碍物</p>
+<p><strong>参数:</strong> int32_t: 虚拟障碍物id</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.has_obstacle_avoidance_dev">
+<span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">has_obstacle_avoidance_dev</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.has_obstacle_avoidance_dev" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.query_virtual_obstacle">
+<span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">query_virtual_obstacle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#obstacle_avoidance_ex.VirtualObstacleInfoList" title="obstacle_avoidance_ex.VirtualObstacleInfoList"><span class="pre">VirtualObstacleInfoList</span></a></span></span><a class="headerlink" href="#obstacle_avoidance_ex.query_virtual_obstacle" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 查询虚拟障碍物列表</p>
+<p><strong>参数:</strong> VirtualObstacleInfoList: 虚拟障碍物列表</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="obstacle_avoidance_ex.remove_virtual_obstacle">
+<span class="sig-prename descclassname"><span class="pre">obstacle_avoidance_ex.</span></span><span class="sig-name descname"><span class="pre">remove_virtual_obstacle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">obstacle_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#obstacle_avoidance_ex.remove_virtual_obstacle" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 删除虚拟障碍物</p>
+<p><strong>参数:</strong> int32_t: 虚拟障碍物id</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="obstacle_avoidance.html" class="btn btn-neutral float-left" title="obstacle_avoidance" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="odometry.html" class="btn btn-neutral float-right" title="odometry" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,66 @@
+"""
+point_cloud RPC ??? stub ??
+
+???? pybind ??? C++ ?????????
+???????????????
+"""
+
+from enum import Enum
+from asyncio import Future
+from typing import Optional, Callable, List, Dict, Any, Union
+from py_client_common_ex import ClientHandle
+
+
+
+class PointXYZ:
+    r"""
+    @brief ????????????
+    @param float x: x???  ??m
+    @param float x: y???  ??m
+    @param float x: z???  ??m
+    """
+    x: float
+    y: float
+    z: float
+
+    @staticmethod
+    def from_json(json_str: str) -> "PointXYZ": 
+        ...
+
+    def to_json(self) -> str: 
+        ...
+
+
+class PointCloud:
+    r"""
+    @brief ????????????
+    @param int32_t location: ??????  (-1 ~ -8 ?????  -9 ??3d??  -10 ??3d??)
+    @param std::vector<PointXYZ> points: ????
+    """
+    location: int
+    timestamp_ns: int
+    points: list[PointXYZ]
+
+    @staticmethod
+    def from_json(json_str: str) -> "PointCloud": 
+        ...
+
+    def to_json(self) -> str: 
+        ...
+
+
+
+
+
+def point_cloud_pub(handle: ClientHandle, cb: Callable[[PointCloud], None]) -> None: 
+    r"""
+    @brief ????????,  ????????
+    @param cb: ????, ???? PointCloud ??
+    """
+    ...
+
+def has_point_cloud_dev(handle: ClientHandle) -> bool:
+    ...
+
+
+

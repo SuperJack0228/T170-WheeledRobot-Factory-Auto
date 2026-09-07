@@ -1,0 +1,8 @@
+
+localization
+============
+
+.. automodule:: localization
+   :members:
+   :undoc-members:
+   :show-inheritance:

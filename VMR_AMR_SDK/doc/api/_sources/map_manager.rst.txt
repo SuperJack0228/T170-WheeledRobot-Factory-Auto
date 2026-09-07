@@ -1,0 +1,8 @@
+
+map_manager
+===========
+
+.. automodule:: map_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
