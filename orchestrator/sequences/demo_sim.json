@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "name": "demo_sim",
+  "steps": [
+    {
+      "id": "f3a62d847e",
+      "kind": "home",
+      "note": ""
+    },
+    {
+      "id": "b1cdcf0b2c",
+      "kind": "gripper",
+      "note": "",
+      "left": "open",
+      "right": "open"
+    },
+    {
+      "id": "eed5b4e3e2",
+      "kind": "arm",
+      "note": "示例：双臂同时靠近",
+      "left": {
+        "x": 0.5,
+        "y": 0.3,
+        "z": -0.2,
+        "rx": 90.0,
+        "ry": 0.0,
+        "rz": 0.0
+      },
+      "right": {
+        "x": 0.5,
+        "y": -0.3,
+        "z": -0.2,
+        "rx": -90.0,
+        "ry": 0.0,
+        "rz": 0.0
+      },
+      "speed": 0.2
+    },
+    {
+      "id": "b762e8f036",
+      "kind": "sleep",
+      "note": "",
+      "seconds": 0.5
+    },
+    {
+      "id": "d72cba50d7",
+      "kind": "gripper",
+      "note": "",
+      "left": "close",
+      "right": "close"
+    },
+    {
+      "id": "955dd83aa0",
+      "kind": "home",
+      "note": ""
+    }
+  ],
+  "chassis": null
+}

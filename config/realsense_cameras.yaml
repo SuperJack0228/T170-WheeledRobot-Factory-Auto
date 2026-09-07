@@ -1,0 +1,20 @@
+# RealSense 相机位置与序列号（由 generate_camera_config.py 生成）
+# 键: head / right_hand / left_hand
+generated_at: '2026-06-05T05:02:24Z'
+camera_count: 3
+realsense:
+  head:
+    label: 头部
+    serial: '261322074384'
+    name: Intel RealSense D435I
+    usb_type: '3.2'
+  right_hand:
+    label: 右手
+    serial: '260522272457'
+    name: Intel RealSense D405
+    usb_type: '3.2'
+  left_hand:
+    label: 左手
+    serial: '419122271589'
+    name: Intel RealSense D405
+    usb_type: '3.2'

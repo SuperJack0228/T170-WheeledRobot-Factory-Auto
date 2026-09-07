@@ -1,0 +1,291 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>exception_ex &mdash; VMR AMR SDK Python Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="imu" href="imu.html" />
+    <link rel="prev" title="exception" href="exception.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VMR AMR SDK 2.0
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">exception_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#exception_ex.Exception"><code class="docutils literal notranslate"><span class="pre">Exception</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.Exception.exception_code"><code class="docutils literal notranslate"><span class="pre">Exception.exception_code</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.Exception.exception_moudle"><code class="docutils literal notranslate"><span class="pre">Exception.exception_moudle</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.Exception.from_json"><code class="docutils literal notranslate"><span class="pre">Exception.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.Exception.to_json"><code class="docutils literal notranslate"><span class="pre">Exception.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#exception_ex.ExceptionLevel"><code class="docutils literal notranslate"><span class="pre">ExceptionLevel</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionLevel.EMERGENCY_STOP"><code class="docutils literal notranslate"><span class="pre">ExceptionLevel.EMERGENCY_STOP</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionLevel.NORMAL"><code class="docutils literal notranslate"><span class="pre">ExceptionLevel.NORMAL</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionLevel.STOP"><code class="docutils literal notranslate"><span class="pre">ExceptionLevel.STOP</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#exception_ex.ExceptionsInfo"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionsInfo.exceptions"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo.exceptions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionsInfo.from_json"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionsInfo.robot_exception"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo.robot_exception</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionsInfo.timestamp_ns"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo.timestamp_ns</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception_ex.ExceptionsInfo.to_json"><code class="docutils literal notranslate"><span class="pre">ExceptionsInfo.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#exception_ex.async_set_exception_level"><code class="docutils literal notranslate"><span class="pre">async_set_exception_level()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#exception_ex.exception_state"><code class="docutils literal notranslate"><span class="pre">exception_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#exception_ex.has_exception_dev"><code class="docutils literal notranslate"><span class="pre">has_exception_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#exception_ex.set_exception_level"><code class="docutils literal notranslate"><span class="pre">set_exception_level()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VMR AMR SDK 2.0</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">exception_ex</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/exception_ex.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-exception_ex">
+<span id="exception-ex"></span><h1>exception_ex<a class="headerlink" href="#module-exception_ex" title="Link to this heading"></a></h1>
+<p>exception RPC 客户端 stub 模块</p>
+<p>该模块为 pybind 导出的 C++ 接口提供类型声明。
+自动生成的文件，请勿手动修改。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="exception_ex.Exception">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">exception_ex.</span></span><span class="sig-name descname"><span class="pre">Exception</span></span><a class="headerlink" href="#exception_ex.Exception" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.Exception.exception_code">
+<span class="sig-name descname"><span class="pre">exception_code</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#exception_ex.Exception.exception_code" title="Link to this definition"></a></dt>
+<dd><p>exception code</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.Exception.exception_moudle">
+<span class="sig-name descname"><span class="pre">exception_moudle</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#exception_ex.Exception.exception_moudle" title="Link to this definition"></a></dt>
+<dd><p>exception moudle</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="exception_ex.Exception.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#exception_ex.Exception" title="exception_ex.Exception"><span class="pre">Exception</span></a></span></span><a class="headerlink" href="#exception_ex.Exception.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="exception_ex.Exception.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#exception_ex.Exception.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="exception_ex.ExceptionLevel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">exception_ex.</span></span><span class="sig-name descname"><span class="pre">ExceptionLevel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#exception_ex.ExceptionLevel" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></p>
+<p>An enumeration.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.ExceptionLevel.EMERGENCY_STOP">
+<span class="sig-name descname"><span class="pre">EMERGENCY_STOP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#exception_ex.ExceptionLevel.EMERGENCY_STOP" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.ExceptionLevel.NORMAL">
+<span class="sig-name descname"><span class="pre">NORMAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#exception_ex.ExceptionLevel.NORMAL" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.ExceptionLevel.STOP">
+<span class="sig-name descname"><span class="pre">STOP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#exception_ex.ExceptionLevel.STOP" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="exception_ex.ExceptionsInfo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">exception_ex.</span></span><span class="sig-name descname"><span class="pre">ExceptionsInfo</span></span><a class="headerlink" href="#exception_ex.ExceptionsInfo" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.ExceptionsInfo.exceptions">
+<span class="sig-name descname"><span class="pre">exceptions</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#exception_ex.Exception" title="exception_ex.Exception"><span class="pre">Exception</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#exception_ex.ExceptionsInfo.exceptions" title="Link to this definition"></a></dt>
+<dd><p>Exception status</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="exception_ex.ExceptionsInfo.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#exception_ex.ExceptionsInfo" title="exception_ex.ExceptionsInfo"><span class="pre">ExceptionsInfo</span></a></span></span><a class="headerlink" href="#exception_ex.ExceptionsInfo.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.ExceptionsInfo.robot_exception">
+<span class="sig-name descname"><span class="pre">robot_exception</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#exception_ex.ExceptionLevel" title="exception_ex.ExceptionLevel"><span class="pre">ExceptionLevel</span></a></em><a class="headerlink" href="#exception_ex.ExceptionsInfo.robot_exception" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="exception_ex.ExceptionsInfo.timestamp_ns">
+<span class="sig-name descname"><span class="pre">timestamp_ns</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#exception_ex.ExceptionsInfo.timestamp_ns" title="Link to this definition"></a></dt>
+<dd><p>Timestamp (nanoseconds)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="exception_ex.ExceptionsInfo.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#exception_ex.ExceptionsInfo.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="exception_ex.async_set_exception_level">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">exception_ex.</span></span><span class="sig-name descname"><span class="pre">async_set_exception_level</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exception_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#exception_ex.ExceptionLevel" title="exception_ex.ExceptionLevel"><span class="pre">ExceptionLevel</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#exception_ex.async_set_exception_level" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 设置异常状态</p>
+<p><strong>参数:</strong> ExceptionLevel exception_level:  设置异常等级  设置急停需要车型支持</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="exception_ex.exception_state">
+<span class="sig-prename descclassname"><span class="pre">exception_ex.</span></span><span class="sig-name descname"><span class="pre">exception_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#exception_ex.ExceptionsInfo" title="exception_ex.ExceptionsInfo"><span class="pre">ExceptionsInfo</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#exception_ex.exception_state" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 实时获取异常状态</p>
+<p><strong>参数:</strong> cb: 回调函数, 函数接收一个ExceptionsInfo作为输入</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="exception_ex.has_exception_dev">
+<span class="sig-prename descclassname"><span class="pre">exception_ex.</span></span><span class="sig-name descname"><span class="pre">has_exception_dev</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#exception_ex.has_exception_dev" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="exception_ex.set_exception_level">
+<span class="sig-prename descclassname"><span class="pre">exception_ex.</span></span><span class="sig-name descname"><span class="pre">set_exception_level</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exception_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#exception_ex.ExceptionLevel" title="exception_ex.ExceptionLevel"><span class="pre">ExceptionLevel</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#exception_ex.set_exception_level" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 设置异常状态</p>
+<p><strong>参数:</strong> ExceptionLevel exception_level:  设置异常等级  设置急停需要车型支持</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="exception.html" class="btn btn-neutral float-left" title="exception" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="imu.html" class="btn btn-neutral float-right" title="imu" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,505 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>map_manager_ex &mdash; Project name not set  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="map_reader" href="map_reader.html" />
+    <link rel="prev" title="map_manager" href="map_manager.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Project name not set
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_manager.html">map_manager</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">map_manager_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.AsyncChangeMapTask"><code class="docutils literal notranslate"><span class="pre">AsyncChangeMapTask</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncChangeMapTask.cancel"><code class="docutils literal notranslate"><span class="pre">AsyncChangeMapTask.cancel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncChangeMapTask.future"><code class="docutils literal notranslate"><span class="pre">AsyncChangeMapTask.future</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncChangeMapTask.id"><code class="docutils literal notranslate"><span class="pre">AsyncChangeMapTask.id</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.AsyncDownloadMapTask"><code class="docutils literal notranslate"><span class="pre">AsyncDownloadMapTask</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncDownloadMapTask.cancel"><code class="docutils literal notranslate"><span class="pre">AsyncDownloadMapTask.cancel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncDownloadMapTask.future"><code class="docutils literal notranslate"><span class="pre">AsyncDownloadMapTask.future</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncDownloadMapTask.id"><code class="docutils literal notranslate"><span class="pre">AsyncDownloadMapTask.id</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.AsyncUploadMapTask"><code class="docutils literal notranslate"><span class="pre">AsyncUploadMapTask</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncUploadMapTask.cancel"><code class="docutils literal notranslate"><span class="pre">AsyncUploadMapTask.cancel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncUploadMapTask.future"><code class="docutils literal notranslate"><span class="pre">AsyncUploadMapTask.future</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.AsyncUploadMapTask.id"><code class="docutils literal notranslate"><span class="pre">AsyncUploadMapTask.id</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.MapInfo"><code class="docutils literal notranslate"><span class="pre">MapInfo</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.MapInfo.name"><code class="docutils literal notranslate"><span class="pre">MapInfo.name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.ResultChangeMap"><code class="docutils literal notranslate"><span class="pre">ResultChangeMap</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultChangeMap.data"><code class="docutils literal notranslate"><span class="pre">ResultChangeMap.data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultChangeMap.err_code"><code class="docutils literal notranslate"><span class="pre">ResultChangeMap.err_code</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultChangeMap.err_message"><code class="docutils literal notranslate"><span class="pre">ResultChangeMap.err_message</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.ResultDownloadMap"><code class="docutils literal notranslate"><span class="pre">ResultDownloadMap</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultDownloadMap.data"><code class="docutils literal notranslate"><span class="pre">ResultDownloadMap.data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultDownloadMap.err_code"><code class="docutils literal notranslate"><span class="pre">ResultDownloadMap.err_code</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultDownloadMap.err_message"><code class="docutils literal notranslate"><span class="pre">ResultDownloadMap.err_message</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.ResultUploadMap"><code class="docutils literal notranslate"><span class="pre">ResultUploadMap</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultUploadMap.data"><code class="docutils literal notranslate"><span class="pre">ResultUploadMap.data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultUploadMap.err_code"><code class="docutils literal notranslate"><span class="pre">ResultUploadMap.err_code</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#map_manager_ex.ResultUploadMap.err_message"><code class="docutils literal notranslate"><span class="pre">ResultUploadMap.err_message</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_change_map"><code class="docutils literal notranslate"><span class="pre">async_change_map()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_delete_map"><code class="docutils literal notranslate"><span class="pre">async_delete_map()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_download_map"><code class="docutils literal notranslate"><span class="pre">async_download_map()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_get_current_map_name"><code class="docutils literal notranslate"><span class="pre">async_get_current_map_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_get_map_list"><code class="docutils literal notranslate"><span class="pre">async_get_map_list()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_start_map_extension"><code class="docutils literal notranslate"><span class="pre">async_start_map_extension()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_start_mapping"><code class="docutils literal notranslate"><span class="pre">async_start_mapping()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_stop_map_extension"><code class="docutils literal notranslate"><span class="pre">async_stop_map_extension()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_stop_mapping"><code class="docutils literal notranslate"><span class="pre">async_stop_mapping()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.async_upload_map"><code class="docutils literal notranslate"><span class="pre">async_upload_map()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.delete_map"><code class="docutils literal notranslate"><span class="pre">delete_map()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.get_current_map_name"><code class="docutils literal notranslate"><span class="pre">get_current_map_name()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.get_map_list"><code class="docutils literal notranslate"><span class="pre">get_map_list()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.has_map_manager"><code class="docutils literal notranslate"><span class="pre">has_map_manager()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.start_map_extension"><code class="docutils literal notranslate"><span class="pre">start_map_extension()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.start_mapping"><code class="docutils literal notranslate"><span class="pre">start_mapping()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.stop_map_extension"><code class="docutils literal notranslate"><span class="pre">stop_map_extension()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#map_manager_ex.stop_mapping"><code class="docutils literal notranslate"><span class="pre">stop_mapping()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Project name not set</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">map_manager_ex</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/map_manager_ex.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-map_manager_ex">
+<span id="map-manager-ex"></span><h1>map_manager_ex<a class="headerlink" href="#module-map_manager_ex" title="Link to this heading"></a></h1>
+<p>map_manager RPC 客户端 stub 模块</p>
+<p>该模块为 pybind 导出的 C++ 接口提供类型声明。
+自动生成的文件，请勿手动修改。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncChangeMapTask">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">AsyncChangeMapTask</span></span><a class="headerlink" href="#map_manager_ex.AsyncChangeMapTask" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>&#64;brief 切换地图
+&#64;param map_name: 地图名称
+&#64;return 返回失败原因，字符串空代表无成功</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncChangeMapTask.cancel">
+<span class="sig-name descname"><span class="pre">cancel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#map_manager_ex.AsyncChangeMapTask.cancel" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncChangeMapTask.future">
+<span class="sig-name descname"><span class="pre">future</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Future</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#map_manager_ex.ResultChangeMap" title="map_manager_ex.ResultChangeMap"><span class="pre">ResultChangeMap</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#map_manager_ex.AsyncChangeMapTask.future" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncChangeMapTask.id">
+<span class="sig-name descname"><span class="pre">id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#map_manager_ex.AsyncChangeMapTask.id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncDownloadMapTask">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">AsyncDownloadMapTask</span></span><a class="headerlink" href="#map_manager_ex.AsyncDownloadMapTask" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>&#64;brief 下载地图
+&#64;param map_name: 地图名称
+&#64;return 地图的zip包，如果为空，代表地图不存在</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncDownloadMapTask.cancel">
+<span class="sig-name descname"><span class="pre">cancel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#map_manager_ex.AsyncDownloadMapTask.cancel" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncDownloadMapTask.future">
+<span class="sig-name descname"><span class="pre">future</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Future</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#map_manager_ex.ResultDownloadMap" title="map_manager_ex.ResultDownloadMap"><span class="pre">ResultDownloadMap</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#map_manager_ex.AsyncDownloadMapTask.future" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncDownloadMapTask.id">
+<span class="sig-name descname"><span class="pre">id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#map_manager_ex.AsyncDownloadMapTask.id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncUploadMapTask">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">AsyncUploadMapTask</span></span><a class="headerlink" href="#map_manager_ex.AsyncUploadMapTask" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>&#64;brief 上传地图
+&#64;param map_name: 地图名称
+&#64;param zip_data: 地图zip包
+&#64;return 返回失败原因</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncUploadMapTask.cancel">
+<span class="sig-name descname"><span class="pre">cancel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#map_manager_ex.AsyncUploadMapTask.cancel" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncUploadMapTask.future">
+<span class="sig-name descname"><span class="pre">future</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Future</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#map_manager_ex.ResultUploadMap" title="map_manager_ex.ResultUploadMap"><span class="pre">ResultUploadMap</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#map_manager_ex.AsyncUploadMapTask.future" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.AsyncUploadMapTask.id">
+<span class="sig-name descname"><span class="pre">id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#map_manager_ex.AsyncUploadMapTask.id" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="map_manager_ex.MapInfo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">MapInfo</span></span><a class="headerlink" href="#map_manager_ex.MapInfo" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.MapInfo.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#map_manager_ex.MapInfo.name" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="map_manager_ex.ResultChangeMap">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">ResultChangeMap</span></span><a class="headerlink" href="#map_manager_ex.ResultChangeMap" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>错误码，默认0表示成功</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultChangeMap.data">
+<span class="sig-name descname"><span class="pre">data</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#map_manager_ex.ResultChangeMap.data" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultChangeMap.err_code">
+<span class="sig-name descname"><span class="pre">err_code</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#map_manager_ex.ResultChangeMap.err_code" title="Link to this definition"></a></dt>
+<dd><p>错误消息</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultChangeMap.err_message">
+<span class="sig-name descname"><span class="pre">err_message</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#map_manager_ex.ResultChangeMap.err_message" title="Link to this definition"></a></dt>
+<dd><p>返回数据</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="map_manager_ex.ResultDownloadMap">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">ResultDownloadMap</span></span><a class="headerlink" href="#map_manager_ex.ResultDownloadMap" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>错误码，默认0表示成功</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultDownloadMap.data">
+<span class="sig-name descname"><span class="pre">data</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#map_manager_ex.ResultDownloadMap.data" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultDownloadMap.err_code">
+<span class="sig-name descname"><span class="pre">err_code</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#map_manager_ex.ResultDownloadMap.err_code" title="Link to this definition"></a></dt>
+<dd><p>错误消息</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultDownloadMap.err_message">
+<span class="sig-name descname"><span class="pre">err_message</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#map_manager_ex.ResultDownloadMap.err_message" title="Link to this definition"></a></dt>
+<dd><p>返回数据</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="map_manager_ex.ResultUploadMap">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">ResultUploadMap</span></span><a class="headerlink" href="#map_manager_ex.ResultUploadMap" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>错误码，默认0表示成功</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultUploadMap.data">
+<span class="sig-name descname"><span class="pre">data</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#map_manager_ex.ResultUploadMap.data" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultUploadMap.err_code">
+<span class="sig-name descname"><span class="pre">err_code</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#map_manager_ex.ResultUploadMap.err_code" title="Link to this definition"></a></dt>
+<dd><p>错误消息</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="map_manager_ex.ResultUploadMap.err_message">
+<span class="sig-name descname"><span class="pre">err_message</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#map_manager_ex.ResultUploadMap.err_message" title="Link to this definition"></a></dt>
+<dd><p>返回数据</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_change_map">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_change_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#map_manager_ex.AsyncChangeMapTask" title="map_manager_ex.AsyncChangeMapTask"><span class="pre">AsyncChangeMapTask</span></a></span></span><a class="headerlink" href="#map_manager_ex.async_change_map" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 切换地图
+&#64;param map_name: 地图名称
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_delete_map">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_delete_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.async_delete_map" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 删除地图
+&#64;param map_name: 地图名称
+&#64;return 返回失败原因，字符串空代表成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_download_map">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_download_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#map_manager_ex.AsyncDownloadMapTask" title="map_manager_ex.AsyncDownloadMapTask"><span class="pre">AsyncDownloadMapTask</span></a></span></span><a class="headerlink" href="#map_manager_ex.async_download_map" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 下载地图
+&#64;param map_name: 地图名称
+&#64;return 地图的zip包，如果为空，代表地图不存在</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_get_current_map_name">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_get_current_map_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.async_get_current_map_name" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 获取当前地图名称
+&#64;return 地图名称</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_get_map_list">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_get_map_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#map_manager_ex.async_get_map_list" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 获取地图列表
+&#64;return 地图名称列表</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_start_map_extension">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_start_map_extension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.async_start_map_extension" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 启动当前地图的地图续建功能(需定位成功)
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_start_mapping">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_start_mapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#map_manager_ex.MapInfo" title="map_manager_ex.MapInfo"><span class="pre">MapInfo</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.async_start_mapping" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 开始建图
+&#64;param map_name: 地图名称
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_stop_map_extension">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_stop_map_extension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.async_stop_map_extension" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 停止当前地图的地图续建功能
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_stop_mapping">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_stop_mapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.async_stop_mapping" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 结束建图
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.async_upload_map">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">async_upload_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zip_data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#map_manager_ex.AsyncUploadMapTask" title="map_manager_ex.AsyncUploadMapTask"><span class="pre">AsyncUploadMapTask</span></a></span></span><a class="headerlink" href="#map_manager_ex.async_upload_map" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 上传地图
+&#64;param map_name: 地图名称
+&#64;param zip_data: 地图zip包
+&#64;return 返回失败原因</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.delete_map">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">delete_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.delete_map" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 删除地图
+&#64;param map_name: 地图名称
+&#64;return 返回失败原因，字符串空代表成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.get_current_map_name">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">get_current_map_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.get_current_map_name" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 获取当前地图名称
+&#64;return 地图名称</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.get_map_list">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">get_map_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#map_manager_ex.get_map_list" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 获取地图列表
+&#64;return 地图名称列表</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.has_map_manager">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">has_map_manager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#map_manager_ex.has_map_manager" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.start_map_extension">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">start_map_extension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.start_map_extension" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 启动当前地图的地图续建功能(需定位成功)
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.start_mapping">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">start_mapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#map_manager_ex.MapInfo" title="map_manager_ex.MapInfo"><span class="pre">MapInfo</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.start_mapping" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 开始建图
+&#64;param map_name: 地图名称
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.stop_map_extension">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">stop_map_extension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.stop_map_extension" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 停止当前地图的地图续建功能
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="map_manager_ex.stop_mapping">
+<span class="sig-prename descclassname"><span class="pre">map_manager_ex.</span></span><span class="sig-name descname"><span class="pre">stop_mapping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#map_manager_ex.stop_mapping" title="Link to this definition"></a></dt>
+<dd><p>&#64;brief 结束建图
+&#64;return 返回失败原因，字符串空代表无成功</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="map_manager.html" class="btn btn-neutral float-left" title="map_manager" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="map_reader.html" class="btn btn-neutral float-right" title="map_reader" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

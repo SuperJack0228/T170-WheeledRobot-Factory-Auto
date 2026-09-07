@@ -1,0 +1,8 @@
+
+exception_ex
+============
+
+.. automodule:: exception_ex
+   :members:
+   :undoc-members:
+   :show-inheritance:

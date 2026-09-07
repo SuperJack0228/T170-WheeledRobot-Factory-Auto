@@ -1,0 +1,308 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>light &mdash; VMR AMR SDK Python Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="light_ex" href="light_ex.html" />
+    <link rel="prev" title="lift_ex" href="lift_ex.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VMR AMR SDK 2.0
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">light</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#light.LightInfo"><code class="docutils literal notranslate"><span class="pre">LightInfo</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightInfo.from_json"><code class="docutils literal notranslate"><span class="pre">LightInfo.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightInfo.light_status"><code class="docutils literal notranslate"><span class="pre">LightInfo.light_status</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightInfo.timestamp_ns"><code class="docutils literal notranslate"><span class="pre">LightInfo.timestamp_ns</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightInfo.to_json"><code class="docutils literal notranslate"><span class="pre">LightInfo.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#light.LightState"><code class="docutils literal notranslate"><span class="pre">LightState</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.BLINK_LEFT_BLUE"><code class="docutils literal notranslate"><span class="pre">LightState.BLINK_LEFT_BLUE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.BLINK_RIGHT_BLUE"><code class="docutils literal notranslate"><span class="pre">LightState.BLINK_RIGHT_BLUE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.BLUE_IDLE"><code class="docutils literal notranslate"><span class="pre">LightState.BLUE_IDLE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.BLUE_RUNNING"><code class="docutils literal notranslate"><span class="pre">LightState.BLUE_RUNNING</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.GREEN_CHARGING"><code class="docutils literal notranslate"><span class="pre">LightState.GREEN_CHARGING</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.OFF"><code class="docutils literal notranslate"><span class="pre">LightState.OFF</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.PURPLE_TRAFFIC"><code class="docutils literal notranslate"><span class="pre">LightState.PURPLE_TRAFFIC</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.RED_EXCEPTION"><code class="docutils literal notranslate"><span class="pre">LightState.RED_EXCEPTION</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.RED_SAFE_STOP"><code class="docutils literal notranslate"><span class="pre">LightState.RED_SAFE_STOP</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.RED_SELF_FAULT"><code class="docutils literal notranslate"><span class="pre">LightState.RED_SELF_FAULT</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.WHITE_BOOTING"><code class="docutils literal notranslate"><span class="pre">LightState.WHITE_BOOTING</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.WHITE_MANUAL"><code class="docutils literal notranslate"><span class="pre">LightState.WHITE_MANUAL</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.YELLOW_LOW_POWER"><code class="docutils literal notranslate"><span class="pre">LightState.YELLOW_LOW_POWER</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#light.LightState.YELLOW_WARNING"><code class="docutils literal notranslate"><span class="pre">LightState.YELLOW_WARNING</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#light.ctr_light"><code class="docutils literal notranslate"><span class="pre">ctr_light()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#light.has_light_dev"><code class="docutils literal notranslate"><span class="pre">has_light_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#light.light_state"><code class="docutils literal notranslate"><span class="pre">light_state()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VMR AMR SDK 2.0</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">light</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/light.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-light">
+<span id="light"></span><h1>light<a class="headerlink" href="#module-light" title="Link to this heading"></a></h1>
+<p>light RPC 客户端 stub 模块</p>
+<p>该模块为 pybind 导出的 C++ 接口提供类型声明。
+自动生成的文件，请勿手动修改。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="light.LightInfo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">light.</span></span><span class="sig-name descname"><span class="pre">LightInfo</span></span><a class="headerlink" href="#light.LightInfo" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="light.LightInfo.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#light.LightInfo" title="light.LightInfo"><span class="pre">LightInfo</span></a></span></span><a class="headerlink" href="#light.LightInfo.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightInfo.light_status">
+<span class="sig-name descname"><span class="pre">light_status</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#light.LightState" title="light.LightState"><span class="pre">LightState</span></a></em><a class="headerlink" href="#light.LightInfo.light_status" title="Link to this definition"></a></dt>
+<dd><p>Light status</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightInfo.timestamp_ns">
+<span class="sig-name descname"><span class="pre">timestamp_ns</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#light.LightInfo.timestamp_ns" title="Link to this definition"></a></dt>
+<dd><p>Timestamp (nanoseconds)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="light.LightInfo.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#light.LightInfo.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="light.LightState">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">light.</span></span><span class="sig-name descname"><span class="pre">LightState</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#light.LightState" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></p>
+<p>An enumeration.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.BLINK_LEFT_BLUE">
+<span class="sig-name descname"><span class="pre">BLINK_LEFT_BLUE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#light.LightState.BLINK_LEFT_BLUE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.BLINK_RIGHT_BLUE">
+<span class="sig-name descname"><span class="pre">BLINK_RIGHT_BLUE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#light.LightState.BLINK_RIGHT_BLUE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.BLUE_IDLE">
+<span class="sig-name descname"><span class="pre">BLUE_IDLE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">11</span></em><a class="headerlink" href="#light.LightState.BLUE_IDLE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.BLUE_RUNNING">
+<span class="sig-name descname"><span class="pre">BLUE_RUNNING</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">12</span></em><a class="headerlink" href="#light.LightState.BLUE_RUNNING" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.GREEN_CHARGING">
+<span class="sig-name descname"><span class="pre">GREEN_CHARGING</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">8</span></em><a class="headerlink" href="#light.LightState.GREEN_CHARGING" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.OFF">
+<span class="sig-name descname"><span class="pre">OFF</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#light.LightState.OFF" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.PURPLE_TRAFFIC">
+<span class="sig-name descname"><span class="pre">PURPLE_TRAFFIC</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3</span></em><a class="headerlink" href="#light.LightState.PURPLE_TRAFFIC" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.RED_EXCEPTION">
+<span class="sig-name descname"><span class="pre">RED_EXCEPTION</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">7</span></em><a class="headerlink" href="#light.LightState.RED_EXCEPTION" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.RED_SAFE_STOP">
+<span class="sig-name descname"><span class="pre">RED_SAFE_STOP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></em><a class="headerlink" href="#light.LightState.RED_SAFE_STOP" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.RED_SELF_FAULT">
+<span class="sig-name descname"><span class="pre">RED_SELF_FAULT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">9</span></em><a class="headerlink" href="#light.LightState.RED_SELF_FAULT" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.WHITE_BOOTING">
+<span class="sig-name descname"><span class="pre">WHITE_BOOTING</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#light.LightState.WHITE_BOOTING" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.WHITE_MANUAL">
+<span class="sig-name descname"><span class="pre">WHITE_MANUAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">13</span></em><a class="headerlink" href="#light.LightState.WHITE_MANUAL" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.YELLOW_LOW_POWER">
+<span class="sig-name descname"><span class="pre">YELLOW_LOW_POWER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">6</span></em><a class="headerlink" href="#light.LightState.YELLOW_LOW_POWER" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="light.LightState.YELLOW_WARNING">
+<span class="sig-name descname"><span class="pre">YELLOW_WARNING</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></em><a class="headerlink" href="#light.LightState.YELLOW_WARNING" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="light.ctr_light">
+<span class="sig-prename descclassname"><span class="pre">light.</span></span><span class="sig-name descname"><span class="pre">ctr_light</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">light_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#light.LightInfo" title="light.LightInfo"><span class="pre">LightInfo</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#light.ctr_light" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 设置灯带状态</p>
+<p><strong>参数:</strong> LightInfo: 灯带状态</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="light.has_light_dev">
+<span class="sig-prename descclassname"><span class="pre">light.</span></span><span class="sig-name descname"><span class="pre">has_light_dev</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#light.has_light_dev" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="light.light_state">
+<span class="sig-prename descclassname"><span class="pre">light.</span></span><span class="sig-name descname"><span class="pre">light_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#light.LightInfo" title="light.LightInfo"><span class="pre">LightInfo</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#light.light_state" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 获取灯带状态 使用回调函数获取</p>
+<p><strong>参数:</strong> cb: 回调函数, LightInfo</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="lift_ex.html" class="btn btn-neutral float-left" title="lift_ex" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="light_ex.html" class="btn btn-neutral float-right" title="light_ex" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

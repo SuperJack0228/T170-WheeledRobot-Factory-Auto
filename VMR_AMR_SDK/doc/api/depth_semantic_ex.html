@@ -1,0 +1,403 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>depth_semantic_ex &mdash; VMR AMR SDK Python Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="exception" href="exception.html" />
+    <link rel="prev" title="depth_semantic" href="depth_semantic.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VMR AMR SDK 2.0
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery.html">battery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">depth_semantic_ex</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.BoundingBox"><code class="docutils literal notranslate"><span class="pre">BoundingBox</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.BoundingBox.from_json"><code class="docutils literal notranslate"><span class="pre">BoundingBox.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.BoundingBox.to_json"><code class="docutils literal notranslate"><span class="pre">BoundingBox.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.BoundingBox.x1"><code class="docutils literal notranslate"><span class="pre">BoundingBox.x1</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.BoundingBox.x2"><code class="docutils literal notranslate"><span class="pre">BoundingBox.x2</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.BoundingBox.y1"><code class="docutils literal notranslate"><span class="pre">BoundingBox.y1</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.BoundingBox.y2"><code class="docutils literal notranslate"><span class="pre">BoundingBox.y2</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.Mat"><code class="docutils literal notranslate"><span class="pre">Mat</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.Mat.channels"><code class="docutils literal notranslate"><span class="pre">Mat.channels</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.Mat.cols"><code class="docutils literal notranslate"><span class="pre">Mat.cols</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.Mat.data"><code class="docutils literal notranslate"><span class="pre">Mat.data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.Mat.from_json"><code class="docutils literal notranslate"><span class="pre">Mat.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.Mat.rows"><code class="docutils literal notranslate"><span class="pre">Mat.rows</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.Mat.to_json"><code class="docutils literal notranslate"><span class="pre">Mat.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.PointCloud"><code class="docutils literal notranslate"><span class="pre">PointCloud</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointCloud.from_json"><code class="docutils literal notranslate"><span class="pre">PointCloud.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointCloud.points"><code class="docutils literal notranslate"><span class="pre">PointCloud.points</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointCloud.to_json"><code class="docutils literal notranslate"><span class="pre">PointCloud.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.PointXYZ"><code class="docutils literal notranslate"><span class="pre">PointXYZ</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointXYZ.from_json"><code class="docutils literal notranslate"><span class="pre">PointXYZ.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointXYZ.to_json"><code class="docutils literal notranslate"><span class="pre">PointXYZ.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointXYZ.x"><code class="docutils literal notranslate"><span class="pre">PointXYZ.x</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointXYZ.y"><code class="docutils literal notranslate"><span class="pre">PointXYZ.y</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.PointXYZ.z"><code class="docutils literal notranslate"><span class="pre">PointXYZ.z</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult"><code class="docutils literal notranslate"><span class="pre">RecognitionResult</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.class_names"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.class_names</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.from_json"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.obj_box"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.obj_box</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.obj_dis"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.obj_dis</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.original_img"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.original_img</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.pcloud"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.pcloud</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.timestamp_us"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.timestamp_us</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult.to_json"><code class="docutils literal notranslate"><span class="pre">RecognitionResult.to_json()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.get_all_depth_semantic_dev"><code class="docutils literal notranslate"><span class="pre">get_all_depth_semantic_dev()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.recognition_state"><code class="docutils literal notranslate"><span class="pre">recognition_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#depth_semantic_ex.set_rgb_enable"><code class="docutils literal notranslate"><span class="pre">set_rgb_enable()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VMR AMR SDK 2.0</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">depth_semantic_ex</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/depth_semantic_ex.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-depth_semantic_ex">
+<span id="depth-semantic-ex"></span><h1>depth_semantic_ex<a class="headerlink" href="#module-depth_semantic_ex" title="Link to this heading"></a></h1>
+<p>depth_semantic RPC 客户端 stub 模块</p>
+<p>该模块为 pybind 导出的 C++ 接口提供类型声明。
+自动生成的文件，请勿手动修改。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="depth_semantic_ex.BoundingBox">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">BoundingBox</span></span><a class="headerlink" href="#depth_semantic_ex.BoundingBox" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>坐标结构体</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.BoundingBox.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#depth_semantic_ex.BoundingBox" title="depth_semantic_ex.BoundingBox"><span class="pre">BoundingBox</span></a></span></span><a class="headerlink" href="#depth_semantic_ex.BoundingBox.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.BoundingBox.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#depth_semantic_ex.BoundingBox.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.BoundingBox.x1">
+<span class="sig-name descname"><span class="pre">x1</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#depth_semantic_ex.BoundingBox.x1" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.BoundingBox.x2">
+<span class="sig-name descname"><span class="pre">x2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#depth_semantic_ex.BoundingBox.x2" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.BoundingBox.y1">
+<span class="sig-name descname"><span class="pre">y1</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#depth_semantic_ex.BoundingBox.y1" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.BoundingBox.y2">
+<span class="sig-name descname"><span class="pre">y2</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#depth_semantic_ex.BoundingBox.y2" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="depth_semantic_ex.Mat">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">Mat</span></span><a class="headerlink" href="#depth_semantic_ex.Mat" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.Mat.channels">
+<span class="sig-name descname"><span class="pre">channels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#depth_semantic_ex.Mat.channels" title="Link to this definition"></a></dt>
+<dd><p>通道数 1=灰度 3=RGB</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.Mat.cols">
+<span class="sig-name descname"><span class="pre">cols</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#depth_semantic_ex.Mat.cols" title="Link to this definition"></a></dt>
+<dd><p>图像 宽</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.Mat.data">
+<span class="sig-name descname"><span class="pre">data</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#depth_semantic_ex.Mat.data" title="Link to this definition"></a></dt>
+<dd><p>图像实际数据</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.Mat.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#depth_semantic_ex.Mat" title="depth_semantic_ex.Mat"><span class="pre">Mat</span></a></span></span><a class="headerlink" href="#depth_semantic_ex.Mat.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.Mat.rows">
+<span class="sig-name descname"><span class="pre">rows</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#depth_semantic_ex.Mat.rows" title="Link to this definition"></a></dt>
+<dd><p>图像 高</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.Mat.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#depth_semantic_ex.Mat.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointCloud">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">PointCloud</span></span><a class="headerlink" href="#depth_semantic_ex.PointCloud" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointCloud.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#depth_semantic_ex.PointCloud" title="depth_semantic_ex.PointCloud"><span class="pre">PointCloud</span></a></span></span><a class="headerlink" href="#depth_semantic_ex.PointCloud.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointCloud.points">
+<span class="sig-name descname"><span class="pre">points</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#depth_semantic_ex.PointXYZ" title="depth_semantic_ex.PointXYZ"><span class="pre">PointXYZ</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#depth_semantic_ex.PointCloud.points" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointCloud.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#depth_semantic_ex.PointCloud.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointXYZ">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">PointXYZ</span></span><a class="headerlink" href="#depth_semantic_ex.PointXYZ" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointXYZ.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#depth_semantic_ex.PointXYZ" title="depth_semantic_ex.PointXYZ"><span class="pre">PointXYZ</span></a></span></span><a class="headerlink" href="#depth_semantic_ex.PointXYZ.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointXYZ.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#depth_semantic_ex.PointXYZ.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointXYZ.x">
+<span class="sig-name descname"><span class="pre">x</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#depth_semantic_ex.PointXYZ.x" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointXYZ.y">
+<span class="sig-name descname"><span class="pre">y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#depth_semantic_ex.PointXYZ.y" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.PointXYZ.z">
+<span class="sig-name descname"><span class="pre">z</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#depth_semantic_ex.PointXYZ.z" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">RecognitionResult</span></span><a class="headerlink" href="#depth_semantic_ex.RecognitionResult" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.class_names">
+<span class="sig-name descname"><span class="pre">class_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.class_names" title="Link to this definition"></a></dt>
+<dd><p>图中所有类别结果列表</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#depth_semantic_ex.RecognitionResult" title="depth_semantic_ex.RecognitionResult"><span class="pre">RecognitionResult</span></a></span></span><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.obj_box">
+<span class="sig-name descname"><span class="pre">obj_box</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#depth_semantic_ex.BoundingBox" title="depth_semantic_ex.BoundingBox"><span class="pre">BoundingBox</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.obj_box" title="Link to this definition"></a></dt>
+<dd><p>每个物体的框在图像中的坐标</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.obj_dis">
+<span class="sig-name descname"><span class="pre">obj_dis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.obj_dis" title="Link to this definition"></a></dt>
+<dd><p>每个物体最近的点的距离，如果没有点则为-99</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.original_img">
+<span class="sig-name descname"><span class="pre">original_img</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#depth_semantic_ex.Mat" title="depth_semantic_ex.Mat"><span class="pre">Mat</span></a></em><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.original_img" title="Link to this definition"></a></dt>
+<dd><p>AI识别结果图</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.pcloud">
+<span class="sig-name descname"><span class="pre">pcloud</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#depth_semantic_ex.PointCloud" title="depth_semantic_ex.PointCloud"><span class="pre">PointCloud</span></a></em><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.pcloud" title="Link to this definition"></a></dt>
+<dd><p>点云结构体</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.timestamp_us">
+<span class="sig-name descname"><span class="pre">timestamp_us</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.timestamp_us" title="Link to this definition"></a></dt>
+<dd><p>时间戳 单位 us</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="depth_semantic_ex.RecognitionResult.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#depth_semantic_ex.RecognitionResult.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="depth_semantic_ex.get_all_depth_semantic_dev">
+<span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">get_all_depth_semantic_dev</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#depth_semantic_ex.get_all_depth_semantic_dev" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="depth_semantic_ex.recognition_state">
+<span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">recognition_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#depth_semantic_ex.RecognitionResult" title="depth_semantic_ex.RecognitionResult"><span class="pre">RecognitionResult</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#depth_semantic_ex.recognition_state" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 实时获取语义识别结果</p>
+<p><strong>参数:</strong> cb: 回调函数, 函数接收一个RecognitionResult作为输入</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="depth_semantic_ex.set_rgb_enable">
+<span class="sig-prename descclassname"><span class="pre">depth_semantic_ex.</span></span><span class="sig-name descname"><span class="pre">set_rgb_enable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">handle</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#depth_semantic_ex.set_rgb_enable" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 设置rgb是否读取</p>
+<p><strong>参数:</strong> bool:  开关</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="depth_semantic.html" class="btn btn-neutral float-left" title="depth_semantic" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="exception.html" class="btn btn-neutral float-right" title="exception" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,8 @@
+
+audio_ex
+========
+
+.. automodule:: audio_ex
+   :members:
+   :undoc-members:
+   :show-inheritance:

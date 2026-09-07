@@ -1,0 +1,290 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>battery &mdash; VMR AMR SDK Python Documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="battery_ex" href="battery_ex.html" />
+    <link rel="prev" title="audio_ex" href="audio_ex.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            VMR AMR SDK 2.0
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="audio.html">audio</a></li>
+<li class="toctree-l1"><a class="reference internal" href="audio_ex.html">audio_ex</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">battery</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#battery.BatteryState"><code class="docutils literal notranslate"><span class="pre">BatteryState</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.battery_id"><code class="docutils literal notranslate"><span class="pre">BatteryState.battery_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.battery_temp"><code class="docutils literal notranslate"><span class="pre">BatteryState.battery_temp</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.capacity"><code class="docutils literal notranslate"><span class="pre">BatteryState.capacity</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.charge"><code class="docutils literal notranslate"><span class="pre">BatteryState.charge</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.current"><code class="docutils literal notranslate"><span class="pre">BatteryState.current</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.design_capacity"><code class="docutils literal notranslate"><span class="pre">BatteryState.design_capacity</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.from_json"><code class="docutils literal notranslate"><span class="pre">BatteryState.from_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.percentage"><code class="docutils literal notranslate"><span class="pre">BatteryState.percentage</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.power_supply_status"><code class="docutils literal notranslate"><span class="pre">BatteryState.power_supply_status</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.timestamp_ns"><code class="docutils literal notranslate"><span class="pre">BatteryState.timestamp_ns</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.to_json"><code class="docutils literal notranslate"><span class="pre">BatteryState.to_json()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.BatteryState.voltage"><code class="docutils literal notranslate"><span class="pre">BatteryState.voltage</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#battery.ChargeStatus"><code class="docutils literal notranslate"><span class="pre">ChargeStatus</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#battery.ChargeStatus.CHARGE_STATUS_CHARGING"><code class="docutils literal notranslate"><span class="pre">ChargeStatus.CHARGE_STATUS_CHARGING</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.ChargeStatus.CHARGE_STATUS_FULL"><code class="docutils literal notranslate"><span class="pre">ChargeStatus.CHARGE_STATUS_FULL</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#battery.ChargeStatus.CHARGE_STATUS_NONE"><code class="docutils literal notranslate"><span class="pre">ChargeStatus.CHARGE_STATUS_NONE</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#battery.battery_state"><code class="docutils literal notranslate"><span class="pre">battery_state()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#battery.get_all_battery_dev"><code class="docutils literal notranslate"><span class="pre">get_all_battery_dev()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="battery_ex.html">battery_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive.html">bridge_drive</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_drive_ex.html">bridge_drive_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan.html">bridge_scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bridge_scan_ex.html">bridge_scan_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic.html">depth_semantic</a></li>
+<li class="toctree-l1"><a class="reference internal" href="depth_semantic_ex.html">depth_semantic_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception.html">exception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exception_ex.html">exception_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu.html">imu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imu_ex.html">imu_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager.html">io_manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="io_manager_ex.html">io_manager_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d.html">laser_2d</a></li>
+<li class="toctree-l1"><a class="reference internal" href="laser_2d_ex.html">laser_2d_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift.html">lift</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lift_ex.html">lift_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light.html">light</a></li>
+<li class="toctree-l1"><a class="reference internal" href="light_ex.html">light_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization.html">localization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="localization_ex.html">localization_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader.html">map_reader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="map_reader_ex.html">map_reader_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav.html">nav</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nav_ex.html">nav_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance.html">obstacle_avoidance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="obstacle_avoidance_ex.html">obstacle_avoidance_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry.html">odometry</a></li>
+<li class="toctree-l1"><a class="reference internal" href="odometry_ex.html">odometry_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud.html">point_cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="point_cloud_ex.html">point_cloud_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common.html">py_client_common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="py_client_common_ex.html">py_client_common_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera.html">qrcamera</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qrcamera_ex.html">qrcamera_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task.html">robot_task</a></li>
+<li class="toctree-l1"><a class="reference internal" href="robot_task_ex.html">robot_task_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test.html">rpc_test</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rpc_test_ex.html">rpc_test_ex</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor.html">sensor</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sensor_ex.html">sensor_ex</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">VMR AMR SDK 2.0</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">battery</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/battery.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-battery">
+<span id="battery"></span><h1>battery<a class="headerlink" href="#module-battery" title="Link to this heading"></a></h1>
+<p>battery RPC 客户端 stub 模块</p>
+<p>该模块为 pybind 导出的 C++ 接口提供类型声明。
+自动生成的文件，请勿手动修改。</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="battery.BatteryState">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">battery.</span></span><span class="sig-name descname"><span class="pre">BatteryState</span></span><a class="headerlink" href="#battery.BatteryState" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.battery_id">
+<span class="sig-name descname"><span class="pre">battery_id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">''</span></em><a class="headerlink" href="#battery.BatteryState.battery_id" title="Link to this definition"></a></dt>
+<dd><p>Battery Id</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.battery_temp">
+<span class="sig-name descname"><span class="pre">battery_temp</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#battery.BatteryState.battery_temp" title="Link to this definition"></a></dt>
+<dd><p>Battery temperature, unit: °C</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.capacity">
+<span class="sig-name descname"><span class="pre">capacity</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#battery.BatteryState.capacity" title="Link to this definition"></a></dt>
+<dd><p>Battery capacity (mAh)</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.charge">
+<span class="sig-name descname"><span class="pre">charge</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#battery.BatteryState.charge" title="Link to this definition"></a></dt>
+<dd><p>Current charge on battery (mAh)</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.current">
+<span class="sig-name descname"><span class="pre">current</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#battery.BatteryState.current" title="Link to this definition"></a></dt>
+<dd><p>Current (Amperes)</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.design_capacity">
+<span class="sig-name descname"><span class="pre">design_capacity</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#battery.BatteryState.design_capacity" title="Link to this definition"></a></dt>
+<dd><p>Rated battery capacity (mAh)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="battery.BatteryState.from_json">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_json</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">json_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#battery.BatteryState" title="battery.BatteryState"><span class="pre">BatteryState</span></a></span></span><a class="headerlink" href="#battery.BatteryState.from_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.percentage">
+<span class="sig-name descname"><span class="pre">percentage</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#battery.BatteryState.percentage" title="Link to this definition"></a></dt>
+<dd><p>Power percentage</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.power_supply_status">
+<span class="sig-name descname"><span class="pre">power_supply_status</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#battery.ChargeStatus" title="battery.ChargeStatus"><span class="pre">ChargeStatus</span></a></em><a class="headerlink" href="#battery.BatteryState.power_supply_status" title="Link to this definition"></a></dt>
+<dd><p>Charge Status</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.timestamp_ns">
+<span class="sig-name descname"><span class="pre">timestamp_ns</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#battery.BatteryState.timestamp_ns" title="Link to this definition"></a></dt>
+<dd><p>Timestamp (nanoseconds)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="battery.BatteryState.to_json">
+<span class="sig-name descname"><span class="pre">to_json</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#battery.BatteryState.to_json" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.BatteryState.voltage">
+<span class="sig-name descname"><span class="pre">voltage</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#battery.BatteryState.voltage" title="Link to this definition"></a></dt>
+<dd><p>Voltage (Volts)</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="battery.ChargeStatus">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">battery.</span></span><span class="sig-name descname"><span class="pre">ChargeStatus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#battery.ChargeStatus" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></p>
+<p>An enumeration.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.ChargeStatus.CHARGE_STATUS_CHARGING">
+<span class="sig-name descname"><span class="pre">CHARGE_STATUS_CHARGING</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#battery.ChargeStatus.CHARGE_STATUS_CHARGING" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.ChargeStatus.CHARGE_STATUS_FULL">
+<span class="sig-name descname"><span class="pre">CHARGE_STATUS_FULL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#battery.ChargeStatus.CHARGE_STATUS_FULL" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="battery.ChargeStatus.CHARGE_STATUS_NONE">
+<span class="sig-name descname"><span class="pre">CHARGE_STATUS_NONE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#battery.ChargeStatus.CHARGE_STATUS_NONE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="battery.battery_state">
+<span class="sig-prename descclassname"><span class="pre">battery.</span></span><span class="sig-name descname"><span class="pre">battery_state</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#battery.BatteryState" title="battery.BatteryState"><span class="pre">BatteryState</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#battery.battery_state" title="Link to this definition"></a></dt>
+<dd><p><strong>简介:</strong> 获取电池状态, 使用回调函数获取</p>
+<p><strong>参数:</strong> cb: 回调函数, 函数接收一个BatteryState作为输入</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="battery.get_all_battery_dev">
+<span class="sig-prename descclassname"><span class="pre">battery.</span></span><span class="sig-name descname"><span class="pre">get_all_battery_dev</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#battery.get_all_battery_dev" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="audio_ex.html" class="btn btn-neutral float-left" title="audio_ex" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="battery_ex.html" class="btn btn-neutral float-right" title="battery_ex" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

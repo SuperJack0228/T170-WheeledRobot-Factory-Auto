@@ -1,0 +1,11 @@
+train: /home/wt/my_project/factory/data/pre3/jindi_0906_stride5_review_done/split/train.txt    # 训练图像路径
+val:   /home/wt/my_project/factory/data/pre3/jindi_0906_stride5_review_done/split/val.txt      # 验证图像路径s
+test:  /home/wt/my_project/factory/data/pre3/jindi_0906_stride5_review_done/split/test.txt     # 测试图像路径（可选）
+
+nc: 4  # 类别数
+
+names: 
+  0: original_product
+  1: semi_finished_product
+  2: finished_product
+  3: feeding_hole
