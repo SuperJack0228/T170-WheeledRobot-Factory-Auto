@@ -53,7 +53,7 @@ class SegmentationParams:
     imgsz: int = 1280
     """YOLO 推理长边；0=自动 max(H,W)。720p 勿用默认 640。"""
     retina_masks: bool = True
-    """原图分辨率 mask，与 feeding_table_alg3 一致。"""
+    """在原图分辨率输出 mask，避免缩放造成轮廓锯齿。"""
 
 
 @dataclass
@@ -198,7 +198,7 @@ def load_pose_params(config_path: str | Path | None = None) -> PoseParams:
     pnp_global = _parse_pnp(root.get("algorithm_pnp"))
     centroid_global = _parse_centroid(root.get("algorithm_centroid"))
 
-    model_raw = seg_node.get("model", "models/best.pt")
+    model_raw = seg_node.get("model", "models/bestlatest.pt")
     model_path = resolve_model_path(model_raw)
 
     class_ids = seg_node.get("class_ids")

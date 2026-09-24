@@ -1,19 +1,25 @@
 #include "gripper_interface.hpp"
 
-#include "serialPort/SerialPort.h"
-#include "unitreeMotor/unitreeMotor.h"
+#include "Ti5_Device_SDK.hpp"
+#include "Ti5_socketcan.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
-#include <filesystem>
+#include <cstdint>
+#include <exception>
 #include <iostream>
+#include <thread>
 #include <unistd.h>
+#include <vector>
 
 namespace gripper {
 namespace {
 
 constexpr int kRightMotorId = 0;
 constexpr int kLeftMotorId = 1;
+constexpr int kDex1RecvMs = 20;
+constexpr std::uint32_t kMerrorTimeout = 512u;
 
 double clamp(double v, double lo, double hi) {
   return std::clamp(v, std::min(lo, hi), std::max(lo, hi));
@@ -21,6 +27,48 @@ double clamp(double v, double lo, double hi) {
 
 Side sideFromMotorId(int id) {
   return id == kRightMotorId ? Side::Right : Side::Left;
+}
+
+const char *sideName(Side side) { return side == Side::Right ? "右" : "左"; }
+
+void log_merror(const char *tag, int motor_id, std::uint32_t merror, bool io_ok) {
+  std::cout << "[gripper] " << tag << " id=" << motor_id << " io=" << (io_ok ? "ok" : "fail")
+            << " merror=" << merror;
+  if (merror & kMerrorTimeout)
+    std::cout << "(超时保护,需FOC且timeout位=0清除)";
+  else if (merror != 0)
+    std::cout << "(故障)";
+  std::cout << "\n";
+}
+
+// SDK 的 get_Gripper_State 实际是 Brake：会停机，空闲后 MError=512。
+// 探活/读位置改走 FOC + kp=0，只问状态不拉位置。
+bool dex1_read(uint8_t id, float q_hint, float &q, float &dq, float &tau, std::uint32_t &merror) {
+  int temp_shell = 0;
+  int temp_winding = 0;
+  float voltage = 0.f;
+  merror = 0;
+  return set_Gripper_Pos_get_State(id, q_hint, 0.f, 0.f, 0.f, 0.f, q, dq, tau, temp_shell,
+                                   temp_winding, voltage, merror, kDex1RecvMs);
+}
+
+bool dex1_set_get(uint8_t id, float q, float dq, float tau, float kp, float kd, float &q_fb,
+                  float &dq_fb, float &tau_fb, std::uint32_t &merror) {
+  int temp_shell = 0;
+  int temp_winding = 0;
+  float voltage = 0.f;
+  merror = 0;
+  return set_Gripper_Pos_get_State(id, q, dq, tau, kp, kd, q_fb, dq_fb, tau_fb, temp_shell,
+                                   temp_winding, voltage, merror, kDex1RecvMs);
+}
+
+bool moved_toward(double q0, double q, double target, double min_delta) {
+  if (std::fabs(q - q0) < min_delta)
+    return false;
+  const double want = target - q0;
+  if (std::fabs(want) < min_delta)
+    return true;
+  return (q - q0) * want > 0.0;
 }
 
 double angleToRad(double angle_deg, const Config &cfg) {
@@ -38,25 +86,13 @@ double radToAngle(double q, const Config &cfg) {
   return ratio * cfg.full_close_angle_deg;
 }
 
-bool probeMotor(const std::shared_ptr<SerialPort> &serial, int motor_id) {
-  MotorCmd cmd;
-  MotorData data;
-  cmd.motorType = MotorType::M4010;
-  cmd.id = motor_id;
-  cmd.mode = queryMotorMode(cmd.motorType, MotorMode::FOC);
-  data.motorType = cmd.motorType;
-  usleep(200);
-  return serial->sendRecv(&cmd, &data);
-}
-
 }  // namespace
 
 struct Gripper::SideImpl {
   Side side = Side::Left;
   int motor_id = 0;
-  std::string port;
-  std::shared_ptr<SerialPort> serial;
-  float gear_ratio = 1.0f;
+  std::string port = "ti5-dex1";
+  bool present = false;
 
   double target_q = 0.0;
   double q_cmd = 0.0;
@@ -75,50 +111,12 @@ struct Gripper::SideImpl {
   double q_anchor = 0.0;
   double dq_filt = 0.0;
   bool cmd_initialized = false;
+
+  std::uint32_t merror = 0;
+  bool io_ok = false;
+  int io_fail_streak = 0;
+  std::uint32_t last_logged_merror = 0;
 };
-
-namespace {
-
-bool readMotorPosition(const std::shared_ptr<SerialPort> &serial, int motor_id,
-                       float gear_ratio, double *q_out) {
-  if (!serial || !q_out) {
-    return false;
-  }
-  MotorCmd cmd;
-  MotorData data;
-  cmd.motorType = MotorType::M4010;
-  cmd.id = motor_id;
-  cmd.mode = queryMotorMode(cmd.motorType, MotorMode::FOC);
-  data.motorType = cmd.motorType;
-  if (!serial->sendRecv(&cmd, &data)) {
-    return false;
-  }
-  *q_out = data.q / gear_ratio;
-  return true;
-}
-
-}  // namespace
-
-std::vector<std::string> scanSerialPorts() {
-  std::vector<std::string> ports;
-  constexpr const char *kPrefixes[] = {"/dev/ttyUSB", "/dev/ttyCH343USB"};
-
-  if (!std::filesystem::exists("/dev")) {
-    return ports;
-  }
-
-  for (const auto &entry : std::filesystem::directory_iterator("/dev")) {
-    const std::string path = entry.path().string();
-    for (const char *prefix : kPrefixes) {
-      if (path.rfind(prefix, 0) == 0) {
-        ports.push_back(path);
-        break;
-      }
-    }
-  }
-  std::sort(ports.begin(), ports.end());
-  return ports;
-}
 
 Gripper::Gripper(const Config &config) : config_(config) {}
 
@@ -144,59 +142,74 @@ bool Gripper::connect() {
     return true;
   }
 
-  const auto ports = scanSerialPorts();
-  if (ports.empty()) {
-    std::cerr << "[gripper] 未找到串口 (/dev/ttyUSB* 或 /dev/ttyCH343USB*)\n";
-    return false;
+  if (right_arm_motors_locked())
+    std::cout << "[gripper] 右臂锁定，只用左夹爪 id=1（Ti5_Dex1）\n";
+
+  std::vector<int> required;
+  if (!right_arm_motors_locked())
+    required.push_back(kRightMotorId);
+  required.push_back(kLeftMotorId);
+
+  std::vector<int> found;
+  for (int attempt = 0; attempt < config_.detect_retries; ++attempt) {
+    found.clear();
+    for (int id : required) {
+      if (!gripper_paired(static_cast<std::uint8_t>(id)))
+        continue;
+      float q = 0.f, dq = 0.f, tau = 0.f;
+      std::uint32_t merror = 0;
+      if (!dex1_read(static_cast<std::uint8_t>(id), 0.f, q, dq, tau, merror))
+        continue;
+      found.push_back(id);
+      log_merror("探活", id, merror, true);
+    }
+    if (found.size() == required.size())
+      break;
+    std::cerr << "[gripper] 第 " << (attempt + 1) << "/" << config_.detect_retries
+              << " 次未齐，缺";
+    for (int id : required) {
+      if (std::find(found.begin(), found.end(), id) == found.end())
+        std::cerr << ' ' << id << (id == kRightMotorId ? "(右)" : "(左)");
+    }
+    std::cerr << "\n";
+    usleep(200000);
   }
 
-  std::cout << "[gripper] 扫描串口: ";
-  for (const auto &p : ports) {
-    std::cout << p << " ";
-  }
-  std::cout << "\n";
-
-  std::map<int, std::pair<std::shared_ptr<SerialPort>, std::string>> found;
-
-  for (int attempt = 0; attempt < config_.detect_retries && found.size() < 2; ++attempt) {
-    for (const auto &port : ports) {
-      auto serial = std::make_shared<SerialPort>(port.c_str());
-      for (int id : {kRightMotorId, kLeftMotorId}) {
-        if (found.count(id) > 0) {
-          continue;
-        }
-        if (probeMotor(serial, id)) {
-          found[id] = {serial, port};
-          std::cout << "[gripper] 检测到 motor_id=" << id << " side="
-                    << (id == kRightMotorId ? "right" : "left") << " port=" << port << "\n";
-        }
+    if (found.empty()) {
+      std::cerr << "[gripper] 一个夹爪都没有，拒绝启动\n";
+      return false;
+    }
+    if (found.size() != required.size()) {
+      std::cerr << "[gripper] 少一个夹爪，仍启动，手臂照常运动。缺";
+      for (int id : required) {
+        if (std::find(found.begin(), found.end(), id) == found.end())
+          std::cerr << ' ' << id << (id == kRightMotorId ? "(右)" : "(左)");
       }
+      std::cerr << "\n";
     }
-    if (found.size() < 2) {
-      usleep(50000);
-    }
-  }
-
-  if (found.empty()) {
-    std::cerr << "[gripper] 未检测到夹爪电机，请检查 USB 与电源\n";
-    return false;
-  }
 
   std::lock_guard<std::mutex> lock(mutex_);
   sides_.clear();
-  for (const auto &[id, info] : found) {
+  for (int id : found) {
     const Side side = sideFromMotorId(id);
     auto impl = std::make_unique<SideImpl>();
     impl->side = side;
     impl->motor_id = id;
-    impl->port = info.second;
-    impl->serial = info.first;
-    impl->gear_ratio = queryGearRatio(MotorType::M4010);
+    impl->port = "ti5-dex1";
+    impl->present = true;
+    float q = 0.f, dq = 0.f, tau = 0.f;
+    std::uint32_t merror = 0;
     double current_q = config_.open_position_rad;
-    if (readMotorPosition(impl->serial, impl->motor_id, impl->gear_ratio, &current_q)) {
-      impl->q = current_q;
+    if (dex1_read(static_cast<std::uint8_t>(id), 0.f, q, dq, tau, merror)) {
+      current_q = q;
+      impl->q = q;
+      impl->dq = dq;
+      impl->tau = tau;
+      impl->merror = merror;
+      impl->io_ok = true;
       impl->initialized = true;
       std::cout << "[gripper] motor_id=" << id << " 当前位置 q=" << current_q << " rad\n";
+      log_merror("读位置", id, merror, true);
     }
     impl->target_q = current_q;
     impl->q_cmd = current_q;
@@ -313,14 +326,59 @@ bool Gripper::waitBothRad(double target_rad, double tolerance_rad,
     wait_left = sides_.count(Side::Left) > 0;
     wait_right = sides_.count(Side::Right) > 0;
   }
-  bool ok = true;
-  if (wait_left) {
-    ok &= waitForRad(Side::Left, target_rad, tolerance_rad, timeout);
+  if (!wait_left && !wait_right)
+    return true;
+
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto deadline = t0 + timeout;
+  const auto stuck_after = t0 + std::chrono::milliseconds(2500);
+  const double tol = std::max(0.0, tolerance_rad);
+  const double left0 = wait_left ? feedback(Side::Left).position_rad : 0.0;
+  const double right0 = wait_right ? feedback(Side::Right).position_rad : 0.0;
+  bool left_ok = !wait_left;
+  bool right_ok = !wait_right;
+  bool logged_stuck = false;
+
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (wait_left && !left_ok) {
+      const auto fb = feedback(Side::Left);
+      if (fb.have_feedback && std::fabs(fb.position_rad - target_rad) <= tol)
+        left_ok = true;
+    }
+    if (wait_right && !right_ok) {
+      const auto fb = feedback(Side::Right);
+      if (fb.have_feedback && std::fabs(fb.position_rad - target_rad) <= tol)
+        right_ok = true;
+    }
+    if (left_ok && right_ok)
+      return true;
+
+    if (!logged_stuck && std::chrono::steady_clock::now() >= stuck_after) {
+      bool moved = false;
+      if (wait_left && !left_ok) {
+        const auto fb = feedback(Side::Left);
+        moved = moved || moved_toward(left0, fb.position_rad, target_rad, 0.03);
+      }
+      if (wait_right && !right_ok) {
+        const auto fb = feedback(Side::Right);
+        moved = moved || moved_toward(right0, fb.position_rad, target_rad, 0.03);
+      }
+      if (!moved) {
+        const auto lf = wait_left ? feedback(Side::Left) : SideFeedback{};
+        const auto rf = wait_right ? feedback(Side::Right) : SideFeedback{};
+        std::cerr << "[gripper] 编码器未跟随目标 " << target_rad
+                  << " rad，提前结束等待（避免左右各卡满超时）\n";
+        if (wait_left)
+          log_merror("左未动", kLeftMotorId, lf.merror, lf.io_ok);
+        if (wait_right)
+          log_merror("右未动", kRightMotorId, rf.merror, rf.io_ok);
+        return false;
+      }
+      logged_stuck = true;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
-  if (wait_right) {
-    ok &= waitForRad(Side::Right, target_rad, tolerance_rad, timeout);
-  }
-  return ok;
+  return false;
 }
 
 bool Gripper::openBothAndWait(double tolerance_rad, std::chrono::milliseconds timeout) {
@@ -416,6 +474,13 @@ GraspFeedback Gripper::graspSideUntil(Side side, double max_torque_nm,
                                       double position_tolerance_rad,
                                       std::chrono::milliseconds timeout) {
   GraspFeedback out;
+  if (!hasSide(side)) {
+    std::cout << "[gripper] "
+              << (side == Side::Right ? "右" : "左")
+              << "夹爪未配对，跳过合爪，手臂照常运动\n";
+    out.result = GraspResult::PositionReached;
+    return out;
+  }
   const double torque_limit = resolveGraspTorque(max_torque_nm);
   const double close_q = config_.close_position_rad;
   const double pos_tol = std::max(0.0, position_tolerance_rad);
@@ -461,6 +526,13 @@ GraspFeedback Gripper::graspSoftSideUntil(Side side, double max_torque_nm,
                                           double position_tolerance_rad,
                                           std::chrono::milliseconds timeout) {
   GraspFeedback out;
+  if (!hasSide(side)) {
+    std::cout << "[gripper] "
+              << (side == Side::Right ? "右" : "左")
+              << "夹爪未配对，跳过合爪，手臂照常运动\n";
+    out.result = GraspResult::PositionReached;
+    return out;
+  }
   const double tau_limit = resolveSoftTorque(max_torque_nm);
   const double close_q = config_.close_position_rad;
   const double pos_tol = std::max(0.0, position_tolerance_rad);
@@ -722,11 +794,15 @@ SideFeedback Gripper::feedback(Side side) const {
   fb.have_feedback = s.initialized;
   fb.command_rad = s.q_cmd;
   fb.soft_torque_limited = s.soft_torque_limited;
+  fb.merror = s.merror;
+  fb.io_ok = s.io_ok;
   return fb;
 }
 
 bool Gripper::waitFor(Side side, double target_deg, double tolerance_deg,
                       std::chrono::milliseconds timeout) {
+  if (!hasSide(side))
+    return true;
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   const double tol = std::max(0.0, tolerance_deg);
   while (std::chrono::steady_clock::now() < deadline) {
@@ -741,12 +817,28 @@ bool Gripper::waitFor(Side side, double target_deg, double tolerance_deg,
 
 bool Gripper::waitForRad(Side side, double target_rad, double tolerance_rad,
                          std::chrono::milliseconds timeout) {
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  if (!hasSide(side))
+    return true;
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto deadline = t0 + timeout;
+  const auto stuck_after = t0 + std::chrono::milliseconds(2500);
   const double tol = std::max(0.0, tolerance_rad);
+  const double q0 = feedback(side).position_rad;
+  bool logged_stuck = false;
   while (std::chrono::steady_clock::now() < deadline) {
     const auto fb = feedback(side);
     if (fb.have_feedback && std::fabs(fb.position_rad - target_rad) <= tol) {
       return true;
+    }
+    if (!logged_stuck && std::chrono::steady_clock::now() >= stuck_after) {
+      if (!moved_toward(q0, fb.position_rad, target_rad, 0.03)) {
+        std::cerr << "[gripper] " << sideName(side) << "夹爪未跟随目标 " << target_rad
+                  << " rad，提前结束等待\n";
+        log_merror(sideName(side), side == Side::Right ? kRightMotorId : kLeftMotorId, fb.merror,
+                   fb.io_ok);
+        return false;
+      }
+      logged_stuck = true;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
@@ -963,7 +1055,6 @@ bool Gripper::calibrate(Side side) {
     return false;
   }
 
-  std::shared_ptr<SerialPort> serial;
   int motor_id = 0;
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -972,17 +1063,17 @@ bool Gripper::calibrate(Side side) {
       std::cerr << "[gripper] 未找到 side=" << (side == Side::Left ? "left" : "right") << "\n";
       return false;
     }
-    serial = it->second->serial;
     motor_id = it->second->motor_id;
   }
 
-  const bool ok = serial->calibration(MotorType::M4010, motor_id, 0.0f, config_.calibration_limit_rad);
-  if (ok) {
-    std::cout << "[gripper] motor_id=" << motor_id << " 标定成功\n";
-  } else {
-    std::cerr << "[gripper] motor_id=" << motor_id << " 标定失败\n";
+  try {
+    set_Gripper_Calibrate(static_cast<std::uint8_t>(motor_id));
+    std::cout << "[gripper] motor_id=" << motor_id << " 已下发 Dex1 标定\n";
+    return true;
+  } catch (const std::exception &ex) {
+    std::cerr << "[gripper] motor_id=" << motor_id << " 标定失败: " << ex.what() << "\n";
+    return false;
   }
-  return ok;
 }
 
 bool Gripper::calibrateInteractive() {
@@ -1025,75 +1116,91 @@ void Gripper::controlLoop() {
   using clock = std::chrono::steady_clock;
   const auto period = std::chrono::duration<double>(1.0 / std::max(1.0, config_.control_hz));
   auto next_tick = clock::now();
+  const float kp = static_cast<float>(config_.kp);
+  const float kd = static_cast<float>(config_.kd);
 
-  const double kp_scale = config_.kp;
-  const double kd_scale = config_.kd;
+  struct Pulse {
+    Side side = Side::Left;
+    int motor_id = 0;
+    float q_cmd = 0.f;
+  };
 
-  while (!stop_requested_.load()) {
-    const auto tick_start = clock::now();
-    const double dt = std::max(0.0, std::chrono::duration<double>(tick_start - next_tick).count());
+  try {
+    while (!stop_requested_.load()) {
+      const auto tick_start = clock::now();
+      const double dt =
+          std::max(0.0, std::chrono::duration<double>(tick_start - next_tick).count());
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    const bool teleop = teleop_mode_.load();
-    const bool teleop_soft = teleop_soft_mode_.load();
-
-    for (auto &[side, impl] : sides_) {
-      (void)side;
-      if (!impl->serial) {
-        continue;
-      }
-
-      if (teleop && teleop_soft) {
-        impl->soft_torque_active = true;
-        impl->target_q = ratioToRad(clamp(impl->teleop_ratio, 0.0, 1.0));
-        runSoftControlStep(*impl, dt);
-        impl->effective_target_q = impl->q_cmd;
-        impl->torque_limited = impl->soft_torque_limited;
-      } else if (teleop) {
-        applyTeleopTarget(*impl);
-      } else if (impl->soft_torque_active) {
-        runSoftControlStep(*impl, dt);
-      } else {
-        const double slew_rate = config_.default_slew_rate;
-        const double max_step = std::max(0.0, slew_rate) * dt;
-        if (max_step > 0.0) {
-          const double err = impl->target_q - impl->q_cmd;
-          impl->q_cmd += clamp(err, -max_step, max_step);
-        } else {
-          impl->q_cmd = impl->target_q;
+      std::vector<Pulse> pulses;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const bool teleop = teleop_mode_.load();
+        const bool teleop_soft = teleop_soft_mode_.load();
+        for (auto &[side, impl] : sides_) {
+          if (!impl->present)
+            continue;
+          if (teleop && teleop_soft) {
+            impl->soft_torque_active = true;
+            impl->target_q = ratioToRad(clamp(impl->teleop_ratio, 0.0, 1.0));
+            runSoftControlStep(*impl, dt);
+            impl->effective_target_q = impl->q_cmd;
+            impl->torque_limited = impl->soft_torque_limited;
+          } else if (teleop) {
+            applyTeleopTarget(*impl);
+          } else if (impl->soft_torque_active) {
+            runSoftControlStep(*impl, dt);
+          } else {
+            impl->q_cmd = impl->target_q;
+            impl->soft_torque_limited = false;
+            updateMotionFilter(*impl);
+            impl->q_cmd =
+                clamp(impl->q_cmd, config_.close_position_rad, config_.open_position_rad);
+          }
+          pulses.push_back({side, impl->motor_id, static_cast<float>(impl->q_cmd)});
         }
-        impl->soft_torque_limited = false;
-        updateMotionFilter(*impl);
-        impl->q_cmd =
-            clamp(impl->q_cmd, config_.close_position_rad, config_.open_position_rad);
       }
 
-      MotorCmd cmd;
-      MotorData data;
-      cmd.motorType = MotorType::M4010;
-      cmd.id = impl->motor_id;
-      cmd.mode = queryMotorMode(cmd.motorType, MotorMode::FOC);
-      data.motorType = cmd.motorType;
-
-      const float gr = impl->gear_ratio;
-      const float gr2 = gr * gr;
-      cmd.kp = static_cast<float>(kp_scale / gr2);
-      cmd.kd = static_cast<float>(kd_scale / gr2);
-      cmd.q = static_cast<float>(impl->q_cmd * gr);
-      cmd.dq = 0.0f;
-      cmd.tau = 0.0f;
-      cmd.timeout = 0;
-
-      if (impl->serial->sendRecv(&cmd, &data)) {
-        impl->q = data.q / gr;
-        impl->dq = data.dq / gr;
-        impl->tau = data.tau * gr;
-        impl->initialized = true;
+      for (const auto &p : pulses) {
+        float q_fb = 0.f, dq_fb = 0.f, tau_fb = 0.f;
+        std::uint32_t merror = 0;
+        bool ok = false;
+        try {
+          ok = dex1_set_get(static_cast<std::uint8_t>(p.motor_id), p.q_cmd, 0.f, 0.f, kp, kd, q_fb,
+                            dq_fb, tau_fb, merror);
+        } catch (const std::exception &ex) {
+          std::cerr << "[gripper] Dex1 IO 异常 id=" << p.motor_id << " " << ex.what() << "\n";
+        }
+        std::lock_guard<std::mutex> lock(mutex_);
+        const auto it = sides_.find(p.side);
+        if (it == sides_.end())
+          continue;
+        auto &impl = *it->second;
+        impl.io_ok = ok;
+        if (ok) {
+          impl.q = q_fb;
+          impl.dq = dq_fb;
+          impl.tau = tau_fb;
+          impl.merror = merror;
+          impl.initialized = true;
+          impl.io_fail_streak = 0;
+        } else {
+          ++impl.io_fail_streak;
+        }
+        if (ok && merror != impl.last_logged_merror) {
+          log_merror("状态", p.motor_id, merror, true);
+          impl.last_logged_merror = merror;
+        } else if (!ok && impl.io_fail_streak == 1) {
+          log_merror("无回包", p.motor_id, impl.merror, false);
+        }
       }
+
+      next_tick += std::chrono::duration_cast<clock::duration>(period);
+      if (next_tick < clock::now())
+        next_tick = clock::now();
+      std::this_thread::sleep_until(next_tick);
     }
-
-    next_tick += std::chrono::duration_cast<clock::duration>(period);
-    std::this_thread::sleep_until(next_tick);
+  } catch (const std::exception &ex) {
+    std::cerr << "[gripper] 控制线程异常退出: " << ex.what() << "\n";
   }
 }
 

@@ -4,211 +4,175 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
-#include <vector>
+#include <stdexcept>
+#include <string>
+
+namespace
+{
+bool g_have_live_tray_origin_y = false;
+double g_live_tray_origin_y = 0.0;
+} // namespace
 
 namespace
 {
 
-constexpr double kDeg2Rad = M_PI / 180.0;
+constexpr double kDegToRad = M_PI / 180.0;
 
-Eigen::Matrix<double, 1, 6> pose6_from_deg_list(const std::array<double, 6> &v)
+template <typename T>
+void read_value(const YAML::Node &node, const char *key, T &out)
 {
-    Eigen::Matrix<double, 1, 6> pose;
-    for (int i = 0; i < 3; ++i)
-        pose(i) = v[static_cast<size_t>(i)];
-    for (int i = 3; i < 6; ++i)
-        pose(i) = v[static_cast<size_t>(i)] * kDeg2Rad;
-    return pose;
+    if (node && node[key])
+        out = node[key].as<T>();
 }
 
-bool read_pose6_deg(const YAML::Node &node, Eigen::Matrix<double, 1, 6> &out, std::string &err)
+bool read_pose(const YAML::Node &node, Eigen::Matrix<double, 1, 6> &out)
 {
-    if (!node || !node.IsSequence() || node.size() < 6)
-    {
-        err = "需要 6 个数 [x,y,z,rx,ry,rz](deg)";
+    if (!node || !node.IsSequence() || node.size() != 6)
         return false;
-    }
-    std::array<double, 6> v{};
-    for (size_t i = 0; i < 6; ++i)
-        v[i] = node[i].as<double>();
-    out = pose6_from_deg_list(v);
+    for (int i = 0; i < 3; ++i)
+        out(i) = node[static_cast<size_t>(i)].as<double>();
+    for (int i = 3; i < 6; ++i)
+        out(i) = node[static_cast<size_t>(i)].as<double>() * kDegToRad;
     return true;
 }
 
-template <typename T>
-void read_scalar(const YAML::Node &root, const char *key, T &out)
+void read_hand_offset(const YAML::Node &node, HandXyOffsetConfig &out)
 {
-    if (root[key])
-        out = root[key].as<T>();
+    read_value(node, "offset_x", out.offset_x);
+    read_value(node, "offset_y", out.offset_y);
 }
 
-void read_row_waist_x(const YAML::Node &place_node, MoveBoxPlaceConfig &place)
+int clamp_algorithm_id(int value)
 {
-    const int row_count = std::max(1, static_cast<int>(place.row_x_bounds.size()));
-    if (place.row_waist_x.size() < static_cast<size_t>(row_count))
-        place.row_waist_x.resize(static_cast<size_t>(row_count), 0.0);
-
-    if (const YAML::Node rw = place_node["row_waist_x"])
-    {
-        if (rw.IsSequence())
-        {
-            for (size_t i = 0; i < rw.size() && i < place.row_waist_x.size(); ++i)
-                place.row_waist_x[i] = rw[i].as<double>();
-        }
-        else if (rw.IsMap())
-        {
-            for (int i = 0; i < row_count; ++i)
-            {
-                const std::string key = "row" + std::to_string(i + 1);
-                if (rw[key])
-                    place.row_waist_x[static_cast<size_t>(i)] = rw[key].as<double>();
-            }
-        }
-    }
-
-    // 兼容旧键：仅覆盖第 1 排
-    if (place_node["first_row_waist_retreat_x"])
-        place.row_waist_x[0] = place_node["first_row_waist_retreat_x"].as<double>();
+    return (value == 0 || value == 1) ? value : -1;
 }
 
-void read_row_enabled(const YAML::Node &place_node, MoveBoxPlaceConfig &place)
+void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, const char *name)
 {
-    const int row_count = std::max(1, static_cast<int>(place.row_x_bounds.size()));
-    place.row_enabled.assign(static_cast<size_t>(row_count), 1);
-
-    if (const YAML::Node re = place_node["row_enabled"])
-    {
-        if (re.IsSequence())
-        {
-            for (size_t i = 0; i < re.size() && i < place.row_enabled.size(); ++i)
-                place.row_enabled[i] = re[i].as<int>() != 0 ? 1 : 0;
-        }
-        else if (re.IsMap())
-        {
-            for (int i = 0; i < row_count; ++i)
-            {
-                const std::string key = "row" + std::to_string(i + 1);
-                if (re[key])
-                    place.row_enabled[static_cast<size_t>(i)] = re[key].as<int>() != 0 ? 1 : 0;
-            }
-        }
-    }
-}
-
-int clamp_vision_algorithm_id(int v)
-{
-    if (v < -1)
-        return -1;
-    if (v > 1)
-        return 1;
-    return v;
-}
-
-void read_vision_detect(const YAML::Node &root, MoveBoxVisionDetectConfig &out)
-{
-    if (!root["vision_detect"])
+    if (!node)
         return;
-
-    const YAML::Node n = root["vision_detect"];
-    if (n["head_grasp"])
-        out.head_grasp = clamp_vision_algorithm_id(n["head_grasp"].as<int>());
-    if (n["right_hand_grasp"])
-        out.right_hand_grasp = clamp_vision_algorithm_id(n["right_hand_grasp"].as<int>());
-    if (n["left_hand_grasp"])
-        out.left_hand_grasp = clamp_vision_algorithm_id(n["left_hand_grasp"].as<int>());
-    if (n["place_holes"])
-        out.place_holes = clamp_vision_algorithm_id(n["place_holes"].as<int>());
-}
-
-const char *vision_algorithm_label(int algorithm_id)
-{
-    switch (algorithm_id)
+    read_value(node, "waist_x", dst.waist_x);
+    read_value(node, "waist_z", dst.waist_z);
+    read_value(node, "head_yaw_deg", dst.head_yaw_deg);
+    read_value(node, "head_pitch_deg", dst.head_pitch_deg);
+    read_value(node, "head_roll_deg", dst.head_roll_deg);
+    if (node["tcp"])
     {
-    case 0:
-        return "pnp";
-    case 1:
-        return "centroid";
-    default:
-        return "yaml";
+        if (!read_pose(node["tcp"]["right"], dst.tcp.right) ||
+            !read_pose(node["tcp"]["left"], dst.tcp.left))
+            throw std::runtime_error(std::string(name) + ".tcp.left/right 必须各有 6 个数");
     }
-}
-
-void read_place_hand_node(const YAML::Node &n, MoveBoxPlaceOffsetConfig &out)
-{
-    if (!n)
-        return;
-    read_scalar(n, "offset_x", out.offset_x);
-    read_scalar(n, "offset_y", out.offset_y);
-}
-
-void read_place_row_hand_offsets(const YAML::Node &n, MoveBoxPlaceRowHandOffsets &out)
-{
-    if (const YAML::Node nl = n["left"])
-        read_place_hand_node(nl, out.left);
-    if (const YAML::Node nr = n["right"])
-        read_place_hand_node(nr, out.right);
-}
-
-void fill_all_place_row_xy_offsets(MoveBoxPlaceConfig &place, const MoveBoxPlaceRowHandOffsets &src)
-{
-    for (auto &row : place.row_xy_offset)
-        row = src;
-    place.row6_xy_offset = src;
-}
-
-void read_row_xy_offsets(const YAML::Node &place_node, MoveBoxPlaceConfig &place)
-{
-    if (const YAML::Node rx = place_node["row_xy_offset"])
+    if (node["place_tcp"])
     {
-        static const char *keys[] = {"row1", "row2", "row3", "row4", "row5"};
-        for (int i = 0; i < 5; ++i)
+        if (!read_pose(node["place_tcp"]["right"], dst.place_tcp.right) ||
+            !read_pose(node["place_tcp"]["left"], dst.place_tcp.left))
+            throw std::runtime_error(std::string(name) + ".place_tcp.left/right 必须各有 6 个数");
+    }
+    else if (node["tcp"])
+        dst.place_tcp = dst.tcp;
+    if (node["offset"])
+    {
+        read_value(node["offset"]["right"], "x", dst.offset_right.x);
+        read_value(node["offset"]["right"], "y", dst.offset_right.y);
+        read_value(node["offset"]["right"], "z", dst.offset_right.z);
+        read_value(node["offset"]["left"], "x", dst.offset_left.x);
+        read_value(node["offset"]["left"], "y", dst.offset_left.y);
+        read_value(node["offset"]["left"], "z", dst.offset_left.z);
+    }
+    read_value(node, "prefer_belt", dst.prefer_belt);
+    auto read_grasp_rpy = [](const YAML::Node &rpy, GraspRpyDeg &out) -> bool {
+        if (!rpy || !rpy.IsSequence() || rpy.size() < 3)
+            return false;
+        out.rx = rpy[0].as<double>();
+        out.ry = rpy[1].as<double>();
+        out.rz = rpy[2].as<double>();
+        return true;
+    };
+    if (node["grasp_rpy_deg"])
+    {
+        if (node["grasp_rpy_deg"]["left"] &&
+            !read_grasp_rpy(node["grasp_rpy_deg"]["left"], dst.grasp_rpy_left))
+            throw std::runtime_error(std::string(name) + ".grasp_rpy_deg.left 必须是 3 个数");
+        if (node["grasp_rpy_deg"]["right"] &&
+            !read_grasp_rpy(node["grasp_rpy_deg"]["right"], dst.grasp_rpy_right))
+            throw std::runtime_error(std::string(name) + ".grasp_rpy_deg.right 必须是 3 个数");
+    }
+    if (node["grasp_offset"])
+    {
+        const YAML::Node go = node["grasp_offset"];
+        if (go["left"] || go["right"])
         {
-            if (const YAML::Node row = rx[keys[i]])
-                read_place_row_hand_offsets(row, place.row_xy_offset[static_cast<size_t>(i)]);
+            read_value(go["left"], "x", dst.grasp_offset_left.x);
+            read_value(go["left"], "y", dst.grasp_offset_left.y);
+            read_value(go["left"], "z", dst.grasp_offset_left.z);
+            read_value(go["right"], "x", dst.grasp_offset_right.x);
+            read_value(go["right"], "y", dst.grasp_offset_right.y);
+            read_value(go["right"], "z", dst.grasp_offset_right.z);
+        }
+        else
+        {
+            read_value(go, "x", dst.grasp_offset_left.x);
+            read_value(go, "y", dst.grasp_offset_left.y);
+            read_value(go, "z", dst.grasp_offset_left.z);
+            dst.grasp_offset_right = dst.grasp_offset_left;
         }
     }
-    if (const YAML::Node r6 = place_node["row6_xy_offset"])
-        read_place_row_hand_offsets(r6, place.row6_xy_offset);
-
-    // 兼容旧版 place.left / place.right：未配 row_xy_offset 时五排+第六排共用
-    if (!place_node["row_xy_offset"] && (place_node["left"] || place_node["right"]))
+    if (node["grasp_tcp"])
     {
-        MoveBoxPlaceRowHandOffsets legacy;
-        if (const YAML::Node nl = place_node["left"])
-            read_place_hand_node(nl, legacy.left);
-        if (const YAML::Node nr = place_node["right"])
-            read_place_hand_node(nr, legacy.right);
-        fill_all_place_row_xy_offsets(place, legacy);
+        if (!read_pose(node["grasp_tcp"]["right"], dst.grasp_tcp.right) ||
+            !read_pose(node["grasp_tcp"]["left"], dst.grasp_tcp.left))
+            throw std::runtime_error(std::string(name) + ".grasp_tcp.left/right 必须各有 6 个数");
     }
+    else if (node["tcp"])
+        dst.grasp_tcp = dst.tcp;
+    read_value(node, "grasp_hover_above_m", dst.grasp_hover_above_m);
+    read_value(node, "place_hover_above_m", dst.place_hover_above_m);
+    read_value(node, "grasp_waist_yaw_deg", dst.grasp_waist_yaw_deg);
+    read_value(node, "grasp_ready_close_ratio", dst.grasp_ready_close_ratio);
+    read_value(node, "grasp_yolo_enable", dst.grasp_yolo_enable);
+    read_value(node, "grasp_yolo_class_id", dst.grasp_yolo_class_id);
+    read_value(node, "use_fixed_origin_z", dst.use_fixed_origin_z);
+    read_value(node, "fixed_origin_z_m", dst.fixed_origin_z_m);
 }
 
-void read_row_x_bounds(const YAML::Node &place_node, MoveBoxPlaceConfig &place)
+void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
 {
-    if (!place_node["row_x_bounds"])
-        return;
-
-    const YAML::Node rb = place_node["row_x_bounds"];
-    if (rb.IsSequence())
-    {
-        place.row_x_bounds.clear();
-        for (size_t i = 0; i < rb.size(); ++i)
-        {
-            PlaceRowXBound b;
-            if (rb[i].IsSequence() && rb[i].size() >= 2)
-            {
-                b.x_min = rb[i][0].as<double>();
-                b.x_max = rb[i][1].as<double>();
-            }
-            else
-            {
-                read_scalar(rb[i], "x_min", b.x_min);
-                read_scalar(rb[i], "x_max", b.x_max);
-            }
-            place.row_x_bounds.push_back(b);
-        }
-    }
+    std::cout << std::fixed << std::setprecision(4)
+              << "[cfg] " << name << " station x=" << c.waist_x
+              << " z=" << c.waist_z
+              << "m head yaw=" << c.head_yaw_deg
+              << " pitch=" << c.head_pitch_deg
+              << " roll=" << c.head_roll_deg << " deg\n"
+              << "[cfg] " << name << " tcp right=" << c.tcp.right << "\n"
+              << "[cfg] " << name << " tcp left=" << c.tcp.left << "\n"
+              << "[cfg] " << name << " grasp_tcp right=" << c.grasp_tcp.right << "\n"
+              << "[cfg] " << name << " grasp_tcp left=" << c.grasp_tcp.left << "\n"
+              << "[cfg] " << name << " place_tcp right=" << c.place_tcp.right << "\n"
+              << "[cfg] " << name << " place_tcp left=" << c.place_tcp.left << "\n"
+              << "[cfg] " << name << " offset right=(" << c.offset_right.x
+              << "," << c.offset_right.y << "," << c.offset_right.z
+              << ") left=(" << c.offset_left.x << ","
+              << c.offset_left.y << "," << c.offset_left.z
+              << ") prefer=" << c.prefer_belt << "\n"
+              << "[cfg] " << name << " grasp_rpy_deg 右=(" << c.grasp_rpy_right.rx
+              << "," << c.grasp_rpy_right.ry << "," << c.grasp_rpy_right.rz
+              << ") 左=(" << c.grasp_rpy_left.rx << ","
+              << c.grasp_rpy_left.ry << "," << c.grasp_rpy_left.rz
+              << ") offset_识别系 左=(" << c.grasp_offset_left.x << ","
+              << c.grasp_offset_left.y << "," << c.grasp_offset_left.z
+              << ") 右=(" << c.grasp_offset_right.x << ","
+              << c.grasp_offset_right.y << "," << c.grasp_offset_right.z
+              << ") hover=" << c.grasp_hover_above_m
+              << "m yaw_left=" << c.grasp_waist_yaw_deg
+              << "deg ready_grip=" << c.grasp_ready_close_ratio
+              << " yolo=" << (c.grasp_yolo_enable ? "on" : "off")
+              << " class=" << c.grasp_yolo_class_id
+              << " fixed_z=" << (c.use_fixed_origin_z ? "on" : "off")
+              << " " << c.fixed_origin_z_m << "m\n";
 }
 
 } // namespace
@@ -216,25 +180,48 @@ void read_row_x_bounds(const YAML::Node &place_node, MoveBoxPlaceConfig &place)
 MoveBoxConfig default_move_box_config()
 {
     MoveBoxConfig cfg;
-    cfg.standby.right = pose6_from_deg_list({0.45, -0.36, -0.15, -90, 0, 0});
-    cfg.standby.left = pose6_from_deg_list({0.45, 0.36, -0.15, 90, 0, 0});
-    cfg.waist.layer3_home = pose6_from_deg_list({-0.132502, 0.0, 0.622464, -90, -89.77, 180});
+    cfg.standby.right << 0.45, -0.30, -0.25, 0.0, 45.0 * kDegToRad, 40.0 * kDegToRad;
+    cfg.standby.left << 0.45, 0.30, -0.25, 0.0, 45.0 * kDegToRad, -40.0 * kDegToRad;
+    cfg.home_tcp.right.setZero();
+    cfg.home_tcp.left.setZero();
+    cfg.waist.layer3_home << 0.0, 0.0, 0.55, 0.0, 0.0, 0.0;
+    for (int g = 0; g < 3; ++g)
     {
-        MoveBoxPlaceRowHandOffsets def_xy;
-        def_xy.left.offset_x = 0.045;
-        def_xy.left.offset_y = -0.04;
-        def_xy.right.offset_x = 0.058;
-        def_xy.right.offset_y = -0.015;
-        fill_all_place_row_xy_offsets(cfg.place, def_xy);
+        cfg.head_grasp.left_row_rpy_deg[g] = {0.0, 60.0, -45.0};
+        cfg.head_grasp.right_row_rpy_deg[g] = {0.0, 60.0, 45.0};
     }
-    cfg.place.fallback_right = pose6_from_deg_list({0.45, -0.36, -0.15, -90, 0, 0});
-    cfg.place.fallback_left = pose6_from_deg_list({0.45, 0.36, -0.15, 90, 0, 0});
-    cfg.place.row_waist_x = {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1};
-    cfg.place.row_enabled = {1, 1, 1, 1, 1, 1};
-    cfg.place.row_place_from_front = 1;
-    cfg.place.place_non_anchor_first = 1;
-    cfg.place.detect_trials = 1;
-    cfg.head_grasp.hand_detect_invalid_redo_max = 1;
+    cfg.head_grasp.left_row6_rpy_deg = {0.0, 30.0, -20.0};
+    cfg.head_grasp.right_row6_rpy_deg = {0.0, 30.0, 20.0};
+    for (int g = 0; g < 3; ++g)
+    {
+        cfg.tray2_place.left_row_rpy_deg[g] = cfg.head_grasp.left_row_rpy_deg[g];
+        cfg.tray2_place.right_row_rpy_deg[g] = cfg.head_grasp.right_row_rpy_deg[g];
+    }
+    cfg.tray2_place.left_row6_rpy_deg = cfg.head_grasp.left_row6_rpy_deg;
+    cfg.tray2_place.right_row6_rpy_deg = cfg.head_grasp.right_row6_rpy_deg;
+    cfg.head_grasp.goal_y_offset = 0.012;
+    cfg.head_grasp.hand_left.offset_x = -0.01;
+    cfg.head_grasp.hand_left.offset_y = -0.02;
+    cfg.head_grasp.hand_right.offset_x = -0.01;
+    cfg.head_grasp.hand_right.offset_y = 0.02;
+    cfg.conveyor.tcp.right << 0.45, -0.30, -0.25, 0.0, 45.0 * kDegToRad, 40.0 * kDegToRad;
+    cfg.conveyor.tcp.left << 0.45, 0.30, -0.25, 0.0, 45.0 * kDegToRad, -40.0 * kDegToRad;
+    cfg.conveyor.place_tcp = cfg.conveyor.tcp;
+    cfg.conveyor.grasp_rpy_left = {0.0, 45.0, -30.0};
+    cfg.conveyor.grasp_rpy_right = {0.0, 45.0, 30.0};
+    cfg.conveyor.grasp_offset_left = {0.00, 0.12, 0.00};
+    cfg.conveyor.grasp_offset_right = {0.00, 0.12, 0.00};
+    cfg.conveyor.grasp_tcp = cfg.conveyor.tcp;
+    cfg.conveyor.offset_right = {-0.04, 0.00, 0.08};
+    cfg.conveyor.offset_left = {-0.04, 0.00, 0.08};
+    cfg.conveyor.grasp_hover_above_m = 0.06;
+    cfg.conveyor.place_hover_above_m = 0.06;
+    cfg.conveyor.grasp_waist_yaw_deg = 0.0;
+    cfg.conveyor.grasp_ready_close_ratio = 0.30;
+    cfg.conveyor.grasp_yolo_enable = false;
+    cfg.conveyor.grasp_yolo_class_id = 1;
+    cfg.conveyor2 = cfg.conveyor;
+    cfg.conveyor2.grasp_yolo_class_id = 2;
     return cfg;
 }
 
@@ -246,327 +233,727 @@ std::string default_move_box_config_path()
 bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::string &err)
 {
     cfg = default_move_box_config();
+    err.clear();
     try
     {
         const YAML::Node root = YAML::LoadFile(path);
-
-        if (const YAML::Node n = root["standby"])
+        if (!read_pose(root["standby"]["right"], cfg.standby.right) ||
+            !read_pose(root["standby"]["left"], cfg.standby.left))
+            throw std::runtime_error("standby.left/right 必须各有 6 个数");
+        if (root["home_tcp"])
         {
-            if (n["right"])
-                read_pose6_deg(n["right"], cfg.standby.right, err);
-            if (n["left"])
-                read_pose6_deg(n["left"], cfg.standby.left, err);
+            if (!read_pose(root["home_tcp"]["right"], cfg.home_tcp.right) ||
+                !read_pose(root["home_tcp"]["left"], cfg.home_tcp.left))
+                throw std::runtime_error("home_tcp.left/right 必须各有 6 个数");
         }
 
-        if (const YAML::Node n = root["head_grasp"])
+        const YAML::Node tray = root["tray"];
+        read_value(tray, "z_ref_m", cfg.tray.z_ref_m);
+        read_value(tray, "z_ref_waist_z_m", cfg.tray.z_ref_waist_z_m);
+        read_value(tray, "part_above_tray_m", cfg.tray.part_above_tray_m);
+        read_value(tray, "z_refine_max_m", cfg.tray.z_refine_max_m);
+        read_value(tray, "fuse_frames", cfg.tray.fuse_frames);
+
+        const YAML::Node head = root["head"];
+        read_value(head, "yaw_deg", cfg.head.yaw_deg);
+        read_value(head, "pitch_deg", cfg.head.pitch_deg);
+        read_value(head, "far_pitch_deg", cfg.head.far_pitch_deg);
+        read_value(head, "roll_deg", cfg.head.roll_deg);
+        read_value(head, "speed_deg_s", cfg.head.speed_deg_s);
+        if (cfg.head.speed_deg_s <= 1e-6)
+            throw std::runtime_error("head.speed_deg_s 必须为正");
+
+        const YAML::Node hg = root["head_grasp"];
+        read_value(hg, "hover_above_m", cfg.head_grasp.hover_above_m);
+        read_value(hg, "goal_z_base", cfg.head_grasp.goal_z_base);
+        read_value(hg, "goal_x_offset", cfg.head_grasp.goal_x_offset);
+        read_value(hg, "goal_y_offset", cfg.head_grasp.goal_y_offset);
+        read_value(hg, "goal_z_extra", cfg.head_grasp.goal_z_extra);
+        read_value(hg, "right_rx_deg", cfg.head_grasp.right_rx_deg);
+        read_value(hg, "right_ry_deg", cfg.head_grasp.right_ry_deg);
+        read_value(hg, "right_rz_deg", cfg.head_grasp.right_rz_deg);
+        read_value(hg, "left_rx_deg", cfg.head_grasp.left_rx_deg);
+        read_value(hg, "left_ry_deg", cfg.head_grasp.left_ry_deg);
+        read_value(hg, "left_rz_deg", cfg.head_grasp.left_rz_deg);
+        read_value(hg, "use_bezier_grasp", cfg.head_grasp.use_bezier_grasp);
+        for (int g = 0; g < 3; ++g)
         {
-            read_scalar(n, "goal_z_base", cfg.head_grasp.goal_z_base);
-            read_scalar(n, "goal_x_offset", cfg.head_grasp.goal_x_offset);
-            read_scalar(n, "goal_z_extra", cfg.head_grasp.goal_z_extra);
-            read_scalar(n, "hover_above_m", cfg.head_grasp.hover_above_m);
-            read_scalar(n, "right_rx_deg", cfg.head_grasp.right_rx_deg);
-            read_scalar(n, "right_ry_deg", cfg.head_grasp.right_ry_deg);
-            read_scalar(n, "right_rz_deg", cfg.head_grasp.right_rz_deg);
-            read_scalar(n, "left_rx_deg", cfg.head_grasp.left_rx_deg);
-            read_scalar(n, "left_ry_deg", cfg.head_grasp.left_ry_deg);
-            read_scalar(n, "left_rz_deg", cfg.head_grasp.left_rz_deg);
-            read_scalar(n, "head_approach_z_descend", cfg.head_grasp.head_approach_z_descend);
-            read_scalar(n, "hand_descend_z", cfg.head_grasp.hand_descend_z);
-            if (const YAML::Node hg = n["hand_grasp"])
+            cfg.head_grasp.left_row_rpy_deg[g] = {
+                cfg.head_grasp.left_rx_deg,
+                cfg.head_grasp.left_ry_deg,
+                cfg.head_grasp.left_rz_deg};
+            cfg.head_grasp.right_row_rpy_deg[g] = {
+                cfg.head_grasp.right_rx_deg,
+                cfg.head_grasp.right_ry_deg,
+                cfg.head_grasp.right_rz_deg};
+        }
+        auto read_row_rpy_list = [](const YAML::Node &node, GraspRpyDeg out[3]) {
+            if (!node || !node.IsSequence())
+                return;
+            const int n = std::min(3, static_cast<int>(node.size()));
+            for (int g = 0; g < n; ++g)
             {
-                if (const YAML::Node nr = hg["right"])
-                {
-                    read_scalar(nr, "offset_x", cfg.head_grasp.hand_right.offset_x);
-                    read_scalar(nr, "offset_y", cfg.head_grasp.hand_right.offset_y);
-                }
-                if (const YAML::Node nl = hg["left"])
-                {
-                    read_scalar(nl, "offset_x", cfg.head_grasp.hand_left.offset_x);
-                    read_scalar(nl, "offset_y", cfg.head_grasp.hand_left.offset_y);
-                }
+                const YAML::Node item = node[static_cast<size_t>(g)];
+                if (!item || !item.IsSequence() || item.size() != 3)
+                    continue;
+                out[g].rx = item[0].as<double>();
+                out[g].ry = item[1].as<double>();
+                out[g].rz = item[2].as<double>();
             }
-            read_scalar(n, "lift_after_grasp_z", cfg.head_grasp.lift_after_grasp_z);
-            read_scalar(n, "hand_detect_invalid_redo_max", cfg.head_grasp.hand_detect_invalid_redo_max);
-        }
-
-        if (const YAML::Node n = root["place"])
+        };
+        read_row_rpy_list(hg["row_grasp_rpy_deg"]["left"], cfg.head_grasp.left_row_rpy_deg);
+        if (hg["row_grasp_rpy_deg"]["right"] && hg["row_grasp_rpy_deg"]["right"].IsSequence())
         {
-            read_row_xy_offsets(n, cfg.place);
-            read_scalar(n, "z_raise", cfg.place.z_raise);
-            read_scalar(n, "z_descend", cfg.place.z_descend);
-            read_row_x_bounds(n, cfg.place);
-            read_row_waist_x(n, cfg.place);
-            read_row_enabled(n, cfg.place);
-            read_scalar(n, "row_place_from_front", cfg.place.row_place_from_front);
-            read_scalar(n, "place_non_anchor_first", cfg.place.place_non_anchor_first);
-            read_scalar(n, "detect_trials", cfg.place.detect_trials);
-            read_scalar(n, "place_pose_debug", cfg.place.place_pose_debug);
-            if (const YAML::Node fb = n["fallback"])
+            read_row_rpy_list(hg["row_grasp_rpy_deg"]["right"], cfg.head_grasp.right_row_rpy_deg);
+        }
+        else
+        {
+            for (int g = 0; g < 3; ++g)
             {
-                if (fb["right"])
-                    read_pose6_deg(fb["right"], cfg.place.fallback_right, err);
-                if (fb["left"])
-                    read_pose6_deg(fb["left"], cfg.place.fallback_left, err);
+                cfg.head_grasp.right_row_rpy_deg[g] = cfg.head_grasp.left_row_rpy_deg[g];
+                cfg.head_grasp.right_row_rpy_deg[g].rz = -cfg.head_grasp.left_row_rpy_deg[g].rz;
             }
-            if (const YAML::Node rb = n["row6_bend"])
-            {
-                auto &b = cfg.place.row6_bend;
-                read_scalar(rb, "enabled", b.enabled);
-                read_scalar(rb, "row_index_0", b.row_index_0);
-                read_scalar(rb, "pivot_z_below_base_m", b.pivot_z_below_base_m);
-                read_scalar(rb, "waist_pitch_deg", b.waist_pitch_deg);
-                read_scalar(rb, "shoulder_lift_deg", b.shoulder_lift_deg);
-                read_scalar(rb, "right_rx_deg", b.right_rx_deg);
-                read_scalar(rb, "right_ry_deg", b.right_ry_deg);
-                read_scalar(rb, "right_rz_deg", b.right_rz_deg);
-                read_scalar(rb, "left_rx_deg", b.left_rx_deg);
-                read_scalar(rb, "left_ry_deg", b.left_ry_deg);
-                read_scalar(rb, "left_rz_deg", b.left_rz_deg);
-                read_scalar(rb, "speed_deg_per_s", b.speed_deg_per_s);
-                read_scalar(rb, "smooth_dt_ms", b.smooth_dt_ms);
-                read_scalar(rb, "waist_pitch_motor_can_id", b.waist_pitch_motor_can_id);
-                read_scalar(rb, "right_shoulder_joint_index", b.right_shoulder_joint_index);
-                read_scalar(rb, "left_shoulder_joint_index", b.left_shoulder_joint_index);
-                read_scalar(rb, "z_raise", b.z_raise);
-                read_scalar(rb, "z_descend", b.z_descend);
-                read_scalar(rb, "retreat_y_right", b.retreat_y_right);
-                read_scalar(rb, "retreat_y_left", b.retreat_y_left);
-                read_scalar(rb, "retreat_x_delta_m", b.retreat_x_delta_m);
-                read_scalar(rb, "retreat_z_delta_m", b.retreat_z_delta_m);
-                read_scalar(rb, "retreat_right_rx_deg", b.retreat_right_rx_deg);
-                read_scalar(rb, "retreat_right_ry_deg", b.retreat_right_ry_deg);
-                read_scalar(rb, "retreat_right_rz_deg", b.retreat_right_rz_deg);
-                read_scalar(rb, "retreat_left_rx_deg", b.retreat_left_rx_deg);
-                read_scalar(rb, "retreat_left_ry_deg", b.retreat_left_ry_deg);
-                read_scalar(rb, "retreat_left_rz_deg", b.retreat_left_rz_deg);
-            }
+            std::cout << "[cfg] 未读到 row_grasp_rpy_deg.right，用左手 rz 取反\n";
         }
-
-        if (const YAML::Node n = root["grasp_valid"])
+        cfg.head_grasp.left_row6_rpy_deg = cfg.head_grasp.left_row_rpy_deg[0];
+        cfg.head_grasp.right_row6_rpy_deg = cfg.head_grasp.right_row_rpy_deg[0];
+        auto read_one_rpy = [](const YAML::Node &node, GraspRpyDeg &out) -> bool {
+            YAML::Node seq = node;
+            if (node && node.IsMap() && node["left"] && node["left"].IsSequence())
+                seq = node["left"];
+            if (!seq || !seq.IsSequence() || seq.size() < 3)
+                return false;
+            out.rx = seq[0].as<double>();
+            out.ry = seq[1].as<double>();
+            out.rz = seq[2].as<double>();
+            return true;
+        };
+        if (!read_one_rpy(hg["row1_rpy_deg"]["left"], cfg.head_grasp.left_row6_rpy_deg) &&
+            !read_one_rpy(hg["row1_rpy_deg"], cfg.head_grasp.left_row6_rpy_deg) &&
+            !read_one_rpy(hg["row6_rpy_deg"]["left"], cfg.head_grasp.left_row6_rpy_deg) &&
+            !read_one_rpy(hg["row6_rpy_deg"], cfg.head_grasp.left_row6_rpy_deg))
         {
-            read_scalar(n, "z_min", cfg.grasp_valid.z_min);
-            read_scalar(n, "z_max", cfg.grasp_valid.z_max);
-            read_scalar(n, "x_min", cfg.grasp_valid.x_min);
-            read_scalar(n, "x_max", cfg.grasp_valid.x_max);
-            read_scalar(n, "right_y_min", cfg.grasp_valid.right_y_min);
-            read_scalar(n, "right_y_max", cfg.grasp_valid.right_y_max);
-            read_scalar(n, "left_y_min", cfg.grasp_valid.left_y_min);
-            read_scalar(n, "left_y_max", cfg.grasp_valid.left_y_max);
+            std::cerr << "[cfg] 未读到 row1_rpy_deg.left，最远行暂用 ready1 "
+                      << cfg.head_grasp.left_row6_rpy_deg.rx << ","
+                      << cfg.head_grasp.left_row6_rpy_deg.ry << ","
+                      << cfg.head_grasp.left_row6_rpy_deg.rz << "\n";
         }
-
-        if (const YAML::Node n = root["waist"])
+        else
         {
-            if (n["layer3_home"])
-                read_pose6_deg(n["layer3_home"], cfg.waist.layer3_home, err);
-            read_scalar(n, "stagger_step_x", cfg.waist.stagger_step_x);
-            read_scalar(n, "stagger_max_steps", cfg.waist.stagger_max_steps);
-            read_scalar(n, "place_advance_x", cfg.waist.place_advance_x);
-            read_scalar(n, "move_settle_sec", cfg.waist.move_settle_sec);
-            read_scalar(n, "place_ready_chassis_delay_sec", cfg.waist.place_ready_chassis_delay_sec);
-            read_scalar(n, "place_ready_waist_delay_sec", cfg.waist.place_ready_waist_delay_sec);
-            read_scalar(n, "x_min", cfg.waist.x_min);
-            read_scalar(n, "x_max", cfg.waist.x_max);
-            read_scalar(n, "z_min", cfg.waist.z_min);
-            read_scalar(n, "z_max", cfg.waist.z_max);
-            read_scalar(n, "grasp_object_z_min", cfg.waist.grasp_object_z_min);
-            read_scalar(n, "grasp_lower_z", cfg.waist.grasp_lower_z);
+            std::cout << std::fixed << std::setprecision(1)
+                      << "[cfg] 已加载 最远行 row1_rpy_deg.left=("
+                      << cfg.head_grasp.left_row6_rpy_deg.rx << ","
+                      << cfg.head_grasp.left_row6_rpy_deg.ry << ","
+                      << cfg.head_grasp.left_row6_rpy_deg.rz << ")\n";
         }
-
-        if (const YAML::Node n = root["stagger"])
-            read_scalar(n, "head_x_threshold", cfg.stagger.head_x_threshold);
-
-        if (const YAML::Node n = root["grasp_zone"])
+        if (read_one_rpy(hg["row1_rpy_deg"]["right"], cfg.head_grasp.right_row6_rpy_deg) ||
+            read_one_rpy(hg["row6_rpy_deg"]["right"], cfg.head_grasp.right_row6_rpy_deg))
         {
-            read_scalar(n, "y_side_split", cfg.grasp_zone.y_side_split);
-            read_scalar(n, "y_max_abs", cfg.grasp_zone.y_max_abs);
-            read_scalar(n, "x_min", cfg.grasp_zone.x_min);
-            read_scalar(n, "x_max", cfg.grasp_zone.x_max);
-            read_scalar(n, "edge_margin_frac", cfg.grasp_zone.edge_margin_frac);
-            read_scalar(n, "cam_xy_over_z_max", cfg.grasp_zone.cam_xy_over_z_max);
+            std::cout << std::fixed << std::setprecision(1)
+                      << "[cfg] 已加载 最远行 row1_rpy_deg.right=("
+                      << cfg.head_grasp.right_row6_rpy_deg.rx << ","
+                      << cfg.head_grasp.right_row6_rpy_deg.ry << ","
+                      << cfg.head_grasp.right_row6_rpy_deg.rz << ")\n";
         }
-
-        if (const YAML::Node n = root["place_zone"])
+        else
         {
-            read_scalar(n, "y_side_split", cfg.place_zone.y_side_split);
-            read_scalar(n, "y_left", cfg.place_zone.y_left);
-            read_scalar(n, "y_right", cfg.place_zone.y_right);
+            cfg.head_grasp.right_row6_rpy_deg = cfg.head_grasp.left_row6_rpy_deg;
+            cfg.head_grasp.right_row6_rpy_deg.rz = -cfg.head_grasp.left_row6_rpy_deg.rz;
+            std::cout << std::fixed << std::setprecision(1)
+                      << "[cfg] 未读到 row1_rpy_deg.right，用左手 rz 取反 ("
+                      << cfg.head_grasp.right_row6_rpy_deg.rx << ","
+                      << cfg.head_grasp.right_row6_rpy_deg.ry << ","
+                      << cfg.head_grasp.right_row6_rpy_deg.rz << ")\n";
         }
-
-        if (const YAML::Node n = root["aruco"])
+        for (int g = 0; g < 3; ++g)
         {
-            read_scalar(n, "trials", cfg.aruco.trials);
-            int slots = static_cast<int>(cfg.aruco.grid_slot_count);
-            read_scalar(n, "grid_slot_count", slots);
-            cfg.aruco.grid_slot_count = static_cast<size_t>(std::max(0, slots));
+            cfg.tray2_place.left_row_rpy_deg[g] = cfg.head_grasp.left_row_rpy_deg[g];
+            cfg.tray2_place.right_row_rpy_deg[g] = cfg.head_grasp.right_row_rpy_deg[g];
         }
-
-        if (const YAML::Node n = root["cameras"])
+        cfg.tray2_place.left_row6_rpy_deg = cfg.head_grasp.left_row6_rpy_deg;
+        cfg.tray2_place.right_row6_rpy_deg = cfg.head_grasp.right_row6_rpy_deg;
+        cfg.tray2_place.goal_x_offset = cfg.head_grasp.goal_x_offset;
+        cfg.tray2_place.goal_y_offset = cfg.head_grasp.goal_y_offset;
+        cfg.tray2_place.grasp_z_offset_m = cfg.head_grasp.grasp_z_offset_m;
+        cfg.tray2_place.right_goal_x_offset = cfg.head_grasp.right_goal_x_offset;
+        cfg.tray2_place.right_goal_y_offset = cfg.head_grasp.right_goal_y_offset;
+        cfg.tray2_place.right_grasp_z_offset_m = cfg.head_grasp.right_grasp_z_offset_m;
+        cfg.tray2_place.nearest_row_z_offset_m = cfg.head_grasp.nearest_row_grasp_z_offset_m;
+        const YAML::Node t2 = root["tray2_place"];
+        if (t2)
         {
-            read_scalar(n, "width", cfg.cameras.width);
-            read_scalar(n, "height", cfg.cameras.height);
-            read_scalar(n, "head_fps", cfg.cameras.head_fps);
-            read_scalar(n, "hand_fps", cfg.cameras.hand_fps);
-        }
-
-        if (const YAML::Node n = root["battery"])
-        {
-            read_scalar(n, "low_threshold", cfg.battery.low_threshold);
-            read_scalar(n, "full_threshold", cfg.battery.full_threshold);
-        }
-
-        read_vision_detect(root, cfg.vision_detect);
-
-        if (const YAML::Node n = root["conveyor"])
-        {
-            read_scalar(n, "right_offset_m", cfg.conveyor.right_offset_m);
-            read_scalar(n, "left_offset_m", cfg.conveyor.left_offset_m);
-            read_scalar(n, "height_above_m", cfg.conveyor.height_above_m);
-            read_scalar(n, "above_height_m", cfg.conveyor.above_height_m);
-            read_scalar(n, "speed", cfg.conveyor.speed);
-        }
-
-        if (const YAML::Node n = root["ik"])
-        {
-            std::string method = "analytic";
-            read_scalar(n, "method", method);
-            if (method == "hybrid" || method == "mix")
-                cfg.ik.method = MoveBoxIkMethod::Hybrid;
-            else if (method == "numeric" || method == "num")
-                cfg.ik.method = MoveBoxIkMethod::Numeric;
+            read_row_rpy_list(t2["row_place_rpy_deg"]["left"], cfg.tray2_place.left_row_rpy_deg);
+            if (t2["row_place_rpy_deg"]["right"] && t2["row_place_rpy_deg"]["right"].IsSequence())
+                read_row_rpy_list(t2["row_place_rpy_deg"]["right"], cfg.tray2_place.right_row_rpy_deg);
             else
-                cfg.ik.method = MoveBoxIkMethod::Analytic;
-            int from_cur = cfg.ik.j2_from_current ? 1 : 0;
-            read_scalar(n, "j2_from_current", from_cur);
-            cfg.ik.j2_from_current = from_cur != 0;
-            read_scalar(n, "j2_right_deg", cfg.ik.j2_right_deg);
-            read_scalar(n, "j2_left_deg", cfg.ik.j2_left_deg);
+            {
+                for (int g = 0; g < 3; ++g)
+                {
+                    cfg.tray2_place.right_row_rpy_deg[g] = cfg.tray2_place.left_row_rpy_deg[g];
+                    cfg.tray2_place.right_row_rpy_deg[g].rz = -cfg.tray2_place.left_row_rpy_deg[g].rz;
+                }
+            }
+            if (read_one_rpy(t2["row1_rpy_deg"]["left"], cfg.tray2_place.left_row6_rpy_deg) ||
+                read_one_rpy(t2["row1_rpy_deg"], cfg.tray2_place.left_row6_rpy_deg))
+            {
+                std::cout << std::fixed << std::setprecision(1)
+                          << "[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=("
+                          << cfg.tray2_place.left_row6_rpy_deg.rx << ","
+                          << cfg.tray2_place.left_row6_rpy_deg.ry << ","
+                          << cfg.tray2_place.left_row6_rpy_deg.rz << ")\n";
+            }
+            if (read_one_rpy(t2["row1_rpy_deg"]["right"], cfg.tray2_place.right_row6_rpy_deg))
+            {
+                std::cout << std::fixed << std::setprecision(1)
+                          << "[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=("
+                          << cfg.tray2_place.right_row6_rpy_deg.rx << ","
+                          << cfg.tray2_place.right_row6_rpy_deg.ry << ","
+                          << cfg.tray2_place.right_row6_rpy_deg.rz << ")\n";
+            }
+            else
+            {
+                cfg.tray2_place.right_row6_rpy_deg = cfg.tray2_place.left_row6_rpy_deg;
+                cfg.tray2_place.right_row6_rpy_deg.rz = -cfg.tray2_place.left_row6_rpy_deg.rz;
+            }
+            if (t2["offset"])
+            {
+                const YAML::Node off = t2["offset"];
+                read_value(off["left"], "x", cfg.tray2_place.goal_x_offset);
+                read_value(off["left"], "y", cfg.tray2_place.goal_y_offset);
+                read_value(off["left"], "z", cfg.tray2_place.grasp_z_offset_m);
+                read_value(off["right"], "x", cfg.tray2_place.right_goal_x_offset);
+                read_value(off["right"], "y", cfg.tray2_place.right_goal_y_offset);
+                read_value(off["right"], "z", cfg.tray2_place.right_grasp_z_offset_m);
+            }
+            read_value(t2, "nearest_row_z_offset_m", cfg.tray2_place.nearest_row_z_offset_m);
+        }
+        read_value(hg, "adaptive_pitch_down_deg", cfg.head_grasp.adaptive_pitch_down_deg);
+        read_value(hg, "adaptive_yaw_max_deg", cfg.head_grasp.adaptive_yaw_max_deg);
+        read_value(hg, "adaptive_min_horiz_m", cfg.head_grasp.adaptive_min_horiz_m);
+        read_value(hg, "adaptive_approach_xyz_tol_m", cfg.head_grasp.adaptive_approach_xyz_tol_m);
+        read_value(hg, "adaptive_approach_rpy_tol_deg", cfg.head_grasp.adaptive_approach_rpy_tol_deg);
+        read_value(hg, "head_approach_z_descend", cfg.head_grasp.head_approach_z_descend);
+        read_value(hg, "hand_descend_z", cfg.head_grasp.hand_descend_z);
+        read_value(hg, "grasp_z_offset_m", cfg.head_grasp.grasp_z_offset_m);
+        cfg.head_grasp.right_goal_x_offset = cfg.head_grasp.goal_x_offset;
+        cfg.head_grasp.right_goal_y_offset = -cfg.head_grasp.goal_y_offset;
+        cfg.head_grasp.right_grasp_z_offset_m = cfg.head_grasp.grasp_z_offset_m;
+        read_value(hg, "right_goal_x_offset", cfg.head_grasp.right_goal_x_offset);
+        read_value(hg, "right_goal_y_offset", cfg.head_grasp.right_goal_y_offset);
+        read_value(hg, "right_grasp_z_offset_m", cfg.head_grasp.right_grasp_z_offset_m);
+        read_value(hg, "nearest_row_grasp_z_offset_m", cfg.head_grasp.nearest_row_grasp_z_offset_m);
+        read_value(hg, "use_hand_camera", cfg.head_grasp.use_hand_camera);
+        read_value(hg, "hand_match_xy_max_m", cfg.head_grasp.hand_match_xy_max_m);
+        read_value(hg, "hand_xy_refine_max_m", cfg.head_grasp.hand_xy_refine_max_m);
+        read_value(hg, "lift_after_grasp_z", cfg.head_grasp.lift_after_grasp_z);
+        read_value(hg, "bezier_guide_height_m", cfg.head_grasp.bezier_guide_height_m);
+        read_value(hg, "bezier_ab_gap_m", cfg.head_grasp.bezier_ab_gap_m);
+        read_value(hg, "bezier_vel_m_s", cfg.head_grasp.bezier_vel_m_s);
+        read_value(hg, "bezier_orient_finish_ratio", cfg.head_grasp.bezier_orient_finish_ratio);
+        read_value(hg, "bezier_endpoint_xyz_tol_m", cfg.head_grasp.bezier_endpoint_xyz_tol_m);
+        read_value(hg, "bezier_endpoint_rpy_tol_deg", cfg.head_grasp.bezier_endpoint_rpy_tol_deg);
+        read_value(hg, "approach_vel_m_s", cfg.head_grasp.approach_vel_m_s);
+        read_value(hg, "descend_vel_m_s", cfg.head_grasp.descend_vel_m_s);
+        read_value(hg, "lift_vel_m_s", cfg.head_grasp.lift_vel_m_s);
+        read_value(hg, "return_vel_m_s", cfg.head_grasp.return_vel_m_s);
+        read_value(hg, "pre_grasp_settle_sec", cfg.head_grasp.pre_grasp_settle_sec);
+        read_value(hg, "hand_detect_invalid_redo_max", cfg.head_grasp.hand_detect_invalid_redo_max);
+        read_hand_offset(hg["hand_grasp"]["left"], cfg.head_grasp.hand_left);
+        if (hg["hand_grasp"]["right"])
+        {
+            read_hand_offset(hg["hand_grasp"]["right"], cfg.head_grasp.hand_right);
+        }
+        else
+        {
+            cfg.head_grasp.hand_right.offset_x = cfg.head_grasp.hand_left.offset_x;
+            cfg.head_grasp.hand_right.offset_y = -cfg.head_grasp.hand_left.offset_y;
+            std::cout << "[cfg] 未读到 hand_grasp.right，用左手 offset_y 取反\n";
         }
 
+        const YAML::Node valid = root["grasp_valid"];
+        read_value(valid, "z_min", cfg.grasp_valid.z_min);
+        read_value(valid, "z_max", cfg.grasp_valid.z_max);
+        read_value(valid, "x_min", cfg.grasp_valid.x_min);
+        read_value(valid, "x_max", cfg.grasp_valid.x_max);
+        read_value(valid, "right_y_min", cfg.grasp_valid.right_y_min);
+        read_value(valid, "right_y_max", cfg.grasp_valid.right_y_max);
+        read_value(valid, "left_y_min", cfg.grasp_valid.left_y_min);
+        read_value(valid, "left_y_max", cfg.grasp_valid.left_y_max);
+
+        const YAML::Node zone = root["grasp_zone"];
+        read_value(zone, "y_side_split", cfg.grasp_zone.y_side_split);
+        read_value(zone, "y_max_abs", cfg.grasp_zone.y_max_abs);
+        read_value(zone, "x_min", cfg.grasp_zone.x_min);
+        read_value(zone, "x_max", cfg.grasp_zone.x_max);
+        read_value(zone, "edge_margin_frac", cfg.grasp_zone.edge_margin_frac);
+        read_value(zone, "cam_xy_over_z_max", cfg.grasp_zone.cam_xy_over_z_max);
+        read_value(zone, "front_row_tolerance_m", cfg.grasp_zone.front_row_tolerance_m);
+        read_value(zone, "column_split_y", cfg.grasp_zone.column_split_y);
+        read_value(zone, "hole_pitch_m", cfg.grasp_zone.hole_pitch_m);
+        read_value(zone, "column_count", cfg.grasp_zone.column_count);
+        read_value(zone, "min_simultaneous_col_delta", cfg.grasp_zone.min_simultaneous_col_delta);
+        read_value(zone, "far_row_max", cfg.grasp_zone.far_row_max);
+
+        const YAML::Node waist = root["waist"];
+        if (!read_pose(waist["layer3_home"], cfg.waist.layer3_home))
+            throw std::runtime_error("waist.layer3_home 必须有 6 个数");
+        read_value(waist, "stagger_step_x", cfg.waist.stagger_step_x);
+        read_value(waist, "stagger_max_steps", cfg.waist.stagger_max_steps);
+        read_value(waist, "move_settle_sec", cfg.waist.move_settle_sec);
+        read_value(waist, "x_min", cfg.waist.x_min);
+        read_value(waist, "x_max", cfg.waist.x_max);
+        read_value(waist, "z_min", cfg.waist.z_min);
+        read_value(waist, "z_max", cfg.waist.z_max);
+        read_value(waist, "grasp_object_z_min", cfg.waist.grasp_object_z_min);
+        read_value(waist, "grasp_lower_z", cfg.waist.grasp_lower_z);
+        read_value(waist, "ready_z_m", cfg.waist.ready_z_m);
+        read_value(waist, "ready_forward_m", cfg.waist.ready_forward_m);
+        read_value(waist, "far_row_forward_m", cfg.waist.far_row_forward_m);
+
+        load_conveyor_station(root["conveyor"], cfg.conveyor, "conveyor");
+        cfg.conveyor2 = cfg.conveyor;
+        load_conveyor_station(root["conveyor2"], cfg.conveyor2, "conveyor2");
+
+        const YAML::Node chassis = root["chassis"];
+        read_value(chassis, "host", cfg.chassis.host);
+        read_value(chassis, "tray_station", cfg.chassis.tray_station);
+        read_value(chassis, "tray2_station", cfg.chassis.tray2_station);
+        read_value(chassis, "belt_station", cfg.chassis.belt_station);
+        read_value(chassis, "out_station", cfg.chassis.out_station);
+        read_value(chassis, "nav_timeout_ms", cfg.chassis.nav_timeout_ms);
+        if (cfg.chassis.nav_timeout_ms < 1000)
+            cfg.chassis.nav_timeout_ms = 1000;
+
+        read_value(root["stagger"], "head_x_threshold", cfg.stagger.head_x_threshold);
+        read_value(root["cameras"], "width", cfg.cameras.width);
+        read_value(root["cameras"], "height", cfg.cameras.height);
+        read_value(root["cameras"], "head_fps", cfg.cameras.head_fps);
+        read_value(root["cameras"], "hand_fps", cfg.cameras.hand_fps);
+
+        int algorithm = cfg.vision_detect.head_grasp;
+        read_value(root["vision_detect"], "head_grasp", algorithm);
+        cfg.vision_detect.head_grasp = clamp_algorithm_id(algorithm);
+        algorithm = cfg.vision_detect.right_hand_grasp;
+        read_value(root["vision_detect"], "right_hand_grasp", algorithm);
+        cfg.vision_detect.right_hand_grasp = clamp_algorithm_id(algorithm);
+        algorithm = cfg.vision_detect.left_hand_grasp;
+        read_value(root["vision_detect"], "left_hand_grasp", algorithm);
+        cfg.vision_detect.left_hand_grasp = clamp_algorithm_id(algorithm);
+
+        if (cfg.grasp_valid.x_min >= cfg.grasp_valid.x_max ||
+            cfg.grasp_valid.z_min >= cfg.grasp_valid.z_max ||
+            cfg.grasp_valid.right_y_min >= cfg.grasp_valid.right_y_max ||
+            cfg.grasp_valid.left_y_min >= cfg.grasp_valid.left_y_max)
+            throw std::runtime_error("grasp_valid 的 min 必须小于 max");
+        if (cfg.waist.x_min >= cfg.waist.x_max || cfg.waist.z_min >= cfg.waist.z_max)
+            throw std::runtime_error("waist 的 min 必须小于 max");
+        if (cfg.waist.stagger_max_steps < 0 || cfg.head_grasp.hand_detect_invalid_redo_max < 0)
+            throw std::runtime_error("重试次数/腰进步数不能为负数");
+        if (cfg.head_grasp.hand_match_xy_max_m <= 0.0 ||
+            cfg.grasp_zone.front_row_tolerance_m < 0.0)
+            throw std::runtime_error("目标匹配距离必须为正，前排容差不能为负数");
+        if (cfg.head_grasp.hand_xy_refine_max_m < 0.0)
+            throw std::runtime_error("hand_xy_refine_max_m 不能为负数");
+        if (cfg.tray.z_refine_max_m < 0.0)
+            throw std::runtime_error("tray.z_refine_max_m 不能为负数");
+        if (cfg.tray.part_above_tray_m < 0.0)
+            throw std::runtime_error("tray.part_above_tray_m 不能为负数");
+        if (cfg.tray.fuse_frames < 1)
+            throw std::runtime_error("tray.fuse_frames 必须 >= 1");
+        if (cfg.grasp_zone.hole_pitch_m <= 1e-6 || cfg.grasp_zone.column_count < 2)
+            throw std::runtime_error("hole_pitch_m 必须为正，column_count 至少为 2");
+        if (cfg.grasp_zone.min_simultaneous_col_delta < 1)
+            throw std::runtime_error("min_simultaneous_col_delta 必须 >= 1");
+        if (cfg.grasp_zone.far_row_max < 0)
+            throw std::runtime_error("far_row_max 不能为负数");
+        if (cfg.waist.far_row_forward_m < 0.0)
+            throw std::runtime_error("far_row_forward_m 不能为负数");
+        if (cfg.waist.ready_forward_m < 0.0)
+            throw std::runtime_error("ready_forward_m 不能为负数");
+        if (cfg.waist.ready_z_m < cfg.waist.z_min || cfg.waist.ready_z_m > cfg.waist.z_max)
+            throw std::runtime_error("ready_z_m 必须在 z_min 与 z_max 之间");
+        if (cfg.grasp_valid.right_y_max + 1e-9 < cfg.grasp_zone.column_split_y)
+            throw std::runtime_error("grasp_valid.right_y_max 不能小于 column_split_y，否则右三列会被包络裁掉");
+        if (cfg.grasp_valid.left_y_min > cfg.grasp_zone.column_split_y + 1e-9)
+            throw std::runtime_error("grasp_valid.left_y_min 不能大于 column_split_y，否则左三列会被包络裁掉");
+        if (cfg.cameras.width <= 0 || cfg.cameras.height <= 0 ||
+            cfg.cameras.head_fps <= 0 || cfg.cameras.hand_fps <= 0)
+            throw std::runtime_error("相机分辨率和帧率必须为正数");
         return true;
     }
-    catch (const YAML::Exception &e)
+    catch (const std::exception &ex)
     {
-        err = std::string("YAML 解析失败: ") + e.what();
+        err = std::string("读取配置失败: ") + ex.what();
         return false;
     }
-    catch (const std::exception &e)
+}
+
+double column_split_y()
+{
+    if (g_have_live_tray_origin_y && std::isfinite(g_live_tray_origin_y))
+        return g_live_tray_origin_y;
+    return g_move_cfg.grasp_zone.column_split_y;
+}
+
+void set_live_tray_origin_y(double origin_y)
+{
+    if (!std::isfinite(origin_y))
     {
-        err = std::string("读取配置失败: ") + e.what();
-        return false;
+        g_have_live_tray_origin_y = false;
+        return;
     }
+    g_have_live_tray_origin_y = true;
+    g_live_tray_origin_y = origin_y;
+}
+
+void clear_live_tray_origin_y()
+{
+    g_have_live_tray_origin_y = false;
+}
+
+bool have_live_tray_origin_y()
+{
+    return g_have_live_tray_origin_y && std::isfinite(g_live_tray_origin_y);
+}
+
+bool tray_row_is_far(int row)
+{
+    const int n = g_move_cfg.grasp_zone.far_row_max;
+    return n > 0 && row >= 1 && row <= n;
+}
+
+int tray_row_pose_group(int row)
+{
+    if (row < 1)
+        return 0;
+    return 2 - ((row - 1) % 3);
+}
+
+const GraspRpyDeg &grasp_rpy_deg_for_row(int row, bool is_right)
+{
+    if (row == 1)
+        return is_right ? g_move_cfg.head_grasp.right_row6_rpy_deg
+                        : g_move_cfg.head_grasp.left_row6_rpy_deg;
+    const int g = tray_row_pose_group(row);
+    return is_right ? g_move_cfg.head_grasp.right_row_rpy_deg[g]
+                    : g_move_cfg.head_grasp.left_row_rpy_deg[g];
+}
+
+const GraspRpyDeg &grasp_rpy_deg_for_ready(int ready_id, bool is_right)
+{
+    if (ready_id == 6)
+        return is_right ? g_move_cfg.head_grasp.right_row6_rpy_deg
+                        : g_move_cfg.head_grasp.left_row6_rpy_deg;
+    const int g = std::clamp(ready_id, 1, 3) - 1;
+    return is_right ? g_move_cfg.head_grasp.right_row_rpy_deg[g]
+                    : g_move_cfg.head_grasp.left_row_rpy_deg[g];
+}
+
+const GraspRpyDeg &tray2_place_rpy_deg_for_row(int row, bool is_right)
+{
+    if (row == 1)
+        return is_right ? g_move_cfg.tray2_place.right_row6_rpy_deg
+                        : g_move_cfg.tray2_place.left_row6_rpy_deg;
+    const int g = tray_row_pose_group(row);
+    return is_right ? g_move_cfg.tray2_place.right_row_rpy_deg[g]
+                    : g_move_cfg.tray2_place.left_row_rpy_deg[g];
+}
+
+const GraspRpyDeg &tray2_place_rpy_deg_for_ready(int ready_id, bool is_right)
+{
+    if (ready_id == 6)
+        return is_right ? g_move_cfg.tray2_place.right_row6_rpy_deg
+                        : g_move_cfg.tray2_place.left_row6_rpy_deg;
+    const int g = std::clamp(ready_id, 1, 3) - 1;
+    return is_right ? g_move_cfg.tray2_place.right_row_rpy_deg[g]
+                    : g_move_cfg.tray2_place.left_row_rpy_deg[g];
+}
+
+const char *ready_rows_label(int ready_id)
+{
+    switch (ready_id)
+    {
+    case 1:
+        return "row3/6（近）";
+    case 2:
+        return "row2/5";
+    case 3:
+        return "row4（row1最远另有专用）";
+    case 6:
+        return "仅最远row1";
+    default:
+        return "?";
+    }
+}
+
+int tray_assign_col_from_aruco(int aruco_col, bool cols_flipped)
+{
+    const int n = g_move_cfg.grasp_zone.column_count;
+    if (aruco_col < 1 || n < 1 || aruco_col > n)
+        return 0;
+    return cols_flipped ? (n + 1 - aruco_col) : aruco_col;
+}
+
+bool tray_assign_col_is_right(int assign_col)
+{
+    const int n = g_move_cfg.grasp_zone.column_count;
+    const int right_max = n / 2;
+    return assign_col >= 1 && right_max >= 1 && assign_col <= right_max;
+}
+
+int tray_column_index_from_y(double y)
+{
+    const auto &z = g_move_cfg.grasp_zone;
+    if (!std::isfinite(y) || z.hole_pitch_m <= 1e-9 || z.column_count < 1)
+        return 0;
+    // 列 1..N，+Y 为左。列中心 = 盘心/中缝 + (col - (N+1)/2) * pitch
+    const double split = column_split_y();
+    const double col = (y - split) / z.hole_pitch_m + 0.5 * (z.column_count + 1);
+    int i = static_cast<int>(std::lround(col));
+    if (i < 1)
+        i = 1;
+    if (i > z.column_count)
+        i = z.column_count;
+    // lround(3.5)=4，但 y<=盘心 归属右手，必须落在 1..N/2，否则中缝会和列号打架。
+    const int right_max = z.column_count / 2;
+    if (right_max >= 1)
+    {
+        if (y <= split + 1e-9)
+        {
+            if (i > right_max)
+                i = right_max;
+        }
+        else if (i <= right_max)
+            i = right_max + 1;
+    }
+    return i;
+}
+
+double grasp_goal_x_offset(bool is_right)
+{
+    return is_right ? g_move_cfg.head_grasp.right_goal_x_offset
+                    : g_move_cfg.head_grasp.goal_x_offset;
+}
+
+double grasp_goal_y_offset(bool is_right)
+{
+    return is_right ? g_move_cfg.head_grasp.right_goal_y_offset
+                    : g_move_cfg.head_grasp.goal_y_offset;
+}
+
+double grasp_goal_z_offset(bool is_right, int from_robot_row)
+{
+    const double z = is_right ? g_move_cfg.head_grasp.right_grasp_z_offset_m
+                              : g_move_cfg.head_grasp.grasp_z_offset_m;
+    if (from_robot_row == 6)
+        return z + g_move_cfg.head_grasp.nearest_row_grasp_z_offset_m;
+    return z;
+}
+
+double waist_ready_x()
+{
+    return g_move_cfg.waist.layer3_home(0) + g_move_cfg.waist.ready_forward_m;
+}
+
+double waist_ready_z()
+{
+    return g_move_cfg.waist.ready_z_m;
+}
+
+double waist_far_row_x()
+{
+    return g_move_cfg.waist.layer3_home(0) + g_move_cfg.waist.far_row_forward_m;
+}
+
+void conveyor_chassis_xy_to_arm_base(double yaw_rad, double &x, double &y)
+{
+    if (!std::isfinite(yaw_rad) || std::abs(yaw_rad) < 1e-12)
+        return;
+    const double c = std::cos(-yaw_rad);
+    const double s = std::sin(-yaw_rad);
+    const double xn = c * x - s * y;
+    const double yn = s * x + c * y;
+    x = xn;
+    y = yn;
+}
+
+bool arm_y_allowed_right(double y)
+{
+    return std::isfinite(y) && y <= column_split_y() + 1e-9;
+}
+
+bool arm_y_allowed_left(double y)
+{
+    return std::isfinite(y) && y > column_split_y() + 1e-9;
+}
+
+bool simultaneous_assign_columns_ok(int col_right, int col_left)
+{
+    if (col_right < 1 || col_left < 1)
+        return false;
+    if (!tray_assign_col_is_right(col_right) || tray_assign_col_is_right(col_left))
+        return false;
+    return (col_left - col_right) >= g_move_cfg.grasp_zone.min_simultaneous_col_delta;
+}
+
+bool simultaneous_columns_ok(double y_right, double y_left)
+{
+    if (!arm_y_allowed_right(y_right) || !arm_y_allowed_left(y_left))
+        return false;
+    return simultaneous_assign_columns_ok(
+        tray_column_index_from_y(y_right), tray_column_index_from_y(y_left));
+}
+
+void log_arm_wall_reject(const char *stage, bool is_right, double y)
+{
+    const double split = column_split_y();
+    const int col = tray_column_index_from_y(y);
+    std::cout << std::fixed << std::setprecision(4)
+              << "[col] " << (is_right ? "右" : "左") << " " << stage
+              << " y=" << y << " col=" << col
+              << (is_right ? " 无料盘且越过盘心 y>" : " 无料盘且越过盘心 y<=") << split
+              << "，拒绝本侧，不 clamp\n";
 }
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
-    const auto print_pose = [](const char *tag, const Eigen::Matrix<double, 1, 6> &p) {
-        std::cout << "[cfg] " << tag << " xyz=(" << p(0) << "," << p(1) << "," << p(2)
-                  << ") m rpy=(" << (p(3) * 180.0 / M_PI) << "," << (p(4) * 180.0 / M_PI) << ","
-                  << (p(5) * 180.0 / M_PI) << ") deg\n";
-    };
-    std::cout << "[cfg] 已加载 move_box_params\n";
-    print_pose("standby.right", cfg.standby.right);
-    print_pose("standby.left", cfg.standby.left);
-    print_pose("waist.layer3_home", cfg.waist.layer3_home);
-    std::cout << "[cfg] head_grasp hover=" << cfg.head_grasp.hover_above_m
-              << " z_base=" << cfg.head_grasp.goal_z_base
-              << " x_off=" << cfg.head_grasp.goal_x_offset
-              << " z_extra=" << cfg.head_grasp.goal_z_extra
-              << " head_desc=" << cfg.head_grasp.head_approach_z_descend
-              << " hand_desc=" << cfg.head_grasp.hand_descend_z
-              << " hand_xy_r=(" << cfg.head_grasp.hand_right.offset_x << ","
-              << cfg.head_grasp.hand_right.offset_y << ")"
-              << " hand_xy_l=(" << cfg.head_grasp.hand_left.offset_x << ","
-              << cfg.head_grasp.hand_left.offset_y << ")"
-              << " lift=" << cfg.head_grasp.lift_after_grasp_z
-              << " rpy_r=(" << cfg.head_grasp.right_rx_deg << "," << cfg.head_grasp.right_ry_deg
-              << "," << cfg.head_grasp.right_rz_deg << ") rpy_l=(" << cfg.head_grasp.left_rx_deg
-              << "," << cfg.head_grasp.left_ry_deg << "," << cfg.head_grasp.left_rz_deg << ")\n";
-    std::cout << "[cfg] place row_xy_offset:";
-    for (size_t i = 0; i < cfg.place.row_xy_offset.size(); ++i)
-    {
-        const auto &row = cfg.place.row_xy_offset[i];
-        std::cout << " r" << (i + 1) << " L=(" << row.left.offset_x << "," << row.left.offset_y
-                  << ") R=(" << row.right.offset_x << "," << row.right.offset_y << ")";
-    }
-    const auto &r6 = cfg.place.row6_xy_offset;
-    std::cout << " row6 L=(" << r6.left.offset_x << "," << r6.left.offset_y << ") R=("
-              << r6.right.offset_x << "," << r6.right.offset_y << ")"
-              << " z_raise=" << cfg.place.z_raise << " z_descend=" << cfg.place.z_descend << "\n";
-    print_pose("place.fallback.right", cfg.place.fallback_right);
-    print_pose("place.fallback.left", cfg.place.fallback_left);
-    std::cout << "[cfg] place row_waist_x:";
-    for (size_t i = 0; i < cfg.place.row_waist_x.size(); ++i)
-        std::cout << " r" << (i + 1) << "=" << cfg.place.row_waist_x[i]
-                  << "(arm+=" << -cfg.place.row_waist_x[i] << ")";
-    std::cout << "\n";
-    std::cout << "[cfg] place row_enabled:";
-    for (size_t i = 0; i < cfg.place.row_enabled.size(); ++i)
-        std::cout << " r" << (i + 1) << "=" << cfg.place.row_enabled[i];
-    std::cout << " from_front=" << cfg.place.row_place_from_front
-              << " place_non_anchor_first=" << cfg.place.place_non_anchor_first
-              << " detect_trials=" << cfg.place.detect_trials
-              << " place_pose_debug=" << (cfg.place.place_pose_debug ? "on" : "off") << "\n";
-    const auto &rb = cfg.place.row6_bend;
-    std::cout << "[cfg] place.row6_bend enabled=" << rb.enabled
-              << " row=" << (rb.row_index_0 + 1) << " pivot_z=" << rb.pivot_z_below_base_m
-              << " waist_pitch=" << rb.waist_pitch_deg << " shoulder=" << rb.shoulder_lift_deg
-              << " z_raise=" << rb.z_raise << " z_descend=" << rb.z_descend
-              << " ry=" << rb.right_ry_deg << "/" << rb.left_ry_deg
-              << " retreat_y=" << rb.retreat_y_right << "/" << rb.retreat_y_left << "\n";
-    std::cout << "[cfg] place row_x_bounds:";
-    for (size_t i = 0; i < cfg.place.row_x_bounds.size(); ++i)
-        std::cout << " r" << (i + 1) << "=[" << cfg.place.row_x_bounds[i].x_min << ","
-                  << cfg.place.row_x_bounds[i].x_max << ")";
-
-    std::cout << "[cfg] hand_detect invalid_redo_max=" << cfg.head_grasp.hand_detect_invalid_redo_max << "\n";
-    std::cout << "[cfg] stagger x>" << cfg.stagger.head_x_threshold
-              << " waist_step=" << cfg.waist.stagger_step_x
-              << " place_advance=" << cfg.waist.place_advance_x
-              << " place_ready_delay(chassis/waist)="
-              << cfg.waist.place_ready_chassis_delay_sec << "s/"
-              << cfg.waist.place_ready_waist_delay_sec << "s"
-              << " layer3 x=[" << cfg.waist.x_min << "," << cfg.waist.x_max << "]"
-              << " z=[" << cfg.waist.z_min << "," << cfg.waist.z_max << "]"
-              << " grasp_z<" << cfg.waist.grasp_object_z_min
-              << " → lower " << cfg.waist.grasp_lower_z << "m\n";
-    std::cout << "[cfg] grasp_zone side_split=" << cfg.grasp_zone.y_side_split
-              << " (中间±" << cfg.grasp_zone.y_side_split << " y=0分左右)"
-              << " y_max=" << cfg.grasp_zone.y_max_abs
-              << " x=[" << cfg.grasp_zone.x_min << "," << cfg.grasp_zone.x_max << "]"
-              << " edge=" << cfg.grasp_zone.edge_margin_frac
-              << " cam_xy/z<" << cfg.grasp_zone.cam_xy_over_z_max << "\n";
-    std::cout << "[cfg] place_zone side_split=" << cfg.place_zone.y_side_split
-              << " middle=[" << cfg.place_zone.y_right << "," << cfg.place_zone.y_left << "]\n";
-    const auto &vd = cfg.vision_detect;
-    std::cout << "[cfg] vision_detect head=" << vd.head_grasp << "(" << vision_algorithm_label(vd.head_grasp)
-              << ") right_hand=" << vd.right_hand_grasp << "(" << vision_algorithm_label(vd.right_hand_grasp)
-              << ") left_hand=" << vd.left_hand_grasp << "(" << vision_algorithm_label(vd.left_hand_grasp)
-              << ") place_holes=" << vd.place_holes << "(" << vision_algorithm_label(vd.place_holes) << ")\n";
-    std::cout << "[cfg] cameras " << cfg.cameras.width << "x" << cfg.cameras.height
-              << " head_fps=" << cfg.cameras.head_fps
-              << " hand_fps=" << cfg.cameras.hand_fps << "\n";
-    std::cout << "[cfg] battery low<" << cfg.battery.low_threshold
-              << " full>" << cfg.battery.full_threshold << "\n";
-    std::cout << "[cfg] conveyor right_off=" << cfg.conveyor.right_offset_m
-              << " left_off=" << cfg.conveyor.left_offset_m
-              << " height=" << cfg.conveyor.height_above_m
-              << " above=" << cfg.conveyor.above_height_m
-              << " speed=" << cfg.conveyor.speed << "\n";
-    const char *ik_name =
-        cfg.ik.method == MoveBoxIkMethod::Hybrid ? "hybrid"
-        : cfg.ik.method == MoveBoxIkMethod::Numeric ? "numeric"
-                                                    : "analytic";
-    std::cout << "[cfg] ik method=" << ik_name
-              << " j2_from_current=" << cfg.ik.j2_from_current
-              << " j2_right=" << cfg.ik.j2_right_deg
-              << " j2_left=" << cfg.ik.j2_left_deg << " deg\n";
-}
-
-const MoveBoxPlaceOffsetConfig &place_hand_xy_offset(int row_0, bool is_right)
-{
-    if (row_0 == 5)
-        return is_right ? g_move_cfg.place.row6_xy_offset.right : g_move_cfg.place.row6_xy_offset.left;
-    const int idx = (row_0 >= 0 && row_0 < 5) ? row_0 : 0;
-    return is_right ? g_move_cfg.place.row_xy_offset[static_cast<size_t>(idx)].right
-                    : g_move_cfg.place.row_xy_offset[static_cast<size_t>(idx)].left;
+    std::cout << "[cfg] standby right=" << cfg.standby.right << "\n"
+              << "[cfg] standby left=" << cfg.standby.left << "\n"
+              << "[cfg] home_tcp right=" << cfg.home_tcp.right << "\n"
+              << "[cfg] home_tcp left=" << cfg.home_tcp.left << "\n"
+              << "[cfg] 工作包络 grasp_valid x=[" << cfg.grasp_valid.x_min << ','
+              << cfg.grasp_valid.x_max << "] z=[" << cfg.grasp_valid.z_min << ','
+              << cfg.grasp_valid.z_max << "] y右=[" << cfg.grasp_valid.right_y_min << ','
+              << cfg.grasp_valid.right_y_max << "] y左=[" << cfg.grasp_valid.left_y_min << ','
+              << cfg.grasp_valid.left_y_max << "]；ArUco 列已分配时不再用盘心Y拒目标\n"
+              << "[cfg] target select=同行最近、满排同时(3-6/2-5/1-4) front_row_tol="
+              << cfg.grasp_zone.front_row_tolerance_m
+              << "m hand_match_xy_max=" << cfg.head_grasp.hand_match_xy_max_m
+              << "m hand_xy_refine_max=" << cfg.head_grasp.hand_xy_refine_max_m << "m\n"
+              << "[cfg] columns 分列=ArUco列号(1-3右/4-6左) yaml回退split_y="
+              << cfg.grasp_zone.column_split_y
+              << (g_have_live_tray_origin_y ? " live盘心y=" : " live盘心y=无 ")
+              << (g_have_live_tray_origin_y ? g_live_tray_origin_y : 0.0)
+              << " pitch=" << cfg.grasp_zone.hole_pitch_m
+              << "m 右列1-" << (cfg.grasp_zone.column_count / 2)
+              << " 左列" << (cfg.grasp_zone.column_count / 2 + 1) << "-" << cfg.grasp_zone.column_count
+              << " 同时最小列差=" << cfg.grasp_zone.min_simultaneous_col_delta
+              << " (如 1-4,2-5,3-6)"
+              << " 远三排=row1-" << cfg.grasp_zone.far_row_max
+              << " 近三排=row" << (cfg.grasp_zone.far_row_max + 1) << "-6\n"
+              << "[cfg] waist home xyz=(" << cfg.waist.layer3_home(0) << ","
+              << cfg.waist.layer3_home(1) << "," << cfg.waist.layer3_home(2)
+              << ") x=[" << cfg.waist.x_min << "," << cfg.waist.x_max
+              << "] z=[" << cfg.waist.z_min << "," << cfg.waist.z_max << "]\n"
+              << "[cfg] waist grasp_z_target=" << cfg.waist.grasp_object_z_min
+              << "m lower_step=" << cfg.waist.grasp_lower_z << "m z_min=" << cfg.waist.z_min
+              << "m ready_z=" << cfg.waist.ready_z_m
+              << "m ready_forward=" << cfg.waist.ready_forward_m
+              << "m far_row_forward=" << cfg.waist.far_row_forward_m << "m\n";
+    print_conveyor_station(cfg.conveyor, "conveyor");
+    print_conveyor_station(cfg.conveyor2, "conveyor2");
+    std::cout << std::fixed << std::setprecision(4)
+              << "[cfg] chassis host=" << cfg.chassis.host
+              << " tray=" << cfg.chassis.tray_station
+              << " tray2=" << cfg.chassis.tray2_station
+              << " belt=" << cfg.chassis.belt_station
+              << " out=" << cfg.chassis.out_station
+              << " nav_timeout_ms=" << cfg.chassis.nav_timeout_ms << "\n"
+              << "[cfg] head yaw=" << cfg.head.yaw_deg
+              << " pitch=" << cfg.head.pitch_deg
+              << " far_pitch=" << cfg.head.far_pitch_deg
+              << " roll=" << cfg.head.roll_deg
+              << " deg speed=" << cfg.head.speed_deg_s << " deg/s\n"
+              << "[cfg] tray z_ref=" << cfg.tray.z_ref_m
+              << "m at waist_z=" << cfg.tray.z_ref_waist_z_m
+              << "m part_above=" << cfg.tray.part_above_tray_m
+              << "m refine_max=" << cfg.tray.z_refine_max_m
+              << "m fuse_frames=" << cfg.tray.fuse_frames << "\n"
+              << "[cfg] hand_z hover_above=" << cfg.head_grasp.hover_above_m
+              << "m z_offset=" << cfg.head_grasp.grasp_z_offset_m
+              << "m nearest_row_z=" << cfg.head_grasp.nearest_row_grasp_z_offset_m
+              << "m use_hand_camera=" << (cfg.head_grasp.use_hand_camera ? "on" : "off")
+              << " use_bezier=" << (cfg.head_grasp.use_bezier_grasp ? "on" : "off") << "\n"
+              << "[cfg] grasp offset left xyz=(" << cfg.head_grasp.goal_x_offset
+              << "," << cfg.head_grasp.goal_y_offset << ","
+              << cfg.head_grasp.grasp_z_offset_m << ") right xyz=("
+              << cfg.head_grasp.right_goal_x_offset << ","
+              << cfg.head_grasp.right_goal_y_offset << ","
+              << cfg.head_grasp.right_grasp_z_offset_m << ")"
+              << "m hand_xy left=(" << cfg.head_grasp.hand_left.offset_x << ","
+              << cfg.head_grasp.hand_left.offset_y << ") right=("
+              << cfg.head_grasp.hand_right.offset_x << ","
+              << cfg.head_grasp.hand_right.offset_y << ")\n"
+              << "[cfg] row_rpy left"
+              << " ready1(row3/6)=(" << cfg.head_grasp.left_row_rpy_deg[0].rx << ","
+              << cfg.head_grasp.left_row_rpy_deg[0].ry << ","
+              << cfg.head_grasp.left_row_rpy_deg[0].rz << ")"
+              << " ready2(row2/5)=(" << cfg.head_grasp.left_row_rpy_deg[1].rx << ","
+              << cfg.head_grasp.left_row_rpy_deg[1].ry << ","
+              << cfg.head_grasp.left_row_rpy_deg[1].rz << ")"
+              << " ready3(row4)=(" << cfg.head_grasp.left_row_rpy_deg[2].rx << ","
+              << cfg.head_grasp.left_row_rpy_deg[2].ry << ","
+              << cfg.head_grasp.left_row_rpy_deg[2].rz << ")"
+              << " row1最远=(" << cfg.head_grasp.left_row6_rpy_deg.rx << ","
+              << cfg.head_grasp.left_row6_rpy_deg.ry << ","
+              << cfg.head_grasp.left_row6_rpy_deg.rz << ") deg\n"
+              << "[cfg] row_rpy right"
+              << " ready1(row3/6)=(" << cfg.head_grasp.right_row_rpy_deg[0].rx << ","
+              << cfg.head_grasp.right_row_rpy_deg[0].ry << ","
+              << cfg.head_grasp.right_row_rpy_deg[0].rz << ")"
+              << " ready2(row2/5)=(" << cfg.head_grasp.right_row_rpy_deg[1].rx << ","
+              << cfg.head_grasp.right_row_rpy_deg[1].ry << ","
+              << cfg.head_grasp.right_row_rpy_deg[1].rz << ")"
+              << " ready3(row4)=(" << cfg.head_grasp.right_row_rpy_deg[2].rx << ","
+              << cfg.head_grasp.right_row_rpy_deg[2].ry << ","
+              << cfg.head_grasp.right_row_rpy_deg[2].rz << ")"
+              << " row1最远=(" << cfg.head_grasp.right_row6_rpy_deg.rx << ","
+              << cfg.head_grasp.right_row6_rpy_deg.ry << ","
+              << cfg.head_grasp.right_row6_rpy_deg.rz << ") deg\n"
+              << "[cfg] tray2_place left"
+              << " ready1=(" << cfg.tray2_place.left_row_rpy_deg[0].rx << ","
+              << cfg.tray2_place.left_row_rpy_deg[0].ry << ","
+              << cfg.tray2_place.left_row_rpy_deg[0].rz << ")"
+              << " ready2=(" << cfg.tray2_place.left_row_rpy_deg[1].rx << ","
+              << cfg.tray2_place.left_row_rpy_deg[1].ry << ","
+              << cfg.tray2_place.left_row_rpy_deg[1].rz << ")"
+              << " ready3=(" << cfg.tray2_place.left_row_rpy_deg[2].rx << ","
+              << cfg.tray2_place.left_row_rpy_deg[2].ry << ","
+              << cfg.tray2_place.left_row_rpy_deg[2].rz << ")"
+              << " row1=(" << cfg.tray2_place.left_row6_rpy_deg.rx << ","
+              << cfg.tray2_place.left_row6_rpy_deg.ry << ","
+              << cfg.tray2_place.left_row6_rpy_deg.rz << ") deg\n"
+              << "[cfg] tray2_place right"
+              << " ready1=(" << cfg.tray2_place.right_row_rpy_deg[0].rx << ","
+              << cfg.tray2_place.right_row_rpy_deg[0].ry << ","
+              << cfg.tray2_place.right_row_rpy_deg[0].rz << ")"
+              << " ready2=(" << cfg.tray2_place.right_row_rpy_deg[1].rx << ","
+              << cfg.tray2_place.right_row_rpy_deg[1].ry << ","
+              << cfg.tray2_place.right_row_rpy_deg[1].rz << ")"
+              << " ready3=(" << cfg.tray2_place.right_row_rpy_deg[2].rx << ","
+              << cfg.tray2_place.right_row_rpy_deg[2].ry << ","
+              << cfg.tray2_place.right_row_rpy_deg[2].rz << ")"
+              << " row1=(" << cfg.tray2_place.right_row6_rpy_deg.rx << ","
+              << cfg.tray2_place.right_row6_rpy_deg.ry << ","
+              << cfg.tray2_place.right_row6_rpy_deg.rz << ") deg\n"
+              << "[cfg] tray2 offset left xyz=(" << cfg.tray2_place.goal_x_offset
+              << "," << cfg.tray2_place.goal_y_offset << ","
+              << cfg.tray2_place.grasp_z_offset_m << ") right xyz=("
+              << cfg.tray2_place.right_goal_x_offset << ","
+              << cfg.tray2_place.right_goal_y_offset << ","
+              << cfg.tray2_place.right_grasp_z_offset_m
+              << ") nearest_row_z=" << cfg.tray2_place.nearest_row_z_offset_m << "\n"
+              << "[cfg] bezier B_above_C=" << cfg.head_grasp.bezier_guide_height_m
+              << "m A_below_B=" << cfg.head_grasp.bezier_ab_gap_m
+              << "m vel_max=" << cfg.head_grasp.bezier_vel_m_s
+              << "m/s orient_hold=" << cfg.head_grasp.bezier_orient_finish_ratio
+              << " endpoint_tol=" << cfg.head_grasp.bezier_endpoint_xyz_tol_m << "m/"
+              << cfg.head_grasp.bezier_endpoint_rpy_tol_deg << "deg\n"
+              << "[cfg] arm vel approach=" << cfg.head_grasp.approach_vel_m_s
+              << " descend=" << cfg.head_grasp.descend_vel_m_s
+              << " lift=" << cfg.head_grasp.lift_vel_m_s
+              << " return=" << cfg.head_grasp.return_vel_m_s
+              << " m/s pre_grasp_settle=" << cfg.head_grasp.pre_grasp_settle_sec << "s\n"
+              << "[cfg] cameras " << cfg.cameras.width << 'x' << cfg.cameras.height
+              << " head=" << cfg.cameras.head_fps << "fps hand=" << cfg.cameras.hand_fps << "fps\n";
 }

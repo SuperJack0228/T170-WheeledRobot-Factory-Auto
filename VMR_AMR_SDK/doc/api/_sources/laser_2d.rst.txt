@@ -1,8 +1,0 @@
-
-laser_2d
-========
-
-.. automodule:: laser_2d
-   :members:
-   :undoc-members:
-   :show-inheritance:

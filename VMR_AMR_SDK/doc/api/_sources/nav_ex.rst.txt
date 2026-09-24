@@ -1,8 +1,0 @@
-
-nav_ex
-======
-
-.. automodule:: nav_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -1,8 +1,0 @@
-
-obstacle_avoidance
-==================
-
-.. automodule:: obstacle_avoidance
-   :members:
-   :undoc-members:
-   :show-inheritance:

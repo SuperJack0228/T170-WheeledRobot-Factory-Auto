@@ -1,208 +1,317 @@
-# T170C 搬箱流程可调参数（修改后重新运行 move 生效）
-# 长度单位 m，角度单位 deg（程序内会转 rad）
+# T170C 圆柱抓取调试参数
+# 长度单位 m，角度单位 deg；修改后执行 debug_client.py reload。
 
-# 待机/回放位（双臂 pos）
-# standby_old：原初始待机，未删除；现用 standby = 网页启动流程双臂
-standby_old:
-  right: [0.45, -0.36, -0.08, -90, 0, 0]
-  left:  [0.45, 0.36, -0.08, 90, 0, 0]
 standby:
-  right: [0.45, -0.36, -0.08, -90, 0, 0]   # x y z rx ry rz
-  left:  [0.45, 0.36, -0.08, 90, 0, 0]
+  # 抓取准备/夹后回程用，不是 home。XYZ：Y 左右对称。RPY 在基座系，XZ 镜面（只反 rz）。
+  right: [0.45, -0.30, -0.25, 0, 45, 40]
+  left:  [0.45,  0.30, -0.25, 0, 45, -40]
 
-# 抓取：头相机识别 → 到物体上方 → 手相机改 xy → 下压夹取 → 抬起 → 待命
+# home 专用末端（基座系）。与 standby 独立。XYZ=0、RPY=0 即 TCP 在原点、姿态为单位阵。
+home_tcp:
+  right: [0.45, -0.35, -0.10, 0, 0, 0]
+  left:  [0.45,  0.35, -0.10, 0, 0, 0]
+
+# 料盘上表面在「手臂基座系」的 Z。手臂基座骑在腰上：腰抬高，盘面相对手臂就更低。
+# 当时腰应按 home（layer3.z）。运行时随腰升降：
+# z_now = z_ref_m - (当前腰z - z_ref_waist_z_m)
+# 抓取 Z：优先相机顶面；与参考偏差超过 z_refine_max_m 则用参考。
+# 2026-09-21 当前 home z=0.55，卷尺：基座原点竖直到盘面顶 62.3cm → -0.623。
+tray:
+  z_ref_m: -0.618
+  z_ref_waist_z_m: 0.55
+  part_above_tray_m: 0.015
+  # 优先相机顶面；|相机−参考| 超过该值则改用参考。
+  z_refine_max_m: 0.003
+  # 料盘位姿多帧融合。每帧解扶平 T_robot_tray；丢掉相对中位数偏差过大的帧后再
+  # 旋转 SVD 平均、平移取均值。YOLO 只用最后一帧。
+  fuse_frames: 3
+
+# 头相机标定关节角。home / grasp / ready 入口使能头部三电机并走到该姿态。
+# 远三排腰前伸后低头到 far_pitch_deg，再用 free_calib 按当前头角重算 cam2robot。
+# 头相机 RealSense SN=261722072173（见 config/realsense_cameras.yaml）；头部电机 CAN ID 30偏航 / 32俯仰 / 31横滚。
+head:
+  yaw_deg: 0
+  pitch_deg: 40
+  far_pitch_deg: 47
+  roll_deg: 0
+  speed_deg_s: 25
+
+
 head_grasp:
-  hover_above_m: 0.08        # 先到物体正上方：z = 检测z + 此值（世界 +z 朝上）
-  goal_z_base: -0.3          # 检测 z 超 grasp_valid 时的备用高度基准
-  goal_x_offset: 0.01        # 头分配 x 加
-  goal_z_extra: 0.26         # 备用高度 = goal_z_base + goal_z_extra
-  right_rx_deg: -90
-  right_ry_deg: 45
-  right_rz_deg: 0
-  left_rx_deg: 90
-  left_ry_deg: 45
-  left_rz_deg: 0
-  head_approach_z_descend: 0.05   # 旧流程头粗定位下压；当前整段抓取已不用
-  hand_descend_z: 0.065           # 上方到位后下压再夹（与 hover_above_m 对齐则夹取高度≈检测 z）
-  hand_grasp:                     # 手相机识别后抓取 xy 偏移（基座系上加）
-    right:
-      offset_x: 0
-      offset_y: 0
+  hover_above_m: 0.06
+  # 左手孔位偏置（基座系）。X 前为正，Y 左为正，Z 上为正。
+  grasp_z_offset_m: 0.02
+  goal_z_base: -0.30
+  goal_x_offset: 0.015
+  goal_y_offset: -0.02
+  # 右手单独孔位偏置（基座系，不取反）。缺省时 x/z 跟左手、y 取左手相反。
+  right_grasp_z_offset_m: 0.03
+  right_goal_x_offset: 0.01
+  right_goal_y_offset: -0.02
+  # 仅离机器人最近一排（from_robot=6）。叠在左右手 z_offset 上。向上为正，夹不到改负。
+  nearest_row_grasp_z_offset_m: -0.01
+  goal_z_extra: 0.26
+  # 无 row_grasp_rpy 时的回退。右手 = 左手 rz 取反。
+  right_rx_deg: 0
+  right_ry_deg: 60
+  right_rz_deg: 45
+  left_rx_deg: 0
+  left_ry_deg: 60
+  left_rz_deg: -45
+
+  # 抓取姿态按「离机器人远近」排，不按 ArUco 行号：
+  #   最远一行 → row1_rpy_deg
+  #   ready1: 每批较近的那一行（正常朝向=ArUco 3 和 6）
+  #   ready2: 中间行（正常朝向=ArUco 2 和 5）
+  #   ready3: 近区较远的那一行（正常朝向=ArUco 4）
+  # 料盘 ArUco：+X 前=row1，-X 后=row6。转 180° 时 ArUco 行号对调，姿态仍跟最远/最近走。
+  # ready1/2/3/6 只换手腕姿态，腰不变。ready6 预览最远行姿态。
+  row_grasp_rpy_deg:
     left:
-      offset_x: -0.01
-      offset_y: 0
-  lift_after_grasp_z: 0.05        # 夹取后抬起
-  hand_detect_invalid_redo_max: 10 # 手相机无目标/数据无效时最多重拍次数（不含首次）；0=不重拍
+      - [0, 60, -75]
+      - [0, 55, -50]
+      - [0, 45, -30]
+    right:
+      # 左手 rz 取反，夹爪相对中缝对称。
+      - [0, 60, 75]
+      - [0, 55, 50]
+      - [0, 45, 30]
+  # 最远一行（离机器人最远，正常朝向=ArUco row1）专用末端姿态。右手 rz 取反。
+  row1_rpy_deg:
+    left: [0, 30, -20]
+    right: [0, 30, 20]
 
-# 放货：空位 xy 偏移（第1~5排每排左右手独立；第6排单独一组）+ 在抓取 z 基础上再抬高
-place:
-  row_xy_offset:
-    row1:
-      left:  { offset_x: 0.01,   offset_y: -0.005 }
-      right: { offset_x: 0.035,  offset_y: 0.005 }
-    row2:
-      left:  { offset_x: 0.01,   offset_y: -0.005 }
-      right: { offset_x: 0.035,  offset_y: 0.005 }
-    row3:
-      left:  { offset_x: 0.01,   offset_y: -0.005 }
-      right: { offset_x: 0.035,  offset_y: 0.005 }
-    row4:
-      left:  { offset_x: 0.01,   offset_y: -0.005 }
-      right: { offset_x: 0.035,  offset_y: 0.005 }
-    row5:
-      left:  { offset_x: 0.01,   offset_y: -0.005 }
-      right: { offset_x: 0.035,  offset_y: 0.005 }
-  row6_xy_offset:
-    left:  { offset_x: 0.01,   offset_y: -0.005 }
-    right: { offset_x: 0.035,  offset_y: 0.005 }
-  z_raise: 0.06               # 放货 z 在 goal_last 基础上再抬高（填正数抬高）
-  z_descend: -0.04           # 到抬高位后再沿 z 移动（负=下降）；0 则跳过
-  detect_trials: 1             # 头相机空位(class1)检测次数（当前仅识别 1 次，不做共识）
-  place_pose_debug: true      # true：松爪前保存实际/下发位姿到 picture_debug/place_pose.txt
-  # 放货 Line_Trajectory 失败时改放此位（x y z m, rx ry rz deg，格式同 standby）
-  fallback:
-    right: [0.45, -0.36, -0.2, -90, 45, 0]
-    left:  [0.45,  0.36, -0.2,  90, 45, 0]
-  # 各排 x 区间 [x_min, x_max) 基座系(m)；排1=x<0.4 … 排6=0.8~0.9
-  row_x_bounds:
-    - [0.0, 0.4]
-    - [0.4, 0.5]
-    - [0.5, 0.6]
-    - [0.6, 0.7]
-    - [0.7, 0.79]
-    - [0.79, 0.9]
-  # 各排是否放货：1=放 0=绝对不放（禁用排空位不参与选点；如第6排填0则绝不放第6排）
-  row_enabled: [1, 1, 1, 1, 1, 1]
-  # 放货排顺序：1=从第1排起往后；0=从最后启用排往前（上例从第5排→第4排…）
-  row_place_from_front: 0
-  # 48格棋盘顺序：1=普通(先44非基准corr，满后4基准raw)；0=先4基准corr再放44非基准corr
-  place_non_anchor_first: 0
-  # 各排放货前腰 x 额外移动（place_advance 之后）；正=前进 负=后退；代码 pos(0)-=此值，手臂 x+=-此值
-  row_waist_x:
-    row1: -0.15
-    row2: 0
-    row3: 0.06
-    row4: 0.17
-    row5: 0.20
-    row6: 0.27
-  # 第6排弯腰放货（row_enabled 第6项=1 时生效；腰进 row6 仍走 row_waist_x，此处不再重复）
-  row6_bend:
-    enabled: true
-    pivot_z_below_base_m: 0.3765   # 腰2 pitch 枢轴在 base 下方(m)
-    waist_pitch_deg: 20            # 腰2号前倒
-    shoulder_lift_deg: 36          # 肩16/23 先抬，防碰撞
-    right_rx_deg: -90              # 弯后下发姿态
-    right_ry_deg: 25
-    right_rz_deg: 0
-    left_rx_deg: 90
-    left_ry_deg: 25
-    left_rz_deg: 0
-    speed_deg_per_s: 30
-    smooth_dt_ms: 20
-    waist_pitch_motor_can_id: 2
-    right_shoulder_joint_index: 0  # CAN 16
-    left_shoulder_joint_index: 0   # CAN 23
-    z_raise: 0.06                    # 第6排弯放：世界竖直抬高(m)，与 place.z_raise 独立
-    z_descend: -0.02                 # 弯放抬高位后再世界竖直下压(m)；0 则跳过
-    # 弯放松爪后抬升/侧让（腰仍弯时，用 row6 z_descend 竖直抬回 z_raise 高度后再移 x/y/z/姿态）
-    retreat_y_right: -0.15
-    retreat_y_left: 0.15
-    retreat_x_delta_m: 0.10          # 让位时 x 再前进 10cm
-    retreat_z_delta_m: 0.10          # 让位时 z 再上升 10cm（与 x/y 同动）
-    retreat_right_rx_deg: -90
-    retreat_right_ry_deg: -20
-    retreat_right_rz_deg: 0
-    retreat_left_rx_deg: 90
-    retreat_left_ry_deg: -20
-    retreat_left_rz_deg: 0
-# 抓取有效范围（笛卡尔下发 z 不得低于 z_min；改这里即改下压钳位）
+  # false：跳过手相机拍照和 XYZ 修正，抓取只用二维码孔位 XY + 盘面参考 Z。
+  use_hand_camera: false
+  # false：分段直线 A(当前)→B(物体上方)→C(最终抓取)。true 才走二次 Bezier（代码保留）。
+  use_bezier_grasp: false
+  # 手相机候选必须与头相机目标在基座 XY 内匹配，超过即拒绝本次抓取。
+  hand_match_xy_max_m: 0.05
+  # 匹配成功后，相对孔位 XY 限幅微调（米）。0 关闭。不改 goal_x_offset。
+  hand_xy_refine_max_m: 0.03
+  # 手相机相对检测点的夹取偏置。X 同向，Y 左右取反（基座 +Y 为左）。
+  hand_grasp:
+    right: { offset_x: -0.01, offset_y:  0.02 }
+    left:  { offset_x: -0.01, offset_y: -0.02 }
+  # 手相机旧流程的回程抬升量；无手相机Bezier流程会倒放原轨迹返回A。
+  lift_after_grasp_z: 0.08
+  # 无手相机抓取：先把 A 降到低于 B，B=C正上方12cm（不把 B 抬太高），C=最终抓取位姿。
+  # B仅控制二次Bezier曲线，不要求机械臂经过。
+  bezier_guide_height_m: 0.12
+  # A 相对 B 至少低这么多；不够则先竖直降 A，不抬 B。
+  bezier_ab_gap_m: 0.06
+  bezier_vel_m_s: 0.05
+  # 前65%保持待机姿态，后35%（靠近C的竖直段）转到该行抓取姿态。
+  bezier_orient_finish_ratio: 0.65
+  # 到C后按编码器FK复核；超差不合爪，便于XYZ offset只修正真实落点偏差。
+  bezier_endpoint_xyz_tol_m: 0.008
+  bezier_endpoint_rpy_tol_deg: 3.0
+  approach_vel_m_s: 0.12
+  descend_vel_m_s: 0.05
+  lift_vel_m_s: 0.10
+  return_vel_m_s: 0.12
+  # 下压到位后再等这么久才合爪。
+  pre_grasp_settle_sec: 0.15
+  hand_detect_invalid_redo_max: 10
+
+# 第二个料盘空孔放置。姿态、XYZ offset 都与 head_grasp 独立，改这里不影响抓取。
+# tray2ready1/2/3/6 只换手腕；tray2 流程：AP9 → 下蹲同 grasp → 认 class3 空孔放置。
+# offset 相对孔位，基座系，左右分开。初值抄当前抓取，之后只调料盘2。
+tray2_place:
+  offset:
+    left:  { x: 0.015, y: -0.020, z: 0.02 }
+    right: { x: 0.01,  y: -0.020, z: 0.04 }
+  nearest_row_z_offset_m: -0.01
+  row_place_rpy_deg:
+    left:
+      - [0, 60, -75]
+      - [0, 55, -50]
+      - [0, 45, -30]
+    right:
+      - [0, 60, 75]
+      - [0, 55, 50]
+      - [0, 45, 30]
+  row1_rpy_deg:
+    left: [0, 30, -20]
+    right: [0, 30, 20]
+
+# 选孔和下发共用这一套工作包络。左右分列只跟 ArUco 列号（1–3 右、4–6 左），
+# 不要用盘心 Y 或 offset 后的点再拒一次。无料盘时 YOLO 才用盘心 Y 分左右。
 grasp_valid:
-  z_min: -0.5
+  z_min: -0.65
   z_max: -0.05
-  x_min: 0.1
-  x_max: 0.8
-  right_y_min: -0.5
-  right_y_max: 0.05
-  left_y_min: -0.05
-  left_y_max: 0.5
+  x_min: 0.10
+  x_max: 0.80
+  right_y_min: -0.50
+  right_y_max: 0.28
+  left_y_min: -0.28
+  left_y_max: 0.50
 
-# 头相机抓取分配：侧区 / 中间区（与 place_zone 无关）
-# 调大 y_side_split 可扩大中间区，例如 0.10 → 中间 [-0.10,0] 右半、(0,0.10] 左半
+# 6×6 列分区。基座 +Y 左。
+# 左右分列跟 ArUco：列 1–3 右手、4–6 左手（盘转 180° 时程序对调列号）。
+# 选孔 x/y 已改用 grasp_valid。下面 x/y 只作无料盘回退时的注释对齐，不再单独裁孔。
+# column_split_y 只是没解到盘心时的 YOLO 回退。
+# 同时抓最小列差=3，即 (1,4)(2,5)(3,6)；更远如 (1,5)(1,6) 也允许。
 grasp_zone:
-  y_side_split: 0.08   # 侧区：y<-0.05 右、y>0.05 左；中间在 ±y_side_split 内、y=0 分左右
-  y_max_abs: 0.28       # 分配时 |y| 超过则丢弃（台面约 ≤0.20；0.45 会把画面边角椅子当分给左手）
-  x_min: 0.2           # 分配时 x 小于则丢弃；与 x_max 配成料盘前方工作盒
-  x_max: 0.8            # 分配时 x 超过则丢弃
-  edge_margin_frac: 0.08  # 头相机投影点距画面边小于此比例则丢（边角椅子/地板误检）
-  cam_xy_over_z_max: 0.5 # |cx|/cz 或 |cy|/cz 超过则丢；0=关闭
+  # 与 grasp_valid 外侧对齐；选孔不再用更窄的 |y| 和 x 下限。
+  y_max_abs: 0.50
+  x_min: 0.10
+  x_max: 0.80
+  edge_margin_frac: 0.08
+  cam_xy_over_z_max: 0.50
+  # 料盘分配：先抓离机器人最近的一行；该行左右能配则同时抓 (3-6)(2-5)(1-4)，从左往右。
+  # 一侧本行没料就等，不跳去更远行。无料盘时 YOLO XY 回退才用下面容差。
+  front_row_tolerance_m: 0.025
+  column_split_y: 0.0
+  hole_pitch_m: 0.075
+  column_count: 6
+  min_simultaneous_col_delta: 3
+  # 远近按基座 X 排（from_robot 1=最远）。近三排 from_robot 4–6 在 ready 起始 x 抓；
+  # 近区清空后再抓远三排 from_robot 1–3，抓前腰前伸 far_row_forward_m。
+  # 料盘转 180° 时 ArUco 行号对调，这里仍跟离机器人远近走。
+  far_row_max: 3
 
-# 腰 layer3（home 与放货前姿态）
-# 腰 x 统一规则：代码 pos(0) -= 配置值。正值=前进，负值=后退（与 stagger/放货/第一排一致）
 waist:
-  layer3_home_old: [-0.132502, 0.0, 0.642464, -90, -90, 180]  # 原初始腰位，未删除
-  layer3_home: [0, 0, 0.5, -90, -90, 180]  # 现用归位=启动流程（x y z m, rx ry rz deg）
-  stagger_step_x: 0.0556        # 抓取腰进单步(m)；按超出 threshold 一次 ×1/×2/×3
-  stagger_max_steps: 0            # 本轮抓取腰进总步数上限(双手共享)；用尽后 x>threshold 但 grasp_valid 仍抓
-  place_advance_x: -0.04      # 放货前腰后退，负=后退 14cm
-  move_settle_sec: 2
-  # layer3 行程（软件限位）。x 减小=前进；z 增大=升高。网页/抓取/放货都会夹在此范围
-  x_min: -0.3
-  x_max: 0.1
-  z_min: 0.5
-  z_max: 0.72
-  # 抓取：手臂系物体 z 低于 grasp_object_z_min 则腰下降 grasp_lower_z（让桌面靠近手臂，躲开 z=-0.33 钳位）
-  grasp_object_z_min: -0.28
+  # LowerBody：零位站立 TCP (0,0,0.67)，姿态单位阵。
+  # home z=0.55：相对直立降约 12cm。far_row 前伸时注意可达。
+  layer3_home: [0, 0, 0.63, 0, 0, 0]
+  stagger_step_x: 0.0556
+  stagger_max_steps: 0  # 0=禁用抓取过程中的腰部前进
+  move_settle_sec: 0.5
+  x_min: -0.30
+  x_max: 0.30
+  z_min: 0.35
+  z_max: 0.67
+  # 抓取目标盘面 Z（基座系）。ready/grasp 腰高改走 ready_z_m，不再为够到该值继续降腰。
+  grasp_object_z_min: -0.40
+  # 已改为一次竖直降到位，不再按该步长分段。
   grasp_lower_z: 0.16
-  place_ready_chassis_delay_sec: 2  # 抓完放货前并行：底盘 +90° 启动前等待(秒)
-  place_ready_waist_delay_sec: 0    # 抓完放货前并行：腰到放货预备位启动前等待(秒)
+  # ready/grasp 腰 TCP 高度，与 home 独立。home 仍用 layer3_home.z。
+  ready_z_m: 0.36
+  # ready/grasp 起始相对 home.x 再向前（+X 为机器人前方）。home 仍停在 layer3_home.x。
+  ready_forward_m: 0.03
+  # 远三排 / waist2：相对 layer3_home.x 再向前伸。抓完不收回。
+  far_row_forward_m: 0.18
 
-# x 过远时腰进抓取
 stagger:
-  head_x_threshold: 0.8
+  head_x_threshold: 0.80
 
-# 放货分区 y：侧区选点(y>0 / y<0)；若两侧选点 y 均在 [y_right,y_left] 中间带则右手先放再左手；侧区无格才用中间带兜底
-place_zone:
-  y_side_split: 0.0           # 左手侧区 y > 0，右手侧区 y < 0
-  y_left: 0.15                # 中间区上界（含）
-  y_right: -0.15              # 中间区下界（含）
-
-# seg_circle_pose 目录已弃用；识别引擎见 feeding_cylindrical_parts_alg/
-# 放货空位检测 trials 见 place.detect_trials
-
-# 各阶段视觉位姿算法（修改后重新运行 move 生效）
-# -1 = 跟随 feeding_cylindrical_parts_alg/config/pose_params.yaml 各类别 algorithm_id
-#  0 = 强制 2D PnP（分割+椭圆 solvePnP，主要用 RGB）
-#  1 = 强制点云重心（mask 内 depth 平均，需对齐 depth，仅平移 R=I）
+# -1=模型配置，0=PnP，1=深度重心。
 vision_detect:
-  head_grasp: 1          # 头相机抓取分配 class0
-  right_hand_grasp: 1    # 右手相机抓取 class0
-  left_hand_grasp: 1     # 左手相机抓取 class0
-  place_holes: 0          # 头相机放货空位 class1（棋盘 corr/raw 均来自此次识别）
+  head_grasp: 1
+  right_hand_grasp: 1
+  left_hand_grasp: 1
 
-# RealSense 采集流（启动 color/depth；原代码硬编码 1280x720 @ 30fps）
 cameras:
   width: 1280
   height: 720
-  head_fps: 15   # 头相机帧率
-  hand_fps: 15   # 左右手相机帧率
+  head_fps: 15
+  hand_fps: 15
 
-battery:
-  low_threshold: 0.1    # 低于此值去充电
-  full_threshold: 0.96  # 充高于此值停充
-
-# 传送带：二维码贴在进/出传送带中间同一平面。左右沿码印刷 X（+X=码右侧），抬高沿码法向 +Z。
-# 网页「设置抓取动作参数」可改；改完会 reload_config，不必重编。
-# 挡板取料的接近路径（相对二维码的示教点）在 config/conveyor_approach.json，网页「路径示教」。
+# 传送带。料盘仍用 board_yf100 的 5×5；这里只用 board_belt_aruco 的 6×6，互不覆盖。
+# belt_ready：腰/头到观察位，手臂到 tcp（准备姿态，类似 standby）。
+# belt_place：腰/头到观察位，手臂到 place_tcp（放置末端预览，类似 ready1/2/3）。
+# belt：去 AP6 → 准备tcp → 认码 → 左右依次放置后回准备。不预开合爪。不回 home。
+# belt2：去 AP5，同样的放置流程，参数用 conveyor2。
+# 完整放置 XYZ=码原点 + R_识别×offset（识别系 +X前 +Y左 +Z上），RPY 用 place_tcp。
+# 左右手依次放，即使 offset XY 相同也不跳过右手。
+# 传送带不卡中轴：左右手都可以过 Y=0。料盘抓取仍走左右互不干涉，不改。
+# belt_grasp 是独立指令：不改 belt。准备姿态仍用 tcp，抓取只要 grasp_rpy_deg。随时可接在放置之后。
+# belt_grasp_rpy / belt2_grasp_rpy：腰头同准备位，手臂停在 tcp 的 XYZ + grasp_rpy_deg。不拍照、不夹取、不动底盘。
+# 第一传送带站是 AP6；第二传送带站是 AP5，参数在 conveyor2，调试用 belt2_ready / belt2_place / belt2_grasp。
 conveyor:
-  right_offset_m: 0.05   # 二维码右侧（码 +X）水平距离，右臂走到该点上方
-  left_offset_m: 0.07    # 二维码左侧（码 -X）水平距离，左臂走到该点上方
-  height_above_m: 0.08   # 相对码平面抬高（米），给手相机留工作距离
-  above_height_m: 0.05   # 码正上方（沿法向 +Z，无左右偏移），默认 5cm
-  speed: 0.1             # 手臂直线速度 m/s
+  waist_x: 0.15
+  waist_z: 0.63
+  head_yaw_deg: 0
+  head_pitch_deg: 38
+  head_roll_deg: 0
+  prefer_belt: belt0
+  # 准备姿态（belt 之前）。belt_ready 走到这里。基座系，RPY 单位 deg。
+  # 左手 Y 必须为正（本侧），不能抄右手的 -0.30，否则左臂逆解失败。
+  tcp:
+    right: [0.40, -0.30, -0.15, 0, 45, 30]
+    left:  [0.40,  0.30, -0.15, 0, 45, -30]
+  # 放置末端。belt_place 预览整段 6D；完整 belt 只用 RPY，XYZ 改由码+offset。
+  place_tcp:
+    right: [0.45, -0.30, -0.25, 0, 45, 60]
+    left:  [0.45,  0.30, -0.25, 0, 45, -60]
+  # 相对识别板系（米，+X前 +Y左 +Z上）。-X 4cm 朝机器人，Z 抬高 8cm。
+  offset:
+    right: { x: -0.04, y: -0.015, z: 0.05 }
+    left:  { x: -0.04, y: 0.01, z: 0.05 }
+  # 传送带抓取（半成品）。开始准备仍用上面的 tcp，不改。
+  # 抓完回到 grasp_tcp（专用，不再用放置 tcp）。
+  # 抓取点 = 码原点 + R_识别 × 该手 grasp_offset。识别系 +X 前 +Y 左 +Z 上，不再乘腰 Rz。
+  grasp_rpy_deg:
+    left: [0, 40, -60]
+    right: [0, 40, 45]
+  grasp_offset:
+    left:  { x: -0.04, y: 0.11, z: 0.02 }
+    right: { x: -0.04, y: 0.12, z: 0.03 }
+  # 抓取完成后的回程姿态。开始准备仍是 tcp。
+  grasp_tcp:
+    right: [0.55, -0.30, -0.15, 0, 0, 0]
+    left:  [0.55,  0.30, -0.15, 0, 0, 0]
+  grasp_hover_above_m: 0.08
+  # 放置：先到码+offset 上方这么多，再下降松爪。松爪后只轻抬约 3cm，然后直接回准备。
+  place_hover_above_m: 0.06
+  # 站点已更新，传送带抓取不再转腰。0=不转。左右手可以过中轴，不卡料盘中缝。
+  grasp_waist_yaw_deg: 0
+  # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
+  grasp_ready_close_ratio: 0.20
+  # 抓取前 YOLO 只判定类别，不参与定位。false=不跑 YOLO。1=半加工料 2=精加工料。
+  grasp_yolo_enable: false
+  grasp_yolo_class_id: 1
+  # 腰高 waist_z=0.63m 时，手臂基座到传送带（码平面）29cm。基座 Z 向上，传送带在下方，所以是 -0.29。
+  # 只替换码原点的 Z。XY、板朝向仍用二维码；放置/抓取 offset 和 hover 仍叠在这个高度上。
+  # 第二传送带先保持相机高度，方便和这条固定高度对比。
+  use_fixed_origin_z: true
+  fixed_origin_z_m: -0.29
 
-# 笛卡尔直线不锁 J2（不把冗余角传给 Line_Trajectory），先保证抓取工作空间。
-ik:
-  method: numeric
-  j2_from_current: 0
-  j2_right_deg: 60
-  j2_left_deg: -60
+# 第二条传送带（AP5）。初值抄第一套，可单独改。
+# belt2_ready：去 AP5 → 准备 tcp。
+# belt2 / belt2_place：去 AP5 → 准备 → 放置 → 停准备 tcp。
+# belt2_grasp：去 AP5 → 准备 → 抓取（不转腰）→ 回 grasp_tcp。
+conveyor2:
+  waist_x: 0.15
+  waist_z: 0.63
+  head_yaw_deg: 0
+  head_pitch_deg: 38
+  head_roll_deg: 0
+  prefer_belt: belt0
+  tcp:
+    right: [0.40, -0.30, -0.15, 0, 45, 30]
+    left:  [0.40,  0.30, -0.15, 0, 45, -30]
+  place_tcp:
+    right: [0.45, -0.30, -0.25, 0, 45, 60]
+    left:  [0.45,  0.30, -0.25, 0, 45, -60]
+  offset:
+    right: { x: -0.04, y: -0.02, z: 0.06 }
+    left:  { x: -0.04, y: 0.00, z: 0.06 }
+  grasp_rpy_deg:
+    left: [0, 40, -60]
+    right: [0, 40, 45]
+  grasp_offset:
+    left:  { x: -0.03, y: 0.115, z: 0.04 }
+    right: { x: -0.04, y: 0.105, z: 0.06 }
+  grasp_tcp:
+    right: [0.55, -0.30, -0.15, 0, 0, 0]
+    left:  [0.55,  0.30, -0.15, 0, 0, 0]
+  grasp_hover_above_m: 0.08
+  place_hover_above_m: 0.06
+  grasp_waist_yaw_deg: 0
+  grasp_ready_close_ratio: 0.20
+  grasp_yolo_enable: false
+  grasp_yolo_class_id: 2
+  # 先保持相机读出的码平面高度，和第一传送带的固定 -0.29m 对比。
+  use_fixed_origin_z: false
+  fixed_origin_z_m: -0.29
+
+# cycle：AP7 抓 → home → AP5 放置 → belt_grasp → AP6 放置 → belt2_grasp → AP9 空孔放置 → 回 AP7 再抓，闭环到 abort。
+chassis:
+  host: 192.168.192.5
+  tray_station: AP7
+  tray2_station: AP9
+  belt_station: AP5
+  out_station: AP6
+  nav_timeout_ms: 600000

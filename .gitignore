@@ -19,7 +19,8 @@ dist/
 .venv/
 venv/
 env/
-# 本地编出来的库在 build/ 下；lib/、sdk/ 里预编译 .so 要入库
+# 本地编译产物放在 build/ 与 build_robot/；lib/ 中的机器人预编译库需要保留
+build_robot/
 build/**/*.a
 build/**/*.so
 build/**/*.so.*
@@ -58,9 +59,15 @@ config.txt
 picture_debug/
 **/picture_debug/
 左右手夹取/
+*.jpg
+*.jpeg
+*.png
+*.bmp
 
-# --- YOLO / vision weights (large; keep configs, not .pt) ---
+# --- YOLO / vision weights ---
+# best.pt 超过 GitHub 100MB 上限，不入库。当前使用的是 bestlatest.pt。
 *.pt
+!feeding_cylindrical_parts_alg/models/bestlatest.pt
 *.pth
 *.onnx
 *.engine

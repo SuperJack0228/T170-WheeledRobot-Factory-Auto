@@ -1,8 +1,11 @@
 #include "move_box_runtime.h"
+#include "head_control.h"
 #include "Ti5_socketcan.h"
 
 #include <algorithm>
+#include <iomanip>
 #include <iostream>
+#include <string>
 #include <unistd.h>
 
 namespace move_box
@@ -29,30 +32,73 @@ GraspToStandbyResult run_grasp_to_standby(
     const std::array<double, 16> &cam2robot,
     std::string &err,
     const std::function<bool()> &should_abort,
-    SegEngineId engine_id)
+    SegEngineId engine_id,
+    bool adaptive_approach_rpy,
+    bool holding_r,
+    bool holding_l)
 {
     GraspToStandbyResult out;
+    g_grasp_adaptive_rpy = adaptive_approach_rpy;
+    struct AdaptiveRpyGuard
+    {
+        ~AdaptiveRpyGuard() { g_grasp_adaptive_rpy = false; }
+    } adaptive_guard;
+
     if (aborting(should_abort))
     {
         out.status = GraspToStandbyStatus::Aborted;
         return out;
     }
 
-    if (engine_id == SegEngineId::Factory)
-        log_phase_banner("工厂单类抓取：头相机识别分配(class0)");
-    else if (engine_id == SegEngineId::Jindi)
-        log_phase_banner("金帝四类抓取：头相机识别分配(毛胚 class0)");
+    if (aborting(should_abort))
+    {
+        out.status = GraspToStandbyStatus::Aborted;
+        return out;
+    }
+
+    {
+        // 精度测试腰还停在远排前伸时，头必须保持 far_pitch，不能每轮拉回标定 40°。
+        const bool keep_far_pitch =
+            tray2_precision_test() &&
+            posup_down_3_layer(0) > waist_ready_x() + 0.02;
+        if (keep_far_pitch)
+            std::cout << "[head] 腰仍在远排前伸，本轮保持 "
+                      << std::fixed << std::setprecision(1)
+                      << g_move_cfg.head.far_pitch_deg << "°，不回标定俯仰\n";
+        const int head_rc = keep_far_pitch ? enable_head_far_pitch()
+                                           : enable_head_calib_pose();
+        if (head_rc == -4 || aborting(should_abort))
+        {
+            out.status = GraspToStandbyStatus::Aborted;
+            return out;
+        }
+        if (head_rc != 0)
+        {
+            std::cerr << "[grasp] 本轮头部使能/到位失败 code=" << head_rc << "，不拍照\n";
+            out.status = GraspToStandbyStatus::CamFail;
+            return out;
+        }
+    }
+
+    if (tray_hole_task() == TrayHoleTask::PlaceEmpty)
+        log_phase_banner("料盘2空孔放置：头相机识别分配(class3)");
+    else if (adaptive_approach_rpy)
+        log_phase_banner("抓取流程(自适应姿态)：头相机识别分配(class0)");
     else
         log_phase_banner("抓取流程：头相机识别分配(class0)");
-    g.openAndWait(gripper::Side::Right);
-    g.openAndWait(gripper::Side::Left);
-    if (aborting(should_abort))
-    {
-        out.status = GraspToStandbyStatus::Aborted;
-        return out;
-    }
-
-    HeadAssignState st = detect_and_assign_head(cameras, bridge, cam2robot, true, engine_id);
+    const bool skip_r = holding_r;
+    const bool skip_l = holding_l;
+    if (skip_r || skip_l)
+        std::cout << (tray_hole_task() == TrayHoleTask::PlaceEmpty
+                          ? "[tray2] 已放置 右="
+                          : "[grasp] 已持件 右=")
+                  << (skip_r ? 1 : 0)
+                  << " 左=" << (skip_l ? 1 : 0)
+                  << (tray_hole_task() == TrayHoleTask::PlaceEmpty
+                          ? "，本轮只给未放侧补放\n"
+                          : "，本轮只给空爪补抓，合爪保持\n");
+    HeadAssignState st = detect_and_assign_head(
+        cameras, bridge, cam2robot, true, engine_id, skip_r, skip_l);
     out.st = st;
     if (aborting(should_abort))
     {
@@ -61,58 +107,22 @@ GraspToStandbyResult run_grasp_to_standby(
     }
 
     {
-        const auto &w = g_move_cfg.waist;
-        auto lowest_object_z = [&](double &z) -> bool {
-            bool any = false;
-            z = 0.0;
-            if (st.have_r)
-            {
-                z = st.right_hand_pos[2];
-                any = true;
-            }
-            if (st.have_l)
-            {
-                if (!any || st.left_hand_pos[2] < z)
-                    z = st.left_hand_pos[2];
-                any = true;
-            }
-            return any;
-        };
-        double obj_z = 0.0;
-        int lower_tries = 0;
-        while (w.grasp_lower_z > 1e-6 && w.grasp_object_z_min < 0.0 && lower_tries < 2 &&
-               lowest_object_z(obj_z) && obj_z < w.grasp_object_z_min)
-        {
-            const double need = w.grasp_object_z_min - obj_z;
-            const double drop = std::min(w.grasp_lower_z, need);
-            std::cout << std::fixed << std::setprecision(4)
-                      << "[waist] 物体 z=" << obj_z << " < " << w.grasp_object_z_min
-                      << "，腰下降靠近桌面（需要 " << need << " m）\n";
-            if (waist_layer3_lower_z(waist, posup_down_3_layer, drop) <= 1e-9)
-                break;
-            ++lower_tries;
-            if (aborting(should_abort))
-            {
-                out.status = GraspToStandbyStatus::Aborted;
-                return out;
-            }
-            st = detect_and_assign_head(cameras, bridge, cam2robot, true, engine_id);
-            out.st = st;
-            if (aborting(should_abort))
-            {
-                out.status = GraspToStandbyStatus::Aborted;
-                return out;
-            }
-        }
+        std::cout << std::fixed << std::setprecision(4)
+                  << "[waist] 抓取腰高 ready_z=" << waist_ready_z()
+                  << " m（home z=" << g_move_cfg.waist.layer3_home(2)
+                  << "）盘面参考 z=" << tray_z_ref_now()
+                  << " 物体顶面参考=" << expected_object_top_z() << " m\n";
     }
 
     std::cout << "[head] goal_last_r: " << st.goal_last_r << std::endl;
     std::cout << "[head] goal_last_l: " << st.goal_last_l << std::endl;
 
     if (!st.have_r)
-        std::cout << "[head] 未识别到右手，跳过右手手相机/抓取\n";
+        std::cout << (skip_r ? "[head] 右手已持件，本轮不抓右手\n"
+                             : "[head] 未识别到右手，跳过右手手相机/抓取\n");
     if (!st.have_l)
-        std::cout << "[head] 未识别到左手，跳过左手手相机/抓取\n";
+        std::cout << (skip_l ? "[head] 左手已持件，本轮不抓左手\n"
+                             : "[head] 未识别到左手，跳过左手手相机/抓取\n");
     if (!st.move_r && st.have_r)
         log_arm_skip_right();
     if (!st.move_l && st.have_l)
@@ -123,13 +133,105 @@ GraspToStandbyResult run_grasp_to_standby(
         return out;
     }
 
+    bool waist_adjusted = false;
+    {
+        const bool far_r = st.move_r && tray_row_is_far(st.row_r);
+        const bool far_l = st.move_l && tray_row_is_far(st.row_l);
+        if (far_r || far_l)
+        {
+            std::cout << "[waist] 目标在离机器人远的三排"
+                      << (far_r ? " 右 from_robot=" + std::to_string(st.row_r) +
+                                      " ArUco=" + std::to_string(st.row_aruco_r)
+                                : "")
+                      << (far_l ? " 左 from_robot=" + std::to_string(st.row_l) +
+                                      " ArUco=" + std::to_string(st.row_aruco_l)
+                                : "")
+                      << "，腰前伸后抓取，本轮抓完不收回\n";
+            const double actual =
+                waist_layer3_ensure_far_row_forward(waist, posup_down_3_layer);
+            if (actual > 1e-9)
+                waist_adjusted = true;
+            if (aborting(should_abort))
+            {
+                out.status = GraspToStandbyStatus::Aborted;
+                out.waist_adjusted = waist_adjusted;
+                return out;
+            }
+            std::cout << "[head] 远三排：低头到 " << std::fixed << std::setprecision(1)
+                      << g_move_cfg.head.far_pitch_deg
+                      << "°，free_calib 重算外参后重拍\n";
+            const int head_rc = enable_head_far_pitch();
+            if (head_rc == -4 || aborting(should_abort))
+            {
+                out.status = GraspToStandbyStatus::Aborted;
+                out.waist_adjusted = waist_adjusted;
+                return out;
+            }
+            if (head_rc != 0)
+                std::cerr << "[head] 远排低头失败 code=" << head_rc << "，仍按当前头角重拍\n";
+            HeadAssignState st_far = detect_and_assign_head(
+                cameras, bridge, cam2robot, true, engine_id, skip_r, skip_l);
+            if (aborting(should_abort))
+            {
+                out.status = GraspToStandbyStatus::Aborted;
+                out.waist_adjusted = waist_adjusted;
+                return out;
+            }
+            if (st_far.move_l || st_far.move_r)
+            {
+                st = st_far;
+                std::cout << "[head] 低头后已用当前外参重分配目标\n";
+            }
+            else
+            {
+                if (actual > 1e-9)
+                {
+                    apply_grasp_stagger_waist_comp(st, actual);
+                    std::cout << std::fixed << std::setprecision(4)
+                              << "[head] 低头后未分到目标，回退腰进前孔位并补偿 x "
+                              << actual << " m\n";
+                }
+                else
+                    std::cerr << "[head] 低头后未分到目标，沿用低头前分配\n";
+            }
+        }
+    }
+
+    if (tray2_precision_test() && (st.move_r || st.move_l) &&
+        !(st.move_r && tray_row_is_far(st.row_r)) &&
+        !(st.move_l && tray_row_is_far(st.row_l)) &&
+        posup_down_3_layer(0) > waist_ready_x() + 0.02)
+    {
+        std::cout << "[tray2test] 前三排结束，腰收回 ready（不站到 home），重拍后三排\n";
+        if (!ensure_waist_ready_start(waist, posup_down_3_layer))
+        {
+            out.status = aborting(should_abort) ? GraspToStandbyStatus::Aborted
+                                                : GraspToStandbyStatus::CamFail;
+            return out;
+        }
+        const int head_rc = enable_head_calib_pose();
+        if (head_rc == -4 || aborting(should_abort))
+        {
+            out.status = GraspToStandbyStatus::Aborted;
+            return out;
+        }
+        HeadAssignState st_near = detect_and_assign_head(
+            cameras, bridge, cam2robot, true, engine_id, skip_r, skip_l);
+        if (aborting(should_abort))
+        {
+            out.status = GraspToStandbyStatus::Aborted;
+            return out;
+        }
+        if (st_near.move_l || st_near.move_r)
+            st = st_near;
+    }
+
     const bool enable_r_hand = st.move_r;
     const bool enable_l_hand = st.move_l;
 
     bool stagger_r = st.move_r && head_x_needs_stagger(st.goal_last_r(0));
     bool stagger_l = st.move_l && head_x_needs_stagger(st.goal_last_l(0));
 
-    bool waist_adjusted = false;
     GraspStaggerWaistState grasp_stagger;
 
     auto refresh_stagger_flags = [&]()
@@ -159,16 +261,29 @@ GraspToStandbyResult run_grasp_to_standby(
         r.waist_adjusted = waist_adjusted;
         if (!grasped_r && !grasped_l)
         {
-            std::cout << "[arm] 本轮无抓取，回待命\n";
+            std::cout << (tray_hole_task() == TrayHoleTask::PlaceEmpty
+                              ? "[arm] 本轮无放置，停在当前 TCP\n"
+                              : "[arm] 本轮无抓取，停在当前 TCP\n");
             r.status = if_empty;
-            move_arms_to_standby(arm_r, arm_l);
             return r;
         }
 
-        log_phase_banner("抓取完成 → 回待命");
-        lift_grasped_after_pick(
-            arm_r, arm_l, cameras, st, grasped_r, grasped_l, lifted_r, lifted_l);
-        move_arms_to_standby(arm_r, arm_l);
+        if (tray2_precision_test())
+        {
+            log_phase_banner("精度测试放置完成 → 轻抬后回蹲姿 standby，不起身");
+            lift_grasped_after_pick(
+                arm_r, arm_l, cameras, st, grasped_r, grasped_l, lifted_r, lifted_l);
+            move_arms_to_standby(arm_r, arm_l, -1, true);
+        }
+        else
+        {
+            log_phase_banner(tray_hole_task() == TrayHoleTask::PlaceEmpty
+                                 ? "放置完成 → 抬升后一次 TCP 回 yaml home_tcp"
+                                 : "抓取完成 → 抬升后一次 TCP 回 yaml home_tcp");
+            lift_grasped_after_pick(
+                arm_r, arm_l, cameras, st, grasped_r, grasped_l, lifted_r, lifted_l);
+            move_arms_tcp_to_home(arm_r, arm_l);
+        }
         r.st = st;
         r.status = GraspToStandbyStatus::Ok;
         return r;
@@ -202,7 +317,6 @@ GraspToStandbyResult run_grasp_to_standby(
         if (!hs_l.move_l || head_tr_l.ret_l != 0)
         {
             log_arm_skip_left();
-            move_arms_to_standby(arm_r, arm_l);
             out.status = GraspToStandbyStatus::GraspNone;
             return out;
         }
@@ -218,9 +332,6 @@ GraspToStandbyResult run_grasp_to_standby(
             if (aborted_now())
                 return out;
         }
-        move_arms_to_standby(arm_r, arm_l);
-        if (aborted_now())
-            return out;
 
         std::cout << "[stagger] 腰前进后抓右手(本轮腰进预算 "
                   << g_move_cfg.waist.stagger_max_steps << " 步)\n";
@@ -229,7 +340,7 @@ GraspToStandbyResult run_grasp_to_standby(
         {
             if (aborted_now())
                 return out;
-            std::cout << "[stagger] 腰前进后右手仍不可用，已抓左手，回待命\n";
+            std::cout << "[stagger] 腰前进后右手仍不可用，已抓左手，夹后抬升停在当前 TCP\n";
             return finish_to_standby(GraspToStandbyStatus::GraspNone);
         }
         if (aborted_now())
@@ -265,7 +376,6 @@ GraspToStandbyResult run_grasp_to_standby(
                 if (aborted_now())
                     return out;
             }
-            move_arms_to_standby(arm_r, arm_l);
         }
         else
         {
@@ -293,7 +403,6 @@ GraspToStandbyResult run_grasp_to_standby(
         if (!hs_r.move_r || head_tr_r.ret_r != 0)
         {
             log_arm_skip_right();
-            move_arms_to_standby(arm_r, arm_l);
             out.status = GraspToStandbyStatus::GraspNone;
             return out;
         }
@@ -303,16 +412,12 @@ GraspToStandbyResult run_grasp_to_standby(
             return out;
         if (grasp_tr_r.ret_r != 0)
         {
-            move_arms_to_standby(arm_r, arm_l);
             out.status = GraspToStandbyStatus::GraspNone;
             return out;
         }
         grasped_r = true;
         lift_grasped_selective(arm_r, arm_l, cameras, st, true, false);
         lifted_r = true;
-        if (aborted_now())
-            return out;
-        move_arms_to_standby(arm_r, arm_l);
         if (aborted_now())
             return out;
 
@@ -323,7 +428,7 @@ GraspToStandbyResult run_grasp_to_standby(
         {
             if (aborted_now())
                 return out;
-            std::cout << "[stagger] 腰前进后左手仍不可用，已抓右手，回待命\n";
+            std::cout << "[stagger] 腰前进后左手仍不可用，已抓右手，夹后抬升停在当前 TCP\n";
             return finish_to_standby(GraspToStandbyStatus::GraspNone);
         }
         if (aborted_now())
@@ -359,7 +464,6 @@ GraspToStandbyResult run_grasp_to_standby(
                 if (aborted_now())
                     return out;
             }
-            move_arms_to_standby(arm_r, arm_l);
         }
         else
         {
@@ -425,9 +529,20 @@ GraspToStandbyResult run_grasp_to_standby(
         st.move_r = false;
     }
 
+    if (st.move_r && st.move_l)
+    {
+        const int cr = (st.col_r >= 1) ? st.col_r : tray_column_index_from_y(st.goal_last_r(1));
+        const int cl = (st.col_l >= 1) ? st.col_l : tray_column_index_from_y(st.goal_last_l(1));
+        std::cout << "[col] 本轮配对 右列=" << cr << " 左列=" << cl
+                  << " 差=" << (cl - cr)
+                  << " 同时门槛=" << g_move_cfg.grasp_zone.min_simultaneous_col_delta
+                  << " (最小对 1-4/2-5/3-6)\n";
+        (void)dual_grasp_targets_too_close(st);
+    }
+
     if (head_grasp_simultaneous(st))
     {
-        std::cout << "[head] 左右侧区均有目标，双手同时抓取\n";
+        std::cout << "[head] 左右列分区均有目标且列间隔足够，双手同时抓取\n";
         const ArmLineMoveResult head_tr =
             run_head_approach_selective(arm_r, arm_l, st, st.move_r, st.move_l);
         if (aborted_now())
@@ -462,7 +577,7 @@ GraspToStandbyResult run_grasp_to_standby(
     }
     else
     {
-        std::cout << "[head] 含中间区或侧区不全，依次：右手抓取→待机→左手抓取→待机\n";
+        std::cout << "[head] 列间隔不足或单侧无目标，依次：右手 TCP 抓取→左手 TCP 抓取（不回 standby）\n";
 
         if (enable_r_hand && st.move_r)
         {
@@ -488,9 +603,6 @@ GraspToStandbyResult run_grasp_to_standby(
                     if (aborted_now())
                         return out;
                 }
-                move_arms_to_standby(arm_r, arm_l);
-                if (aborted_now())
-                    return out;
             }
             else
             {
@@ -523,9 +635,6 @@ GraspToStandbyResult run_grasp_to_standby(
                     if (aborted_now())
                         return out;
                 }
-                move_arms_to_standby(arm_r, arm_l);
-                if (aborted_now())
-                    return out;
             }
             else
             {
@@ -545,106 +654,6 @@ GraspToStandbyResult run_grasp_to_standby(
     if (aborted_now())
         return out;
     return finish_to_standby(GraspToStandbyStatus::GraspNone);
-}
-
-GraspToStandbyResult run_hand_grasp_only(
-    gripper::Gripper &g,
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
-    RealSenseMultiCam &cameras,
-    SegPoseBridge &bridge,
-    std::string &err,
-    const std::function<bool()> &should_abort,
-    SegEngineId engine_id,
-    bool enable_r,
-    bool enable_l)
-{
-    GraspToStandbyResult out;
-    if (aborting(should_abort))
-    {
-        out.status = GraspToStandbyStatus::Aborted;
-        return out;
-    }
-    if (!enable_r && !enable_l)
-    {
-        std::cout << "[hand-only] 未指定手臂，跳过\n";
-        out.status = GraspToStandbyStatus::NoTarget;
-        return out;
-    }
-
-    if (engine_id == SegEngineId::Factory)
-        log_phase_banner("手相机抓取(小毛胚)：识别 → 物体上方 → 下压夹取 → 抬起");
-    else
-        log_phase_banner("手相机抓取：识别 → 物体上方 → 下压夹取 → 抬起");
-
-    if (enable_r)
-        g.openAndWait(gripper::Side::Right);
-    if (enable_l)
-        g.openAndWait(gripper::Side::Left);
-    if (aborting(should_abort))
-    {
-        out.status = GraspToStandbyStatus::Aborted;
-        return out;
-    }
-
-    HeadAssignState st;
-    st.goal_last_r = arm_get_tcp_pos(arm_r);
-    st.goal_last_l = arm_get_tcp_pos(arm_l);
-    st.have_r = enable_r;
-    st.have_l = enable_l;
-    st.move_r = enable_r;
-    st.move_l = enable_l;
-    out.st = st;
-
-    std::cout << "[hand-only] 当前 TCP 右=" << st.goal_last_r << " 使能=" << enable_r << "\n";
-    std::cout << "[hand-only] 当前 TCP 左=" << st.goal_last_l << " 使能=" << enable_l << "\n";
-
-    HandMoveState hs = run_hand_detect_and_validate(
-        arm_r, arm_l, cameras, bridge, st, enable_r, enable_l, err, engine_id, true);
-    out.st = st;
-    if (hs.steady_timed_out || aborting(should_abort))
-    {
-        std::cerr << "[hand-only] 停稳超时或中止，持料手保持原地\n";
-        out.status = GraspToStandbyStatus::Aborted;
-        out.st = st;
-        return out;
-    }
-    if (!hs.move_r)
-        log_arm_skip_right();
-    if (!hs.move_l)
-        log_arm_skip_left();
-    if (!hs.move_r && !hs.move_l)
-    {
-        std::cout << "[hand-only] 手相机无有效目标，停在原处\n";
-        out.status = GraspToStandbyStatus::NoTarget;
-        return out;
-    }
-
-    const ArmLineMoveResult grasp_tr =
-        run_hand_approach_and_grasp(g, arm_r, arm_l, st, hs);
-    if (aborting(should_abort))
-    {
-        out.status = GraspToStandbyStatus::Aborted;
-        out.st = st;
-        return out;
-    }
-
-    const bool grasped_r = hs.move_r && grasp_tr.ret_r == 0;
-    const bool grasped_l = hs.move_l && grasp_tr.ret_l == 0;
-    out.grasped_r = grasped_r;
-    out.grasped_l = grasped_l;
-    out.st = st;
-    if (!grasped_r && !grasped_l)
-    {
-        out.status = GraspToStandbyStatus::GraspNone;
-        return out;
-    }
-
-    lift_grasped_selective(arm_r, arm_l, cameras, st, grasped_r, grasped_l);
-    out.st = st;
-    out.status = GraspToStandbyStatus::Ok;
-    std::cout << "[hand-only] 完成 右=" << grasped_r << " 左=" << grasped_l << "（不回待命）\n";
-    return out;
 }
 
 } // namespace move_box

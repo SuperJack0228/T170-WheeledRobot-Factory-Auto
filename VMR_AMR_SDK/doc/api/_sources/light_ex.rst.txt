@@ -1,8 +1,0 @@
-
-light_ex
-========
-
-.. automodule:: light_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -1,0 +1,62 @@
+# 工程: board_yf100_aruco
+# NT26-P90-YF-1001 毛坯定位板（太阳轮）在线定位。
+# ArUco 5 码联合（四角+中心）。当前字典 5×5，可在下方切换 4×4 / 6×6。
+# 打印 40 mm（含白边）。检测用黑框边长写在 tray.black_side_m（31.2 mm），不再按格数比例推。
+#
+# 贴码朝向：每个码的「上」朝向料盘前方（ID0、ID1 那一侧）。
+# 料盘坐标系在中心码（ID2）中心：+X 前、+Y 左、+Z 上（前左上）。
+#
+#        前 (+X)
+#   ID0 左上         ID1 右上
+# 左(+Y)    ID2 中心          右(-Y)
+#   ID3 左下         ID4 右下
+#        后 (-X)
+
+aruco:
+  # dictionary: DICT_4X4_1000     # 改 4×4 时用这个，并把 bit_cells 改为 4
+  dictionary: DICT_5X5_1000        # 当前 5×5
+  # dictionary: DICT_6X6_1000     # 改 6×6 时用这个，并把 bit_cells 改为 6
+
+tray:
+  print_size_m: 0.04              # 最外边（含白边）打印边长 40 mm
+  black_side_m: 0.0312            # OpenCV 检测的黑框边长 31.2 mm（不含白边）
+  bit_cells: 5                      # 4×4→4；5×5→5；6×6→6
+  black_border_cells: 1           # ArUco 黑边，各 1 格（仅作记录，不再用来推边长）
+  white_border_cells: 1           # 贴黑料盘用的白边，各 1 格
+  pitch_xy_m: 0.30                # 四角码中心的左右 / 前后间距
+  ids:                            # 槽位 → ID
+    front_left: 0                 # 左上
+    front_right: 1                # 右上
+    center: 2
+    rear_left: 3                  # 左下
+    rear_right: 4                 # 右下
+  holes:
+    rows: 6                       # 沿 +X（前）
+    cols: 6                       # 沿 +Y（左）
+    pitch_m: 0.075                # 横竖孔心距
+    diameter_m: 0.038             # 孔径
+    offset_x_m: 0.0               # 相对中心码的网格中心偏移（前）
+    offset_y_m: 0.0               # 相对中心码的网格中心偏移（左）
+
+# 料盘2空孔放置专用码。字典、四角间距、孔距仍用上面的 tray。只改打印边长和黑框。
+# 外边含白边 30 mm；OpenCV 测的黑框（5×5 内码）23.4 mm。
+tray2:
+  print_size_m: 0.03
+  black_side_m: 0.0234
+
+pose:
+  pnp_flag: SQPNP                 # SQPNP | ITERATIVE
+  pnp_refine: true
+  min_markers: 4                  # 至少几个盘上的码才解料盘位姿
+
+camera:
+  width: 1920
+  height: 1080
+  fps: 15
+  serial: ""
+
+display:
+  axis_length_m: 0.08             # 料盘坐标轴长度
+  print_pose_every_n_frames: 15
+  save_dir: captures
+  window_name: board_yf100_aruco

@@ -4,10 +4,10 @@
 
 # 与训练 data.yaml names 一致（用于校验 classes 配置键名与 class_id）
 yolo_class_names:
-  0: feeding_cylindrical_parts
-  1: feeding_table_hole
-  2: blanking_processed_parts
-  3: blanking_plastic_plate
+  0: original_product
+  1: semi_finished_product
+  2: finished_product
+  3: feeding_hole
 
 units:
   length: m
@@ -20,13 +20,13 @@ algorithm:
 
 # ---------- 分割模型 ----------
 segmentation:
-  model: models/best.pt
+  model: models/bestlatest.pt
   conf: 0.25
   iou: 0.5  # 过滤大于该值的框
   imgsz: 1280        # 推理长边；1280×720 勿用默认 640，0=自动 max(H,W)
   retina_masks: true # 原图分辨率 mask，避免锯齿
-  # 仅推理这些 class_id；留空或 null 表示不过滤
-  class_ids: null
+  # 四类均参与推理和调试显示；C++ 抓取层仍只接受 class 0。
+  class_ids: [0, 1, 2, 3]
 
 # ---------- 类别几何（不同圆柱/圆盘直径） ----------
 # 新增类别：在此增加一项，并填写 class_id、radius_m
@@ -36,34 +36,32 @@ defaults:
   algorithm_id: 0
 
 classes:
-  feeding_cylindrical_parts:
+  original_product:
     class_id: 0
     radius_m: 0.0275       # 圆柱件半径 27.5 mm
     enabled: true
-    algorithm_id: 0
+    algorithm_id: 1
     # 可选：覆盖下方 algorithm_pnp / algorithm_centroid 中的单项
     # pnp:
     #   max_reproj_mean: 12.0
     # centroid:
     #   min_depth_m: 0.04
 
-  feeding_table_hole:
+  semi_finished_product:
     class_id: 1
-    radius_m: 0.0315       # 投料台圆孔半径，请按实物标定 (m)
+    radius_m: 0.0275
     enabled: true
-    algorithm_id: 0
-
-  blanking_processed_parts:
+    algorithm_id: 1
+  finished_product:
     class_id: 2
-    radius_m: 0.026       # 下料已加工件半径，请按实物标定 (m)
+    radius_m: 0.0275
     enabled: true
-    algorithm_id: 0
-
-  blanking_plastic_plate:
+    algorithm_id: 1
+  feeding_hole:
     class_id: 3
-    radius_m: 0.0325       # 下料塑料板半径，请按实物标定 (m)
+    radius_m: 0.0275
     enabled: true
-    algorithm_id: 0
+    algorithm_id: 1
 
 # ---------- 算法 0：分割 + 圆盘 PnP ----------
 algorithm_pnp:

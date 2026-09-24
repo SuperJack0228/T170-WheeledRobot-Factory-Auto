@@ -1,28 +1,18 @@
-# 网页「二维码位姿」和 orch_hw ArUco 引擎读这份配置。
+# t170c_debug 的头相机 ArUco 引擎读取这份配置。
 # 按码 ID 查边长再 PnP；没写进任何一组的码，用 default_side_length_m。
-# 相机由 orch_hw 占用，下面 camera.serial 只给独立脚本 aruco_pose_online.py 用。
 
 aruco:
   dictionary: DICT_5X5_1000
   default_side_length_m: 0.04   # 未登记 ID 的默认边长（米）
   sizes:
-    - side_length_m: 0.03       # 40 mm
+    - side_length_m: 0.02       # 20 mm；部署前按标记黑色外框实测复核
       ids: [0, 2, 20, 25, 26, 113, 114]
-    - side_length_m: 0.04       # 60 mm
+    - side_length_m: 0.04       # 40 mm；部署前按标记黑色外框实测复核
       ids: [59, 61, 64]
 
 pose:
   pnp_flag: IPPE_SQUARE
   pnp_refine: true
 
-camera:
-  width: 1280
-  height: 720
-  fps: 30
-  serial: ""
-
 display:
   axis_length_ratio: 0.5
-  print_pose_every_n_frames: 15
-  save_dir: captures
-  window_name: ArUco Pose

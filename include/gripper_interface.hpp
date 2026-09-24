@@ -28,6 +28,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -69,7 +70,7 @@ struct Config {
   /** @brief 控制线程频率 (Hz)，默认 200 */
   double control_hz = 200.0;
   /** @brief 扫描串口 probe 重试次数 */
-  int detect_retries = 3;
+  int detect_retries = 2;
   /** @brief 标定闭合限位角 (rad)，默认 322° */
   float calibration_limit_rad = 322.0f * 3.14159265358979323846f / 180.0f;
 
@@ -135,6 +136,10 @@ struct SideFeedback {
    * 经典模式下恒为 false（经典遥操请看 TeleopFeedback::torque_limited）。
    */
   bool soft_torque_limited = false;
+  /** @brief 最近一帧 MError；bit9=512 为 HG 超时保护 */
+  std::uint32_t merror = 0;
+  /** @brief 最近一次 set_Gripper_Pos_get_State 是否收到回包 */
+  bool io_ok = false;
 };
 
 /**

@@ -1,5 +1,7 @@
 #include "realsense_get.h"
 
+#include "Ti5_socketcan.h"
+
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -106,6 +108,56 @@ void safe_stop_pipeline(SlotDevice &dev)
     {
     }
     dev.started = false;
+}
+
+void log_connected_realsense()
+{
+    try
+    {
+        rs2::context ctx;
+        const rs2::device_list list = ctx.query_devices();
+        std::cout << "[realsense] 当前已连接 " << list.size() << " 台:\n";
+        if (list.size() == 0)
+        {
+            std::cout << "  (无。检查 USB / 是否被其它进程占用)\n";
+            return;
+        }
+        for (auto &&dev : list)
+        {
+            const char *name = "unknown";
+            const char *sn = "?";
+            const char *port = "";
+            try
+            {
+                name = dev.get_info(RS2_CAMERA_INFO_NAME);
+            }
+            catch (...)
+            {
+            }
+            try
+            {
+                sn = dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+            }
+            catch (...)
+            {
+            }
+            try
+            {
+                port = dev.get_info(RS2_CAMERA_INFO_PHYSICAL_PORT);
+            }
+            catch (...)
+            {
+            }
+            std::cout << "  - " << name << " SN=" << sn;
+            if (port && port[0])
+                std::cout << "  port=" << port;
+            std::cout << "\n";
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "[realsense] 枚举设备失败: " << e.what() << "\n";
+    }
 }
 
 /** 对指定 SN 做软件复位（不拔线）；失败忽略 */
@@ -280,6 +332,7 @@ bool RealSenseMultiCam::init(std::string &err)
 {
     err.clear();
     stop();
+    log_connected_realsense();
 
     YAML::Node root;
     try
@@ -324,6 +377,11 @@ bool RealSenseMultiCam::init(std::string &err)
     bool first = true;
     for (const char *key : kSlotKeys)
     {
+        if (std::strcmp(key, "right_hand") == 0 && right_arm_motors_locked())
+        {
+            std::cout << "[realsense] 右臂锁定，跳过右手相机（配置仍保留，恢复右臂后会再开）\n";
+            continue;
+        }
         auto &dev = impl_->slots.at(key);
         if (!first)
             std::this_thread::sleep_for(std::chrono::milliseconds(kStaggerBetweenCamsMs));
@@ -333,6 +391,9 @@ bool RealSenseMultiCam::init(std::string &err)
         std::string cam_err;
         if (!start_slot_device(dev, impl_->width, impl_->height, fps, cam_err))
         {
+            std::cerr << "[realsense] 配置 SN=" << dev.serial
+                      << " 不在已连接列表中，请改 config/realsense_cameras.yaml\n";
+            log_connected_realsense();
             err = std::string("打开相机失败 [") + dev.slot_id + "] SN=" + dev.serial + ": " + cam_err;
             stop();
             return false;
@@ -410,6 +471,31 @@ CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
     catch (const std::exception &e)
     {
         out.message = std::string("grab 异常: ") + e.what();
+    }
+    return out;
+}
+
+CameraFrameData RealSenseMultiCam::grab_wait(CameraSlot slot)
+{
+    CameraFrameData out;
+    const std::string key = slot_key(slot);
+    auto it = impl_->slots.find(key);
+    if (it == impl_->slots.end() || !it->second.started)
+    {
+        out.message = std::string("相机未初始化: ") + key;
+        return out;
+    }
+
+    auto &dev = it->second;
+    try
+    {
+        const rs2::frameset frames =
+            dev.pipeline.wait_for_frames(static_cast<unsigned int>(kGrabWaitTimeoutMs));
+        grab_frameset_from_pipeline(dev, frames, out);
+    }
+    catch (const std::exception &e)
+    {
+        out.message = std::string("grab_wait 异常: ") + e.what();
     }
     return out;
 }

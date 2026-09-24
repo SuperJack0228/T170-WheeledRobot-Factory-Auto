@@ -1,8 +1,0 @@
-
-depth_semantic
-==============
-
-.. automodule:: depth_semantic
-   :members:
-   :undoc-members:
-   :show-inheritance:

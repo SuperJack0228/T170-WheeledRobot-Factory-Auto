@@ -1,190 +1,138 @@
 #include "waist.h"
 #include "Ti5_socketcan.h"
 
-// 注意：所有函数实现前的 Robot:: 都要改为 WaistRobot::
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <limits>
+
+namespace
+{
+const char *kJointName[dof_waist] = {"脚踝", "膝盖", "髋", "侧倾", "回转"};
+/** 几何 = direct × 电机。降 Z 往后坐：库踝正/膝负/髋正 → 电机 4 负 / 3 正 / 2 正。 */
+constexpr double kMotorDirect[dof_waist] = {-1.0, -1.0, 1.0, 1.0, 1.0};
+
+LowerBody::Joints5 apply_motor_direct(const LowerBody::Joints5 &q)
+{
+    LowerBody::Joints5 out;
+    for (int i = 0; i < dof_waist; ++i)
+        out(i) = kMotorDirect[i] * q(i);
+    return out;
+}
+
+void hold_roll_yaw_zero(LowerBody::Joints5 &q)
+{
+    q(LowerBody::WaistRoll) = 0.0;
+    q(LowerBody::WaistYaw) = 0.0;
+}
+
+void unwrap_toward(LowerBody::Joints5 &q, const LowerBody::Joints5 &seed)
+{
+    for (int i = 0; i < dof_waist; ++i)
+        q(i) = seed(i) + LowerBody::WrapPi(q(i) - seed(i));
+}
+} // namespace
+
+WaistRobot::WaistRobot()
+{
+    // 运控软限位；笛卡尔可达仍以 LowerBody::Reachable 为准。
+    Matrix<double, 1, dof_waist> q_min, q_max;
+    q_min << -120, -180, -180, -45, -180;
+    q_max << 120, 180, 180, 45, 180;
+    q_min *= rad;
+    q_max *= rad;
+    limit.row(0) = q_min;
+    limit.row(1) = q_max;
+    tool << 0, 0, 0, 0, 0, 0;
+
+    const auto &p = kin_.params();
+    std::cout << std::fixed << std::setprecision(3)
+              << "[waist] LowerBody L1=" << p.L1 << " L2=" << p.L2 << " d2=" << p.d2
+              << " m，站立 TCP z=" << (p.L1 + p.L2)
+              << "（电机零位=直立；踝/膝相对电机取反，笛卡尔锁姿态=直立 pitch/roll/yaw=0）\n";
+}
+
+bool WaistRobot::jointsInLimit(const Joints5 &q) const
+{
+    for (int i = 0; i < dof_waist; ++i)
+    {
+        if (q(i) < limit(0, i) - 1e-3 || q(i) > limit(1, i) + 1e-3)
+            return false;
+    }
+    return true;
+}
+
+void WaistRobot::logJoints(const char *tag, const Joints5 &q) const
+{
+    LowerBody::Joints3 q_leg, q_w;
+    kin_.Split(q, q_leg, q_w);
+    const Joints5 q_mot = apply_motor_direct(q);
+    const Eigen::Matrix4d T = kin_.Forward_Kinematics(q);
+    std::cout << std::fixed << std::setprecision(1)
+              << "[waist] " << tag << " 几何deg 踝/膝/髋/滚/回=["
+              << (q(0) / rad) << "," << (q(1) / rad) << "," << (q(2) / rad) << ","
+              << (q(3) / rad) << "," << (q(4) / rad) << "] 电机deg ID4/3/2/5/1=["
+              << (q_mot(0) / rad) << "," << (q_mot(1) / rad) << "," << (q_mot(2) / rad) << ","
+              << (q_mot(3) / rad) << "," << (q_mot(4) / rad) << "] pitch=" << (q_w(0) / rad)
+              << "° tcp=(" << std::setprecision(4) << T(0, 3) << "," << T(1, 3) << ","
+              << T(2, 3) << ")\n";
+}
 
 Matrix<double, 1, 6> WaistRobot::getTool()
 {
     return TR(tool);
 }
 
-MatrixXd WaistRobot::q2MotorAngle(const Matrix<double, 1, dof_3> &q)
+WaistRobot::Joints5 WaistRobot::readJoints()
 {
-    Matrix<double, 1, dof_3> MotorAngle;
-    MotorAngle = q.cwiseProduct(q2motor_direct) + q2motor_offset;
-    return MotorAngle;
-}
-
-MatrixXd WaistRobot::MotorAngle2q(const Matrix<double, 1, dof_3> &MotorAngle)
-{
-    Matrix<double, 1, dof_3> q;
-    q = (MotorAngle - q2motor_offset).cwiseQuotient(q2motor_direct);
-    return q;
+    int data[dof_waist] = {};
+    get_motor_waist_position(data);
+    Joints5 q_mot;
+    for (int i = 0; i < dof_waist; ++i)
+        q_mot(i) = static_cast<double>(data[i]) / rad2cnt;
+    return apply_motor_direct(q_mot);
 }
 
 MatrixXd WaistRobot::getJointPos()
 {
-    int dof_3 = 3; // 假设这是变量
-    MatrixXd motor_q(1, dof_3), q(1, dof_3), motor_pos(1, dof_3);
-    MatrixXd dataList(1, dof_3);
-    int data[3] = {};
-
-    get_motor_waist_position(data);
-
-    // 使用循环赋值
-    for (int i = 0; i < dof_3; i++)
-    {
-        dataList(i) = static_cast<double>(data[i]);
-    }
-
-    // dataList = getCSP(0, MotorsIDlist, dof_3);
-
-  //  motor_pos = dataList.block(2, 0, 1, dof_3);
-    motor_pos = dataList / rad2cnt;
-    q = MotorAngle2q(motor_pos);
-
-    return q;
-}
-
-MatrixXd WaistRobot::getCsp()
-{
-    Matrix<double, 1, dof_3> motor_current, motor_vel, motor_pos, q, dq, tor;
-
-    int32_t MotorPosition[dof_3];
-    Matrix<double, 3, dof_3> dataList, output;
-
-    // auto cycle_start = chrono::high_resolution_clock::now();
-    // dataList = getCSP(0, MotorsIDlist, dof_3);
-    motor_current = dataList.block(0, 0, 1, dof_3);
-    motor_vel = dataList.block(1, 0, 1, dof_3);
-    motor_pos = dataList.block(2, 0, 1, dof_3);
-
-    motor_pos = motor_pos / rad2cnt;
-    motor_vel = motor_vel / vel2hz;
-    q = MotorAngle2q(motor_pos);
-    dq = motor_vel.cwiseQuotient(q2motor_direct);
-    tor = motor_current.cwiseQuotient(q2motor_direct);
-    output.row(0) = q;
-    output.row(1) = dq;
-    output.row(2) = tor;
-    return output;
-}
-
-// 雅可比矩阵计算函数-矢量积法
-MatrixXd WaistRobot::J_tcp_crossproduct(const Matrix<double, 1, dof_3> &q)
-{
-    VectorXd alp = MDH.col(0);
-    VectorXd a = MDH.col(1);
-    VectorXd d = MDH.col(2);
-    VectorXd offset = MDH.col(3);
-    VectorXd q_offset = q.transpose() + offset;
-    Matrix4d T = Matrix4d::Identity();
-
-    for (int i = 0; i < dof_3; ++i)
-    {
-        Matrix4d T_i = MDHTrans(alp(i), a(i), d(i), q_offset(i));
-        T = T * T_i;
-    }
-
-    Matrix4d Tend = TR(tool);
-    Matrix4d T_b_end = T * Tend;
-    Matrix4d T1 = fk(q);
-    Vector3d p_ee = T1.block<3, 1>(0, 3);
-
-    MatrixXd J(6, dof_3);
-    J.setZero();
-    T = Matrix4d::Identity();
-    for (int i = 0; i < dof_3; ++i)
-    {
-        Matrix4d T_i = MDHTrans(alp(i), a(i), d(i), q_offset(i));
-        T = T * T_i;
-        Vector3d z_i = T.block<3, 1>(0, 2);
-        Vector3d p_i = T.block<3, 1>(0, 3);
-        J.block<3, 1>(0, i) = z_i.cross(p_ee - p_i);
-        J.block<3, 1>(3, i) = z_i;
-    }
-
-    MatrixXd transform(6, 6);
-    transform.setZero();
-    transform.block<3, 3>(0, 0) = T_b_end.block<3, 3>(0, 0);
-    transform.block<3, 3>(3, 3) = T_b_end.block<3, 3>(0, 0);
-
-    return transform.transpose() * J;
+    return readJoints();
 }
 
 MatrixXd WaistRobot::getTcpPos()
 {
-    Matrix<double, 1, dof_3> motor_q, q;
-    Matrix<double, 4, 4> T;
-    Matrix<double, 1, 6> pos;
-    q = getJointPos();
-
-    T = fk(q);
-    pos = T2PosEulerAngles(T);
-    return pos;
+    return T2PosEulerAngles(fk(readJoints()));
 }
 
-// 正向运动学函数
-Matrix4d WaistRobot::fk(const Matrix<double, 1, dof_3> &q)
+Matrix4d WaistRobot::fk(const Joints5 &q)
 {
-    int n = dof_3;
-    Matrix4d T = Matrix4d::Identity();
-    VectorXd alp = MDH.col(0);
-    VectorXd a = MDH.col(1);
-    VectorXd d = MDH.col(2);
-    VectorXd offset = MDH.col(3);
-
-    for (int i = 0; i < n; ++i)
-    {
-        Matrix4d T_i = MDHTrans(alp(i), a(i), d(i), q(i) + offset(i));
-        T = T * T_i;
-    }
-    Matrix4d T_tcp = T * TR(tool);
-    return T_tcp;
+    return kin_.Forward_Kinematics(q);
 }
 
-// 核心函数：输入关节弧度值，无阻塞批量发送到电机
-int WaistRobot::servoJ(const Matrix<double, 1, dof_3> &qd)
+int WaistRobot::servoJ(const Joints5 &qd)
 {
-    Matrix<double, 1, dof_3> motor_q;
-    motor_q = q2MotorAngle(qd);
-
-    int32_t motorPositions[dof_3];
-    for (int i = 0; i < dof_3; ++i)
-    {
-        motorPositions[i] = static_cast<int32_t>(motor_q(i) * rad2cnt);
-    }
-
+    const Joints5 q_mot = apply_motor_direct(qd);
+    int motorPositions[dof_waist];
+    for (int i = 0; i < dof_waist; ++i)
+        motorPositions[i] = static_cast<int>(q_mot(i) * rad2cnt);
     set_waist_motor_position(motorPositions);
     return 0;
 }
 
-// 核心函数：输入关节弧度值，无阻塞批量发送到电机
-int WaistRobot::speedJ(Matrix<double, 1, dof_3> &dq)
+int WaistRobot::ik(Matrix<double, 1, 6> &pos, Joints5 &q)
 {
-    Matrix<double, 1, dof_3> motor_dq;
-    motor_dq = dq.cwiseProduct(q2motor_direct);
-
-    int32_t motorSpeeds[dof_3];
-    for (int i = 0; i < dof_3; ++i)
-    {
-        motorSpeeds[i] = static_cast<int32_t>(motor_dq(i) * vel2hz);
-    }
-
-    //  setSpeeds(0, MotorsIDlist, motorSpeeds);
-    return 0;
+    return ik(TR(pos), q);
 }
 
-// 核心函数：输入关节弧度值，无阻塞批量发送到电机
-int WaistRobot::tauJ(Matrix<double, 1, dof_3> &tau)
+int WaistRobot::ik(const Eigen::Matrix4d &T_base_tcp, Joints5 &q)
 {
-    int32_t motorCurrents[dof_3];
-    for (int i = 0; i < dof_3; ++i)
-    {
-        motorCurrents[i] = static_cast<int32_t>(tau(i) * q2motor_direct(i));
-    }
-
-    // setCurrents(0, MotorsIDlist, motorCurrents);
+    const Joints5 seed = q;
+    Joints5 q_ik = kin_.Inverse_Kinematics(T_base_tcp);
+    if (!LowerBody::Reachable(q_ik))
+        return -2;
+    unwrap_toward(q_ik, seed);
+    if (!jointsInLimit(q_ik))
+        return 1;
+    q = q_ik;
     return 0;
 }
 
@@ -193,260 +141,225 @@ int WaistRobot::moveLToPos(Matrix<double, 1, 6> &posd, double vel)
     return moveLToPos(posd, vel, nullptr);
 }
 
-int WaistRobot::moveLToPos(Matrix<double, 1, 6> &posd, double vel, const std::function<bool()> &should_abort)
+int WaistRobot::moveLInterp(
+    const Eigen::Matrix4d &T1,
+    const Eigen::Matrix4d &T2,
+    double vel,
+    const std::function<bool()> &should_abort)
 {
-    Matrix<double, 1, 6> pos2, axis_p1, axis_p2;
-    Matrix<double, 1, dof_3> qc, q_ref;
-    Matrix<double, 4, 4> T1, T2, Td, T12;
-
     auto aborted = [&]() -> bool {
         return can_io_faulted() || hardware_abort_requested() ||
                (static_cast<bool>(should_abort) && should_abort());
     };
-
     if (aborted())
         return -3;
 
-    qc = getJointPos();
-    q_ref = qc;
-    int ret = ik(posd, q_ref);
-
-    if (ret != 0)
+    Joints5 qc = readJoints();
+    Joints5 q_goal = qc;
+    if (ik(T2, q_goal) != 0)
     {
-        cout << "Move_Limit" << endl;
+        std::cout << "Move_Limit\n";
+        logJoints("目标不可达，当前", qc);
         return -2;
     }
+    hold_roll_yaw_zero(q_goal);
 
-    T1 = fk(qc);
-    pos2 = posd;
-    T2 = TR(pos2);
-    T12 = T1.inverse() * T2;
+    Matrix<double, 1, 6> axis_p1, axis_p2;
     axis_p1.setZero();
-    axis_p2 = T2Axispos(T12);
-
+    axis_p2 = T2Axispos(T1.inverse() * T2);
     const double Tf = calculateTf(axis_p1, axis_p2, vel);
     const double dt = 5e-3;
-    double t = 0.0;
 
+    std::cout << std::fixed << std::setprecision(4)
+              << "[waist] 笛卡尔直线 xyz (" << T1(0, 3) << "," << T1(1, 3) << "," << T1(2, 3)
+              << ") → (" << T2(0, 3) << "," << T2(1, 3) << "," << T2(2, 3)
+              << ") 目标姿态=直立 Tf=" << Tf << " s\n";
+    logJoints("起点", qc);
+
+    double t = 0.0;
     while (t < Tf)
     {
         if (aborted())
         {
-            cout << "[waist] 运动中止，保持当前指令位置" << endl;
+            std::cout << "[waist] 运动中止，保持当前指令位置\n";
             return -3;
         }
-
         auto cycle_start = chrono::high_resolution_clock::now();
         auto [axis_pos, daxis_pos, ddaxis_pos] = quinticInterp(t, Tf, axis_p1, axis_p2);
-
-        Td = T1 * Axispos2T(axis_pos);
-        posd = T2PosEulerAngles(Td);
-        int ret1 = ik(posd, qc);
-        if (ret1 != 0)
+        const Eigen::Matrix4d Td = T1 * Axispos2T(axis_pos);
+        if (ik(Td, qc) != 0)
         {
-            cout << "Move_error" << endl;
+            std::cout << "Move_error\n";
             return -1;
         }
+        hold_roll_yaw_zero(qc);
         servoJ(qc);
-
-        double elapsed_ms = duration<double, milli>(chrono::high_resolution_clock::now() - cycle_start).count();
-        double sleep_ms = max(0.0, dt * 1000 - elapsed_ms);
+        const double elapsed_ms =
+            duration<double, milli>(chrono::high_resolution_clock::now() - cycle_start).count();
+        const double sleep_ms = std::max(0.0, dt * 1000.0 - elapsed_ms);
         if (sleep_ms > 1e-6)
             this_thread::sleep_for(duration<double, milli>(sleep_ms));
-
-        t = t + dt;
+        t += dt;
     }
-
+    servoJ(q_goal);
+    usleep(50000);
+    logJoints("到位目标", q_goal);
+    logJoints("到位回读", readJoints());
     return 0;
 }
 
-int WaistRobot::moveJToJoint(Matrix<double, 1, dof_3> &qd, double vel)
+int WaistRobot::moveLToPos(Matrix<double, 1, 6> &posd, double vel, const std::function<bool()> &should_abort)
 {
-    Matrix<double, 4, 4> T1, T2;
-    Matrix<double, 1, 6> axis_p1, axis_p2;
-    Matrix<double, 1, dof_3> qc;
-    qc = getJointPos();
-    T1 = fk(qc);
-    T2 = fk(qd);
-
-    axis_p1 = T2Axispos(T1);
-    axis_p2 = T2Axispos(T2);
-    double Tf = calculateTf(axis_p1, axis_p2, vel);
-    int ret = moveJToJoint_Tf(qd, Tf);
-    return ret;
+    enable_waist_motors();
+    const Joints5 qc = readJoints();
+    const Eigen::Matrix4d T1 = fk(qc);
+    // 目标姿态固定直立。以前复制当前 FK 旋转，点头（髋电机 CAN2）会一直带着走。
+    Eigen::Matrix4d T2 = Eigen::Matrix4d::Identity();
+    T2(0, 3) = posd(0);
+    T2(1, 3) = posd(1);
+    T2(2, 3) = posd(2);
+    return moveLInterp(T1, T2, vel, should_abort);
 }
 
-int WaistRobot::moveJToJoint_Tf(Matrix<double, 1, dof_3> &q_end, double Tf)
+int WaistRobot::moveLToPosZ(double z_target, double vel)
 {
-    Matrix<double, 1, dof_3> q_start, qc, q, dq, dqc;
-    double t, dt;
-    q_start = getJointPos();
-    t = 0;
-    dt = 5e-3;
-    auto cycle_start = chrono::high_resolution_clock::now();
+    return moveLToPosZ(z_target, vel, nullptr);
+}
 
+int WaistRobot::moveLToPosZ(double z_target, double vel, const std::function<bool()> &should_abort)
+{
+    auto aborted = [&]() -> bool {
+        return can_io_faulted() || hardware_abort_requested() ||
+               (static_cast<bool>(should_abort) && should_abort());
+    };
+    if (aborted())
+        return -3;
+
+    enable_waist_motors();
+    const Joints5 qc = readJoints();
+    const Eigen::Matrix4d T1 = fk(qc);
+    Eigen::Matrix4d T2 = Eigen::Matrix4d::Identity();
+    T2(0, 3) = T1(0, 3);
+    T2(1, 3) = T1(1, 3);
+    T2(2, 3) = z_target;
+    std::cout << std::fixed << std::setprecision(4)
+              << "[waist] 竖直 Z 锁 x=" << T1(0, 3) << " y=" << T1(1, 3)
+              << " 姿态=直立  " << T1(2, 3) << " → " << z_target << " m\n";
+    return moveLInterp(T1, T2, vel, should_abort);
+}
+
+int WaistRobot::moveJToJoint(Joints5 &qd, double vel)
+{
+    const Joints5 qc = readJoints();
+    const Eigen::Matrix4d T1 = fk(qc);
+    const Eigen::Matrix4d T2 = fk(qd);
+    const double Tf = calculateTf(T2Axispos(T1), T2Axispos(T2), vel);
+    return moveJToJoint_Tf(qd, Tf);
+}
+
+int WaistRobot::moveJToJoint_Tf(Joints5 &q_end, double Tf)
+{
+    Joints5 q_start = readJoints();
+    unwrap_toward(q_end, q_start);
+    double t = 0.0;
+    const double dt = 5e-3;
     while (t < Tf)
     {
-        cycle_start = chrono::high_resolution_clock::now();
+        auto cycle_start = chrono::high_resolution_clock::now();
         auto [q, dq, ddq] = quinticInterp(t, Tf, q_start, q_end);
-        servoJ(q);
+        Joints5 qj = q;
+        servoJ(qj);
         if (hardware_abort_requested() || can_io_faulted())
         {
-            cout << "[waist] STOP/CAN，停止关节运动" << endl;
+            std::cout << "[waist] STOP/CAN，停止关节运动\n";
             return -2;
         }
-
-        double elapsed_ms = duration<double, std::milli>(chrono::high_resolution_clock::now() - cycle_start).count();
-
-        double sleep_ms = max(0.0, dt * 1000 - elapsed_ms);
+        const double elapsed_ms =
+            duration<double, std::milli>(chrono::high_resolution_clock::now() - cycle_start).count();
+        const double sleep_ms = std::max(0.0, dt * 1000.0 - elapsed_ms);
         if (sleep_ms > 1e-6)
-        {
-            auto sleep_duration = duration<double, std::milli>(sleep_ms);
-            std::this_thread::sleep_for(sleep_duration);
-        }
-
-        t = t + dt;
+            std::this_thread::sleep_for(duration<double, std::milli>(sleep_ms));
+        t += dt;
     }
+    servoJ(q_end);
     return 0;
+}
+
+int WaistRobot::jogJoint(int joint_1based, double dq_rad, double vel)
+{
+    if (joint_1based < 1 || joint_1based > dof_waist)
+    {
+        std::cerr << "[waist] jog joint 必须是 1..5（脚踝/膝盖/髋/侧倾/回转）\n";
+        return -1;
+    }
+    if (!std::isfinite(dq_rad) || std::abs(dq_rad) < 1e-4)
+    {
+        std::cerr << "[waist] jog dq_rad 太小\n";
+        return -1;
+    }
+    if (hardware_abort_requested())
+        return -3;
+
+    enable_waist_motors();
+    Joints5 q = readJoints();
+    const int i = joint_1based - 1;
+    const double q0 = q(i);
+    const double q1 = std::clamp(q0 + dq_rad, limit(0, i), limit(1, i));
+    if (std::abs(q1 - q0) < 1e-4)
+    {
+        std::cerr << std::fixed << std::setprecision(2)
+                  << "[waist] jog " << kJointName[i] << " 已在限位 "
+                  << (q0 / rad) << " deg，未动\n";
+        return -2;
+    }
+    q(i) = q1;
+    std::cout << std::fixed << std::setprecision(2)
+              << "[waist] jog " << kJointName[i] << " "
+              << (q0 / rad) << " → " << (q1 / rad) << " deg  (Δ "
+              << ((q1 - q0) / rad) << " deg)，关节插补\n";
+    if (vel < 1e-3)
+        vel = 0.08;
+    const int rc = moveJToJoint(q, vel);
+    logJoints("jog后", readJoints());
+    return rc;
+}
+
+int WaistRobot::moveYawAbsDeg(double yaw_deg, double vel)
+{
+    if (!std::isfinite(yaw_deg))
+    {
+        std::cerr << "[waist] yaw 无效\n";
+        return -1;
+    }
+    if (hardware_abort_requested())
+        return -3;
+
+    enable_waist_motors();
+    Joints5 q = readJoints();
+    const double q0 = q(LowerBody::WaistYaw);
+    const double q1 = std::clamp(yaw_deg * rad, limit(0, LowerBody::WaistYaw), limit(1, LowerBody::WaistYaw));
+    if (std::abs(q1 - q0) <= 1e-3)
+    {
+        std::cout << std::fixed << std::setprecision(2)
+                  << "[waist] 回转已在 " << (q0 / rad) << " deg，跳过\n";
+        return 0;
+    }
+    q(LowerBody::WaistYaw) = q1;
+    if (vel < 1e-3)
+        vel = 0.15;
+    std::cout << std::fixed << std::setprecision(2)
+              << "[waist] 回转 " << (q0 / rad) << " → " << (q1 / rad)
+              << " deg（+Z 向左为正），只动 yaw\n";
+    const int rc = moveJToJoint(q, vel);
+    logJoints("回转后", readJoints());
+    return rc;
 }
 
 int WaistRobot::moveJToPos(Matrix<double, 1, 6> &posd, double vel)
 {
-    Matrix<double, 1, dof_3> qc, qd;
-    Matrix<double, 4, 4> T1, T2;
-    Matrix<double, 1, 6> axis_p1, axis_p2;
-    qc = getJointPos();
-    qd = qc;
-    int ret = ik(posd, qd);
-
-    T1 = fk(qc);
-    T2 = TR(posd);
-    axis_p1 = T2Axispos(T1);
-    axis_p2 = T2Axispos(T2);
-    double Tf = calculateTf(axis_p1, axis_p2, vel);
-    int ret1 = moveJToJoint_Tf(qd, Tf);
-
-    return ret1;
-}
-
-void WaistRobot::getJointState(Matrix<double, 1, dof_3> &qc, Matrix<double, 1, dof_3> &dqc)
-{
-    // // auto data = getCsp(); // 假设t5是内部关节状态接口
-    // qc = data.row(0);  // 当前关节位置
-    // dqc = data.row(1); // 当前关节速度
-}
-
-int WaistRobot::ik(Matrix<double, 1, 6> &pos, Matrix<double, 1, dof_3> &q)
-{
-    const double eps = 1e-6;
-    const double singular_threshold = 1 * M_PI / 180; // 对应MATLAB的1*tk.rad，约0.017rad
-
-    // -------------------------- 1. 初始化与参数提取 --------------------------
-    Eigen::MatrixXd solutions(0, 3); // 候选解集合（每行1个3关节解）
-
-    // 提取机器人参数（MDH为3×4矩阵，列0:alpha, 列1:a, 列2:d, 列3:offset）
-    const MatrixXd alpha = MDH.col(0);  // 3×1
-    const MatrixXd a = MDH.col(1);      // 3×1
-    const double a2 = a(1, 0);          // 对应MATLAB a2=a(2)（注意索引从0开始）
-    const double a3 = a(2, 0);          // 对应MATLAB a3=a(3)
-    const MatrixXd offset = MDH.col(3); // 3×1（关节偏移角）
-
-    // 计算变换矩阵（基→末端法兰，去除工具坐标系影响）
-    Matrix4d T_falan_tcp = TR(tool);
-    Matrix4d T_base_tcp = TR(pos);
-    Matrix4d T_base_falan = T_base_tcp * T_falan_tcp.inverse();
-    Matrix4d Tend = T_base_falan;
-
-    // 提取末端变换矩阵关键参数（位置+姿态）
-    const double nx = Tend(0, 0);
-    const double nz = Tend(2, 0);
-    const double px = Tend(0, 3);
-    const double pz = Tend(2, 3);
-
-    // -------------------------- 2. 工作空间检查（末端是否接近原点） --------------------------
-    const double p_sq = px * px + pz * pz;
-    if (p_sq < eps)
-    {
-        return -1; // 末端位置接近原点，无法求解
-    }
-
-    // -------------------------- 3. 求解t2（核心关节，两个候选解） --------------------------
-    double cos_t2 = (p_sq - a2 * a2 - a3 * a3) / (2 * a2 * a3);
-    cos_t2 = clamp(cos_t2, -1.0, 1.0); // 数值保护，避免acos参数超范围
-
-    const double t2_sol1 = acos(cos_t2); // 解1：肘上构型
-    const double t2_sol2 = -t2_sol1;     // 解2：肘下构型
-    const vector<double> t2_sols = {t2_sol1, t2_sol2};
-
-    if (abs(t2_sol1) <= singular_threshold)
-    {
-        cout << "workapce_limit" << "\n";
-        return -2;
-    }
-
-    // -------------------------- 4. 遍历t2解，求解t1和t3 --------------------------
-    for (double t2 : t2_sols)
-    {
-        // 计算中间变量K和L（对应MATLAB逻辑）
-        const double K = a2 + a3 * cos(t2);
-        const double L = a3 * sin(t2);
-
-        // 求解t1（四象限反正切，避免除零）
-        const double num_t1 = pz * K - px * L;
-        const double den_t1 = px * K + pz * L;
-        const double t1 = atan2(num_t1, den_t1);
-
-        // 求解总旋转角theta（基于末端姿态）
-        const double theta = atan2(nz, nx);
-
-        // 求解t3（theta = t1 + t2 + t3 → t3 = theta - t1 - t2）
-        double t3 = theta - t1 - t2;
-
-        // 角度归一化到[-π, π]
-        t3 = fmod(t3 + M_PI, 2 * M_PI) - M_PI;
-
-        // -------------------------- 5. 生成候选解并添加到集合 --------------------------
-        MatrixXd q_candidate(1, 3);
-        q_candidate << t1, t2, t3;
-
-        // 候选解角度归一化（确保统一范围）
-        for (int i = 0; i < dof_3; ++i)
-        {
-            q_candidate(0, i) = fmod(q_candidate(0, i) + M_PI, 2 * M_PI) - M_PI;
-        }
-
-        // 动态扩展候选解集合
-        solutions.conservativeResize(solutions.rows() + 1, 3);
-        solutions.row(solutions.rows() - 1) = q_candidate;
-    }
-
-    // -------------------------- 6. 检查是否有有效候选解 --------------------------
-    if (solutions.rows() == 0)
-    {
-        return -3; // 所有解均奇异，位置无解
-    }
-
-    const MatrixXd q_best = solutions.row(0);
-
-    // -------------------------- 8. 限位检查 --------------------------
-    bool in_limit = true;
-    for (int i = 0; i < dof_3; ++i)
-    {
-        if (q_best(0, i) < limit(0, i) - eps || q_best(0, i) > limit(1, i) + eps)
-        {
-            in_limit = false;
-            break;
-        }
-    }
-
-    // -------------------------- 9. 输出结果与返回状态 --------------------------
-    if (in_limit)
-    {
-        q = q_best; // 输出最优解（1×3矩阵，适配dof_3=3）
-        return 0;   // 成功：有解且在限位内
-    }
-    else
-    {
-        return 1; // 有解但超限位
-    }
+    Joints5 qd = readJoints();
+    const int ret = ik(posd, qd);
+    if (ret != 0)
+        return ret;
+    return moveJToJoint(qd, vel);
 }

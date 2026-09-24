@@ -1,0 +1,7 @@
+# 头部几何参数（可按实物修改）
+
+# 头部电机末端原点在 base 系 z 方向高度 (mm)
+link_length_mm: 162.0
+
+# 相机系 -> 头部电机末端系 标定结果（相对 config/ 目录）
+camera_to_head_yaml: camera_to_head_connector_result.yaml

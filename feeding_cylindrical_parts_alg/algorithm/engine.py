@@ -47,7 +47,7 @@ class CirclePoseEngine:
         if not model_file.is_file():
             raise FileNotFoundError(
                 f"分割模型不存在: {model_file}\n"
-                f"请检查 config 中 segmentation.model 或放置到 models/best.pt"
+                f"请检查 config 中 segmentation.model 或放置到 models/bestlatest.pt"
             )
 
         self._segmenter = YoloSegmenter(

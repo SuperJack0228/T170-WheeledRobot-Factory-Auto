@@ -1,10 +1,7 @@
 """YOLO 实例分割，输出 mask / 轮廓及类别、置信度。
 
-与 feeding_table_alg3/detection.py 对齐：
-  - resolve_imgsz：720p 用 1280 推理，避免默认 640 letterbox 导致 mask 锯齿
-  - retina_masks：原图分辨率 mask
-  - ops.scale_masks：letterbox mask 映射回原图（勿 cv2.resize）
-  - contour_from_mask：轮廓从还原后的二值 mask 提取，与可视化一致
+关键处理：720p 用 1280 推理；保留原图分辨率 mask；用
+``ops.scale_masks`` 还原 letterbox，并从二值 mask 提取轮廓。
 """
 
 from __future__ import annotations
@@ -45,7 +42,7 @@ def masks_to_orig_binary(masks, orig_shape: tuple[int, int]) -> np.ndarray:
     """
     Letterbox / native mask tensor → original image (N,H,W) binary mask.
 
-    Uses ops.scale_masks (bilinear + crop padding), same as feeding_table_alg3.
+    Uses ops.scale_masks (bilinear + crop padding).
     With retina_masks=True, masks.data is often already (N, H0, W0) — skip rescale.
     """
     m = masks.float() if isinstance(masks, torch.Tensor) else torch.from_numpy(np.asarray(masks)).float()

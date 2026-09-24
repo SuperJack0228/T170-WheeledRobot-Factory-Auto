@@ -4,6 +4,9 @@
 #include "head.h"
 #include "Ti5_Arm.h"
 
+#include <string>
+#include <vector>
+
 using namespace Eigen;
 using namespace std;
 
@@ -118,9 +121,81 @@ void append_line_trajectory_fail_debug(
     const char *stage,
     double cart_linear_velocity);
 
+/** 一次手臂笛卡尔到位：目标点、编码器正运动学实际点、XYZ 误差。 */
+struct ArmArrivalRecord
+{
+    std::string stage;
+    std::string hand;
+    double goal_x = 0, goal_y = 0, goal_z = 0;
+    double actual_x = 0, actual_y = 0, actual_z = 0;
+    double err_x = 0, err_y = 0, err_z = 0;
+    double err_m = 0;
+    bool settled = false;
+};
+
+void arm_arrival_log_clear();
+std::vector<ArmArrivalRecord> arm_arrival_log_copy();
+
+/**
+ * 等该臂编码器到位后，用当前编码器正运动学记下目标 XYZ 和实际 XYZ。
+ * stage 为空时用当前直线段名称。
+ */
+void record_arm_cartesian_arrival(
+    Robot_Arm &arm,
+    const Eigen::Matrix<double, 1, 6> &goal,
+    const char *stage = nullptr);
+
 /** 读编码器 → Line_Trajectory → 每 5ms set_motor_position。
  * 不锁 J2（不传冗余角），让七轴逆解自己选肘，保证抓取工作空间。 */
 int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);
+
+/** 当前 7 轴电机角 (rad)。 */
+Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Robot_Arm &arm);
+
+/** 与 arm_line_move 相同，但 Line_Trajectory 锁当前 J2，避免七轴换肘/多余腕转。 */
+int arm_line_move_hold_redundant(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);
+
+ArmLineMoveResult arm_dual_line_move_hold_redundant_selective(
+    Robot_Arm &arm_r,
+    Matrix<double, 1, 6> &pos_r,
+    bool move_r,
+    Robot_Arm &arm_l,
+    Matrix<double, 1, 6> &pos_l,
+    bool move_l,
+    double cart_linear_velocity);
+
+/** 二次 Bezier 抓取轨迹。
+ *  A=当前实测 TCP，B=(C.x,C.y,C.z+guide_height)，C=final_goal。
+ *  每 2–4 mm 一个 IK 关键点（约 100–200 个），关键点之间关节空间插值到 5 ms。
+ *  起点 A 用当前关节，不重解；最后一个关键点严格求解 C。全部关键点成功后才下发。
+ *  前 orient_finish_ratio 保持 A 的 RPY，之后才 slerp 到 C。 */
+int arm_quadratic_bezier_move(
+    Robot_Arm &arm,
+    const Eigen::Matrix<double, 1, 6> &final_goal,
+    double guide_height_m,
+    double cart_max_velocity,
+    double orient_finish_ratio);
+
+ArmLineMoveResult arm_dual_quadratic_bezier_move_selective(
+    Robot_Arm &arm_r,
+    const Eigen::Matrix<double, 1, 6> &final_r,
+    bool move_r,
+    Robot_Arm &arm_l,
+    const Eigen::Matrix<double, 1, 6> &final_l,
+    bool move_l,
+    double guide_height_m,
+    double cart_max_velocity,
+    double orient_finish_ratio);
+
+/** 抓取成功后倒放最近一次 Bezier 关节轨迹，从 C 沿原安全路径返回 A。
+ *  返回 -20 表示该侧没有可用的已执行 Bezier 轨迹。 */
+int arm_reverse_last_quadratic_bezier(Robot_Arm &arm);
+
+ArmLineMoveResult arm_dual_reverse_last_quadratic_bezier_selective(
+    Robot_Arm &arm_r,
+    bool move_r,
+    Robot_Arm &arm_l,
+    bool move_l);
 
 /** 与 arm_line_move 相同（笛卡尔直线到目标）。 */
 int arm_transfer_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);

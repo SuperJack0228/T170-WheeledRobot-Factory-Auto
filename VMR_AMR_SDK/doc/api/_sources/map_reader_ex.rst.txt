@@ -1,8 +1,0 @@
-
-map_reader_ex
-=============
-
-.. automodule:: map_reader_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:
