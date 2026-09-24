@@ -1,0 +1,53 @@
+# 工程: board_belt_aruco
+# 两条传送带独立 6D 位姿。每条横贴两个 6×6 ArUco，含白边 30 mm。
+#
+# 码在上表面，码的「上」朝传送带前方。原点 = 两码心连线中点。+X 前 +Y 左 +Z 上。
+# 两码沿左右（Y）排列，中心距 109 mm：左码 +Y，右码 −Y。
+#
+#              前 (+X)  边缘 +152 mm
+# 左(+Y)  ID0/2          原点          ID1/3  右(−Y)
+#        边缘 +167 mm                    边缘 −70 mm
+#              后 (−X)  边缘 −152 mm
+#
+# 皮带 0：ID 0（左）、1（右）
+# 皮带 1：ID 2（左）、3（右）
+
+aruco:
+  dictionary: DICT_6X6_1000
+  print_size_m: 0.03
+  bit_cells: 6
+  black_border_cells: 1
+  white_border_cells: 1
+  # 含白边 30 mm、6×6：黑框 = 30 × 8/10 = 24 mm
+
+belt:
+  pitch_y_m: 0.109                # 两码心左右间距
+  edge:
+    front_m: 0.152                # +X 到前边缘
+    rear_m: 0.152                 # −X 到后边缘
+    left_m: 0.167                 # +Y 到左边缘
+    right_m: 0.070                # −Y 到右边缘
+  items:
+    - name: belt0
+      left_id: 0
+      right_id: 1
+    - name: belt1
+      left_id: 2
+      right_id: 3
+
+pose:
+  pnp_flag: SQPNP
+  pnp_refine: true
+  min_markers: 1
+
+camera:
+  width: 1920
+  height: 1080
+  fps: 30
+  serial: ""
+
+display:
+  axis_length_m: 0.08
+  print_pose_every_n_frames: 15
+  save_dir: captures
+  window_name: board_belt_aruco

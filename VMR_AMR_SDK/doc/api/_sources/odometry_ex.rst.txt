@@ -1,8 +1,0 @@
-
-odometry_ex
-===========
-
-.. automodule:: odometry_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

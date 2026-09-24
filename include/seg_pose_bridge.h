@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -42,12 +43,9 @@ struct PoseDetectionRecord
 
 using PoseDetectionRecords = std::vector<PoseDetectionRecord>;
 
-/** Default = 旧 4 类；Factory = 根目录单类；Jindi = seg_model 四类（毛胚/半加工/加工/孔） */
 enum class SegEngineId
 {
     Default = 0,
-    Factory = 1,
-    Jindi = 2,
 };
 
 /** 单码 ArUco（online_pose）：相机系 4×4，t 单位 m */
@@ -68,6 +66,76 @@ struct ArucoDetectResult
     std::vector<ArucoMarkerResult> markers;
 };
 
+/** 料盘孔：ArUco 几何 XY + YOLO 类别 + 头相机顶面 z（检测-only） */
+struct TrayHoleResult
+{
+    int id = 0;
+    int row = 0;
+    int col = 0;
+    double x = 0.0;
+    double y = 0.0;
+    double x_level = std::numeric_limits<double>::quiet_NaN();
+    double y_level = std::numeric_limits<double>::quiet_NaN();
+    double tray_z = std::numeric_limits<double>::quiet_NaN();
+    double tray_z_level = std::numeric_limits<double>::quiet_NaN();
+    double top_z = std::numeric_limits<double>::quiet_NaN();
+    double top_z_level = std::numeric_limits<double>::quiet_NaN();
+    double height_on_tray = std::numeric_limits<double>::quiet_NaN();
+    int class_id = -1;
+    std::string class_name;
+    double conf = 0.0;
+    double dxy = -1.0;
+    int depth_pts = 0;
+    bool in_robot = false;
+};
+
+struct TrayDetectResult
+{
+    bool ok = false;
+    std::string message;
+    std::vector<int> used_ids;
+    double reproj_px = -1.0;
+    std::string save_path;
+    double tilt_deg = std::numeric_limits<double>::quiet_NaN();
+    /** 扶平后料盘原点（中心码 / 网格中心）在手臂基座系。NaN=未知。 */
+    double origin_x = std::numeric_limits<double>::quiet_NaN();
+    double origin_y = std::numeric_limits<double>::quiet_NaN();
+    double origin_z = std::numeric_limits<double>::quiet_NaN();
+    std::vector<TrayHoleResult> holes;
+};
+
+/** 传送带 6×6：原点=两码中点，基座系坐标。与料盘 TrayDetectResult 分开。 */
+struct BeltDetectResult
+{
+    bool ok = false;
+    std::string message;
+    std::string name;
+    std::vector<int> used_ids;
+    double reproj_px = -1.0;
+    std::string save_path;
+    double cam_x = std::numeric_limits<double>::quiet_NaN();
+    double cam_y = std::numeric_limits<double>::quiet_NaN();
+    double cam_z = std::numeric_limits<double>::quiet_NaN();
+    double origin_x = std::numeric_limits<double>::quiet_NaN();
+    double origin_y = std::numeric_limits<double>::quiet_NaN();
+    double origin_z = std::numeric_limits<double>::quiet_NaN();
+    /** 码坐标系三轴在手臂基座：列向量 +X/+Y/+Z。have_axes=false 则未知。 */
+    double ax_x = 1.0, ax_y = 0.0, ax_z = 0.0;
+    double ay_x = 0.0, ay_y = 1.0, ay_z = 0.0;
+    double az_x = 0.0, az_y = 0.0, az_z = 1.0;
+    bool have_axes = false;
+    bool in_robot = false;
+    /** 左右手抓取点（识别系 offset 在相机里加完再变到基座）。 */
+    double grasp_lx = std::numeric_limits<double>::quiet_NaN();
+    double grasp_ly = std::numeric_limits<double>::quiet_NaN();
+    double grasp_lz = std::numeric_limits<double>::quiet_NaN();
+    double grasp_rx = std::numeric_limits<double>::quiet_NaN();
+    double grasp_ry = std::numeric_limits<double>::quiet_NaN();
+    double grasp_rz = std::numeric_limits<double>::quiet_NaN();
+    bool have_grasp_l = false;
+    bool have_grasp_r = false;
+};
+
 /**
  * pybind11 内嵌 Python：加载 feeding_cylindrical_parts_alg 的 CirclePoseEngine。
  * seg_root 为 feeding_cylindrical_parts_alg 目录，用于 sys.path。
@@ -83,14 +151,6 @@ public:
 
     bool init(const std::string &pose_config_path, const std::string &seg_root, std::string &err);
 
-    /** 在已有解释器上再加载工厂单类引擎；失败不影响抓取引擎 */
-    bool init_factory_engine(const std::string &pose_config_path, std::string &err);
-    bool factory_engine_ready() const;
-
-    /** 金帝四类 seg_model/best.pt；失败不影响另外两套引擎 */
-    bool init_jindi_engine(const std::string &pose_config_path, std::string &err);
-    bool jindi_engine_ready() const;
-
     /** online_pose 单码 ArUco：按码 ID 查边长 + 相机内参 PnP；失败不影响抓取 */
     bool init_aruco_engine(const std::string &config_path, std::string &err);
     bool aruco_engine_ready() const;
@@ -99,6 +159,36 @@ public:
         const CameraFrameData &frame,
         bool show_visualization = true,
         CameraSlot vis_slot = CameraSlot::Head);
+
+    /** board_yf100 五码料盘：孔 1–36 + YOLO 类别 + 头测顶面 z；失败不影响抓取 */
+    bool init_tray_engine(const std::string &config_path, std::string &err);
+    bool tray_engine_ready() const;
+
+    /** board_belt_aruco 传送带 6×6（独立引擎，不覆盖料盘 5×5） */
+    bool init_belt_engine(const std::string &config_path, std::string &err);
+    bool belt_engine_ready() const;
+
+    BeltDetectResult run_belt_detect(
+        const CameraFrameData &frame,
+        const std::string &prefer_name,
+        bool show_visualization = true,
+        CameraSlot vis_slot = CameraSlot::Head,
+        const double *grasp_offset_left = nullptr,
+        const double *grasp_offset_right = nullptr);
+
+    TrayDetectResult run_tray_annotate(
+        const CameraFrameData &frame,
+        const PoseDetectionRecords &yolo,
+        bool show_visualization = true,
+        CameraSlot vis_slot = CameraSlot::Head);
+
+    /** 多帧料盘位姿融合：各帧解扶平 T_robot_tray 后平均，YOLO/叠加用最后一帧。 */
+    TrayDetectResult run_tray_annotate_multiframe(
+        const std::vector<CameraFrameData> &frames,
+        const PoseDetectionRecords &yolo,
+        bool show_visualization = true,
+        CameraSlot vis_slot = CameraSlot::Head,
+        bool tray2_markers = false);
 
     PoseRunResult run(
         const CameraFrameData &frame,
@@ -117,38 +207,24 @@ private:
 
 void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
 
-/** 抓取/放置 YOLO 类别（旧 4 类 / 工厂单类：0=零件；旧模型 1=孔） */
-constexpr int kGraspDetectClassId = 0;
-constexpr int kPlaceDetectClassId = 1;
-/** 金帝四类：0 毛胚 1 半加工 2 加工 3 料盘孔 */
-constexpr int kJindiBlankClassId = 0;
-constexpr int kJindiSemiClassId = 1;
-constexpr int kJindiFinishedClassId = 2;
-constexpr int kJindiHoleClassId = 3;
+/** 当前唯一启用的 YOLO 类别：0=圆柱物料。 */
+constexpr int kGraspDetectClassId = 0; // bestlatest.pt: original_product
+constexpr int kEmptyHoleClassId = 3;   // feeding_hole / 空孔，料盘2放置用
 
 /** 抓取阶段：按 move_box_params.yaml vision_detect 与相机槽返回 algorithm_id（-1/0/1） */
 int algorithm_id_for_slot(CameraSlot slot);
 
-/** 放货空位检测：vision_detect.place_holes */
-int algorithm_id_for_place_holes();
-
-/** 头相机空位检测（class 1）共识结果，基座系 1×6 */
-struct PlaceHoleDetectResult
-{
-    bool ok = false;
-    std::string message;
-    int num_trials = 0;
-    int cluster_size = 0;
-    int picked_trial_index = -1;
-    std::vector<Eigen::Matrix<double, 1, 6>> poses_robot;
-};
-
-/** 基座系 x 查配置 row_x_bounds 得排号（0=第1排），无效返回 -1 */
-int place_pose_row_from_x(double x_robot_m);
-
 /**
- * 按部位采图并跑位姿算法；filter_class_id>=0 时仅保留该 YOLO 类别且 success 的目标。
+ * 把一次 PoseRunResult 收成 records。filter_class_id>=0 时仅保留该 YOLO 类别。
+ * apply_head_edge_filter 只对头相机生效。
  */
+PoseDetectionRecords pose_records_from_run(
+    const PoseRunResult &result,
+    CameraSlot slot,
+    const CameraFrameData &frame,
+    int filter_class_id,
+    bool apply_head_edge_filter);
+
 PoseDetectionRecords detect_pose_at_slot(
     RealSenseMultiCam &cameras,
     SegPoseBridge &bridge,
@@ -156,16 +232,6 @@ PoseDetectionRecords detect_pose_at_slot(
     bool show_visualization = false,
     int filter_class_id = kGraspDetectClassId,
     SegEngineId engine_id = SegEngineId::Default);
-
-/** 头相机单次检测空位(class 1)，变换到基座系 */
-PlaceHoleDetectResult detect_place_holes_with_consensus(
-    SegPoseBridge &bridge,
-    RealSenseMultiCam &cameras,
-    const std::array<double, 16> &cam2robot,
-    int num_trials = 1,
-    double pos_tol_m = 0.02,
-    double rot_tol_rad = 0.05,
-    bool show_place_visualization = false);
 
 void append_pose_records(
     PoseDetectionRecords &records,
@@ -180,11 +246,13 @@ void print_pose_records_summary(const char *slot_title, const PoseDetectionRecor
 std::string project_root_dir();
 std::string default_cameras_yaml_path();
 std::string default_pose_yaml_path();
-std::string default_factory_pose_yaml_path();
-std::string default_jindi_pose_yaml_path();
-std::string default_seg_circle_pose_root();
+std::string default_cylinder_pose_root();
 std::string default_online_pose_root();
 std::string default_aruco_pose_yaml_path();
+std::string default_board_yf100_root();
+std::string default_board_yf100_yaml_path();
+std::string default_board_belt_root();
+std::string default_board_belt_yaml_path();
 std::string default_camera_to_robot_yaml_path();
 std::string default_left_hand_to_robot_yaml_path();
 std::string default_right_hand_to_robot_yaml_path();
@@ -213,30 +281,29 @@ void assign_hand_targets_in_robot_frame(
     double left_hand_pos[3],
     HeadHandAssignZones *out_zones = nullptr);
 
-/** 手相机多目标时取离相机最近的一个，cam2robot 变换到基座系 6D 位姿；无效时 x=-1 */
-void assign_nearest_hand_cam_target_in_robot_frame(
-    const PoseDetectionRecords &records,
+/** 将单条检测从相机系转换到给定标定系的 6D 位姿；仅接受抓取类别。 */
+bool transform_grasp_detection_to_pose(
+    const PoseDetectionRecord &record,
     const std::array<double, 16> &cam2robot,
     Eigen::Matrix<double, 1, 6> &out_pose);
 
-/** 调试合成窗格：0=Head 1=RightHand 2=LeftHand 3=HeadPlace(放货空位) */
+/** 调试合成窗格：头相机、右手相机、左手相机。 */
 struct PoseVisPanel
 {
     static constexpr int Head = 0;
     static constexpr int RightHand = 1;
     static constexpr int LeftHand = 2;
-    static constexpr int HeadPlace = 3;
-    static constexpr int Count = 4;
+    static constexpr int Count = 3;
 };
 
-/** 调试窗布局：单格(头/放货) 或 双手左右并排(宽度×2，避免手画面被压扁) */
+/** 调试窗布局：头相机单格或双手相机左右并排。 */
 struct PoseVisLayout
 {
     static constexpr int Single = 0;
     static constexpr int DualHand = 1;
 };
 
-/** 切换布局；Single 时 single_panel_index 指定显示哪一格(Head 或 HeadPlace) */
+/** 切换布局；Single 时 single_panel_index 指定显示的相机。 */
 void pose_vis_set_layout(int layout, int single_panel_index = PoseVisPanel::Head);
 
 /** 清空指定窗格为黑图（py::none），并刷新当前布局窗口 */
@@ -248,7 +315,7 @@ void pose_vis_begin_phase(
     int single_panel_index,
     std::initializer_list<int> clear_panels);
 
-/** 与 main 中 kDebugVisualize 联动：调试图→picture_debug/{head,...}/，同名原图→picture_debug/original/{head,...}/ */
+/** 与 kDebugVisualize 联动：保存头相机/手相机原图和标注图。 */
 void pose_vis_set_save_debug(bool enable);
 
 /** 是否弹出 OpenCV/Qt 窗口。orch_hw 无显示器时必须关闭，否则 imshow 会 abort */

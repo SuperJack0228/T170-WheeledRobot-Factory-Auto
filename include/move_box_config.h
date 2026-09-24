@@ -1,310 +1,328 @@
-#ifndef MOVE_BOX_CONFIG_H
-#define MOVE_BOX_CONFIG_H
+#pragma once
 
 #include <Eigen/Dense>
-#include <array>
 #include <string>
-#include <vector>
 
-struct MoveBoxStandbyConfig
+struct ArmPosePairConfig
 {
-    Eigen::Matrix<double, 1, 6> right;
-    Eigen::Matrix<double, 1, 6> left;
+    Eigen::Matrix<double, 1, 6> right = Eigen::Matrix<double, 1, 6>::Zero();
+    Eigen::Matrix<double, 1, 6> left = Eigen::Matrix<double, 1, 6>::Zero();
 };
 
-struct MoveBoxPlaceOffsetConfig
+struct HandXyOffsetConfig
 {
     double offset_x = 0.0;
     double offset_y = 0.0;
 };
 
-/** 某一排左右手放货 xy 补偿 */
-struct MoveBoxPlaceRowHandOffsets
+/** 抓取末端姿态，yaml 单位 deg。 */
+struct GraspRpyDeg
 {
-    MoveBoxPlaceOffsetConfig left;
-    MoveBoxPlaceOffsetConfig right;
+    double rx = 0.0;
+    double ry = 60.0;
+    double rz = 0.0;
 };
 
-struct MoveBoxHeadGraspConfig
+struct TrayHeightConfig
 {
-    double goal_z_base = -0.30;
-    double goal_x_offset = 0.015;
-    double goal_z_extra = 0.065;
-    /** 头部分配后先到物体上方：z = 检测 z + hover_above_m（+z 朝上） */
+    /** 基座系盘面 Z（卷尺/示教，向上为正）。对应量的时候那一档腰高。 */
+    double z_ref_m = -0.72;
+    /** 量 z_ref_m 时的腰 layer3.z（应与当时 home 一致）。腰升降时按差值改盘面参考。 */
+    double z_ref_waist_z_m = 0.55;
+    /** 毛坯相对盘面的典型露出高度。 */
+    double part_above_tray_m = 0.015;
+    /** 头/手相机绝对 Z 相对「参考顶面」超过该值则忽略相机高度。 */
+    double z_refine_max_m = 0.01;
+    /** 料盘位姿多帧融合帧数。1=单帧。 */
+    int fuse_frames = 5;
+};
+
+struct HeadGraspConfig
+{
     double hover_above_m = 0.08;
-    double right_rx_deg = -90.0;
-    double right_ry_deg = 45.0;
-    double right_rz_deg = 0.0;
-    double left_rx_deg = 90.0;
-    double left_ry_deg = 45.0;
-    double left_rz_deg = 0.0;
+    double goal_z_base = -0.30;
+    double goal_x_offset = 0.01;
+    /** 左手示教：夹取点相对孔位（基座系）。右手用 right_goal_*，不取反。 */
+    double goal_y_offset = 0.0;
+    double goal_z_extra = 0.26;
+    double right_goal_x_offset = 0.01;
+    double right_goal_y_offset = 0.0;
+    double right_grasp_z_offset_m = 0.02;
+    double right_rx_deg = 0.0, right_ry_deg = 60.0, right_rz_deg = 45.0;
+    double left_rx_deg = 0.0, left_ry_deg = 60.0, left_rz_deg = -45.0;
+    /** 三组抓取 RPY，ready1/2/3。近远三排共用：0=row3/6，1=row2/5，2=row4。最远 row1 用 left_row6 存储的专用姿态。 */
+    GraspRpyDeg left_row_rpy_deg[3];
+    GraspRpyDeg right_row_rpy_deg[3];
+    /** 最远一行（ArUco row1）专用末端姿态。yaml: row1_rpy_deg。 */
+    GraspRpyDeg left_row6_rpy_deg;
+    GraspRpyDeg right_row6_rpy_deg;
+    /** true=二次 Bezier A-B-C；false=分段直线 A→B→C（B=物体上方，C=最终抓取）。Bezier 代码保留。 */
+    bool use_bezier_grasp = false;
+    double adaptive_pitch_down_deg = 45.0;
+    double adaptive_yaw_max_deg = 55.0;
+    double adaptive_min_horiz_m = 0.05;
+    double adaptive_approach_xyz_tol_m = 0.03;
+    double adaptive_approach_rpy_tol_deg = 12.0;
     double head_approach_z_descend = 0.05;
-    double hand_descend_z = 0.08;
-    double lift_after_grasp_z = 0.05;
-    /** 手相机首次识别无效（无目标或数据超范围）后，最多重拍次数；0=不重拍 */
-    int hand_detect_invalid_redo_max = 1;
-    /** 手相机抓取 xy 偏移（视觉基座坐标上加） */
-    MoveBoxPlaceOffsetConfig hand_right;
-    MoveBoxPlaceOffsetConfig hand_left;
+    double hand_descend_z = 0.07; // 已废弃，最终高度改用手相机 object_z
+    /** 最终夹取 Z 修正，向上为正。偏深则加大，偏高则减小/改负。 */
+    double grasp_z_offset_m = 0.02;
+    /** 仅 from_robot=6（离机器人最近一排）额外 Z，叠在左右手 z_offset 上。向上为正。 */
+    double nearest_row_grasp_z_offset_m = 0.0;
+    /** false：跳过手相机，XY/Z 都用孔位+盘面参考。 */
+    bool use_hand_camera = true;
+    double hand_match_xy_max_m = 0.05;
+    /** 手相机相对孔位 XY 的限幅微调；0 关闭。不覆盖 goal_x_offset。 */
+    double hand_xy_refine_max_m = 0.03;
+    HandXyOffsetConfig hand_right;
+    HandXyOffsetConfig hand_left;
+    double lift_after_grasp_z = 0.08;
+    /** 二次 Bezier 控制点 B 位于最终点 C 正上方该距离。不把 B 抬过 A，而是先把 A 降下来拉开高度。 */
+    double bezier_guide_height_m = 0.12;
+    /** 规划前若 A.z 不低于 B.z−该值，先竖直降低 A（保持 XY/RPY）。 */
+    double bezier_ab_gap_m = 0.06;
+    /** Bezier 路径最大 TCP 速度；时间缩放会保证峰值不超过该值。 */
+    double bezier_vel_m_s = 0.05;
+    /** 前段保持待机姿态的路径比例；之后才转到抓取 RPY。 */
+    double bezier_orient_finish_ratio = 0.65;
+    /** 到 C 后 FK 实测位置/姿态超过阈值则禁止合爪。 */
+    double bezier_endpoint_xyz_tol_m = 0.003;
+    double bezier_endpoint_rpy_tol_deg = 3.0;
+    /** 到上方 / 回起始点 的笛卡尔线速度（m/s）。 */
+    double approach_vel_m_s = 0.12;
+    /** 从上方下压的线速度，应明显慢于接近。 */
+    double descend_vel_m_s = 0.05;
+    double lift_vel_m_s = 0.10;
+    double return_vel_m_s = 0.12;
+    /** 下压到位后、合爪前等待（秒），避免还在晃就夹。 */
+    double pre_grasp_settle_sec = 0.5;
+    int hand_detect_invalid_redo_max = 10;
 };
 
-struct PlaceRowXBound
+struct GraspValidConfig
 {
-    double x_min = 0.0;
-    double x_max = 0.0;
+    double z_min = -0.65, z_max = -0.05;
+    double x_min = 0.10, x_max = 0.80;
+    /** 工作包络。左右分列跟 ArUco 列号，不按盘心 Y + offset 拒目标。 */
+    double right_y_min = -0.50, right_y_max = 0.28;
+    double left_y_min = -0.28, left_y_max = 0.50;
 };
 
-struct MoveBoxRow6BendConfig
+struct GraspZoneConfig
 {
-    /** 与 row_enabled 第6项同时为真时，第6排走弯腰放货 */
-    bool enabled = true;
-    /** 0-based，5=第6排 */
-    int row_index_0 = 5;
-    /** pitch 补偿枢轴：base 下方距离(m)，现场 37.65cm */
-    double pivot_z_below_base_m = 0.3765;
-    double waist_pitch_deg = 20.0;
-    double shoulder_lift_deg = 36.0;
-    double right_rx_deg = -90.0;
-    double right_ry_deg = 25.0;
-    double right_rz_deg = 0.0;
-    double left_rx_deg = 90.0;
-    double left_ry_deg = 25.0;
-    double left_rz_deg = 0.0;
-    double speed_deg_per_s = 30.0;
-    int smooth_dt_ms = 20;
-    uint32_t waist_pitch_motor_can_id = 2;
-    int right_shoulder_joint_index = 0;
-    int left_shoulder_joint_index = 0;
-    /** 弯放：先沿世界竖直抬高(m)，再 z_descend 下压；与 place.z_* 独立配置 */
-    double z_raise = 0.06;
-    double z_descend = -0.04;
-    /** 放完一手后（腰仍弯）先沿世界竖直抬回 z_raise 高度，再移到下列 y/姿态 */
-    double retreat_y_right = -0.15;
-    double retreat_y_left = 0.15;
-    /** 松爪后让位时 x 额外增加(m)，现场 10cm */
-    double retreat_x_delta_m = 0.10;
-    /** 让位与 x/y/姿态同动时，沿世界竖直再抬升(m) */
-    double retreat_z_delta_m = 0.10;
-    double retreat_right_rx_deg = -90.0;
-    double retreat_right_ry_deg = -20.0;
-    double retreat_right_rz_deg = 0.0;
-    double retreat_left_rx_deg = 90.0;
-    double retreat_left_ry_deg = -20.0;
-    double retreat_left_rz_deg = 0.0;
-};
-
-struct MoveBoxPlaceConfig
-{
-    /** 第1~5排(0-based 0~4)放货 xy 补偿，每排左右手独立 */
-    std::array<MoveBoxPlaceRowHandOffsets, 5> row_xy_offset{};
-    /** 第6排(0-based 5)放货 xy 补偿，与 1~5 排独立配置 */
-    MoveBoxPlaceRowHandOffsets row6_xy_offset;
-    double z_raise = 0.0;
-    /** 放货前相对已抬高位置再沿 z 移动（负=下降）；为 0 则跳过 */
-    double z_descend = -0.02;
-    /** 各排放货前腰 x 额外移动（place_advance 之后）；正=前进 负=后退；代码 pos(0)-=此值，手臂 x+=-此值。下标0=第1排 */
-    std::vector<double> row_waist_x{-0.1, -0.1, -0.1, -0.1, -0.1, -0.1};
-    /** 基座系 x 划分各排：[x_min, x_max)，下标0=第1排 */
-    std::vector<PlaceRowXBound> row_x_bounds{
-        {0.0, 0.4}, {0.4, 0.5}, {0.5, 0.6}, {0.6, 0.7}, {0.7, 0.8}, {0.8, 0.9}};
-    /** 各排是否放货：1=启用 0=跳过；下标0=第1排 */
-    std::vector<int> row_enabled{1, 1, 1, 1, 1, 1};
-    /** 1=从第1排(x最小)往后排；0=从最后启用的排往前排 */
-    int row_place_from_front = 1;
-    /**
-     * 48格棋盘放货顺序：1=先放44非基准(corr)，满后4基准(raw)；
-     * 0=先放4基准(corr)，再放44非基准(corr)
-     */
-    int place_non_anchor_first = 1;
-    /** 头相机空位检测次数（保留配置项；当前实现仅拍 1 次） */
-    int detect_trials = 1;
-    /** true：松爪前记录实际/下发 TCP 位姿到 picture_debug/place_pose.txt */
-    bool place_pose_debug = false;
-    /** 放货直线轨迹失败时改放此位（完整 x y z rx ry rz，与 standby 同格式 deg→rad） */
-    Eigen::Matrix<double, 1, 6> fallback_right;
-    Eigen::Matrix<double, 1, 6> fallback_left;
-    /** 第6排弯腰放货（row_enabled 启用时生效） */
-    MoveBoxRow6BendConfig row6_bend;
-};
-
-struct MoveBoxGraspValidConfig
-{
-    double z_min = -0.50;
-    double z_max = -0.15;
-    double x_min = 0.1;
-    double x_max = 0.8;
-    double right_y_min = -0.5;
-    double right_y_max = 0.05;
-    double left_y_min = -0.05;
-    double left_y_max = 0.5;
-};
-
-struct MoveBoxWaistConfig
-{
-    Eigen::Matrix<double, 1, 6> layer3_home;
-    /** 抓取腰进单步：正值=前进；代码 pos(0) -= 此值 */
-    double stagger_step_x = 0.06;
-    int stagger_max_steps = 2;
-    /** 放货前腰进：正值=前进；代码 pos(0) -= 此值 */
-    double place_advance_x = 0.12;
-    int move_settle_sec = 2;
-    /** 抓完放货前并行：底盘 +90° 启动前等待(秒) */
-    int place_ready_chassis_delay_sec = 0;
-    /** 抓完放货前并行：腰到放货预备位启动前等待(秒) */
-    int place_ready_waist_delay_sec = 0;
-    /** layer3 软件行程。x 减小=前进；z 增大=升高。x_min>=x_max 或 z_min>=z_max 则不限该轴 */
-    double x_min = -0.30;
-    double x_max = 0.10;
-    double z_min = 0.50;
-    double z_max = 0.72;
-    /** 手臂系物体 z 低于此值则腰下降（躲开笛卡尔 z=-0.33 钳位）。0=关闭自动降腰 */
-    double grasp_object_z_min = -0.28;
-    /** 一次最多下降(m)，再被 z_min 截断 */
-    double grasp_lower_z = 0.16;
-};
-
-struct MoveBoxStaggerConfig
-{
-    double head_x_threshold = 0.89;
-};
-
-/** 头相机抓取分配：侧区 / 中间区 y 分界（与 place_zone 独立） */
-struct MoveBoxGraspZoneConfig
-{
-    /** 侧区 |y|>此值；中间区 [-y_side_split, y_side_split]，在 y=0 分左右半给双手 */
-    double y_side_split = 0.05;
-    /** 分配时丢弃 |y| 超过此值的目标（台面零件约 ≤0.20，椅子误检曾到 0.42） */
-    double y_max_abs = 0.28;
-    /** 分配时丢弃 x 小于此值的目标；x_min>=x_max 则不启用下限 */
-    double x_min = 0.20;
-    /** 分配时丢弃 x 超过此值的目标 */
-    double x_max = 0.8;
-    /**
-     * 头相机画面边缘误检：投影点距图像边小于宽/高的此比例则丢。
-     * 0=关闭。0.08 ≈ 1280×720 时左右 102px、上下 58px。
-     */
+    double y_side_split = 0.08; // 已废弃，列分区改用 column_split_y
+    /** 已不再用于选孔；包络以 grasp_valid 为准。 */
+    double y_max_abs = 0.50;
+    double x_min = 0.10, x_max = 0.80;
     double edge_margin_frac = 0.08;
-    /**
-     * |cx|/cz、|cy|/cz 超过则当画面边缘（不依赖内参）。0=关闭。
-     * 台面目标约 0.1~0.30，边角椅子误检约 0.58。
-     */
     double cam_xy_over_z_max = 0.50;
+    /** 无料盘时 YOLO XY 回退用。料盘：同行最近、满排同时 (3-6/2-5/1-4)。 */
+    double front_row_tolerance_m = 0.025;
+    /** 仅无料盘位姿时的回退中缝（机器人 Y）。有 ArUco 盘心后改用 live 盘心 Y。 */
+    double column_split_y = 0.0;
+    double hole_pitch_m = 0.075;
+    int column_count = 6;
+    /** 同时抓最小列号差。3 表示 (1,4)(2,5)(3,6) 为最小对。 */
+    int min_simultaneous_col_delta = 3;
+    /** ArUco 行号 1=盘前方（远离机器人）。1..far_row_max 为远三排，抓前腰前伸。0=关闭。 */
+    int far_row_max = 3;
 };
 
-struct MoveBoxPlaceZoneConfig
+struct WaistConfig
 {
-    /** 侧区分界：左手优先 y > y_side_split，右手优先 y < y_side_split */
-    double y_side_split = 0.0;
-    /** 中间区 y 上界（含），与 y_right 构成 [-0.08, 0.08] 一带 */
-    double y_left = 0.08;
-    /** 中间区 y 下界（含） */
-    double y_right = -0.08;
+    Eigen::Matrix<double, 1, 6> layer3_home = Eigen::Matrix<double, 1, 6>::Zero();
+    double stagger_step_x = 0.0556;
+    int stagger_max_steps = 0;
+    double move_settle_sec = 0.5;
+    double x_min = -0.30, x_max = 0.30;
+    double z_min = 0.35, z_max = 0.67;
+    /** 抓取时盘面 live z_ref 目标。当前不再为够到该值而继续降腰。 */
+    double grasp_object_z_min = -0.40;
+    double grasp_lower_z = 0.16;
+    /** ready/grasp 腰 TCP z（米）。home 仍用 layer3_home.z。 */
+    double ready_z_m = 0.36;
+    /** ready/grasp 起始：相对 layer3_home.x 再向前（米，+X 为机器人前方）。home 仍停在 layer3_home.x。 */
+    double ready_forward_m = 0.06;
+    /** 远三排 / waist2：相对 layer3_home.x 再向前伸的距离（米）。抓完不收回。 */
+    double far_row_forward_m = 0.15;
 };
 
-struct MoveBoxArucoConfig
+/** 传送带工位 XYZ 偏置（米，基座系）。叠在 tcp 上，右手不取反。 */
+struct ConveyorXyzOffset
 {
-    int trials = 7;
-    size_t grid_slot_count = 48;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
 };
 
-/** 底盘充电电量阈值（percentage 0~1，与 getBatteryLevel 一致） */
-struct MoveBoxBatteryConfig
+/** 仙工底盘握手。抓好后导航到 belt_station，等到站再放置。 */
+struct ChassisConfig
 {
-    double low_threshold = 0.1;
-    double full_threshold = 0.96;
+    std::string host = "192.168.192.5";
+    std::string tray_station = "AP4";
+    /** 第二个料盘（空孔放置）。调试指令 tray2 / tray2ready*。 */
+    std::string tray2_station = "AP9";
+    std::string belt_station = "AP6";
+    /** 第二条传送带。cycle 第一次抓完腰回 0 后去这里再放置。 */
+    std::string out_station = "AP5";
+    /** 等站点到位超时（毫秒）。abort 可提前打断。 */
+    int nav_timeout_ms = 600000;
 };
 
-/** RealSense 彩色/深度流（启动时 enable_stream） */
-struct MoveBoxCameraConfig
+/** 料盘2空孔放置的四组 TCP 姿态。与 head_grasp ready1/2/3/6 独立，方便单独微调。 */
+struct Tray2PlaceConfig
+{
+    GraspRpyDeg left_row_rpy_deg[3];
+    GraspRpyDeg right_row_rpy_deg[3];
+    GraspRpyDeg left_row6_rpy_deg;
+    GraspRpyDeg right_row6_rpy_deg;
+    /** 相对孔位的放置偏置（基座系）。左右分开，不共用 head_grasp。 */
+    double goal_x_offset = 0.015;
+    double goal_y_offset = -0.01;
+    double grasp_z_offset_m = 0.02;
+    double right_goal_x_offset = 0.01;
+    double right_goal_y_offset = -0.01;
+    double right_grasp_z_offset_m = 0.04;
+    /** 仅 from_robot=6，叠在该手 z 上。 */
+    double nearest_row_z_offset_m = -0.01;
+};
+
+/** 传送带工位调试姿态。与料盘 waist/head/standby/home_tcp 独立。
+ *  `belt_ready`：腰/头 + tcp（准备）。`belt_place`：腰/头 + place_tcp（放置末端）。
+ *  `belt`：准备后认码，先右手放到码+offset再回准备，再左手；不回 home。 */
+struct ConveyorStationConfig
+{
+    double waist_x = -0.15;
+    double waist_z = 0.63;
+    double head_yaw_deg = 0.0;
+    double head_pitch_deg = 50.0;
+    double head_roll_deg = 0.0;
+    ArmPosePairConfig tcp;
+    /** 放置末端姿态。belt_place 预览整段 6D；完整 belt 只用其 RPY。 */
+    ArmPosePairConfig place_tcp;
+    /** 相对识别板系（+X 前、+Y 左、+Z 上）：放置 XYZ = 码原点 + R_识别 × offset。 */
+    ConveyorXyzOffset offset_right;
+    ConveyorXyzOffset offset_left;
+    /** 优先用哪条皮带（belt0/belt1）。该条没码则用第一条解到的。 */
+    std::string prefer_belt = "belt0";
+    /** 传送带抓取专用 RPY（deg）。XYZ 用左右各自的 grasp_offset。 */
+    GraspRpyDeg grasp_rpy_left{0.0, 45.0, -30.0};
+    GraspRpyDeg grasp_rpy_right{0.0, 45.0, 30.0};
+    /** 相对识别板系（+X 前、+Y 左、+Z 上）。不转腰，不再乘腰 Rz。 */
+    ConveyorXyzOffset grasp_offset_left;
+    ConveyorXyzOffset grasp_offset_right;
+    /** 抓取完成后回到这里。开始准备仍用 tcp。未配置则等于 tcp。 */
+    ArmPosePairConfig grasp_tcp;
+    /** 抓取点上方接近高度。0=直接落到抓取点。 */
+    double grasp_hover_above_m = 0.06;
+    /** 放置点上方接近高度。先到该高度再下降松爪。0=直接落到放置点。 */
+    double place_hover_above_m = 0.06;
+    /** 传送带抓取转腰（deg）。0=不转。站点更新后默认不转。 */
+    double grasp_waist_yaw_deg = 0.0;
+    /** 准备姿态夹爪闭合比例，0=全开 1=全合。减小开距，避免下探时磕皮带边。 */
+    double grasp_ready_close_ratio = 0.30;
+    /** 抓取前是否跑 YOLO 类别门禁。false=不跑 YOLO，只认码。 */
+    bool grasp_yolo_enable = false;
+    /** 抓取前 YOLO 必须看到的类别。仅判定，不参与定位。1=半加工料 2=精加工料；<0 不检查。 */
+    int grasp_yolo_class_id = -1;
+    /** true：码原点 Z 不用相机，改用 fixed_origin_z_m。XY 和板姿态仍用二维码。 */
+    bool use_fixed_origin_z = false;
+    /** 手臂基座系码平面高度（米，向上为正）。腰 0.63m 时传送带在基座下方 0.29m。 */
+    double fixed_origin_z_m = -0.29;
+};
+
+struct StaggerConfig
+{
+    double head_x_threshold = 0.80;
+};
+
+struct VisionDetectConfig
+{
+    int head_grasp = 1;
+    int right_hand_grasp = 1;
+    int left_hand_grasp = 1;
+};
+
+struct CameraStreamConfig
 {
     int width = 1280;
     int height = 720;
-    /** 头相机帧率（原硬编码 30） */
     int head_fps = 15;
-    /** 左右手相机帧率（原硬编码 30） */
     int hand_fps = 15;
 };
 
-/**
- * 传送带上方：以头相机看到的二维码为原点。
- * 码坐标系：+X=印刷右侧，+Y=印刷下方，+Z=垂直码面朝外（朝相机）。
- * 右侧上方 = 沿 +X 偏移 right_offset_m，再沿 +Z 抬高 height_above_m，右臂过去。
- * 左侧上方 = 沿 -X 偏移 left_offset_m，再沿 +Z 抬高，左臂过去。
- * 码正上方 = 无左右偏移，沿 +Z 抬高 above_height_m（默认 5cm）。
- */
-struct MoveBoxConveyorConfig
+/** 头相机标定关节角。CAN 30=偏航 32=俯仰 31=横滚。 */
+struct HeadMotorConfig
 {
-    double right_offset_m = 0.15;
-    double left_offset_m = 0.15;
-    double height_above_m = 0.12;
-    double above_height_m = 0.05;
-    double speed = 0.2;
-};
-
-/** 笛卡尔直线用的逆解。T170 七轴冗余轴是 J2（电机角）。 */
-enum class MoveBoxIkMethod
-{
-    Hybrid,   // Inverse_Kinematics：数值估 J2 再解析
-    Analytic, // Inverse_Kinematics_Analytic：约束 J2
-    Numeric,  // Inverse_Kinematics_Numeric：阻尼最小二乘
-};
-
-struct MoveBoxIkConfig
-{
-    MoveBoxIkMethod method = MoveBoxIkMethod::Analytic;
-    /** true=锁当前 J2（暂不用于抓取直线）；false=不传冗余角 */
-    bool j2_from_current = false;
-    double j2_right_deg = 35.0;
-    double j2_left_deg = -35.0;
-};
-
-/**
- * 各阶段视觉位姿算法（CirclePoseEngine algorithm_id）
- * -1 = 跟随 feeding_cylindrical_parts_alg/config/pose_params.yaml 各类别 algorithm_id
- *  0 = 强制 2D PnP（分割+椭圆，主要 RGB）
- *  1 = 强制 mask 深度重心（需对齐 depth，仅平移）
- */
-struct MoveBoxVisionDetectConfig
-{
-    int head_grasp = 0;
-    int right_hand_grasp = 0;
-    int left_hand_grasp = 0;
-    int place_holes = 0;
+    double yaw_deg = 0.0;
+    double pitch_deg = 40.0;
+    /** 腰前伸抓远三排时的低头俯仰。 */
+    double far_pitch_deg = 60.0;
+    double roll_deg = 0.0;
+    double speed_deg_s = 25.0;
 };
 
 struct MoveBoxConfig
 {
-    MoveBoxStandbyConfig standby;
-    MoveBoxHeadGraspConfig head_grasp;
-    MoveBoxPlaceConfig place;
-    MoveBoxGraspValidConfig grasp_valid;
-    MoveBoxWaistConfig waist;
-    MoveBoxStaggerConfig stagger;
-    MoveBoxGraspZoneConfig grasp_zone;
-    MoveBoxPlaceZoneConfig place_zone;
-    MoveBoxArucoConfig aruco;
-    MoveBoxBatteryConfig battery;
-    MoveBoxCameraConfig cameras;
-    MoveBoxVisionDetectConfig vision_detect;
-    MoveBoxConveyorConfig conveyor;
-    MoveBoxIkConfig ik;
+    ArmPosePairConfig standby;
+    ArmPosePairConfig home_tcp;
+    TrayHeightConfig tray;
+    HeadMotorConfig head;
+    HeadGraspConfig head_grasp;
+    GraspValidConfig grasp_valid;
+    GraspZoneConfig grasp_zone;
+    WaistConfig waist;
+    ConveyorStationConfig conveyor;
+    /** 第二条传送带。缺省抄 conveyor；yaml conveyor2 可单独改。 */
+    ConveyorStationConfig conveyor2;
+    Tray2PlaceConfig tray2_place;
+    ChassisConfig chassis;
+    StaggerConfig stagger;
+    VisionDetectConfig vision_detect;
+    CameraStreamConfig cameras;
 };
 
-MoveBoxConfig default_move_box_config();
-
-std::string default_move_box_config_path();
-
-bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::string &err);
-
-void print_move_box_config(const MoveBoxConfig &cfg);
-
-/**
- * 放货 xy 补偿：row_0 0~4=第1~5排，5=第6排；无效 row 回退第1排。
- * is_right=true 取右手，false 取左手。
- */
-const MoveBoxPlaceOffsetConfig &place_hand_xy_offset(int row_0, bool is_right);
-
-/** 由 main 加载；seg_pose_bridge 头部分配等读取 */
 extern MoveBoxConfig g_move_cfg;
 
-#endif
+MoveBoxConfig default_move_box_config();
+std::string default_move_box_config_path();
+bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::string &err);
+void print_move_box_config(const MoveBoxConfig &cfg);
+
+double column_split_y();
+/** 本轮料盘原点 Y（基座系）。有 ArUco 解算时覆盖 yaml column_split_y。 */
+void set_live_tray_origin_y(double origin_y);
+void clear_live_tray_origin_y();
+bool have_live_tray_origin_y();
+int tray_column_index_from_y(double y);
+/** ArUco 列 → 左右手列号。盘转 180° 时 flipped=true，列号对调。1–3 右、4–6 左。 */
+int tray_assign_col_from_aruco(int aruco_col, bool cols_flipped);
+bool tray_assign_col_is_right(int assign_col);
+/** ArUco 行 1 起为盘前方（远处）。 */
+bool tray_row_is_far(int row);
+/** 行姿态组：ready1=row3/6，ready2=row2/5，ready3=row4；row1（最远）返回 1 专用。 */
+int tray_row_pose_group(int row);
+const GraspRpyDeg &grasp_rpy_deg_for_row(int row, bool is_right);
+/** ready 指令 1/2/3/6 对应的抓取 RPY。 */
+const GraspRpyDeg &grasp_rpy_deg_for_ready(int ready_id, bool is_right);
+/** 料盘2放置专用 RPY，不读 head_grasp。 */
+const GraspRpyDeg &tray2_place_rpy_deg_for_row(int row, bool is_right);
+const GraspRpyDeg &tray2_place_rpy_deg_for_ready(int ready_id, bool is_right);
+const char *ready_rows_label(int ready_id);
+/** 孔位 XYZ 偏置：左右手各用 yaml 自己的一套（基座系，右手不取反）。 */
+double grasp_goal_x_offset(bool is_right);
+double grasp_goal_y_offset(bool is_right);
+double grasp_goal_z_offset(bool is_right, int from_robot_row = 0);
+bool arm_y_allowed_right(double y);
+bool arm_y_allowed_left(double y);
+bool simultaneous_columns_ok(double y_right, double y_left);
+bool simultaneous_assign_columns_ok(int col_right, int col_left);
+void log_arm_wall_reject(const char *stage, bool is_right, double y);
+/** ready/grasp 起始腰 X = layer3_home.x + ready_forward_m。 */
+double waist_ready_x();
+/** ready/grasp 腰 Z，独立于 home。 */
+double waist_ready_z();
+/** 远三排 / waist2 腰 X = layer3_home.x + far_row_forward_m。 */
+double waist_far_row_x();
+/** 腰向左为正。T_arm←chassis = Rz(-θ)，把转腰前示教的 XY 变到当前手臂基座。 */
+void conveyor_chassis_xy_to_arm_base(double yaw_rad, double &x, double &y);

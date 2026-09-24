@@ -23,11 +23,7 @@
 #include <arpa/inet.h>
 #include <thread>
 #include <array>
-#include <boost/asio.hpp>
-
 #include "function.h"
-#include "controlcan.h"
-#include "aoyihand.h"
 
 inline constexpr double deg2rad = M_PI / 180.0;
 inline constexpr double rad2deg = 180.0 / M_PI;

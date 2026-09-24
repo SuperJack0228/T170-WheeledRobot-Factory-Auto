@@ -1,8 +1,0 @@
-
-imu_ex
-======
-
-.. automodule:: imu_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -1,8 +1,0 @@
-
-battery
-=======
-
-.. automodule:: battery
-   :members:
-   :undoc-members:
-   :show-inheritance:

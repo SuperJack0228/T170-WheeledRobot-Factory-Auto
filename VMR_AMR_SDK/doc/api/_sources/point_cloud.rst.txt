@@ -1,8 +1,0 @@
-
-point_cloud
-===========
-
-.. automodule:: point_cloud
-   :members:
-   :undoc-members:
-   :show-inheritance:

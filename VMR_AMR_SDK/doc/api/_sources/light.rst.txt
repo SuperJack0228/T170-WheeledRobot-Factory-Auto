@@ -1,8 +1,0 @@
-
-light
-=====
-
-.. automodule:: light
-   :members:
-   :undoc-members:
-   :show-inheritance:

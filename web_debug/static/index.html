@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>T170C 调试台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">T</div>
+        <div><h1>T170C 调试台</h1><p>圆柱抓取 · 机器人主机</p></div>
+      </div>
+      <div class="top-status">
+        <span id="serviceChip" class="chip offline"><i></i>服务离线</span>
+        <span id="actionChip" class="chip neutral"><i></i>空闲</span>
+        <button id="refreshButton" class="button ghost small">刷新</button>
+        <button id="stopButton" class="button stop">STOP 中止动作</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <nav>
+        <button class="nav-item active" data-page="overview"><span>01</span>系统总览</button>
+        <button class="nav-item" data-page="vision"><span>02</span>视觉检测</button>
+        <button class="nav-item" data-page="motion"><span>03</span>动作流程</button>
+        <button class="nav-item" data-page="gripper"><span>04</span>夹爪调试</button>
+        <button class="nav-item" data-page="config"><span>05</span>参数配置</button>
+        <button class="nav-item" data-page="logs"><span>06</span>运行日志</button>
+      </nav>
+      <div class="safety-note">
+        <strong>安全提示</strong>
+        <p>网页 STOP 依赖进程与 CAN 正常，不能替代实体急停。</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section id="page-overview" class="page active">
+        <div class="page-heading">
+          <div><p class="eyebrow">SYSTEM</p><h2>系统总览</h2></div>
+          <div id="lastUpdate" class="muted">尚未获取状态</div>
+        </div>
+
+        <div class="metric-grid">
+          <article class="metric"><span>C++ 硬件服务</span><strong id="metricService">--</strong><small>127.0.0.1:8099</small></article>
+          <article class="metric"><span>CAN 通道</span><strong id="metricCan">--</strong><small id="metricCanDetail">等待状态</small></article>
+          <article class="metric"><span>视觉管线</span><strong id="metricVision">--</strong><small>D435I + 2×D405</small></article>
+          <article class="metric"><span>双夹爪</span><strong id="metricGripper">--</strong><small id="metricGripperDetail">等待反馈</small></article>
+        </div>
+
+        <div class="two-col">
+          <article class="panel">
+            <div class="panel-head"><h3>机械臂 TCP</h3><span class="unit">m / deg</span></div>
+            <div class="pose-block">
+              <div class="pose-title"><span class="arm-dot right"></span>右臂</div>
+              <div id="rightTcp" class="number-grid six"></div>
+            </div>
+            <div class="pose-block">
+              <div class="pose-title"><span class="arm-dot left"></span>左臂</div>
+              <div id="leftTcp" class="number-grid six"></div>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>关节角</h3><span class="unit">deg</span></div>
+            <div class="pose-block">
+              <div class="pose-title"><span class="arm-dot right"></span>右臂 J1–J7</div>
+              <div id="rightJoints" class="number-grid seven"></div>
+            </div>
+            <div class="pose-block">
+              <div class="pose-title"><span class="arm-dot left"></span>左臂 J1–J7</div>
+              <div id="leftJoints" class="number-grid seven"></div>
+            </div>
+          </article>
+        </div>
+
+        <article class="panel">
+          <div class="panel-head"><h3>设备检查</h3><button id="startServiceButton" class="button secondary small">启动 C++ 服务</button></div>
+          <div id="deviceChecks" class="check-grid"></div>
+        </article>
+      </section>
+
+      <section id="page-vision" class="page">
+        <div class="page-heading">
+          <div><p class="eyebrow">VISION</p><h2>视觉检测</h2></div>
+          <div class="toolbar">
+            <select id="cameraSelect" class="select">
+              <option value="head">头部 D435I</option>
+              <option value="right_hand">右手 D405</option>
+              <option value="left_hand">左手 D405</option>
+            </select>
+            <button id="detectButton" class="button primary">运行 YOLO</button>
+            <button id="arucoButton" class="button secondary">运行 ArUco</button>
+            <label class="toggle"><input id="autoDetect" type="checkbox"><span></span>连续检测</label>
+          </div>
+        </div>
+        <div class="vision-grid">
+          <article class="camera-panel">
+            <div class="panel-head"><h3>识别结果</h3><span id="processedStamp" class="unit">无图像</span></div>
+            <div class="image-frame"><img id="processedImage" alt="识别结果"><div class="image-empty">运行一次检测以获取画面</div></div>
+          </article>
+          <article class="camera-panel">
+            <div class="panel-head"><h3>原始画面</h3><span id="originalStamp" class="unit">无图像</span></div>
+            <div class="image-frame"><img id="originalImage" alt="原始画面"><div class="image-empty">尚无原始画面</div></div>
+          </article>
+        </div>
+        <article class="panel">
+          <div class="panel-head"><h3>检测结果</h3><span id="detectionSummary" class="unit">0 个目标</span></div>
+          <div id="detectionResults" class="result-list empty-state">尚未执行检测</div>
+        </article>
+      </section>
+
+      <section id="page-motion" class="page">
+        <div class="page-heading">
+          <div><p class="eyebrow">MOTION</p><h2>动作流程</h2></div>
+          <span class="warning-badge">动作时必须有人守实体急停</span>
+        </div>
+        <div class="flow-grid">
+          <article class="flow-card safe">
+            <span class="step">01</span><h3>状态确认</h3><p>读取双臂、腰部、夹爪和 CAN 状态，不产生运动。</p>
+            <button class="button secondary command" data-command="snapshot">刷新状态</button>
+          </article>
+          <article class="flow-card safe">
+            <span class="step">02</span><h3>仅视觉定位</h3><p>头相机运行 YOLO，输出候选目标与基座坐标，不产生运动。</p>
+            <button class="button secondary command" data-command="vision_detect" data-slot="head">检测目标</button>
+          </article>
+          <article class="flow-card caution">
+            <span class="step">03</span><h3>回准备姿态</h3><p>ready1=row3，ready2=row2/5，ready3=row1/4，ready6=第6行专用。腰和身体不变。home 仍会把腰升回测量高度。</p>
+            <button class="button warning command" data-command="grasp_ready1">ready1 row3</button>
+            <button class="button warning command" data-command="grasp_ready2">ready2 row2/5</button>
+            <button class="button warning command" data-command="grasp_ready3">ready3 row1/4</button>
+            <button class="button warning command" data-command="grasp_ready6">ready6 第6行</button>
+            <button class="button warning command" data-command="tray2ready1">tray2ready1</button>
+            <button class="button warning command" data-command="tray2ready2">tray2ready2</button>
+            <button class="button warning command" data-command="tray2ready3">tray2ready3</button>
+            <button class="button warning command" data-command="tray2ready6">tray2ready6</button>
+            <button class="button danger command" data-command="tray2">料盘2放置 tray2</button>
+            <button class="button secondary command" data-command="home">执行 home</button>
+            <button class="button secondary command" data-command="waist1">腰初始位 waist1</button>
+            <button class="button secondary command" data-command="waist2">腰前伸位 waist2</button>
+            <button class="button secondary command" data-command="belt_ready">皮带准备 belt_ready</button>
+            <button class="button secondary command" data-command="belt_place">皮带放置 belt_place</button>
+            <button class="button warning command" data-command="belt_grasp_rpy">皮带抓取姿态 belt_grasp_rpy</button>
+            <button class="button secondary command" data-command="belt">一号皮带放置 belt</button>
+            <button class="button secondary command" data-command="belt2">二号皮带放置 belt2</button>
+            <button class="button warning command" data-command="belt_grasp">皮带抓取 belt_grasp</button>
+            <button class="button secondary command" data-command="belt2_ready">二号皮带准备 belt2_ready</button>
+            <button class="button secondary command" data-command="belt2_place">二号皮带放置 belt2_place</button>
+            <button class="button warning command" data-command="belt2_grasp_rpy">二号抓取姿态 belt2_grasp_rpy</button>
+            <button class="button warning command" data-command="belt2_grasp">二号皮带抓取 belt2_grasp</button>
+          </article>
+          <article class="flow-card danger">
+            <span class="step">04</span><h3>完整抓取</h3><p>运行头相机定位、双臂靠近、手相机复核、下降、夹取与抬升。</p>
+            <button class="button danger command" data-command="vision_grasp">开始一轮抓取</button>
+            <button class="button danger command" data-command="grasp_belt">抓取+放置 grasp_belt</button>
+            <button class="button danger command" data-command="grasp_belt1">料盘1↔一号传送带 cycle1</button>
+          </article>
+        </div>
+        <article class="panel flow-status">
+          <div class="panel-head"><h3>最近动作结果</h3><span id="motionResultState" class="unit">无</span></div>
+          <pre id="motionResult">尚未从界面执行动作。</pre>
+        </article>
+      </section>
+
+      <section id="page-gripper" class="page">
+        <div class="page-heading"><div><p class="eyebrow">GRIPPER</p><h2>夹爪调试</h2></div></div>
+        <div class="gripper-grid">
+          <article class="gripper-card">
+            <div class="gripper-name"><span class="arm-dot right"></span><h3>右夹爪</h3><span id="rightGripState" class="chip neutral">未知</span></div>
+            <div id="rightGripMetrics" class="grip-metrics"></div>
+            <div class="button-row"><button class="button secondary grip-command" data-command="gripper_open" data-side="right">张开</button><button class="button warning grip-command" data-command="gripper_grasp" data-side="right">力控夹取</button></div>
+          </article>
+          <article class="gripper-card">
+            <div class="gripper-name"><span class="arm-dot left"></span><h3>左夹爪</h3><span id="leftGripState" class="chip neutral">未知</span></div>
+            <div id="leftGripMetrics" class="grip-metrics"></div>
+            <div class="button-row"><button class="button secondary grip-command" data-command="gripper_open" data-side="left">张开</button><button class="button warning grip-command" data-command="gripper_grasp" data-side="left">力控夹取</button></div>
+          </article>
+        </div>
+        <article class="panel">
+          <div class="panel-head"><h3>双夹爪控制</h3><span class="unit">Soft 力矩路径</span></div>
+          <div class="inline-form"><label>夹取力矩上限 <input id="gripTorque" type="number" min="0.1" max="8" step="0.1" value="4.0"> N·m</label><button class="button secondary grip-command" data-command="gripper_open" data-side="both">双手张开</button><button class="button warning grip-command" data-command="gripper_grasp" data-side="both">双手夹取</button></div>
+        </article>
+      </section>
+
+      <section id="page-config" class="page">
+        <div class="page-heading">
+          <div><p class="eyebrow">CONFIG</p><h2>参数配置</h2></div>
+          <div class="toolbar"><button id="reloadConfigButton" class="button ghost">重新读取</button><button id="saveConfigButton" class="button primary">保存并校验</button></div>
+        </div>
+        <div class="config-layout">
+          <article class="panel config-help">
+            <h3>关键调试参数</h3>
+            <ul>
+              <li><code>grasp_depth_below_top_m</code>：手相机物体顶面以下的夹取深度。</li>
+              <li><code>column_split_y</code>：左右臂不可跨越的虚拟墙。</li>
+              <li><code>hand_match_xy_max_m</code>：手相机候选与头相机目标的最大偏差。</li>
+              <li><code>front_row_tolerance_m</code>：前排目标选择容差。</li>
+            </ul>
+            <p>保存前自动生成备份。C++ 校验失败时会恢复旧配置。相机分辨率等初始化参数需要重启 C++ 服务才会完全生效。</p>
+          </article>
+          <article class="editor-panel"><div class="editor-head"><span id="configPath">move_box_params.yaml</span><span id="configDirty" class="unit">已同步</span></div><textarea id="configEditor" spellcheck="false"></textarea></article>
+        </div>
+      </section>
+
+      <section id="page-logs" class="page">
+        <div class="page-heading">
+          <div><p class="eyebrow">LOGS</p><h2>运行日志</h2></div>
+          <div class="toolbar"><label class="toggle"><input id="followLogs" type="checkbox" checked><span></span>自动滚动</label><button id="clearLogs" class="button ghost">清空显示</button></div>
+        </div>
+        <div id="logViewer" class="log-viewer"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="confirmModal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-icon">!</div><h3 id="confirmTitle">确认执行动作</h3><p id="confirmText"></p>
+      <label class="safety-check"><input id="estopReady" type="checkbox">我已清空运动区域，并有人守住实体急停</label>
+      <div class="modal-actions"><button id="cancelConfirm" class="button ghost">取消</button><button id="acceptConfirm" class="button danger" disabled>确认执行</button></div>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

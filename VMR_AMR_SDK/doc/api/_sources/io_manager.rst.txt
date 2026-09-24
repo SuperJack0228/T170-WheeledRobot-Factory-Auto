@@ -1,8 +1,0 @@
-
-io_manager
-==========
-
-.. automodule:: io_manager
-   :members:
-   :undoc-members:
-   :show-inheritance:

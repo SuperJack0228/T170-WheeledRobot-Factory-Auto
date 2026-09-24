@@ -10,6 +10,7 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
+#include <cmath>
 #include <sstream>
 #include <string>
 #include <filesystem>
@@ -1109,8 +1110,33 @@ void log_arms_motor_position_reach(bool log_r, bool log_l, const char *reason)
     std::cout << std::endl << std::flush;
 }
 
+Eigen::MatrixXd make_linear_joint_traj(
+    const Eigen::MatrixXd &q_start,
+    const Eigen::MatrixXd &q_end,
+    double dt)
+{
+    const int dof = static_cast<int>(std::min({q_start.cols(), q_end.cols(), static_cast<Eigen::Index>(7)}));
+    double max_dq = 0.0;
+    for (int j = 0; j < dof; ++j)
+        max_dq = std::max(max_dq, std::abs(q_end(0, j) - q_start(0, j)));
+    constexpr double kDegPerSec = 30.0;
+    const double t_s = std::max(0.4, (max_dq * 180.0 / M_PI) / kDegPerSec);
+    const int n = std::max(2, static_cast<int>(std::ceil(t_s / dt)) + 1);
+    Eigen::MatrixXd traj(n, dof);
+    for (int i = 0; i < n; ++i)
+    {
+        const double s = static_cast<double>(i) / static_cast<double>(n - 1);
+        const double e = 0.5 * (1.0 - std::cos(M_PI * s));
+        for (int j = 0; j < dof; ++j)
+            traj(i, j) = q_start(0, j) + e * (q_end(0, j) - q_start(0, j));
+    }
+    return traj;
+}
+
 int execute_arm_trajectory(const MatrixXd &traj, int hand, double dt = k_arm_traj_dt)
 {
+    if (hand == 1 && right_arm_motors_locked())
+        return 0;
     if (traj.rows() == 0)
     {
         cout << "[Error] Trajectory is empty, execution aborted." << endl;
@@ -1433,6 +1459,8 @@ void log_arm_link_fk(Robot_Arm &arm, const char *tag)
 
 int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
 {
+    if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
+        return 0;
     clamp_cart_goal_z(pos, "arm_line_move(直线运动下发前)");
     const int hand = arm_hand_side(arm);
     Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
@@ -1455,7 +1483,82 @@ int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_
         append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
         return ret;
     }
-    return execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    if (exec == 0)
+        record_arm_cartesian_arrival(arm, pos, nullptr);
+    return exec;
+}
+
+Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Robot_Arm &arm)
+{
+    const Eigen::MatrixXd q = arm_read_motor_joints(arm_hand_side(arm));
+    Eigen::Matrix<double, 1, 7> out = Eigen::Matrix<double, 1, 7>::Zero();
+    const int n = static_cast<int>(std::min(q.cols(), static_cast<Eigen::Index>(7)));
+    for (int i = 0; i < n; ++i)
+        out(i) = q(0, i);
+    return out;
+}
+
+int arm_line_move_hold_redundant(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
+{
+    if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
+        return 0;
+    clamp_cart_goal_z(pos, "arm_line_move_hold_redundant(直线运动下发前)");
+    const int hand = arm_hand_side(arm);
+    Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
+    if (hardware_abort_requested())
+        return -4;
+    if (can_io_faulted())
+        return -2;
+
+    arm.Cart_Linear_Velocity = cart_linear_velocity;
+
+    Eigen::MatrixXd traj;
+    const double j2 = (q_start.cols() >= 2) ? q_start(0, 1) : 0.0;
+    const int ret = arm.Line_Trajectory(q_start, pos, traj, j2);
+    if (ret != 0)
+    {
+        const char *stage = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(g_arm_line_move_stage_mu);
+            stage = g_arm_line_move_debug_stage;
+        }
+        append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
+        return ret;
+    }
+    const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    if (exec == 0)
+        record_arm_cartesian_arrival(arm, pos, nullptr);
+    return exec;
+}
+
+ArmLineMoveResult arm_dual_line_move_hold_redundant_selective(
+    Robot_Arm &arm_r,
+    Matrix<double, 1, 6> &pos_r,
+    const bool move_r,
+    Robot_Arm &arm_l,
+    Matrix<double, 1, 6> &pos_l,
+    const bool move_l,
+    const double cart_linear_velocity)
+{
+    ArmLineMoveResult out;
+    if (move_r && move_l)
+    {
+        std::thread th_r([&]() {
+            out.ret_r = arm_line_move_hold_redundant(arm_r, pos_r, cart_linear_velocity);
+        });
+        std::thread th_l([&]() {
+            out.ret_l = arm_line_move_hold_redundant(arm_l, pos_l, cart_linear_velocity);
+        });
+        th_r.join();
+        th_l.join();
+        return out;
+    }
+    if (move_r)
+        out.ret_r = arm_line_move_hold_redundant(arm_r, pos_r, cart_linear_velocity);
+    if (move_l)
+        out.ret_l = arm_line_move_hold_redundant(arm_l, pos_l, cart_linear_velocity);
+    return out;
 }
 
 ArmLineMoveResult arm_dual_line_move(
@@ -1490,6 +1593,511 @@ ArmLineMoveResult arm_dual_line_move_selective(
         out.ret_r = arm_line_move(arm_r, pos_r, cart_linear_velocity);
     if (move_l)
         out.ret_l = arm_line_move(arm_l, pos_l, cart_linear_velocity);
+    return out;
+}
+
+namespace
+{
+
+constexpr int kBezierArcLutSteps = 400;
+constexpr double kBezierMinGuideHeightM = 0.01;
+constexpr double kBezierMinVelocityMps = 0.01;
+constexpr double kBezierMinDurationS = 0.50;
+constexpr double kBezierKeyDsM = 0.003;
+constexpr double kBezierKeyDsMinM = 0.002;
+constexpr double kBezierKeyDsMaxM = 0.004;
+constexpr int kBezierKeyMax = 200;
+constexpr double kBezierSkipStartIkM = 0.008;
+constexpr double kBezierMaxKeyJointRad = 20.0 * M_PI / 180.0;
+constexpr double kBezierIkFkPositionToleranceM = 0.001;
+constexpr double kBezierIkFkOrientationToleranceRad = 0.5 * M_PI / 180.0;
+constexpr double kBezierKeyFkPositionToleranceM = 0.003;
+constexpr double kBezierKeyFkOrientationToleranceRad = 2.0 * M_PI / 180.0;
+constexpr int kBezierNoReturnTrajectory = -20;
+constexpr int kBezierReturnStartMismatch = -21;
+
+struct PreparedBezierTrajectory
+{
+    int hand = 0;
+    bool skip = false;
+    Eigen::MatrixXd q;
+    Matrix<double, 1, 6> a = Matrix<double, 1, 6>::Zero();
+    Matrix<double, 1, 6> b = Matrix<double, 1, 6>::Zero();
+    Matrix<double, 1, 6> c = Matrix<double, 1, 6>::Zero();
+    double length_m = 0.0;
+    double duration_s = 0.0;
+};
+
+std::mutex g_bezier_cache_mu;
+Eigen::MatrixXd g_last_bezier_q[2];
+bool g_last_bezier_valid[2] = {false, false};
+
+double quintic_s01(double r)
+{
+    r = std::clamp(r, 0.0, 1.0);
+    const double r2 = r * r;
+    return r2 * r * (10.0 - 15.0 * r + 6.0 * r2);
+}
+
+Matrix<double, 1, 3> bezier_rpy_slerp(
+    const Matrix<double, 1, 6> &a,
+    const Matrix<double, 1, 6> &b,
+    double t)
+{
+    t = std::clamp(t, 0.0, 1.0);
+    Matrix<double, 1, 3> ra, rb;
+    ra << a(3), a(4), a(5);
+    rb << b(3), b(4), b(5);
+    const Matrix4d Ta = Rot_zyx(ra);
+    const Matrix4d Tb = Rot_zyx(rb);
+    Eigen::Quaterniond qa(Ta.block<3, 3>(0, 0));
+    Eigen::Quaterniond qb(Tb.block<3, 3>(0, 0));
+    qa.normalize();
+    qb.normalize();
+    if (qa.dot(qb) < 0.0)
+        qb.coeffs() *= -1.0;
+    const Eigen::Quaterniond qm = qa.slerp(t, qb);
+    const Eigen::Vector3d e = Quaterniond2EulerAngles(qm);
+    Matrix<double, 1, 3> out;
+    out << e(0), e(1), e(2);
+    return out;
+}
+
+double wrap_pi_bezier(double a)
+{
+    while (a > M_PI)
+        a -= 2.0 * M_PI;
+    while (a < -M_PI)
+        a += 2.0 * M_PI;
+    return a;
+}
+
+double bezier_angle_abs_diff(double a, double b)
+{
+    return std::abs(wrap_pi_bezier(a - b));
+}
+
+bool bezier_rpy_close(
+    const Matrix<double, 1, 6> &a,
+    const Matrix<double, 1, 6> &b,
+    double tol_rad)
+{
+    return bezier_angle_abs_diff(a(3), b(3)) <= tol_rad &&
+           bezier_angle_abs_diff(a(4), b(4)) <= tol_rad &&
+           bezier_angle_abs_diff(a(5), b(5)) <= tol_rad;
+}
+
+void clear_bezier_cache(int hand)
+{
+    if (hand < 0 || hand > 1)
+        return;
+    std::lock_guard<std::mutex> lock(g_bezier_cache_mu);
+    g_last_bezier_valid[hand] = false;
+    g_last_bezier_q[hand].resize(0, 0);
+}
+
+/** 关键点 IK：先锁当前 J2 解析，失败再数值。不在 5 ms 尺度上卡 0.375°。 */
+int solve_bezier_ik(
+    Robot_Arm &arm,
+    const Matrix<double, 1, 6> &pose,
+    Eigen::RowVectorXd &q,
+    double max_joint_step_rad,
+    double fk_pos_tol_m,
+    double fk_ori_tol_rad)
+{
+    Eigen::RowVectorXd q_try = q;
+    const double j2 = (q.size() >= 2) ? q(1) : 0.0;
+    int rc = arm.Inverse_Kinematics_Analytic(pose, q_try, j2);
+    if (rc != 0)
+    {
+        q_try = q;
+        Matrix<double, 1, 6> pose_for_ik = pose;
+        rc = arm.Inverse_Kinematics(pose_for_ik, q_try);
+    }
+    if (rc != 0)
+        return rc;
+    if (!q_try.allFinite())
+        return -10;
+    if (arm.Check_Joint_Limit(q_try))
+        return -11;
+    if ((q_try - q).cwiseAbs().maxCoeff() > max_joint_step_rad)
+        return -12;
+
+    const Matrix4d fk_t = arm.Forward_Kinematics(q_try);
+    const Matrix<double, 1, 6> fk = T2PosEulerAngles(fk_t);
+    if ((fk.head<3>() - pose.head<3>()).norm() > fk_pos_tol_m)
+        return -13;
+    const Matrix4d goal_t = TR(pose);
+    const Matrix3d r_err = goal_t.block<3, 3>(0, 0).transpose() * fk_t.block<3, 3>(0, 0);
+    const double angle_err = std::acos(std::clamp((r_err.trace() - 1.0) * 0.5, -1.0, 1.0));
+    if (angle_err > fk_ori_tol_rad)
+        return -13;
+
+    q = q_try;
+    return 0;
+}
+
+Eigen::Vector3d quadratic_bezier_xyz(
+    const Eigen::Vector3d &a,
+    const Eigen::Vector3d &b,
+    const Eigen::Vector3d &c,
+    double u)
+{
+    u = std::clamp(u, 0.0, 1.0);
+    const double omu = 1.0 - u;
+    return omu * omu * a + 2.0 * omu * u * b + u * u * c;
+}
+
+int prepare_quadratic_bezier(
+    Robot_Arm &arm,
+    const Matrix<double, 1, 6> &final_goal,
+    double guide_height_m,
+    double cart_max_velocity,
+    double orient_finish_ratio,
+    PreparedBezierTrajectory &out)
+{
+    out = {};
+    out.hand = arm_hand_side(arm);
+    clear_bezier_cache(out.hand);
+
+    if (out.hand == 1 && right_arm_motors_locked())
+    {
+        out.skip = true;
+        return 0;
+    }
+    if (!final_goal.allFinite() || !std::isfinite(guide_height_m) ||
+        !std::isfinite(cart_max_velocity) || !std::isfinite(orient_finish_ratio))
+        return -10;
+    if (guide_height_m < kBezierMinGuideHeightM)
+        return -15;
+
+    Eigen::MatrixXd q0 = arm_read_motor_joints(out.hand);
+    if (hardware_abort_requested())
+        return -4;
+    if (can_io_faulted())
+        return -2;
+    if (q0.rows() != 1 || q0.cols() < 6 || !q0.allFinite())
+        return -10;
+
+    out.a = T2PosEulerAngles(arm.Forward_Kinematics(q0.row(0)));
+    out.c = final_goal;
+    out.b = final_goal;
+    out.b(2) = final_goal(2) + guide_height_m;
+    if (out.b(2) < g_move_cfg.grasp_valid.z_min || out.b(2) > g_move_cfg.grasp_valid.z_max)
+        return -17;
+
+    const Eigen::Vector3d pa = out.a.head<3>().transpose();
+    const Eigen::Vector3d pb = out.b.head<3>().transpose();
+    const Eigen::Vector3d pc = out.c.head<3>().transpose();
+
+    std::vector<double> arc_u(kBezierArcLutSteps + 1, 0.0);
+    std::vector<double> arc_s(kBezierArcLutSteps + 1, 0.0);
+    Eigen::Vector3d prev = pa;
+    for (int i = 1; i <= kBezierArcLutSteps; ++i)
+    {
+        const double u = static_cast<double>(i) / static_cast<double>(kBezierArcLutSteps);
+        const Eigen::Vector3d p = quadratic_bezier_xyz(pa, pb, pc, u);
+        arc_u[i] = u;
+        arc_s[i] = arc_s[i - 1] + (p - prev).norm();
+        prev = p;
+    }
+    out.length_m = arc_s.back();
+    if (out.length_m < 1e-4)
+        return -16;
+
+    const double vmax = std::max(kBezierMinVelocityMps, cart_max_velocity);
+    out.duration_s = std::max(kBezierMinDurationS, 1.875 * out.length_m / vmax);
+    const int n_step = std::max(2, static_cast<int>(std::ceil(out.duration_s / k_arm_traj_dt)));
+
+    int n_seg = std::max(1, static_cast<int>(std::lround(out.length_m / kBezierKeyDsM)));
+    n_seg = std::min(n_seg, kBezierKeyMax);
+    while (n_seg > 1 && out.length_m / static_cast<double>(n_seg) < kBezierKeyDsMinM)
+        --n_seg;
+    while (n_seg < kBezierKeyMax && out.length_m / static_cast<double>(n_seg) > kBezierKeyDsMaxM)
+        ++n_seg;
+    if (n_seg < 100 && out.length_m / 100.0 >= kBezierKeyDsMinM)
+        n_seg = 100;
+    const int n_knots = n_seg + 1;
+    const double key_ds = out.length_m / static_cast<double>(n_seg);
+
+    const double orient_hold = std::clamp(orient_finish_ratio, 0.10, 0.95);
+    const bool hold_rpy = bezier_rpy_close(out.a, out.c, 2.0 * M_PI / 180.0);
+
+    auto u_at_arc_fraction = [&](double f) {
+        const double target = std::clamp(f, 0.0, 1.0) * out.length_m;
+        const auto it = std::lower_bound(arc_s.begin(), arc_s.end(), target);
+        if (it == arc_s.begin())
+            return 0.0;
+        if (it == arc_s.end())
+            return 1.0;
+        const size_t i1 = static_cast<size_t>(it - arc_s.begin());
+        const size_t i0 = i1 - 1;
+        const double den = std::max(1e-12, arc_s[i1] - arc_s[i0]);
+        const double t = (target - arc_s[i0]) / den;
+        return arc_u[i0] + t * (arc_u[i1] - arc_u[i0]);
+    };
+
+    auto pose_at_path_fraction = [&](double path_fraction, bool force_c) {
+        Matrix<double, 1, 6> pose;
+        if (force_c)
+            return out.c;
+        const double u = u_at_arc_fraction(path_fraction);
+        const Eigen::Vector3d p = quadratic_bezier_xyz(pa, pb, pc, u);
+        Matrix<double, 1, 3> rpy;
+        if (hold_rpy)
+            rpy << out.c(3), out.c(4), out.c(5);
+        else if (path_fraction <= orient_hold)
+            rpy << out.a(3), out.a(4), out.a(5);
+        else
+        {
+            const double t =
+                (path_fraction - orient_hold) / std::max(1e-6, 1.0 - orient_hold);
+            rpy = bezier_rpy_slerp(out.a, out.c, quintic_s01(t));
+        }
+        pose << p.x(), p.y(), p.z(), rpy(0), rpy(1), rpy(2);
+        return pose;
+    };
+
+    std::vector<double> knot_s(static_cast<size_t>(n_knots), 0.0);
+    std::vector<Eigen::RowVectorXd> knot_q(static_cast<size_t>(n_knots), q0.row(0));
+    Eigen::RowVectorXd q = q0.row(0);
+    knot_s[0] = 0.0;
+    knot_q[0] = q;
+
+    for (int k = 1; k < n_knots; ++k)
+    {
+        const bool last = (k + 1 == n_knots);
+        const double s = last ? out.length_m : static_cast<double>(k) * key_ds;
+        knot_s[static_cast<size_t>(k)] = s;
+        if (!last && s < kBezierSkipStartIkM)
+        {
+            knot_q[static_cast<size_t>(k)] = q;
+            continue;
+        }
+
+        const double path_fraction = s / out.length_m;
+        const Matrix<double, 1, 6> pose = pose_at_path_fraction(path_fraction, last);
+        const int rc = solve_bezier_ik(
+            arm,
+            pose,
+            q,
+            kBezierMaxKeyJointRad,
+            last ? kBezierIkFkPositionToleranceM : kBezierKeyFkPositionToleranceM,
+            last ? kBezierIkFkOrientationToleranceRad : kBezierKeyFkOrientationToleranceRad);
+        if (rc != 0)
+        {
+            append_line_trajectory_fail_debug(
+                arm_hand_label(out.hand), rc, pose, "quadratic Bezier A-B-C", vmax);
+            return rc;
+        }
+        knot_q[static_cast<size_t>(k)] = q;
+    }
+
+    out.q.resize(n_step + 1, q0.cols());
+    out.q.row(0) = q0.row(0);
+    for (int i = 1; i <= n_step; ++i)
+    {
+        const double path_fraction =
+            (i == n_step) ? 1.0 : quintic_s01(static_cast<double>(i) / static_cast<double>(n_step));
+        const double s = path_fraction * out.length_m;
+        auto it = std::lower_bound(knot_s.begin(), knot_s.end(), s);
+        size_t k1 = static_cast<size_t>(it - knot_s.begin());
+        if (k1 == 0)
+        {
+            out.q.row(i) = knot_q[0];
+            continue;
+        }
+        if (k1 >= knot_s.size())
+        {
+            out.q.row(i) = knot_q.back();
+            continue;
+        }
+        const size_t k0 = k1 - 1;
+        const double den = std::max(1e-12, knot_s[k1] - knot_s[k0]);
+        const double t = std::clamp((s - knot_s[k0]) / den, 0.0, 1.0);
+        out.q.row(i) = knot_q[k0] + t * (knot_q[k1] - knot_q[k0]);
+    }
+    out.q.row(n_step) = knot_q.back();
+
+    const Matrix<double, 1, 6> end_fk =
+        T2PosEulerAngles(arm.Forward_Kinematics(out.q.row(n_step)));
+    const double end_xyz_error = (end_fk.head<3>() - out.c.head<3>()).norm();
+    if (end_xyz_error > kBezierIkFkPositionToleranceM)
+        return -13;
+
+    std::cout << std::fixed << std::setprecision(4)
+              << "[arm] Bezier " << (out.hand == 1 ? "右" : "左")
+              << " A=(" << out.a(0) << ',' << out.a(1) << ',' << out.a(2) << ')'
+              << " B=(" << out.b(0) << ',' << out.b(1) << ',' << out.b(2) << ')'
+              << " C=(" << out.c(0) << ',' << out.c(1) << ',' << out.c(2) << ')'
+              << " length=" << out.length_m << "m Tf=" << out.duration_s
+              << "s vmax=" << vmax << "m/s keys=" << n_knots
+              << " ds=" << key_ds << "m orient_hold=" << orient_hold << '\n';
+    return 0;
+}
+
+int execute_prepared_bezier(PreparedBezierTrajectory &plan)
+{
+    if (plan.skip)
+        return 0;
+    const int rc = execute_arm_trajectory(plan.q, plan.hand, k_arm_traj_dt);
+    if (rc != 0)
+        return rc;
+    {
+        std::lock_guard<std::mutex> lock(g_bezier_cache_mu);
+        g_last_bezier_q[plan.hand] = plan.q;
+        g_last_bezier_valid[plan.hand] = true;
+    }
+    return 0;
+}
+
+int load_reversed_bezier(Robot_Arm &arm, Eigen::MatrixXd &reversed)
+{
+    const int hand = arm_hand_side(arm);
+    Eigen::MatrixXd forward;
+    {
+        std::lock_guard<std::mutex> lock(g_bezier_cache_mu);
+        if (!g_last_bezier_valid[hand] || g_last_bezier_q[hand].rows() < 2)
+            return kBezierNoReturnTrajectory;
+        forward = g_last_bezier_q[hand];
+    }
+
+    const Eigen::MatrixXd q_now = arm_read_motor_joints(hand);
+    if (q_now.rows() != 1 || q_now.cols() != forward.cols() ||
+        (q_now.row(0) - forward.row(forward.rows() - 1)).cwiseAbs().maxCoeff() > 0.05)
+        return kBezierReturnStartMismatch;
+
+    reversed.resize(forward.rows(), forward.cols());
+    for (Eigen::Index i = 0; i < forward.rows(); ++i)
+        reversed.row(i) = forward.row(forward.rows() - 1 - i);
+    return 0;
+}
+
+} // namespace
+
+int arm_quadratic_bezier_move(
+    Robot_Arm &arm,
+    const Matrix<double, 1, 6> &final_goal,
+    double guide_height_m,
+    double cart_max_velocity,
+    double orient_finish_ratio)
+{
+    PreparedBezierTrajectory plan;
+    const int rc = prepare_quadratic_bezier(
+        arm, final_goal, guide_height_m, cart_max_velocity, orient_finish_ratio, plan);
+    if (rc != 0)
+        return rc;
+    const int exec = execute_prepared_bezier(plan);
+    if (exec == 0)
+        record_arm_cartesian_arrival(arm, final_goal, "Bezier C");
+    return exec;
+}
+
+ArmLineMoveResult arm_dual_quadratic_bezier_move_selective(
+    Robot_Arm &arm_r,
+    const Matrix<double, 1, 6> &final_r,
+    const bool move_r,
+    Robot_Arm &arm_l,
+    const Matrix<double, 1, 6> &final_l,
+    const bool move_l,
+    const double guide_height_m,
+    const double cart_max_velocity,
+    const double orient_finish_ratio)
+{
+    ArmLineMoveResult out;
+    PreparedBezierTrajectory plan_r, plan_l;
+    if (move_r)
+        out.ret_r = prepare_quadratic_bezier(
+            arm_r, final_r, guide_height_m, cart_max_velocity, orient_finish_ratio, plan_r);
+    if (move_l)
+        out.ret_l = prepare_quadratic_bezier(
+            arm_l, final_l, guide_height_m, cart_max_velocity, orient_finish_ratio, plan_l);
+
+    // 双臂必须全部规划成功后才允许任一侧开始运动。
+    if ((move_r && out.ret_r != 0) || (move_l && out.ret_l != 0))
+    {
+        if (move_r && out.ret_r == 0)
+            out.ret_r = -14;
+        if (move_l && out.ret_l == 0)
+            out.ret_l = -14;
+        return out;
+    }
+
+    if (move_r && move_l)
+    {
+        std::thread th_r([&]() { out.ret_r = execute_prepared_bezier(plan_r); });
+        std::thread th_l([&]() { out.ret_l = execute_prepared_bezier(plan_l); });
+        th_r.join();
+        th_l.join();
+        if (out.ret_r == 0)
+            record_arm_cartesian_arrival(arm_r, final_r, "Bezier C");
+        if (out.ret_l == 0)
+            record_arm_cartesian_arrival(arm_l, final_l, "Bezier C");
+        return out;
+    }
+    if (move_r)
+        out.ret_r = execute_prepared_bezier(plan_r);
+    if (move_l)
+        out.ret_l = execute_prepared_bezier(plan_l);
+    if (move_r && out.ret_r == 0)
+        record_arm_cartesian_arrival(arm_r, final_r, "Bezier C");
+    if (move_l && out.ret_l == 0)
+        record_arm_cartesian_arrival(arm_l, final_l, "Bezier C");
+    return out;
+}
+
+int arm_reverse_last_quadratic_bezier(Robot_Arm &arm)
+{
+    const int hand = arm_hand_side(arm);
+    if (hand == 1 && right_arm_motors_locked())
+        return 0;
+    Eigen::MatrixXd reversed;
+    const int load_rc = load_reversed_bezier(arm, reversed);
+    if (load_rc != 0)
+        return load_rc;
+    const int rc = execute_arm_trajectory(reversed, hand, k_arm_traj_dt);
+    if (rc == 0)
+        clear_bezier_cache(hand);
+    return rc;
+}
+
+ArmLineMoveResult arm_dual_reverse_last_quadratic_bezier_selective(
+    Robot_Arm &arm_r,
+    const bool move_r,
+    Robot_Arm &arm_l,
+    const bool move_l)
+{
+    ArmLineMoveResult out;
+    Eigen::MatrixXd reverse_r, reverse_l;
+    if (move_r)
+        out.ret_r = load_reversed_bezier(arm_r, reverse_r);
+    if (move_l)
+        out.ret_l = load_reversed_bezier(arm_l, reverse_l);
+    if ((move_r && out.ret_r != 0) || (move_l && out.ret_l != 0))
+    {
+        if (move_r && out.ret_r == 0)
+            out.ret_r = -14;
+        if (move_l && out.ret_l == 0)
+            out.ret_l = -14;
+        return out;
+    }
+
+    if (move_r && move_l)
+    {
+        std::thread th_r([&]() { out.ret_r = execute_arm_trajectory(reverse_r, 1, k_arm_traj_dt); });
+        std::thread th_l([&]() { out.ret_l = execute_arm_trajectory(reverse_l, 0, k_arm_traj_dt); });
+        th_r.join();
+        th_l.join();
+    }
+    else if (move_r)
+        out.ret_r = execute_arm_trajectory(reverse_r, 1, k_arm_traj_dt);
+    else if (move_l)
+        out.ret_l = execute_arm_trajectory(reverse_l, 0, k_arm_traj_dt);
+
+    if (move_r && out.ret_r == 0)
+        clear_bezier_cache(1);
+    if (move_l && out.ret_l == 0)
+        clear_bezier_cache(0);
     return out;
 }
 
@@ -1539,6 +2147,7 @@ namespace
 constexpr int kMotorStoppedMinZeroCount = 6;
 constexpr int kEncoderErrStableDelta = 10;    // plateau 判定：相邻两次读数差值上限
 constexpr int kEncoderStablePlateauPolls = 10; // 误差稳定连续次数
+constexpr int kEncoderPlateauMaxAbsErr = 2500; // 约 3.4°；急停后误差很大且不动，不能当到位
 constexpr int kEncoderPollIntervalMs = 50;   // 停稳轮询/读编码器间隔
 
 struct ArmEncoderReachState
@@ -1584,8 +2193,14 @@ ArmEncoderReachResult check_arm_encoder_reach(int hand, ArmEncoderReachState &st
         return res;
     }
 
-    // |err|>550：连续稳定则视为到位（无上限）
-    if (st.have_prev)
+    // |err|>550 且连续稳定：仅当误差仍在合理带内才视为到位（急停/失能使能后误差很大且不动）。
+    bool err_too_large = false;
+    for (int i = 0; i < 7; ++i)
+    {
+        if (std::abs(err[i]) > kEncoderPlateauMaxAbsErr)
+            err_too_large = true;
+    }
+    if (st.have_prev && !err_too_large)
     {
         bool stable = true;
         for (int i = 0; i < 7; ++i)
@@ -1741,6 +2356,8 @@ bool wait_arms_motors_stopped(
     int min_zero_count,
     const char *log_stage)
 {
+    if (right_arm_motors_locked())
+        wait_r = false;
     if (!wait_r && !wait_l)
         return true;
 
@@ -1826,15 +2443,100 @@ bool wait_arms_motors_stopped(
     return false;
 }
 
+namespace
+{
+
+std::mutex g_arm_arrival_mu;
+std::vector<ArmArrivalRecord> g_arm_arrivals;
+constexpr std::size_t kArmArrivalLogMax = 2000;
+
+} // namespace
+
+void arm_arrival_log_clear()
+{
+    std::lock_guard<std::mutex> lock(g_arm_arrival_mu);
+    g_arm_arrivals.clear();
+}
+
+std::vector<ArmArrivalRecord> arm_arrival_log_copy()
+{
+    std::lock_guard<std::mutex> lock(g_arm_arrival_mu);
+    return g_arm_arrivals;
+}
+
+void record_arm_cartesian_arrival(
+    Robot_Arm &arm,
+    const Eigen::Matrix<double, 1, 6> &goal,
+    const char *stage)
+{
+    const int hand = arm_hand_side(arm);
+    if (hand == 1 && right_arm_motors_locked())
+        return;
+
+    std::string stage_txt;
+    if (stage != nullptr && stage[0] != '\0')
+        stage_txt = stage;
+    else
+    {
+        std::lock_guard<std::mutex> lock(g_arm_line_move_stage_mu);
+        stage_txt = (g_arm_line_move_debug_stage != nullptr && g_arm_line_move_debug_stage[0] != '\0')
+                        ? g_arm_line_move_debug_stage
+                        : "直线";
+    }
+
+    const bool is_right = hand == 1;
+    const bool settled = wait_arms_motors_stopped(
+        is_right, !is_right, 15.0, 6, stage_txt.c_str());
+    const Eigen::Matrix<double, 1, 6> actual = arm_get_tcp_pos(arm);
+
+    ArmArrivalRecord rec;
+    rec.stage = stage_txt;
+    rec.hand = is_right ? "右" : "左";
+    rec.goal_x = goal(0);
+    rec.goal_y = goal(1);
+    rec.goal_z = goal(2);
+    rec.actual_x = actual(0);
+    rec.actual_y = actual(1);
+    rec.actual_z = actual(2);
+    rec.err_x = actual(0) - goal(0);
+    rec.err_y = actual(1) - goal(1);
+    rec.err_z = actual(2) - goal(2);
+    rec.err_m = std::sqrt(rec.err_x * rec.err_x + rec.err_y * rec.err_y + rec.err_z * rec.err_z);
+    rec.settled = settled;
+
+    {
+        std::lock_guard<std::mutex> lock(g_arm_arrival_mu);
+        if (g_arm_arrivals.size() < kArmArrivalLogMax)
+            g_arm_arrivals.push_back(rec);
+    }
+
+    std::cout << std::fixed << std::setprecision(4)
+              << "[arm] 到位 " << rec.hand << " " << rec.stage
+              << " 目标xyz=(" << rec.goal_x << "," << rec.goal_y << "," << rec.goal_z
+              << ") 实际xyz=(" << rec.actual_x << "," << rec.actual_y << "," << rec.actual_z
+              << ") 误差xyz=(" << rec.err_x << "," << rec.err_y << "," << rec.err_z
+              << ") |err|=" << rec.err_m << "m"
+              << (settled ? " 停稳" : " 未停稳") << "\n";
+    std::cout.flush();
+}
+
 int arm_joint_move(Robot_Arm &arm, Matrix<double, 1, 7> &qd)
 {
     const int hand = arm_hand_side(arm);
+    if (hand == 1 && right_arm_motors_locked())
+        return 0;
     const Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
     Eigen::MatrixXd q_end = qd;
+    if (q_end.rows() != 1)
+        q_end = q_end.transpose();
     Eigen::MatrixXd traj;
     const int ret = arm.Joint_Trajectory(q_start, q_end, traj);
     if (ret != 0)
-        return ret;
+    {
+        std::cerr << "[arm] Joint_Trajectory ret=" << ret
+                  << "（起点可在模型限位外），改用不限位关节插补回目标\n";
+        traj = make_linear_joint_traj(q_start, q_end, k_arm_traj_dt);
+    }
     return execute_arm_trajectory(traj, hand, k_arm_traj_dt);
 }
 

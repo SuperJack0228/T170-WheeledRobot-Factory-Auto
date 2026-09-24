@@ -40,11 +40,44 @@ bool init_can_channel(int channel, const CAN_CONFIG &config);
 
 bool init_socketcan();
 
+/** 最近一次设备扫描失败原因（缺哪些电机/夹爪）。 */
+std::string device_scan_error();
+
 void close_can_channels();
 
 bool send_can_frame(int channel, uint32_t can_id, const uint8_t *data, uint8_t dlc);
-
 bool receive_can_frame_timeout(int channel, uint8_t *data);
+bool can_channel_ready(int channel);
+bool can_motion_ready();
+
+/** 右臂 CAN 16–22。kLockRightArmMotors=true 时不绑定、不使能、不收发。 */
+bool right_arm_motors_locked();
+
+/** 腰：从上至下 1(回转) / 5(侧倾) / 2(髋) / 3(膝) / 4(踝)。 */
+constexpr uint32_t kWaistYawCanId = 1;
+constexpr uint32_t kWaistRollCanId = 5;
+constexpr uint32_t kWaistPitchCanIds[3] = {4, 3, 2};
+/** LowerBody Joints5 顺序：脚踝、膝盖、髋、侧倾、回转。 */
+constexpr uint32_t kWaistKinCanIds[5] = {4, 3, 2, 5, 1};
+constexpr uint32_t kWaistAllCanIds[5] = {1, 5, 2, 3, 4};
+
+/** 左臂 23–29、右臂 16–22（锁定时跳过）。 */
+constexpr uint32_t kRightArmCanIds[7] = {16, 17, 18, 19, 20, 21, 22};
+constexpr uint32_t kLeftArmCanIds[7] = {23, 24, 25, 26, 27, 28, 29};
+/** 顺序：偏航、俯仰、横滚。本机 31/32 对调：俯仰=32，横滚=31。 */
+constexpr uint32_t kHeadYawCanId = 30;
+constexpr uint32_t kHeadPitchCanId = 32;
+constexpr uint32_t kHeadRollCanId = 31;
+constexpr uint32_t kHeadCanIds[3] = {kHeadYawCanId, kHeadPitchCanId, kHeadRollCanId};
+
+/** 清错并使能腰全部 5 轴（位置模式，笛卡尔/点动都会写 5 轴）。 */
+void enable_waist_motors();
+
+/** 单轴清错 + Motor_Enable。头/腰共用。 */
+bool motor_enable_id(uint32_t id);
+
+/** 位置模式保持/去目标（输出轴 rad）。头部到位后必须再写一次才能锁住。 */
+bool motor_set_pos_rad(uint32_t id, double rad);
 
 void toIntArray(int number, uint8_t *res, int size);
 

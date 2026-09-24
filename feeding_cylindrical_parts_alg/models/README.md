@@ -6,10 +6,5 @@
 models/best.pt
 ```
 
-首次部署可从训练产物复制，例如：
-
-```bash
-cp /path/to/train/weights/best.pt models/best.pt
-```
-
-`main.py` 与 `AlgorithmConfig` 未指定 `model_path` 时会自动加载该文件。
+当前权重已保留在 `best.pt`。嵌入式 `CirclePoseEngine` 会按
+`../config/pose_params.yaml` 中的 `segmentation.model` 加载它。

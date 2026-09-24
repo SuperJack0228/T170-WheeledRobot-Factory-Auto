@@ -47,6 +47,8 @@ public:
     void flush(CameraSlot slot);
     /** 取该部位最新一帧（先排空 pipeline 缓冲，避免手臂移动期间积压的旧图） */
     CameraFrameData grab(CameraSlot slot);
+    /** 阻塞等待下一帧（不排空）。多帧融合时先 flush 再连续 grab_wait。 */
+    CameraFrameData grab_wait(CameraSlot slot);
     /** 手相机识别用：彻底 flush 后再 wait 两帧，尽量保证停稳后的新图 */
     CameraFrameData grab_fresh(CameraSlot slot);
     void stop();

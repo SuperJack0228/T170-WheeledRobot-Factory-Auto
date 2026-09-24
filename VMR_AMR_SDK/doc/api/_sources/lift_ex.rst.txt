@@ -1,8 +1,0 @@
-
-lift_ex
-=======
-
-.. automodule:: lift_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

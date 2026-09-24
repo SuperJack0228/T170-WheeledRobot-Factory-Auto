@@ -1,8 +1,0 @@
-
-battery_ex
-==========
-
-.. automodule:: battery_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

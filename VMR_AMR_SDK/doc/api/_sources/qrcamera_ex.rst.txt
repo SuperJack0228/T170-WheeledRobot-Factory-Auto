@@ -1,8 +1,0 @@
-
-qrcamera_ex
-===========
-
-.. automodule:: qrcamera_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -1,8 +1,0 @@
-
-robot_task_ex
-=============
-
-.. automodule:: robot_task_ex
-   :members:
-   :undoc-members:
-   :show-inheritance:

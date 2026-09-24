@@ -4,11 +4,11 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MODELS_DIR = PROJECT_ROOT / "models"
-DEFAULT_SEG_MODEL = MODELS_DIR / "best.pt"
+DEFAULT_SEG_MODEL = MODELS_DIR / "bestlatest.pt"
 
 
 def resolve_model_path(model_path: str | Path | None = None) -> Path:
-    """未指定时使用工程内 models/best.pt。"""
+    """未指定时使用工程内 models/bestlatest.pt。"""
     if model_path is None or str(model_path).strip() == "":
         return DEFAULT_SEG_MODEL
     p = Path(model_path)
