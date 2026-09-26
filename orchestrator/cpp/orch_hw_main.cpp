@@ -654,6 +654,16 @@ Json::Value dispatch(const Json::Value &request)
             out["photo"] = g_session.last_debug_photo;
         return out;
     }
+    if (cmd == "dispatch")
+    {
+        const int rc = orch::run_dispatch_mode();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "调度对接失败/中止" : "");
+        out["code"] = rc;
+        out["chassis_ok"] = g_session.last_chassis_ok;
+        out["chassis_station"] = g_session.last_chassis_station;
+        out["chassis_message"] = g_session.last_chassis_message;
+        return out;
+    }
     if (cmd == "aruco_detect")
     {
         const int rc = orch::vision_aruco_detect_pipeline();

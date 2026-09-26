@@ -37,6 +37,7 @@ COMMANDS = {
     "grasp": {"cmd": "vision_grasp"},
     "grasp_belt": {"cmd": "grasp_belt"},
     "cycle": {"cmd": "grasp_belt"},
+    "dispatch": {"cmd": "dispatch"},
     "cycle1": {"cmd": "grasp_belt1"},
     "qr": {"cmd": "aruco_detect"},
     "tray": {"cmd": "detect_tray_holes"},

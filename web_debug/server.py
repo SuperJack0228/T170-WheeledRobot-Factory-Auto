@@ -45,6 +45,7 @@ ALLOWED_COMMANDS = {
     "vision_grasp",
     "grasp_belt",
     "grasp_belt1",
+    "dispatch",
     "home",
     "grasp_ready",
     "grasp_ready1",
@@ -77,7 +78,7 @@ ALLOWED_COMMANDS = {
     "gripper_open",
     "gripper_grasp",
 }
-DANGEROUS_COMMANDS = {"vision_grasp", "grasp_belt", "grasp_belt1", "home", "grasp_ready", "grasp_ready1", "grasp_ready2", "grasp_ready3", "grasp_ready6", "tray2ready", "tray2ready1", "tray2ready2", "tray2ready3", "tray2ready6", "tray2", "tray2_place", "tray2_precision", "tray2test", "waist1", "waist2", "belt", "belt_ready", "belt_place", "belt_grasp_rpy", "belt_grasp", "belt2", "belt2_ready", "belt2_place", "belt2_grasp_rpy", "belt2_grasp", "waist_jog", "gripper_open", "gripper_grasp"}
+DANGEROUS_COMMANDS = {"vision_grasp", "grasp_belt", "grasp_belt1", "dispatch", "home", "grasp_ready", "grasp_ready1", "grasp_ready2", "grasp_ready3", "grasp_ready6", "tray2ready", "tray2ready1", "tray2ready2", "tray2ready3", "tray2ready6", "tray2", "tray2_place", "tray2_precision", "tray2test", "waist1", "waist2", "belt", "belt_ready", "belt_place", "belt_grasp_rpy", "belt_grasp", "belt2", "belt2_ready", "belt2_place", "belt2_grasp_rpy", "belt2_grasp", "waist_jog", "gripper_open", "gripper_grasp"}
 
 
 class RobotClientError(RuntimeError):

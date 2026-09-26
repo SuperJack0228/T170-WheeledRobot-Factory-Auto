@@ -108,6 +108,8 @@ int vision_place_tray2();
 /** 料盘2精度测试：到 AP9，先合爪，不松爪、不起身，先前三排再后三排，直到没有空孔或 abort。 */
 int vision_place_tray2_precision();
 int vision_grasp_existing_pipeline();
+/** 调度对接：停在 AP7 等任务。上料/转运/下料各自从 AP7 出发再回到 AP7。不改变 cycle。 */
+int run_dispatch_mode();
 int vision_aruco_detect_pipeline();
 int vision_tray_holes_pipeline();
 

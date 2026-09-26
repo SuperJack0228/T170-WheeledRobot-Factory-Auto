@@ -46,6 +46,8 @@ set(TI5_SERIAL_SDK_LIB "${TI5_SERIAL_ROOT}/lib/libserial_port.so")
 set(TI5_ROHAND_CODEC_LIB "${TI5_ROHAND_CODEC_ROOT}/lib/librohand_codec.so")
 set(TI5_DEX1_CODEC_LIB "${TI5_DEX1_CODEC_ROOT}/lib/libTi5_Dex1_codec.so")
 set(TI5_AGV_SEER_LIB "${TI5_AGV_SEER_ROOT}/lib/libseer.so")
+set(TI5_JINDI_CLIENT_ROOT "/opt/ti5-jindi-faactory-robot-client")
+set(TI5_JINDI_CLIENT_LIB "${TI5_JINDI_CLIENT_ROOT}/lib/libti5_jindi_faactory_robot_client.so")
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     set(UNITREE_MOTOR_LIB "${PROJECT_SOURCE_DIR}/lib/libUnitreeMotorSDK_Arm64.so")
 else()
@@ -59,7 +61,8 @@ foreach(required_lib IN ITEMS
         "${TI5_SERIAL_SDK_LIB}"
         "${TI5_ROHAND_CODEC_LIB}"
         "${TI5_DEX1_CODEC_LIB}"
-        "${TI5_AGV_SEER_LIB}")
+        "${TI5_AGV_SEER_LIB}"
+        "${TI5_JINDI_CLIENT_LIB}")
     if(NOT EXISTS "${required_lib}")
         message(FATAL_ERROR "Required robot library not found: ${required_lib}")
     endif()
@@ -94,6 +97,7 @@ target_include_directories(t170c_debug PRIVATE
     ${PROJECT_SOURCE_DIR}/third_party/dex1/include
     ${TI5_DEVICE_SDK_ROOT}/include
     ${TI5_AGV_SEER_ROOT}/include
+    ${TI5_JINDI_CLIENT_ROOT}/include
     ${JSONCPP_INCLUDE_DIRS}
     ${REALSENSE2_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/third_party/libserialport/include
@@ -104,7 +108,7 @@ target_compile_definitions(t170c_debug PRIVATE
 )
 
 set(TI5_DEVICE_RPATH
-    "${TI5_DEVICE_SDK_ROOT}/lib:${TI5_MOTOR_CODEC_ROOT}/lib:${TI5_SERIAL_ROOT}/lib:${TI5_CAN_MINI_ROOT}/lib:${TI5_ROHAND_CODEC_ROOT}/lib:${TI5_DEX1_CODEC_ROOT}/lib:${TI5_AGV_SEER_ROOT}/lib")
+    "${TI5_DEVICE_SDK_ROOT}/lib:${TI5_MOTOR_CODEC_ROOT}/lib:${TI5_SERIAL_ROOT}/lib:${TI5_CAN_MINI_ROOT}/lib:${TI5_ROHAND_CODEC_ROOT}/lib:${TI5_DEX1_CODEC_ROOT}/lib:${TI5_AGV_SEER_ROOT}/lib:${TI5_JINDI_CLIENT_ROOT}/lib")
 
 target_link_directories(t170c_debug PRIVATE
     ${PROJECT_SOURCE_DIR}/lib
@@ -116,6 +120,7 @@ target_link_directories(t170c_debug PRIVATE
     ${TI5_ROHAND_CODEC_ROOT}/lib
     ${TI5_DEX1_CODEC_ROOT}/lib
     ${TI5_AGV_SEER_ROOT}/lib
+    ${TI5_JINDI_CLIENT_ROOT}/lib
 )
 target_link_libraries(t170c_debug PRIVATE
     LowerBody::lower_body
@@ -123,6 +128,7 @@ target_link_libraries(t170c_debug PRIVATE
     ${UNITREE_MOTOR_LIB}
     ${TI5_DEVICE_SDK_LIB}
     ${TI5_AGV_SEER_LIB}
+    ${TI5_JINDI_CLIENT_LIB}
     ${TI5_MOTOR_CODEC_LIB}
     ${TI5_ROHAND_CODEC_LIB}
     ${TI5_DEX1_CODEC_LIB}
