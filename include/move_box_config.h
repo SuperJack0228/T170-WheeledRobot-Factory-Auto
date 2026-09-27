@@ -217,6 +217,8 @@ struct ConveyorStationConfig
     double grasp_hover_above_m = 0.06;
     /** 放置点上方接近高度。先到该高度再下降松爪。0=直接落到放置点。 */
     double place_hover_above_m = 0.06;
+    /** 叠在放置目标的基座 Z 上（米，向上为正）。0=不改。转运松手再降用负值。 */
+    double place_base_z_bias_m = 0.0;
     /** 传送带抓取转腰（deg）。0=不转。站点更新后默认不转。 */
     double grasp_waist_yaw_deg = 0.0;
     /** 准备姿态夹爪闭合比例，0=全开 1=全合。减小开距，避免下探时磕皮带边。 */

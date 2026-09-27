@@ -35,7 +35,42 @@
 namespace orch
 {
 
+// 调度库不再提供状态名，协议字符串由本程序自己发送和比对。
+namespace dispatch_msg
+{
+constexpr const char *TASK_LOAD = "TASK_LOAD";
+constexpr const char *TASK_TRANSFER = "TASK_TRANSFER";
+constexpr const char *TASK_UNLOAD = "TASK_UNLOAD";
+constexpr const char *APPLY_PLACE_RAW = "APPLY_PLACE_RAW";
+constexpr const char *APPLY_PLACE_HALF = "APPLY_PLACE_HALF";
+constexpr const char *APPLY_PICK_HALF = "APPLY_PICK_HALF";
+constexpr const char *APPLY_PICK_WELL = "APPLY_PICK_WELL";
+constexpr const char *PLACE = "PLACE";
+constexpr const char *PICK_HALF = "PICK_HALF";
+constexpr const char *PICK_WELL = "PICK_WELL";
+constexpr const char *PLACE_DONE = "PLACE_DONE";
+constexpr const char *PICK_UP_DONE = "PICK_UP_DONE";
+constexpr const char *DONE = "DONE";
+constexpr const char *STANDBY = "STANDBY";
+constexpr const char *WORKING = "WORKING";
+constexpr const char *ERR_MOTOR_LOST = "ERR_MOTOR_LOST";
+constexpr const char *ERR_GRIPPER_LOST = "ERR_GRIPPER_LOST";
+constexpr const char *ERR_CAMERA = "ERR_CAMERA";
+constexpr const char *ERR_MOTOR_DISABLE = "ERR_MOTOR_DISABLE";
+constexpr const char *ERR_AGV_OBSTACLE = "ERR_AGV_OBSTACLE";
+constexpr const char *RAW_MATERIAL_EMPTY = "RAW_MATERIAL_EMPTY";
+constexpr const char *WELL_DONE_MATERIAL_FULL = "WELL_DONE_MATERIAL_FULL";
+constexpr const char *kDefaultHost = "192.168.122.120";
+constexpr int kDefaultPort = 8080;
+} // namespace dispatch_msg
+
 HwSession *g_hw = nullptr;
+/** 本次上料开抓前，工作区里的毛坯数。-1 表示没数清。 */
+int g_load_parts_seen = -1;
+/** 上次下料放完后，工作区还剩的空孔。未知时下次仍抓两只手。 */
+bool g_unload_empty_known = false;
+int g_unload_empty_right = 0;
+int g_unload_empty_left = 0;
 
 namespace
 {
@@ -196,7 +231,9 @@ bool station_name_matches(const std::string &got, const std::string &want)
     return a.size() > b.size() ? a.find(b) != std::string::npos : b.find(a) != std::string::npos && !a.empty();
 }
 
-int chassis_goto_station(const std::string &station)
+std::string g_dispatch_nav_fault;
+
+int chassis_goto_station(const std::string &station, bool watch_obstacle = false)
 {
     if (g_hw == nullptr)
         return -1;
@@ -285,6 +322,24 @@ int chassis_goto_station(const std::string &station)
         std::vector<std::string> finished, unfinished;
         const int nav_rc =
             robot.GetNavStatus(task_status, task_type, target_id, tx, ty, ta, finished, unfinished, dist);
+        if (watch_obstacle)
+        {
+            bool blocked = false;
+            bool slowed = false;
+            double block_x = 0.0;
+            double block_y = 0.0;
+            std::vector<std::string> obstacles;
+            if (robot.GetBlocked(blocked, slowed, block_x, block_y, obstacles) == 0 && blocked)
+            {
+                std::cerr << "[orch] 底盘遇到障碍，取消导航\n";
+                robot.CancelNav();
+                g_hw->last_chassis_message = "遇到障碍";
+                g_dispatch_nav_fault = dispatch_msg::ERR_AGV_OBSTACLE;
+                robot.Disconnect();
+                return -11;
+            }
+        }
+
         if (nav_rc == 0)
         {
             if (task_status == 4 && station_name_matches(target_id, station))
@@ -622,7 +677,10 @@ int go_belt_grasp_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return go_belt_grasp_rpy(arm_r, arm_l, g_move_cfg.conveyor, "belt");
 }
 
-int go_belt_station(const ConveyorStationConfig &c, const char *tag)
+int go_belt_station(
+    const ConveyorStationConfig &c, const char *tag,
+    const std::function<int(bool is_right)> &on_hand_placed = {},
+    bool do_right = true, bool do_left = true)
 {
     const char *name = (tag && tag[0]) ? tag : "belt";
     if (g_hw == nullptr || g_hw->waist == nullptr || g_hw->layer3 == nullptr)
@@ -733,8 +791,16 @@ int go_belt_station(const ConveyorStationConfig &c, const char *tag)
 
     const auto &off_r = c.offset_right;
     const auto &off_l = c.offset_left;
-    const Eigen::Matrix<double, 1, 6> goal_r = move_box::make_belt_goal_right(det, c);
-    const Eigen::Matrix<double, 1, 6> goal_l = move_box::make_belt_goal_left(det, c);
+    Eigen::Matrix<double, 1, 6> goal_r = move_box::make_belt_goal_right(det, c);
+    Eigen::Matrix<double, 1, 6> goal_l = move_box::make_belt_goal_left(det, c);
+    if (std::abs(c.place_base_z_bias_m) > 1e-9)
+    {
+        goal_r(2) += c.place_base_z_bias_m;
+        goal_l(2) += c.place_base_z_bias_m;
+        std::cout << std::fixed << std::setprecision(4)
+                  << "[orch] belt 放置松手在基座 Z 再偏 " << c.place_base_z_bias_m
+                  << " m，左右手都加\n";
+    }
     std::cout << std::fixed << std::setprecision(4)
               << "[orch] belt 放置 原点=(" << det.origin_x << "," << det.origin_y << ","
               << det.origin_z << ") offset_识别系 右=(" << off_r.x << "," << off_r.y << ","
@@ -834,33 +900,60 @@ int go_belt_station(const ConveyorStationConfig &c, const char *tag)
         return aborted() ? -4 : 0;
     };
 
+    if (!do_right && !do_left)
+    {
+        std::cout << "[orch] " << name << " 这次没有要放的手，跳过放置动作\n";
+        return 0;
+    }
+
     int right_back_rc = 0;
-    if (!right_arm_motors_locked())
+    std::thread th_r;
+    const bool run_right = do_right && !right_arm_motors_locked();
+    if (run_right)
     {
         const int right_rc = place_arrive_and_open(true);
         if (right_rc != 0)
             return right_rc;
-        std::thread th_r([&]() { right_back_rc = lift_and_retract(true); });
-        std::cout << "[orch] belt 右手已放下，左手立刻过来（不等右手抬起回准备）\n";
-        const int left_rc = place_arrive_and_open(false);
-        const int left_back_rc = (left_rc == 0) ? lift_and_retract(false) : 0;
-        th_r.join();
-        if (left_rc != 0)
-            return left_rc;
-        if (left_back_rc != 0)
-            return left_back_rc;
-        if (right_back_rc != 0)
-            return right_back_rc;
+        if (on_hand_placed)
+        {
+            const int note_rc = on_hand_placed(true);
+            if (note_rc != 0)
+                return note_rc;
+        }
+        th_r = std::thread([&]() { right_back_rc = lift_and_retract(true); });
+    }
+    else if (!do_right)
+        std::cout << "[orch] belt 右手这次不放\n";
+
+    int left_rc = 0;
+    int left_back_rc = 0;
+    if (do_left)
+    {
+        if (run_right)
+            std::cout << "[orch] belt 右手已放下，左手立刻过来（不等右手抬起回准备）\n";
+        left_rc = place_arrive_and_open(false);
+        if (left_rc == 0 && on_hand_placed)
+        {
+            const int note_rc = on_hand_placed(false);
+            if (note_rc != 0)
+            {
+                if (th_r.joinable())
+                    th_r.join();
+                return note_rc;
+            }
+        }
+        left_back_rc = (left_rc == 0) ? lift_and_retract(false) : 0;
     }
     else
-    {
-        const int left_rc = place_arrive_and_open(false);
-        if (left_rc != 0)
-            return left_rc;
-        const int left_back_rc = lift_and_retract(false);
-        if (left_back_rc != 0)
-            return left_back_rc;
-    }
+        std::cout << "[orch] belt 左手这次不放\n";
+    if (th_r.joinable())
+        th_r.join();
+    if (left_rc != 0)
+        return left_rc;
+    if (left_back_rc != 0)
+        return left_back_rc;
+    if (right_back_rc != 0)
+        return right_back_rc;
 
     std::cout << "[orch] " << name << " 双手放置结束，停在准备姿态\n";
     return 0;
@@ -886,7 +979,7 @@ int go_belt()
 
 int go_belt_grasp(
     bool from_place, const ConveyorStationConfig &c, const std::string &station, const char *tag,
-    int only_hand = -1)
+    int only_hand = -1, const std::function<int(bool is_right)> &on_grasped = {})
 {
     if (g_hw == nullptr || g_hw->waist == nullptr || g_hw->layer3 == nullptr)
     {
@@ -1218,7 +1311,15 @@ int go_belt_grasp(
         const int rc = grasp_one(is_right);
         if (rc != 0)
             return rc;
+        int note_rc = 0;
+        std::thread note_th;
+        if (on_grasped && !(is_right && right_arm_motors_locked()))
+            note_th = std::thread([&]() { note_rc = on_grasped(is_right); });
         const int back_rc = grasp_lift_and_back(is_right);
+        if (note_th.joinable())
+            note_th.join();
+        if (note_rc != 0)
+            return note_rc;
         if (back_rc != 0)
             return back_rc;
         std::cout << "[orch] " << name << (is_right ? " 右手" : " 左手")
@@ -1361,6 +1462,7 @@ namespace
 
 int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy = false)
 {
+    g_load_parts_seen = -1;
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
         return -1;
 
@@ -1425,6 +1527,24 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
     if (should_abort())
         return -4;
     move_box::waist_layer3_set_synced(true);
+
+    g_load_parts_seen = -1;
+    {
+        const move_box::TrayZoneCount seen = move_box::count_tray_zone_holes(
+            g_hw->pipeline->cameras(), g_hw->pipeline->bridge(), cam2robot);
+        if (seen.ok)
+        {
+            g_load_parts_seen = seen.right + seen.left;
+            std::cout << "[grasp] 开抓前工作区毛坯 " << g_load_parts_seen
+                      << " 件（右=" << seen.right << " 左=" << seen.left << "）\n";
+        }
+        else
+        {
+            std::cerr << "[grasp] 开抓前没数清毛坯: " << seen.message << "\n";
+            if (seen.message == "取帧失败" || seen.message == "无相机")
+                g_hw->last_tray_message = seen.message;
+        }
+    }
 
     constexpr int kMaxRounds = 40;
     constexpr int kMaxNoneStreak = 2;
@@ -1559,7 +1679,7 @@ int vision_grasp_existing_pipeline()
     return vision_grasp_with_engine(SegEngineId::Default);
 }
 
-int vision_place_tray2()
+int vision_place_tray2(bool allow_right, bool allow_left)
 {
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
         return -1;
@@ -1639,11 +1759,16 @@ int vision_place_tray2()
     g_hw->last_grasped_l = false;
 
     const auto both_placed = [&]() -> bool {
-        return right_arm_motors_locked() ? placed_l : (placed_r && placed_l);
+        const bool right_ok = !allow_right || right_arm_motors_locked() || placed_r;
+        const bool left_ok = !allow_left || placed_l;
+        return right_ok && left_ok && (placed_r || placed_l);
     };
 
     std::cout << "[tray2] 开始循环：YOLO class3 空孔，顺序同 grasp；到位后张爪"
-              << (right_arm_motors_locked() ? "（右臂锁定，只要求左手放置）\n" : "\n");
+              << (right_arm_motors_locked() ? "（右臂锁定，只要求左手放置）" : "")
+              << (!allow_right ? "；右手不放" : "")
+              << (!allow_left ? "；左手不放" : "")
+              << "\n";
 
     int last_rc = 1;
     for (int round = 1; round <= kMaxRounds; ++round)
@@ -1680,8 +1805,8 @@ int vision_place_tray2()
             should_abort,
             SegEngineId::Default,
             false,
-            placed_r,
-            placed_l);
+            placed_r || !allow_right,
+            placed_l || !allow_left);
 
         placed_r = placed_r || r.grasped_r;
         placed_l = placed_l || r.grasped_l;
@@ -1758,6 +1883,25 @@ int vision_place_tray2()
     const int home_rc = go_home(*g_hw->arm_r, *g_hw->arm_l);
     if (home_rc != 0)
         return home_rc;
+    {
+        const move_box::TrayZoneCount left = move_box::count_tray_zone_holes(
+            g_hw->pipeline->cameras(), g_hw->pipeline->bridge(), cam2robot);
+        if (left.ok)
+        {
+            g_unload_empty_known = true;
+            g_unload_empty_right = left.right;
+            g_unload_empty_left = left.left;
+            std::cout << "[tray2] 放下后空孔 右=" << left.right
+                      << " 左=" << left.left << "\n";
+        }
+        else
+        {
+            g_unload_empty_known = false;
+            std::cerr << "[tray2] 放下后没数清空孔: " << left.message << "\n";
+            if (left.message == "取帧失败" || left.message == "无相机")
+                g_hw->last_tray_message = left.message;
+        }
+    }
     return last_rc;
 }
 
@@ -2301,45 +2445,176 @@ int vision_tray_holes_pipeline()
 namespace
 {
 
-constexpr int kDispatchApplyTimeoutMs = 600000;
+constexpr int kDispatchApplyTimeoutMs = 5000;
+constexpr int kDispatchHandSkipped = 8;
 
-bool dispatch_back_to_tray()
+int dispatch_back_to_tray(bool watch_obstacle = false)
 {
+    g_dispatch_nav_fault.clear();
     const int home_rc = go_home(*g_hw->arm_r, *g_hw->arm_l);
     if (home_rc != 0)
-        return false;
-    return chassis_goto_station(g_move_cfg.chassis.tray_station) == 0;
+        return home_rc;
+    return chassis_goto_station(g_move_cfg.chassis.tray_station, watch_obstacle);
 }
 
-int dispatch_report_done(RobotClient &client, const char *what)
+bool dispatch_report_state(RobotClient &client, const std::string &state)
 {
-    std::cout << "[dispatch] " << what << " 完成，停 5s 后发送 DONE\n";
-    hardware_abort_sleep_ms(5000);
+    std::cout << "[dispatch] 上报状态 " << state << "\n";
+    if (!client.report_state(state))
+    {
+        std::cerr << "[dispatch] 上报状态 " << state << " 失败\n";
+        return false;
+    }
+    return true;
+}
+
+int dispatch_wait_system(RobotClient &client, const std::string &state)
+{
+    std::cerr << "[dispatch] 异常 " << state << "，停止动作，保持连接等待系统处理\n";
+    dispatch_report_state(client, state);
+    while (!hardware_abort_requested())
+        hardware_abort_sleep_ms(500);
+    return -4;
+}
+
+std::string dispatch_exception_state()
+{
+    if (!g_dispatch_nav_fault.empty())
+        return g_dispatch_nav_fault;
+    if (can_io_faulted())
+    {
+        const std::string msg = can_io_fault_message();
+        if (msg.find("使能") != std::string::npos)
+            return dispatch_msg::ERR_MOTOR_DISABLE;
+        return dispatch_msg::ERR_MOTOR_LOST;
+    }
+    if (g_hw != nullptr && g_hw->g != nullptr)
+    {
+        const gripper::SideFeedback right = g_hw->g->feedback(gripper::Side::Right);
+        const gripper::SideFeedback left = g_hw->g->feedback(gripper::Side::Left);
+        if ((right.have_feedback && !right.io_ok) || (left.have_feedback && !left.io_ok))
+            return dispatch_msg::ERR_GRIPPER_LOST;
+    }
+    if (g_hw != nullptr)
+    {
+        const std::string &belt = g_hw->last_belt_message;
+        const std::string &tray = g_hw->last_tray_message;
+        if (belt == "无相机" || belt == "取帧失败" || tray == "取帧失败")
+            return dispatch_msg::ERR_CAMERA;
+    }
+    return {};
+}
+
+enum class DispatchNote
+{
+    PlaceHand,
+    PickHand,
+    Mission
+};
+
+int dispatch_report(RobotClient &client, DispatchNote note, const char *what)
+{
+    const char *state = dispatch_msg::DONE;
+    if (note == DispatchNote::PlaceHand)
+        state = dispatch_msg::PLACE_DONE;
+    else if (note == DispatchNote::PickHand)
+        state = dispatch_msg::PICK_UP_DONE;
+    std::cout << "[dispatch] " << what << " 完成，停 2s 后发送 " << state << "\n";
+    hardware_abort_sleep_ms(2000);
     if (hardware_abort_requested())
         return -4;
-    if (!client.mission_done())
+    const bool ok = note == DispatchNote::PlaceHand ? client.place_done()
+                    : note == DispatchNote::PickHand ? client.pick_up_done()
+                                                     : client.mission_done();
+    if (!ok)
     {
-        std::cerr << "[dispatch] 发送 DONE 失败\n";
+        std::cerr << "[dispatch] 发送 " << state << " 失败\n";
         return -7;
     }
-    std::cout << "[dispatch] 已发送 DONE\n";
+    std::cout << "[dispatch] 已发送 " << state << "\n";
     return 0;
+}
+
+void dispatch_send(RobotClient &client, const char *name, bool sent)
+{
+    std::cout << "[dispatch] 发送 " << name << "\n";
+    if (!sent)
+        std::cerr << "[dispatch] 发送 " << name << " 失败，继续当前流程\n";
+    else
+        std::cout << "[dispatch] 已发送 " << name << "\n";
+}
+
+void plan_unload_hands(bool &pick_left, bool &pick_right)
+{
+    pick_left = true;
+    pick_right = true;
+    if (!g_unload_empty_known)
+    {
+        std::cout << "[dispatch] 还没有空孔记录，下料抓两只手\n";
+        return;
+    }
+    const int total = g_unload_empty_right + g_unload_empty_left;
+    std::cout << "[dispatch] 上次放下后空孔 右=" << g_unload_empty_right
+              << " 左=" << g_unload_empty_left << "\n";
+    if (total >= 2)
+    {
+        std::cout << "[dispatch] 空孔不少于 2 个，这次抓两只手\n";
+        return;
+    }
+    if (total == 1)
+    {
+        pick_left = g_unload_empty_left > 0;
+        pick_right = g_unload_empty_right > 0;
+        std::cout << "[dispatch] 空孔只剩 1 个，这次只抓"
+                  << (pick_left ? "左手" : "右手") << "\n";
+        return;
+    }
+    std::cout << "[dispatch] 上次记录料盘已满，这次按新空盘抓两只手\n";
 }
 
 int dispatch_pick_one(
     RobotClient &client, bool (*apply_pick)(RobotClient &, int),
     const std::string &request_state, const std::string &grant_state,
     bool from_place, const ConveyorStationConfig &c, const std::string &station,
-    const char *tag, int only_hand)
+    const char *tag, int only_hand, const char *done_what)
 {
     std::cout << "[dispatch] 发送 " << request_state << "，等待 " << grant_state
               << "，超时 " << kDispatchApplyTimeoutMs << " ms\n";
     if (!apply_pick(client, kDispatchApplyTimeoutMs))
     {
-        std::cerr << "[dispatch] 抓取申请失败或超时，本段不抓、不回报完成\n";
-        return -7;
+        std::cout << "[dispatch] " << done_what << " 申请 5s 未允许，跳过这只手，继续子任务\n";
+        return kDispatchHandSkipped;
     }
-    return go_belt_grasp(from_place, c, station, tag, only_hand);
+    std::cout << "[dispatch] 已收到 " << grant_state << "，" << done_what << " 放行\n";
+    return go_belt_grasp(from_place, c, station, tag, only_hand, [&](bool) {
+        return dispatch_report(client, DispatchNote::PickHand, done_what);
+    });
+}
+
+int dispatch_place_belt(
+    RobotClient &client, bool (*apply_place)(RobotClient &, int),
+    const char *request_state, const char *grant_state,
+    const ConveyorStationConfig &c, const char *tag,
+    bool hold_right, bool hold_left, const char *place_what)
+{
+    if (!hold_right && !hold_left)
+    {
+        std::cout << "[dispatch] 手里没有件，跳过" << place_what << "\n";
+        return 0;
+    }
+    std::cout << "[dispatch] 发送 " << request_state << "，等待 " << grant_state
+              << "，超时 " << kDispatchApplyTimeoutMs << " ms\n";
+    if (!apply_place(client, kDispatchApplyTimeoutMs))
+    {
+        std::cout << "[dispatch] " << place_what
+                  << " 申请 5s 未允许，跳过放置，继续子任务\n";
+        return 0;
+    }
+    std::cout << "[dispatch] 已收到 " << grant_state << "，" << place_what << " 放行\n";
+    const int place_rc = go_belt_station(c, tag, {}, hold_right, hold_left);
+    if (place_rc != 0)
+        return place_rc;
+    return dispatch_report(client, DispatchNote::PlaceHand, place_what);
 }
 
 bool apply_pick_half(RobotClient &client, int timeout_ms)
@@ -2354,114 +2629,213 @@ bool apply_pick_well(RobotClient &client, int timeout_ms)
 
 int dispatch_load(RobotClient &client)
 {
-    std::cout << "[dispatch] 上料：AP7 抓两件 → AP5 申请一次后放下，停 5s 发 DONE → 回 AP7\n";
+    std::cout << "[dispatch] 上料：AP7 抓件，抓完最后的零件就报料盘空；AP5 申请 5s，允许才放手里有件的手，然后发 "
+              << dispatch_msg::DONE << "\n";
     const int grasp_rc = vision_grasp_existing_pipeline();
     if (grasp_rc < 0)
         return grasp_rc;
-    if (g_hw == nullptr || (!g_hw->last_grasped_r && !g_hw->last_grasped_l))
+    const bool hold_r = g_hw != nullptr && g_hw->last_grasped_r;
+    const bool hold_l = g_hw != nullptr && g_hw->last_grasped_l;
+    const int took = (hold_r ? 1 : 0) + (hold_l ? 1 : 0);
+    if (g_load_parts_seen == 0 || (g_load_parts_seen > 0 && took >= g_load_parts_seen))
+    {
+        std::cout << "[dispatch] 上料盘已经没有零件（开抓前 "
+                  << g_load_parts_seen << " 件，这次拿走 " << took << " 件）\n";
+        dispatch_send(client, dispatch_msg::RAW_MATERIAL_EMPTY, client.raw_material_empty());
+    }
+    if (!hold_r && !hold_l)
         return grasp_rc == 0 ? 1 : grasp_rc;
     if (go_home(*g_hw->arm_r, *g_hw->arm_l) != 0)
         return -5;
     if (chassis_goto_station(g_move_cfg.chassis.belt_station) != 0)
         return -6;
-    std::cout << "[dispatch] 已到 AP5，发送 " << robot_msg::APPLY_PLACE_RAW
-              << "，等待 " << robot_msg::PLACE << "\n";
-    if (!client.apply_place_raw_material(kDispatchApplyTimeoutMs))
-    {
-        std::cerr << "[dispatch] 上料放置申请失败，不放、不回报完成\n";
-        return -7;
-    }
-    const int place_rc = go_belt_station();
+    const int place_rc = dispatch_place_belt(
+        client, [](RobotClient &c, int timeout_ms) { return c.apply_place_raw_material(timeout_ms); },
+        dispatch_msg::APPLY_PLACE_RAW, dispatch_msg::PLACE,
+        g_move_cfg.conveyor, "belt", hold_r, hold_l, "上料放置");
     if (place_rc != 0)
         return place_rc;
-    const int done_rc = dispatch_report_done(client, "上料放置");
+    const int done_rc = dispatch_report(client, DispatchNote::Mission, "上料");
     if (done_rc != 0)
         return done_rc;
-    if (!dispatch_back_to_tray())
-        return -6;
-    std::cout << "[dispatch] 上料完成，已回 AP7\n";
+    std::cout << "[dispatch] 上料完成，停在当前位置\n";
     return 0;
 }
 
 int dispatch_transfer(RobotClient &client)
 {
-    std::cout << "[dispatch] 转运：AP5 分两次申请并各抓一件，每次抓完停 5s 发 DONE；AP6 放完停 5s 发 DONE，再回 AP7\n";
+    std::cout << "[dispatch] 转运：AP5 左右手各申请 5s，超时跳过该手；有件才去 AP6 放，然后发 "
+              << dispatch_msg::DONE << "\n";
     if (go_home(*g_hw->arm_r, *g_hw->arm_l) != 0)
         return -5;
     if (chassis_goto_station(g_move_cfg.chassis.belt_station) != 0)
         return -6;
     if (go_belt_ready(*g_hw->arm_r, *g_hw->arm_l, g_move_cfg.conveyor, "dispatch_transfer") != 0)
         return -5;
+    g_hw->last_grasped_r = false;
+    g_hw->last_grasped_l = false;
+    ConveyorStationConfig transfer_grasp = g_move_cfg.conveyor;
+    constexpr double kTransferGraspXBiasM = 0.005;
+    transfer_grasp.grasp_offset_left.x += kTransferGraspXBiasM;
+    transfer_grasp.grasp_offset_right.x += kTransferGraspXBiasM;
+    std::cout << std::fixed << std::setprecision(4)
+              << "[dispatch] 转运抓取在传送带 +X 再偏 " << kTransferGraspXBiasM
+              << " m，左右手都加\n";
     const int left_rc = dispatch_pick_one(
-        client, apply_pick_half, robot_msg::APPLY_PICK_HALF, robot_msg::PICK_HALF,
-        true, g_move_cfg.conveyor,
-        g_move_cfg.chassis.belt_station, "belt_grasp", 0);
-    if (left_rc != 0)
+        client, apply_pick_half, dispatch_msg::APPLY_PICK_HALF, dispatch_msg::PICK_HALF,
+        true, transfer_grasp,
+        g_move_cfg.chassis.belt_station, "belt_grasp", 0, "转运左手抓取");
+    if (left_rc < 0)
         return left_rc;
-    const int left_done = dispatch_report_done(client, "转运左手抓取");
-    if (left_done != 0)
-        return left_done;
     const int right_rc = dispatch_pick_one(
-        client, apply_pick_half, robot_msg::APPLY_PICK_HALF, robot_msg::PICK_HALF,
-        true, g_move_cfg.conveyor,
-        g_move_cfg.chassis.belt_station, "belt_grasp", 1);
-    if (right_rc != 0)
+        client, apply_pick_half, dispatch_msg::APPLY_PICK_HALF, dispatch_msg::PICK_HALF,
+        true, transfer_grasp,
+        g_move_cfg.chassis.belt_station, "belt_grasp", 1, "转运右手抓取");
+    if (right_rc < 0)
         return right_rc;
-    const int right_done = dispatch_report_done(client, "转运右手抓取");
-    if (right_done != 0)
-        return right_done;
-    if (chassis_goto_station(g_move_cfg.chassis.out_station) != 0)
-        return -6;
-    std::cout << "[dispatch] 已到 AP6，发送 " << robot_msg::APPLY_PLACE_HALF
-              << "，等待 " << robot_msg::PLACE << "\n";
-    if (!client.apply_place_half_done(kDispatchApplyTimeoutMs))
+    const bool hold_r = g_hw->last_grasped_r;
+    const bool hold_l = g_hw->last_grasped_l;
+    if (hold_r || hold_l)
     {
-        std::cerr << "[dispatch] 转运放置申请失败，不放\n";
-        return -7;
+        if (chassis_goto_station(g_move_cfg.chassis.out_station) != 0)
+            return -6;
     }
-    const int place_rc = go_belt_station(g_move_cfg.conveyor2, "belt2");
+    ConveyorStationConfig transfer_place = g_move_cfg.conveyor2;
+    constexpr double kTransferPlaceZBiasM = -0.005;
+    transfer_place.place_base_z_bias_m = kTransferPlaceZBiasM;
+    std::cout << std::fixed << std::setprecision(4)
+              << "[dispatch] 转运放置松手高度在基座 Z 再低 "
+              << -kTransferPlaceZBiasM << " m，左右手都加\n";
+    const int place_rc = dispatch_place_belt(
+        client, [](RobotClient &c, int timeout_ms) { return c.apply_place_half_done(timeout_ms); },
+        dispatch_msg::APPLY_PLACE_HALF, dispatch_msg::PLACE,
+        transfer_place, "belt2", hold_r, hold_l, "转运放置");
     if (place_rc != 0)
         return place_rc;
-    const int done_rc = dispatch_report_done(client, "转运放置");
+    const int done_rc = dispatch_report(client, DispatchNote::Mission, "转运");
     if (done_rc != 0)
         return done_rc;
-    if (!dispatch_back_to_tray())
-        return -6;
-    std::cout << "[dispatch] 转运完成，已回 AP7\n";
+    std::cout << "[dispatch] 转运完成，停在当前位置\n";
     return 0;
 }
 
 int dispatch_unload(RobotClient &client)
 {
-    std::cout << "[dispatch] 下料：AP6 分两次申请各抓一件 → AP9 放下，停 5s 发 DONE → 回 AP7\n";
+    std::cout << "[dispatch] 下料：按上次剩下的空孔抓 1 或 2 只手，申请 5s 超时跳过该手；放到 AP9 后若没有空孔就报满盘，再发 "
+              << dispatch_msg::DONE << "\n";
     if (go_home(*g_hw->arm_r, *g_hw->arm_l) != 0)
         return -5;
     if (chassis_goto_station(g_move_cfg.chassis.out_station) != 0)
         return -6;
     if (go_belt_ready(*g_hw->arm_r, *g_hw->arm_l, g_move_cfg.conveyor2, "dispatch_unload") != 0)
         return -5;
-    const int left_rc = dispatch_pick_one(
-        client, apply_pick_well, robot_msg::APPLY_PICK_WELL, robot_msg::PICK_WELL,
-        true, g_move_cfg.conveyor2,
-        g_move_cfg.chassis.out_station, "belt2_grasp", 0);
-    if (left_rc != 0)
-        return left_rc;
-    const int right_rc = dispatch_pick_one(
-        client, apply_pick_well, robot_msg::APPLY_PICK_WELL, robot_msg::PICK_WELL,
-        true, g_move_cfg.conveyor2,
-        g_move_cfg.chassis.out_station, "belt2_grasp", 1);
-    if (right_rc != 0)
-        return right_rc;
-    const int place_rc = vision_place_tray2();
-    if (place_rc < 0)
-        return place_rc;
-    const int done_rc = dispatch_report_done(client, "下料放置");
+    bool pick_left = true;
+    bool pick_right = true;
+    plan_unload_hands(pick_left, pick_right);
+    g_hw->last_grasped_r = false;
+    g_hw->last_grasped_l = false;
+    if (pick_left)
+    {
+        const int left_rc = dispatch_pick_one(
+            client, apply_pick_well, dispatch_msg::APPLY_PICK_WELL, dispatch_msg::PICK_WELL,
+            true, g_move_cfg.conveyor2,
+            g_move_cfg.chassis.out_station, "belt2_grasp", 0, "下料左手抓取");
+        if (left_rc < 0)
+            return left_rc;
+    }
+    if (pick_right)
+    {
+        const int right_rc = dispatch_pick_one(
+            client, apply_pick_well, dispatch_msg::APPLY_PICK_WELL, dispatch_msg::PICK_WELL,
+            true, g_move_cfg.conveyor2,
+            g_move_cfg.chassis.out_station, "belt2_grasp", 1, "下料右手抓取");
+        if (right_rc < 0)
+            return right_rc;
+    }
+    const bool hold_r = g_hw->last_grasped_r;
+    const bool hold_l = g_hw->last_grasped_l;
+    if (hold_r || hold_l)
+    {
+        const int place_rc = vision_place_tray2(hold_r, hold_l);
+        if (place_rc < 0)
+            return place_rc;
+        if (g_unload_empty_known && g_unload_empty_right + g_unload_empty_left <= 0)
+        {
+            std::cout << "[dispatch] 下料盘已经没有空孔\n";
+            dispatch_send(
+                client, dispatch_msg::WELL_DONE_MATERIAL_FULL, client.well_done_material_full());
+            g_unload_empty_known = false;
+        }
+    }
+    else
+        std::cout << "[dispatch] 这次没有抓到成品，不去 AP9 放\n";
+    const int done_rc = dispatch_report(client, DispatchNote::Mission, "下料");
     if (done_rc != 0)
         return done_rc;
-    if (!dispatch_back_to_tray())
-        return -6;
-    std::cout << "[dispatch] 下料完成，已回 AP7\n";
+    std::cout << "[dispatch] 下料完成，停在当前位置\n";
     return 0;
+}
+
+struct DispatchInbox
+{
+    std::thread worker;
+    std::mutex mu;
+    std::string mission;
+    bool finished = false;
+    bool running = false;
+
+    ~DispatchInbox()
+    {
+        if (worker.joinable())
+            worker.join();
+    }
+};
+
+void inbox_start(DispatchInbox &box, RobotClient &client)
+{
+    if (box.running)
+        return;
+    {
+        std::lock_guard<std::mutex> lk(box.mu);
+        box.mission.clear();
+        box.finished = false;
+    }
+    box.running = true;
+    box.worker = std::thread([&box, &client]() {
+        std::string mission = client.apply_mission();
+        std::lock_guard<std::mutex> lk(box.mu);
+        box.mission = std::move(mission);
+        box.finished = true;
+    });
+}
+
+bool inbox_poll(DispatchInbox &box, std::string &out)
+{
+    std::lock_guard<std::mutex> lk(box.mu);
+    if (!box.finished)
+        return false;
+    out = box.mission;
+    return true;
+}
+
+void inbox_join(DispatchInbox &box)
+{
+    if (box.worker.joinable())
+        box.worker.join();
+    box.running = false;
+}
+
+bool inbox_wait(DispatchInbox &box, int timeout_ms, std::string &out)
+{
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (inbox_poll(box, out) || hardware_abort_requested())
+            return inbox_poll(box, out);
+        hardware_abort_sleep_ms(100);
+    }
+    return inbox_poll(box, out);
 }
 
 } // namespace
@@ -2471,16 +2845,66 @@ int run_dispatch_mode()
     if (g_hw == nullptr || g_hw->arm_r == nullptr || g_hw->arm_l == nullptr)
         return -1;
     std::cout << "[dispatch] 系统对接模式，调度 "
-              << RobotClient::kDefaultHost << ":" << RobotClient::kDefaultPort
+              << dispatch_msg::kDefaultHost << ":" << dispatch_msg::kDefaultPort
               << "。先到 " << g_move_cfg.chassis.tray_station << " 待命\n";
-    if (!dispatch_back_to_tray())
-        return hardware_abort_requested() ? -4 : -6;
+    const int ready_rc = dispatch_back_to_tray();
+    if (ready_rc != 0)
+        return hardware_abort_requested() ? -4 : ready_rc;
 
     RobotClient client;
+    DispatchInbox box;
+    std::string mission;
+    auto take_ready = [&]() -> bool {
+        if (!inbox_poll(box, mission))
+            return false;
+        inbox_join(box);
+        return true;
+    };
+    auto settle_at_tray_then_take = [&]() -> bool {
+        std::cout << "[dispatch] 已到 " << g_move_cfg.chassis.tray_station
+                  << "，停稳 2s。这 2s 只缓存任务，不执行\n";
+        hardware_abort_sleep_ms(2000);
+        if (hardware_abort_requested())
+            return false;
+        dispatch_report_state(client, dispatch_msg::STANDBY);
+        if (take_ready() && !mission.empty())
+        {
+            std::cout << "[dispatch] 停稳后执行缓存任务 " << mission << "\n";
+            return true;
+        }
+        std::cout << "[dispatch] 停稳后没有缓存任务，继续等待\n";
+        return false;
+    };
+    auto return_tray = [&]() -> int {
+        dispatch_report_state(client, dispatch_msg::WORKING);
+        const int back = dispatch_back_to_tray(true);
+        if (back != 0)
+        {
+            const std::string fault = dispatch_exception_state();
+            if (!fault.empty())
+                return dispatch_wait_system(client, fault);
+            return hardware_abort_requested() ? -4 : (back < 0 ? back : -6);
+        }
+        if (hardware_abort_requested())
+            return -4;
+        settle_at_tray_then_take();
+        return 0;
+    };
+    dispatch_report_state(client, dispatch_msg::STANDBY);
     while (!hardware_abort_requested())
     {
-        std::cout << "[dispatch] 在 AP7 等待任务\n";
-        const std::string mission = client.apply_mission();
+        if (mission.empty())
+        {
+            std::cout << "[dispatch] 在 " << g_move_cfg.chassis.tray_station
+                      << " 等待任务\n";
+            inbox_start(box, client);
+            while (!take_ready())
+            {
+                if (hardware_abort_requested())
+                    return -4;
+                hardware_abort_sleep_ms(100);
+            }
+        }
         if (hardware_abort_requested())
             return -4;
         if (mission.empty())
@@ -2490,26 +2914,70 @@ int run_dispatch_mode()
             continue;
         }
         std::cout << "[dispatch] 收到任务 " << mission << "\n";
-        int rc = -1;
-        if (mission == robot_msg::TASK_LOAD)
-            rc = dispatch_load(client);
-        else if (mission == robot_msg::TASK_TRANSFER)
-            rc = dispatch_transfer(client);
-        else if (mission == robot_msg::TASK_UNLOAD)
-            rc = dispatch_unload(client);
-        else
+        const std::string current = mission;
+        mission.clear();
+        if (current != dispatch_msg::TASK_LOAD && current != dispatch_msg::TASK_TRANSFER &&
+            current != dispatch_msg::TASK_UNLOAD)
         {
-            std::cerr << "[dispatch] 未知任务 " << mission << "，继续等待\n";
+            std::cerr << "[dispatch] 未知任务 " << current << "，继续等待\n";
             continue;
         }
+        g_hw->last_belt_message.clear();
+        g_hw->last_tray_message.clear();
+        g_dispatch_nav_fault.clear();
+        dispatch_report_state(client, dispatch_msg::WORKING);
+        int rc = -1;
+        if (current == dispatch_msg::TASK_LOAD)
+            rc = dispatch_load(client);
+        else if (current == dispatch_msg::TASK_TRANSFER)
+            rc = dispatch_transfer(client);
+        else
+            rc = dispatch_unload(client);
         if (rc == -4 || hardware_abort_requested())
             return -4;
         if (rc != 0)
         {
-            std::cerr << "[dispatch] 任务 " << mission << " 失败 code=" << rc
-                      << "，不回报完成，尝试回 AP7 再等待\n";
-            dispatch_back_to_tray();
+            const std::string fault = dispatch_exception_state();
+            if (!fault.empty())
+                return dispatch_wait_system(client, fault);
+            std::cerr << "[dispatch] 任务 " << current << " 失败 code=" << rc
+                      << "，不回报完成，回 AP7 再等待。途中收到的任务先缓存\n";
+            inbox_start(box, client);
+            const int back_rc = return_tray();
+            if (back_rc != 0)
+                return back_rc;
+            continue;
         }
+
+        dispatch_report_state(client, dispatch_msg::STANDBY);
+        std::cout << "[dispatch] 子任务完成，原地等待 5s\n";
+        inbox_start(box, client);
+        std::string soon;
+        if (inbox_wait(box, 5000, soon))
+        {
+            inbox_join(box);
+            if (hardware_abort_requested())
+                return -4;
+            if (!soon.empty())
+            {
+                std::cout << "[dispatch] 5s 内收到 " << soon << "，原地执行，不回 AP7\n";
+                mission = std::move(soon);
+                continue;
+            }
+            std::cerr << "[dispatch] 等待期间调度断线，回 AP7 再连接\n";
+        }
+        else if (hardware_abort_requested())
+        {
+            return -4;
+        }
+
+        std::cout << "[dispatch] 5s 内没有新任务，回 " << g_move_cfg.chassis.tray_station
+                  << "。途中收到的任务先缓存，到站停稳后再执行\n";
+        if (!box.running)
+            inbox_start(box, client);
+        const int back_rc = return_tray();
+        if (back_rc != 0)
+            return back_rc;
     }
     return hardware_abort_requested() ? -4 : 0;
 }

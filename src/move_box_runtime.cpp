@@ -1985,6 +1985,115 @@ namespace move_box
         return std::max(0.0, actual);
     }
 
+    TrayZoneCount count_tray_zone_holes(
+        RealSenseMultiCam &cameras,
+        SegPoseBridge &bridge,
+        const std::array<double, 16> &cam2robot)
+    {
+        TrayZoneCount out;
+        if (app_stop_requested() || hardware_abort_requested())
+        {
+            out.message = "已中止";
+            return out;
+        }
+        if (!bridge.tray_engine_ready())
+        {
+            out.message = "料盘引擎未就绪";
+            return out;
+        }
+
+        std::array<double, 16> T = cam2robot;
+        std::string ext_err;
+        if (!load_head_cam2robot(T, ext_err))
+            T = cam2robot;
+
+        const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
+        cameras.flush(CameraSlot::Head);
+        std::vector<CameraFrameData> frames;
+        frames.reserve(static_cast<size_t>(fuse_n));
+        for (int i = 0; i < fuse_n; ++i)
+        {
+            CameraFrameData one = cameras.grab_wait(CameraSlot::Head);
+            one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
+            if (!one.ok)
+                continue;
+            frames.push_back(std::move(one));
+        }
+        if (frames.empty())
+        {
+            out.message = "取帧失败";
+            return out;
+        }
+        const CameraFrameData &frame = frames.back();
+        const int algorithm_id = algorithm_id_for_slot(CameraSlot::Head);
+        const PoseRunResult yolo = bridge.run(
+            frame, algorithm_id, false, CameraSlot::Head, -1, SegEngineId::Default);
+        const PoseDetectionRecords yolo_all =
+            pose_records_from_run(yolo, CameraSlot::Head, frame, -1, false);
+        const TrayDetectResult tray = bridge.run_tray_annotate_multiframe(
+            frames, yolo_all, false, CameraSlot::Head, tray2_place_active());
+        if (!tray.ok)
+        {
+            out.message = tray.message.empty() ? "料盘解算失败" : tray.message;
+            return out;
+        }
+
+        const auto &valid = g_move_cfg.grasp_valid;
+        const int right_max_col = std::max(1, g_move_cfg.grasp_zone.column_count / 2);
+        const int want_class = tray_assign_class_id();
+        std::map<int, std::pair<double, int>> col_y_acc;
+        for (const TrayHoleResult &h : tray.holes)
+        {
+            const double y = std::isfinite(h.y_level) ? h.y_level : h.y;
+            if (!h.in_robot || !std::isfinite(y) || h.col < 1)
+                continue;
+            col_y_acc[h.col].first += y;
+            col_y_acc[h.col].second += 1;
+        }
+        bool cols_flipped = false;
+        if (col_y_acc.size() >= 2)
+        {
+            const int c_lo = col_y_acc.begin()->first;
+            const int c_hi = col_y_acc.rbegin()->first;
+            if (c_hi > c_lo && col_y_acc[c_lo].second > 0 && col_y_acc[c_hi].second > 0)
+            {
+                const double y_lo = col_y_acc[c_lo].first / static_cast<double>(col_y_acc[c_lo].second);
+                const double y_hi = col_y_acc[c_hi].first / static_cast<double>(col_y_acc[c_hi].second);
+                cols_flipped = y_lo > y_hi;
+            }
+        }
+
+        for (const TrayHoleResult &h : tray.holes)
+        {
+            if (h.class_id != want_class)
+                continue;
+            const double x = std::isfinite(h.x_level) ? h.x_level : h.x;
+            const double y = std::isfinite(h.y_level) ? h.y_level : h.y;
+            if (!h.in_robot || !std::isfinite(x) || !std::isfinite(y))
+                continue;
+            if (x < valid.x_min || x > valid.x_max)
+                continue;
+            const int col = tray_assign_col_from_aruco(h.col, cols_flipped);
+            if (col < 1)
+                continue;
+            const bool is_right_col = col <= right_max_col;
+            if (is_right_col
+                    ? (y < valid.right_y_min || y > valid.right_y_max)
+                    : (y < valid.left_y_min || y > valid.left_y_max))
+                continue;
+            if (is_right_col)
+                ++out.right;
+            else
+                ++out.left;
+        }
+        out.ok = true;
+        std::cout << "[tray] 工作区 "
+                  << (want_class == kEmptyHoleClassId ? "空孔" : "毛坯")
+                  << " 右=" << out.right << " 左=" << out.left
+                  << (cols_flipped ? "（列号已对调）\n" : "\n");
+        return out;
+    }
+
     bool assign_from_tray_holes(
         const TrayDetectResult &tray,
         HeadAssignState &st,

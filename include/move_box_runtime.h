@@ -113,6 +113,20 @@ enum class TrayHoleTask
 
 void set_tray_hole_task(TrayHoleTask task);
 TrayHoleTask tray_hole_task();
+
+/** 当前任务类别在工作区内还能分给左右手的孔数。抓取数毛坯，放置数空孔。 */
+struct TrayZoneCount
+{
+    bool ok = false;
+    int right = 0;
+    int left = 0;
+    std::string message;
+};
+
+TrayZoneCount count_tray_zone_holes(
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const std::array<double, 16> &cam2robot);
 /** 料盘2精度测试：先前三排（from_robot 1–3）再后三排，到位不松爪，不回 home。 */
 void set_tray2_precision_test(bool on);
 bool tray2_precision_test();
