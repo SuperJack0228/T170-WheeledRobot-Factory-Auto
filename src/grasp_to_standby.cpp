@@ -57,16 +57,18 @@ GraspToStandbyResult run_grasp_to_standby(
     }
 
     {
-        // 精度测试腰还停在远排前伸时，头必须保持 far_pitch，不能每轮拉回标定 40°。
-        const bool keep_far_pitch =
-            tray2_precision_test() &&
+        // 腰还停在远排前伸时，头必须是 far_pitch。补抓不能把头拉回标定 40°，
+        // 否则近处两个码会切出画面。到位后再拍照，外参由 load_head_cam2robot 按编码器现算。
+        const bool waist_at_far_row =
             posup_down_3_layer(0) > waist_ready_x() + 0.02;
-        if (keep_far_pitch)
-            std::cout << "[head] 腰仍在远排前伸，本轮保持 "
-                      << std::fixed << std::setprecision(1)
-                      << g_move_cfg.head.far_pitch_deg << "°，不回标定俯仰\n";
-        const int head_rc = keep_far_pitch ? enable_head_far_pitch()
-                                           : enable_head_calib_pose();
+        if (waist_at_far_row)
+            std::cout << std::fixed << std::setprecision(4)
+                      << "[head] 腰在远排前伸 x=" << posup_down_3_layer(0)
+                      << " m，本轮头俯仰 "
+                      << std::setprecision(1) << g_move_cfg.head.far_pitch_deg
+                      << "°，按该角度现算相机外参\n";
+        const int head_rc = waist_at_far_row ? enable_head_far_pitch()
+                                             : enable_head_calib_pose();
         if (head_rc == -4 || aborting(should_abort))
         {
             out.status = GraspToStandbyStatus::Aborted;

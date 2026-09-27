@@ -103,8 +103,8 @@ int go_waist_jog(int joint, double dq_rad);
 int go_grasp_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group);
 /** 料盘2放置准备：腰/头同 grasp ready，手臂用 tray2_place 独立 RPY。 */
 int go_tray2_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group);
-/** AP9 → 下蹲同 grasp → 空孔放置 → 站起 + home_tcp。 */
-int vision_place_tray2();
+/** AP9 → 下蹲同 grasp → 空孔放置 → 站起 + home_tcp。allow=false 的手不分配、不运动。 */
+int vision_place_tray2(bool allow_right = true, bool allow_left = true);
 /** 料盘2精度测试：到 AP9，先合爪，不松爪、不起身，先前三排再后三排，直到没有空孔或 abort。 */
 int vision_place_tray2_precision();
 int vision_grasp_existing_pipeline();
