@@ -56,8 +56,10 @@ struct HeadGraspConfig
     /** 最远一行（ArUco row1）专用末端姿态。yaml: row1_rpy_deg。 */
     GraspRpyDeg left_row6_rpy_deg;
     GraspRpyDeg right_row6_rpy_deg;
-    /** true=二次 Bezier A-B-C；false=分段直线 A→B→C（B=物体上方，C=最终抓取）。Bezier 代码保留。 */
+    /** true=料盘抓取走抹角（B 前约 8cm 收到 C）。料盘二放置仍走直线。 */
     bool use_bezier_grasp = false;
+    /** true=料盘抓取伸手改两段直线（到上方、再下降）中间不停。抹角代码仍保留，此项优先。 */
+    bool approach_nostop = false;
     double adaptive_pitch_down_deg = 45.0;
     double adaptive_yaw_max_deg = 55.0;
     double adaptive_min_horiz_m = 0.05;
@@ -77,14 +79,13 @@ struct HeadGraspConfig
     HandXyOffsetConfig hand_right;
     HandXyOffsetConfig hand_left;
     double lift_after_grasp_z = 0.08;
-    /** 二次 Bezier 控制点 B 位于最终点 C 正上方该距离。不把 B 抬过 A，而是先把 A 降下来拉开高度。 */
+    /** 旧参数，曲线已改用直线流程的物体上方点作 B，不再读取这两项。 */
     double bezier_guide_height_m = 0.12;
-    /** 规划前若 A.z 不低于 B.z−该值，先竖直降低 A（保持 XY/RPY）。 */
     double bezier_ab_gap_m = 0.06;
     /** Bezier 路径最大 TCP 速度；时间缩放会保证峰值不超过该值。 */
     double bezier_vel_m_s = 0.05;
-    /** 前段保持待机姿态的路径比例；之后才转到抓取 RPY。 */
-    double bezier_orient_finish_ratio = 0.65;
+    /** 走到该路径比例时姿态已是最终抓取 RPY，之后保持。0.5=前半段转完，对应直线的 A→B。 */
+    double bezier_orient_finish_ratio = 0.5;
     /** 到 C 后 FK 实测位置/姿态超过阈值则禁止合爪。 */
     double bezier_endpoint_xyz_tol_m = 0.003;
     double bezier_endpoint_rpy_tol_deg = 3.0;
@@ -92,8 +93,8 @@ struct HeadGraspConfig
     double approach_vel_m_s = 0.12;
     /** 从上方下压的线速度，应明显慢于接近。 */
     double descend_vel_m_s = 0.05;
-    double lift_vel_m_s = 0.10;
-    double return_vel_m_s = 0.12;
+    double lift_vel_m_s = 0.16;
+    double return_vel_m_s = 0.16;
     /** 下压到位后、合爪前等待（秒），避免还在晃就夹。 */
     double pre_grasp_settle_sec = 0.5;
     int hand_detect_invalid_redo_max = 10;

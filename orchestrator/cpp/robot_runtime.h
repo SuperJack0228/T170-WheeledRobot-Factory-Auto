@@ -97,18 +97,21 @@ int go_belt2_grasp();
 int vision_grasp_then_belt();
 /** 只在料盘1和一号传送带之间循环：AP7 抓 → home → AP5 放置 → 回 AP7。不抓传送带、不去 AP6、不去 AP9。 */
 int vision_grasp_belt1();
+/** 二号传送带抓取 → 二号料盘放置，放完停在 AP9，不升腰、不回 AP7。 */
+int vision_belt2_then_tray2();
 /** 腰关节点动。joint=1..5（脚踝/膝盖/髋/侧倾/回转），dq_rad 限幅 ±0.12。不经笛卡尔 IK。 */
 int go_waist_jog(int joint, double dq_rad);
 /** 去抓取准备：头标定角、腰同原 ready，手臂 standby XY/Z + ready1/2/3/6 的抓取 RPY。 */
 int go_grasp_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group);
 /** 料盘2放置准备：腰/头同 grasp ready，手臂用 tray2_place 独立 RPY。 */
 int go_tray2_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group);
-/** AP9 → 下蹲同 grasp → 空孔放置 → 站起 + home_tcp。allow=false 的手不分配、不运动。 */
-int vision_place_tray2(bool allow_right = true, bool allow_left = true);
+/** AP9 → 下蹲同 grasp → 空孔放置。allow=false 的手不分配、不运动。
+ *  return_to_tray 为真时放完升腰并回 AP7（完整 cycle）。为假时停在 AP9，不升腰。 */
+int vision_place_tray2(bool allow_right = true, bool allow_left = true, bool return_to_tray = true);
 /** 料盘2精度测试：到 AP9，先合爪，不松爪、不起身，先前三排再后三排，直到没有空孔或 abort。 */
 int vision_place_tray2_precision();
 int vision_grasp_existing_pipeline();
-/** 调度对接：停在 AP7 等任务。上料/转运/下料各自从 AP7 出发再回到 AP7。不改变 cycle。 */
+/** 调度对接：先到 AP7 等任务。转运/下料若已在对应传送带且手臂在准备位，不再回 home。下料放到 AP9 后停在原地等下一条任务。 */
 int run_dispatch_mode();
 int vision_aruco_detect_pipeline();
 int vision_tray_holes_pipeline();

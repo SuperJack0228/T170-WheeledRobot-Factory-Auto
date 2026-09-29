@@ -38,18 +38,18 @@ head:
 
 
 head_grasp:
-  hover_above_m: 0.06
+  hover_above_m: 0.08
   # 左手孔位偏置（基座系）。X 前为正，Y 左为正，Z 上为正。
   grasp_z_offset_m: 0.02
   goal_z_base: -0.30
   goal_x_offset: 0.015
-  goal_y_offset: -0.02
+  goal_y_offset: -0.015
   # 右手单独孔位偏置（基座系，不取反）。缺省时 x/z 跟左手、y 取左手相反。
-  right_grasp_z_offset_m: 0.03
-  right_goal_x_offset: 0.01
-  right_goal_y_offset: -0.02
+  right_grasp_z_offset_m: 0.02
+  right_goal_x_offset: 0.010
+  right_goal_y_offset: -0.015
   # 仅离机器人最近一排（from_robot=6）。叠在左右手 z_offset 上。向上为正，夹不到改负。
-  nearest_row_grasp_z_offset_m: -0.01
+  nearest_row_grasp_z_offset_m: -0.005
   goal_z_extra: 0.26
   # 无 row_grasp_rpy 时的回退。右手 = 左手 rz 取反。
   right_rx_deg: 0
@@ -83,8 +83,10 @@ head_grasp:
 
   # false：跳过手相机拍照和 XYZ 修正，抓取只用二维码孔位 XY + 盘面参考 Z。
   use_hand_camera: false
-  # false：分段直线 A(当前)→B(物体上方)→C(最终抓取)。true 才走二次 Bezier（代码保留）。
-  use_bezier_grasp: false
+  # true：料盘抓取在物体上方 B 前抹开约 8cm，一次走完、不停车。料盘二放置仍走直线。
+  use_bezier_grasp: true
+  # true：伸手改为两段直线（到上方、再下降）中间不停。false：抹角小圆弧。
+  approach_nostop: false
   # 手相机候选必须与头相机目标在基座 XY 内匹配，超过即拒绝本次抓取。
   hand_match_xy_max_m: 0.05
   # 匹配成功后，相对孔位 XY 限幅微调（米）。0 关闭。不改 goal_x_offset。
@@ -93,23 +95,21 @@ head_grasp:
   hand_grasp:
     right: { offset_x: -0.01, offset_y:  0.02 }
     left:  { offset_x: -0.01, offset_y: -0.02 }
-  # 手相机旧流程的回程抬升量；无手相机Bezier流程会倒放原轨迹返回A。
+  # 夹完后的竖直抬升。曲线只替换接近，回程仍是这段抬起。
   lift_after_grasp_z: 0.08
-  # 无手相机抓取：先把 A 降到低于 B，B=C正上方12cm（不把 B 抬太高），C=最终抓取位姿。
-  # B仅控制二次Bezier曲线，不要求机械臂经过。
+  # 下面两项已不用：B 就是直线流程里的物体上方点。
   bezier_guide_height_m: 0.12
-  # A 相对 B 至少低这么多；不够则先竖直降 A，不抬 B。
   bezier_ab_gap_m: 0.06
   bezier_vel_m_s: 0.05
-  # 前65%保持待机姿态，后35%（靠近C的竖直段）转到该行抓取姿态。
-  bezier_orient_finish_ratio: 0.65
+  # 路径前一半转到该行最终姿态，后一半保持。和直线 A→B 转完、B→C 保持一致。
+  bezier_orient_finish_ratio: 0.5
   # 到C后按编码器FK复核；超差不合爪，便于XYZ offset只修正真实落点偏差。
   bezier_endpoint_xyz_tol_m: 0.008
   bezier_endpoint_rpy_tol_deg: 3.0
   approach_vel_m_s: 0.12
   descend_vel_m_s: 0.05
-  lift_vel_m_s: 0.10
-  return_vel_m_s: 0.12
+  lift_vel_m_s: 0.16
+  return_vel_m_s: 0.16
   # 下压到位后再等这么久才合爪。
   pre_grasp_settle_sec: 0.15
   hand_detect_invalid_redo_max: 10
@@ -119,8 +119,8 @@ head_grasp:
 # offset 相对孔位，基座系，左右分开。初值抄当前抓取，之后只调料盘2。
 tray2_place:
   offset:
-    left:  { x: 0.015, y: -0.020, z: 0.02 }
-    right: { x: 0.01,  y: -0.020, z: 0.04 }
+    left:  { x: 0.005, y: -0.01, z: 0.03 }
+    right: { x: -0.005,  y: -0.01, z: 0.03 }
   nearest_row_z_offset_m: -0.01
   row_place_rpy_deg:
     left:
@@ -238,8 +238,8 @@ conveyor:
   # 相对识别板系（米，+X前 +Y左 +Z上）。
   # 先放的右手在原 x 上 +2.5cm，后放的左手在原 x 上 -2.5cm，避免零件还在皮带上时叠放。
   offset:
-    right: { x: -0.015, y: -0.015, z: 0.05 }
-    left:  { x: -0.065, y: 0.01, z: 0.05 }
+    right: { x: -0.015, y: -0.01, z: 0.05 }
+    left:  { x: -0.065, y: 0.00, z: 0.05 }
   # 传送带抓取（半成品）。开始准备仍用上面的 tcp，不改。
   # 抓完回到 grasp_tcp（专用，不再用放置 tcp）。
   # 抓取点 = 码原点 + R_识别 × 该手 grasp_offset。识别系 +X 前 +Y 左 +Z 上，不再乘腰 Rz。
@@ -247,8 +247,8 @@ conveyor:
     left: [0, 40, -60]
     right: [0, 40, 45]
   grasp_offset:
-    left:  { x: -0.04, y: 0.11, z: 0.02 }
-    right: { x: -0.04, y: 0.12, z: 0.03 }
+    left:  { x: -0.03, y: 0.12, z: 0.025 }
+    right: { x: -0.03, y: 0.12, z: 0.025 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
@@ -288,14 +288,14 @@ conveyor2:
     left:  [0.45,  0.30, -0.25, 0, 45, -60]
   # 先放的右手 x +2.5cm，后放的左手 x -2.5cm。Y/Z 不动。
   offset:
-    right: { x: -0.015, y: -0.02, z: 0.06 }
+    right: { x: -0.015, y: -0.01, z: 0.06 }
     left:  { x: -0.065, y: 0.00, z: 0.06 }
   grasp_rpy_deg:
     left: [0, 40, -60]
     right: [0, 40, 45]
   grasp_offset:
     left:  { x: -0.03, y: 0.115, z: 0.04 }
-    right: { x: -0.04, y: 0.105, z: 0.06 }
+    right: { x: -0.04, y: 0.105, z: 0.05 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]

@@ -582,7 +582,7 @@ Json::Value dispatch(const Json::Value &request)
     }
     if (cmd == "tray2" || cmd == "tray2_place")
     {
-        const int rc = orch::vision_place_tray2();
+        const int rc = orch::vision_place_tray2(true, true, false);
         Json::Value out = reply(rc >= 0, rc < 0 ? "料盘2放置失败/中止" : "");
         out["code"] = rc;
         out["station"] = g_move_cfg.chassis.tray2_station;
@@ -628,6 +628,19 @@ Json::Value dispatch(const Json::Value &request)
         }
         if (!g_session.last_debug_photo.empty())
             out["photo"] = g_session.last_debug_photo;
+        return out;
+    }
+    if (cmd == "cycle3")
+    {
+        const int rc = orch::vision_belt2_then_tray2();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "传送带二到料盘二失败/中止" : "");
+        out["code"] = rc;
+        out["placed_right"] = g_session.last_grasped_r;
+        out["placed_left"] = g_session.last_grasped_l;
+        out["placed_count"] = g_session.last_grasp_count;
+        out["chassis_ok"] = g_session.last_chassis_ok;
+        out["chassis_station"] = g_session.last_chassis_station;
+        out["chassis_message"] = g_session.last_chassis_message;
         return out;
     }
     if (cmd == "grasp_belt")
