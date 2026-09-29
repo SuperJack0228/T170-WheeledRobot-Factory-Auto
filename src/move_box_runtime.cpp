@@ -1678,19 +1678,27 @@ namespace move_box
         return !hardware_abort_requested();
     }
 
-    bool move_arms_tcp_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
+    bool move_arms_tcp_to_home(
+        Robot_Arm &arm_r, Robot_Arm &arm_l, bool allow_r, bool allow_l)
     {
         Eigen::Matrix<double, 1, 6> home_r = make_home_tcp_right();
         Eigen::Matrix<double, 1, 6> home_l = make_home_tcp_left();
         const Eigen::Matrix<double, 1, 6> cur_r = arm_get_tcp_pos(arm_r);
         const Eigen::Matrix<double, 1, 6> cur_l = arm_get_tcp_pos(arm_l);
-        const bool move_r = !right_arm_motors_locked() &&
+        const bool move_r = allow_r && !right_arm_motors_locked() &&
                             (!retract_xyz_close(cur_r, home_r) || !retract_rpy_close(cur_r, home_r));
-        const bool move_l =
-            !retract_xyz_close(cur_l, home_l) || !retract_rpy_close(cur_l, home_l);
+        const bool move_l = allow_l &&
+                            (!retract_xyz_close(cur_l, home_l) || !retract_rpy_close(cur_l, home_l));
 
+        if (!allow_r || !allow_l)
+            std::cout << "[arm] 本轮没抓的手不回 home："
+                      << (!allow_r ? "右 " : "")
+                      << (!allow_l ? "左 " : "")
+                      << "留在原地，下一轮直接抓\n";
         std::cout << "[arm] 夹后一次 TCP 直线回 yaml home_tcp（XYZ+姿态）"
                   << (right_arm_motors_locked() ? "；右臂锁定只动左手" : "")
+                  << (move_r ? " 动右" : " 右不动")
+                  << (move_l ? " 动左" : " 左不动")
                   << (move_r || move_l ? "\n" : "，已到位跳过\n");
         if (!move_r && !move_l)
             return !hardware_abort_requested();
@@ -1985,53 +1993,9 @@ namespace move_box
         return std::max(0.0, actual);
     }
 
-    TrayZoneCount count_tray_zone_holes(
-        RealSenseMultiCam &cameras,
-        SegPoseBridge &bridge,
-        const std::array<double, 16> &cam2robot)
+    TrayZoneCount count_zone_from_tray(const TrayDetectResult &tray)
     {
         TrayZoneCount out;
-        if (app_stop_requested() || hardware_abort_requested())
-        {
-            out.message = "已中止";
-            return out;
-        }
-        if (!bridge.tray_engine_ready())
-        {
-            out.message = "料盘引擎未就绪";
-            return out;
-        }
-
-        std::array<double, 16> T = cam2robot;
-        std::string ext_err;
-        if (!load_head_cam2robot(T, ext_err))
-            T = cam2robot;
-
-        const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
-        cameras.flush(CameraSlot::Head);
-        std::vector<CameraFrameData> frames;
-        frames.reserve(static_cast<size_t>(fuse_n));
-        for (int i = 0; i < fuse_n; ++i)
-        {
-            CameraFrameData one = cameras.grab_wait(CameraSlot::Head);
-            one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
-            if (!one.ok)
-                continue;
-            frames.push_back(std::move(one));
-        }
-        if (frames.empty())
-        {
-            out.message = "取帧失败";
-            return out;
-        }
-        const CameraFrameData &frame = frames.back();
-        const int algorithm_id = algorithm_id_for_slot(CameraSlot::Head);
-        const PoseRunResult yolo = bridge.run(
-            frame, algorithm_id, false, CameraSlot::Head, -1, SegEngineId::Default);
-        const PoseDetectionRecords yolo_all =
-            pose_records_from_run(yolo, CameraSlot::Head, frame, -1, false);
-        const TrayDetectResult tray = bridge.run_tray_annotate_multiframe(
-            frames, yolo_all, false, CameraSlot::Head, tray2_place_active());
         if (!tray.ok)
         {
             out.message = tray.message.empty() ? "料盘解算失败" : tray.message;
@@ -2092,6 +2056,56 @@ namespace move_box
                   << " 右=" << out.right << " 左=" << out.left
                   << (cols_flipped ? "（列号已对调）\n" : "\n");
         return out;
+    }
+
+    TrayZoneCount count_tray_zone_holes(
+        RealSenseMultiCam &cameras,
+        SegPoseBridge &bridge,
+        const std::array<double, 16> &cam2robot)
+    {
+        TrayZoneCount out;
+        if (app_stop_requested() || hardware_abort_requested())
+        {
+            out.message = "已中止";
+            return out;
+        }
+        if (!bridge.tray_engine_ready())
+        {
+            out.message = "料盘引擎未就绪";
+            return out;
+        }
+
+        std::array<double, 16> T = cam2robot;
+        std::string ext_err;
+        if (!load_head_cam2robot(T, ext_err))
+            T = cam2robot;
+
+        const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
+        cameras.flush(CameraSlot::Head);
+        std::vector<CameraFrameData> frames;
+        frames.reserve(static_cast<size_t>(fuse_n));
+        for (int i = 0; i < fuse_n; ++i)
+        {
+            CameraFrameData one = cameras.grab_wait(CameraSlot::Head);
+            one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
+            if (!one.ok)
+                continue;
+            frames.push_back(std::move(one));
+        }
+        if (frames.empty())
+        {
+            out.message = "取帧失败";
+            return out;
+        }
+        const CameraFrameData &frame = frames.back();
+        const int algorithm_id = algorithm_id_for_slot(CameraSlot::Head);
+        const PoseRunResult yolo = bridge.run(
+            frame, algorithm_id, false, CameraSlot::Head, -1, SegEngineId::Default);
+        const PoseDetectionRecords yolo_all =
+            pose_records_from_run(yolo, CameraSlot::Head, frame, -1, false);
+        const TrayDetectResult tray = bridge.run_tray_annotate_multiframe(
+            frames, yolo_all, false, CameraSlot::Head, tray2_place_active());
+        return count_zone_from_tray(tray);
     }
 
     bool assign_from_tray_holes(
@@ -2584,6 +2598,13 @@ namespace move_box
             }
             st.xy_from_tray = false;
         }
+        if (tray.ok)
+        {
+            const TrayZoneCount zone = count_zone_from_tray(tray);
+            st.zone_count_ok = zone.ok;
+            st.zone_right = zone.right;
+            st.zone_left = zone.left;
+        }
         fill_goal_last_from_head_assign(
             st.right_hand_pos, st.left_hand_pos, st.row_r, st.row_l,
             st.goal_last_r, st.goal_last_l);
@@ -2654,9 +2675,22 @@ namespace move_box
         return xyz_err_m <= xyz_tol_m && rpy_err_rad <= rpy_tol_rad;
     }
 
+    /** 料盘抓取走抹角。料盘二放置单独走抹角，不跟 approach_nostop。 */
+    bool tray_grasp_uses_curve()
+    {
+        return g_move_cfg.head_grasp.use_bezier_grasp &&
+               g_tray_hole_task != TrayHoleTask::PlaceEmpty;
+    }
+
+    bool tray_place_uses_corner()
+    {
+        return g_tray_hole_task == TrayHoleTask::PlaceEmpty &&
+               !g_move_cfg.head_grasp.use_hand_camera;
+    }
+
     /**
-     * 手相机启用时的旧 hover 接近流程。无手相机模式在此不移动，
-     * 由 run_hand_approach_and_grasp 一次执行完整 A-B-C Bezier。
+     * 手相机启用时的旧 hover 接近流程。无手相机曲线模式在此不移动，
+     * 由 run_hand_approach_and_grasp 一次执行完整曲线。
      * 自适应接近（安全优先）：
      * 1) 先在当前 xyz 转到目标姿态（避免用待机腕角直线接近）
      * 2) 再带着正确姿态直线到 hover
@@ -2673,14 +2707,23 @@ namespace move_box
         ArmLineMoveResult out;
         drop_if_y_split_blocks(st, move_r, move_l, "hover下发前");
 
-        // 无手相机 + Bezier：本段不移动，最终 C 在 run_hand_approach_and_grasp 一次规划。
+        // 无手相机 + 曲线：本段不移动。B 仍是物体上方点，和最终 C 一起在下一段一次走完。
         // 无手相机 + 直线：A→B 到物体上方，同时转到该行姿态。
         if (!g_move_cfg.head_grasp.use_hand_camera)
         {
-            if (g_move_cfg.head_grasp.use_bezier_grasp)
+            if (g_move_cfg.head_grasp.approach_nostop &&
+                g_tray_hole_task != TrayHoleTask::PlaceEmpty)
             {
-                log_phase_banner("抓取流程：等待最终C，随后一次执行A-B-C Bezier");
-                std::cout << "[bezier] 已废除旧的先到hover再直线下压流程；本阶段不移动机械臂\n";
+                log_phase_banner("抓取流程：两段直线一次到最终点，本阶段不单独停在物体上方");
+                std::cout << "[approach] 到上方和下压接成一次，这里不移动\n";
+                return out;
+            }
+            if (tray_grasp_uses_curve() || tray_place_uses_corner())
+            {
+                log_phase_banner(tray_place_uses_corner()
+                                     ? "料盘2放置：抹角一次到孔位，本阶段不单独停在孔上方"
+                                     : "抓取流程：抹角一次到最终点，本阶段不单独停在物体上方");
+                std::cout << "[corner] B 是上方点，拐角稍后和最终点一起走，这里不移动\n";
                 return out;
             }
             log_phase_banner("抓取流程：直线 A→B 到物体上方并转该行姿态");
@@ -3155,17 +3198,29 @@ namespace move_box
         HeadAssignState &st,
         HandMoveState &hs)
     {
+        const bool approach_nostop =
+            g_move_cfg.head_grasp.approach_nostop &&
+            !g_move_cfg.head_grasp.use_hand_camera &&
+            g_tray_hole_task != TrayHoleTask::PlaceEmpty;
         log_phase_banner(g_move_cfg.head_grasp.use_hand_camera
                              ? "抓取流程：从上方下压夹取"
-                             : (g_move_cfg.head_grasp.use_bezier_grasp
-                                    ? "抓取流程：二次Bezier A-B-C到最终抓取点"
-                                    : "抓取流程：直线 B→C 下压到最终抓取点"));
+                             : (approach_nostop
+                                    ? "抓取流程：到上方后不停，直接下到抓取点"
+                                    : (tray_place_uses_corner()
+                                           ? "料盘2放置：A→B→C 抹角一次下发，不在孔上方停车"
+                                           : (tray_grasp_uses_curve()
+                                                  ? "抓取流程：A→B→C 抹角一次下发，不在 B 停车"
+                                                  : "抓取流程：直线 B→C 下压到最终抓取点"))));
         drop_if_y_split_blocks(st, hs, "hover/final下发前");
         if (hs.move_r && hs.move_l && dual_grasp_targets_too_close(st))
         {
             std::cout << "[col] 下压前列间隔不足，本轮只保留右手\n";
             hs.move_l = false;
         }
+
+        // 改最终高度之前，goal_last 就是直线流程的物体上方点 B。
+        const Eigen::Matrix<double, 1, 6> hover_r = st.goal_last_r;
+        const Eigen::Matrix<double, 1, 6> hover_l = st.goal_last_l;
 
         if (hs.move_r &&
             !apply_final_grasp_z_from_hand(
@@ -3191,58 +3246,26 @@ namespace move_box
             apply_adaptive_grasp_rpy_selective(arm_r, arm_l, st, hs.move_r, hs.move_l);
 
         ArmLineMoveResult out;
-        if (!g_move_cfg.head_grasp.use_hand_camera &&
-            g_move_cfg.head_grasp.use_bezier_grasp)
+        if (approach_nostop)
         {
-            const auto &hg = g_move_cfg.head_grasp;
-            const double gap = std::max(0.03, hg.bezier_ab_gap_m);
-            auto make_lowered_a = [&](Robot_Arm &arm, const Eigen::Matrix<double, 1, 6> &c,
-                                      bool do_move, Eigen::Matrix<double, 1, 6> &drop_pose)
-                -> bool {
-                if (!do_move)
-                    return false;
-                const Eigen::Matrix<double, 1, 6> cur = arm_get_tcp_pos(arm);
-                const double b_z = c(2) + hg.bezier_guide_height_m;
-                const double min_z = c(2) + 0.04;
-                double a_z = std::min(cur(2), b_z - gap);
-                a_z = std::max(a_z, min_z);
-                if (cur(2) - a_z < 0.015)
-                    return false;
-                drop_pose = cur;
-                drop_pose(2) = a_z;
-                copy_current_rpy(cur, drop_pose);
-                std::cout << std::fixed << std::setprecision(4)
-                          << "[bezier] 降低起点 A z " << cur(2) << " → " << a_z
-                          << " 使低于 B.z=" << b_z << "（不抬高B）\n";
-                return true;
-            };
-            Eigen::Matrix<double, 1, 6> drop_r = st.goal_last_r;
-            Eigen::Matrix<double, 1, 6> drop_l = st.goal_last_l;
-            const bool drop_need_r = make_lowered_a(arm_r, st.goal_last_r, hs.move_r, drop_r);
-            const bool drop_need_l = make_lowered_a(arm_l, st.goal_last_l, hs.move_l, drop_l);
-            if (drop_need_r || drop_need_l)
-            {
-                ArmLineMoveDebugStage stage("Bezier前降低A拉开与B的高度");
-                out = arm_dual_line_move_hold_redundant_selective(
-                    arm_r, drop_r, drop_need_r, arm_l, drop_l, drop_need_l, hg.descend_vel_m_s);
-                if ((drop_need_r && out.ret_r != 0) || (drop_need_l && out.ret_l != 0))
-                {
-                    if (drop_need_r && out.ret_r != 0)
-                        log_arm_traj_plan_fail("右手(降低A)", out.ret_r);
-                    if (drop_need_l && out.ret_l != 0)
-                        log_arm_traj_plan_fail("左手(降低A)", out.ret_l);
-                    return out;
-                }
-            }
-            {
-                ArmLineMoveDebugStage stage("二次Bezier A-B-C完整接近");
-                out = arm_dual_quadratic_bezier_move_selective(
-                    arm_r, st.goal_last_r, hs.move_r,
-                    arm_l, st.goal_last_l, hs.move_l,
-                    hg.bezier_guide_height_m,
-                    hg.bezier_vel_m_s,
-                    hg.bezier_orient_finish_ratio);
-            }
+            ArmLineMoveDebugStage stage("A→B→C 两段直线不停");
+            constexpr double kApproachCruiseMps = 0.16;
+            std::cout << "[approach] 直线 0.16m/s 到物体上方，不停，再下到抓取点\n";
+            out = arm_dual_line_then_line_nostop(
+                arm_r, hover_r, st.goal_last_r, hs.move_r,
+                arm_l, hover_l, st.goal_last_l, hs.move_l,
+                kApproachCruiseMps, kApproachCruiseMps, {}, false, "伸手");
+        }
+        else if (!g_move_cfg.head_grasp.use_hand_camera &&
+                 (tray_grasp_uses_curve() || tray_place_uses_corner()))
+        {
+            ArmLineMoveDebugStage stage("A→B→C 抹角一次下发");
+            std::cout << "[corner] 直线 0.16m/s 原样走到 B 前 8cm，末段抹角收到 C，失败不回退分段直线\n";
+            constexpr double kCornerCruiseMps = 0.16;
+            out = arm_dual_rounded_corner_move_selective(
+                arm_r, hover_r, st.goal_last_r, hs.move_r,
+                arm_l, hover_l, st.goal_last_l, hs.move_l,
+                kCornerCruiseMps);
         }
         else
         {
@@ -3331,6 +3354,31 @@ namespace move_box
         if ((hs.move_r && out.ret_r != 0) || (hs.move_l && out.ret_l != 0))
             return out;
 
+        if (!tray2_precision_test())
+        {
+            const auto &hg = g_move_cfg.head_grasp;
+            const bool place = g_tray_hole_task == TrayHoleTask::PlaceEmpty;
+            auto start_retract_plan = [&](Robot_Arm &arm, bool is_right) {
+                Eigen::Matrix<double, 1, 6> mid = arm_get_tcp_pos(arm);
+                mid(2) += hg.lift_after_grasp_z;
+                if (mid(2) > g_move_cfg.grasp_valid.z_max)
+                    mid(2) = g_move_cfg.grasp_valid.z_max;
+                const Eigen::Matrix<double, 1, 6> goal =
+                    place ? (is_right ? make_home_tcp_right() : make_home_tcp_left())
+                          : (is_right ? g_move_cfg.conveyor.tcp.right
+                                      : g_move_cfg.conveyor.tcp.left);
+                std::cout << "[retract] " << (is_right ? "右" : "左")
+                          << (place ? " 张爪同时规划收手，目标是 home_tcp\n"
+                                    : " 合爪同时规划收手，目标是传送带准备 tcp\n");
+                arm_start_line_then_line_plan(
+                    arm, mid, goal, hg.lift_vel_m_s, hg.return_vel_m_s);
+            };
+            if (hs.move_r && out.ret_r == 0)
+                start_retract_plan(arm_r, true);
+            if (hs.move_l && out.ret_l == 0)
+                start_retract_plan(arm_l, false);
+        }
+
         const int settle_ms = static_cast<int>(
             std::max(0.0, g_move_cfg.head_grasp.pre_grasp_settle_sec) * 1000.0);
         if (settle_ms > 0)
@@ -3395,25 +3443,6 @@ namespace move_box
     {
         if (!lift_r && !lift_l)
             return;
-
-        if (!g_move_cfg.head_grasp.use_hand_camera &&
-            g_move_cfg.head_grasp.use_bezier_grasp)
-        {
-            log_phase_banner("抓取完成：倒放Bezier关节轨迹，沿原路径返回A");
-            const ArmLineMoveResult reverse = arm_dual_reverse_last_quadratic_bezier_selective(
-                arm_r, lift_r, arm_l, lift_l);
-            if ((lift_r && reverse.ret_r != 0) || (lift_l && reverse.ret_l != 0))
-            {
-                std::cerr << "[bezier] 倒放回程失败，保持当前位置，不启用旧直线回程。右="
-                          << reverse.ret_r << " 左=" << reverse.ret_l << '\n';
-                return;
-            }
-            if (lift_r)
-                st.goal_last_r = make_standby_pos_right();
-            if (lift_l)
-                st.goal_last_l = make_standby_pos_left();
-            return;
-        }
 
         const double lift_z = g_move_cfg.head_grasp.lift_after_grasp_z;
         Eigen::Matrix<double, 1, 6> lift_pos_r = Eigen::Matrix<double, 1, 6>::Zero();

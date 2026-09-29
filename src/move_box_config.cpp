@@ -276,6 +276,7 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(hg, "left_ry_deg", cfg.head_grasp.left_ry_deg);
         read_value(hg, "left_rz_deg", cfg.head_grasp.left_rz_deg);
         read_value(hg, "use_bezier_grasp", cfg.head_grasp.use_bezier_grasp);
+        read_value(hg, "approach_nostop", cfg.head_grasp.approach_nostop);
         for (int g = 0; g < 3; ++g)
         {
             cfg.head_grasp.left_row_rpy_deg[g] = {
@@ -873,6 +874,7 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << "m z_offset=" << cfg.head_grasp.grasp_z_offset_m
               << "m nearest_row_z=" << cfg.head_grasp.nearest_row_grasp_z_offset_m
               << "m use_hand_camera=" << (cfg.head_grasp.use_hand_camera ? "on" : "off")
+              << " approach_nostop=" << (cfg.head_grasp.approach_nostop ? "on" : "off")
               << " use_bezier=" << (cfg.head_grasp.use_bezier_grasp ? "on" : "off") << "\n"
               << "[cfg] grasp offset left xyz=(" << cfg.head_grasp.goal_x_offset
               << "," << cfg.head_grasp.goal_y_offset << ","
@@ -943,10 +945,8 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << cfg.tray2_place.right_goal_y_offset << ","
               << cfg.tray2_place.right_grasp_z_offset_m
               << ") nearest_row_z=" << cfg.tray2_place.nearest_row_z_offset_m << "\n"
-              << "[cfg] bezier B_above_C=" << cfg.head_grasp.bezier_guide_height_m
-              << "m A_below_B=" << cfg.head_grasp.bezier_ab_gap_m
-              << "m vel_max=" << cfg.head_grasp.bezier_vel_m_s
-              << "m/s orient_hold=" << cfg.head_grasp.bezier_orient_finish_ratio
+              << "[cfg] bezier vel_max=" << cfg.head_grasp.bezier_vel_m_s
+              << "m/s orient_done=" << cfg.head_grasp.bezier_orient_finish_ratio
               << " endpoint_tol=" << cfg.head_grasp.bezier_endpoint_xyz_tol_m << "m/"
               << cfg.head_grasp.bezier_endpoint_rpy_tol_deg << "deg\n"
               << "[cfg] arm vel approach=" << cfg.head_grasp.approach_vel_m_s

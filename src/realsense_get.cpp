@@ -1,7 +1,5 @@
 #include "realsense_get.h"
 
-#include "Ti5_socketcan.h"
-
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -32,7 +30,6 @@ constexpr unsigned kGrabWaitTimeoutMs = 5000;
 /** 三台同开时 USB 口常首帧超时；启动/重试用更长等待 */
 constexpr unsigned kStartWaitTimeoutMs = 12000;
 constexpr int kStartMaxAttempts = 4;
-constexpr int kStaggerBetweenCamsMs = 400;
 
 struct SlotDevice
 {
@@ -352,56 +349,54 @@ bool RealSenseMultiCam::init(std::string &err)
         return false;
     }
 
-    for (const char *key : kSlotKeys)
+    const YAML::Node head = realsense["head"];
+    if (!head || !head.IsMap())
+    {
+        err = "配置缺少相机位置: head";
+        return false;
+    }
+    {
+        SlotDevice dev;
+        dev.slot_id = "head";
+        dev.label = head["label"] ? head["label"].as<std::string>() : "head";
+        dev.serial = head["serial"] ? head["serial"].as<std::string>() : "";
+        if (dev.serial.empty())
+        {
+            err = "序列号为空: head";
+            return false;
+        }
+        impl_->slots.emplace("head", std::move(dev));
+    }
+
+    // 左右手相机当前不用，启动不打开、缺了也不失败。
+    for (const char *key : {"right_hand", "left_hand"})
     {
         const YAML::Node node = realsense[key];
         if (!node || !node.IsMap())
-        {
-            err = std::string("配置缺少相机位置: ") + key;
-            return false;
-        }
-
+            continue;
         SlotDevice dev;
         dev.slot_id = key;
         dev.label = node["label"] ? node["label"].as<std::string>() : key;
         dev.serial = node["serial"] ? node["serial"].as<std::string>() : "";
-        if (dev.serial.empty())
-        {
-            err = std::string("序列号为空: ") + key;
-            return false;
-        }
-        impl_->slots.emplace(key, std::move(dev));
+        if (!dev.serial.empty())
+            impl_->slots.emplace(key, std::move(dev));
     }
+    std::cout << "[realsense] 左右手相机不要求打开，本次只启动头部\n";
 
-    // 按固定顺序逐台启动并错开，避免 map 字母序一次挤满 USB 导致末台首帧超时
-    bool first = true;
-    for (const char *key : kSlotKeys)
+    auto &dev = impl_->slots.at("head");
+    std::string cam_err;
+    if (!start_slot_device(dev, impl_->width, impl_->height, impl_->head_fps, cam_err))
     {
-        if (std::strcmp(key, "right_hand") == 0 && right_arm_motors_locked())
-        {
-            std::cout << "[realsense] 右臂锁定，跳过右手相机（配置仍保留，恢复右臂后会再开）\n";
-            continue;
-        }
-        auto &dev = impl_->slots.at(key);
-        if (!first)
-            std::this_thread::sleep_for(std::chrono::milliseconds(kStaggerBetweenCamsMs));
-        first = false;
-
-        const int fps = (dev.slot_id == "head") ? impl_->head_fps : impl_->hand_fps;
-        std::string cam_err;
-        if (!start_slot_device(dev, impl_->width, impl_->height, fps, cam_err))
-        {
-            std::cerr << "[realsense] 配置 SN=" << dev.serial
-                      << " 不在已连接列表中，请改 config/realsense_cameras.yaml\n";
-            log_connected_realsense();
-            err = std::string("打开相机失败 [") + dev.slot_id + "] SN=" + dev.serial + ": " + cam_err;
-            stop();
-            return false;
-        }
-        std::cout << "RealSense 已启动: " << dev.label << " (" << dev.slot_id
-                  << ") SN=" << dev.serial << " " << impl_->width << "x" << impl_->height
-                  << "@" << fps << "fps\n";
+        std::cerr << "[realsense] 配置 SN=" << dev.serial
+                  << " 不在已连接列表中，请改 config/realsense_cameras.yaml\n";
+        log_connected_realsense();
+        err = std::string("打开相机失败 [") + dev.slot_id + "] SN=" + dev.serial + ": " + cam_err;
+        stop();
+        return false;
     }
+    std::cout << "RealSense 已启动: " << dev.label << " (" << dev.slot_id
+              << ") SN=" << dev.serial << " " << impl_->width << "x" << impl_->height
+              << "@" << impl_->head_fps << "fps\n";
 
     return true;
 }

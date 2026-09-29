@@ -4,6 +4,7 @@
 #include "head.h"
 #include "Ti5_Arm.h"
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -164,26 +165,68 @@ ArmLineMoveResult arm_dual_line_move_hold_redundant_selective(
     bool move_l,
     double cart_linear_velocity);
 
+/** 料盘抓取抹角：A→B 按巡航速度规划后原样下发到 B 前 8 cm，末段收到 C。
+ *  不在 B 停车。规划失败则整段失败，不退回分段直线。 */
+/** 后台规划两段直线衔接。手臂停在起点时调用，可与合爪重叠。 */
+void arm_start_line_then_line_plan(
+    Robot_Arm &arm,
+    const Eigen::Matrix<double, 1, 6> &mid,
+    const Eigen::Matrix<double, 1, 6> &goal,
+    double vel_first_m_s,
+    double vel_second_m_s);
+
+/** 已在目标位置附近时，按关节角速度上限转到目标姿态。max_deg_s 是单个关节的上限。 */
+int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, double max_deg_s);
+
+/** 两段直线一次下发：第一段去掉末尾减速到 0，第二段去掉开头从 0 加速，中间不停车。
+ *  若该臂已有 arm_start_line_then_line_plan 且关节仍在起点，直接下发不再规划。 */
+ArmLineMoveResult arm_dual_line_then_line_nostop(
+    Robot_Arm &arm_r,
+    const Eigen::Matrix<double, 1, 6> &mid_r,
+    const Eigen::Matrix<double, 1, 6> &goal_r,
+    bool move_r,
+    Robot_Arm &arm_l,
+    const Eigen::Matrix<double, 1, 6> &mid_l,
+    const Eigen::Matrix<double, 1, 6> &goal_l,
+    bool move_l,
+    double vel_first_m_s,
+    double vel_second_m_s,
+    const std::function<void()> &before_move = {},
+    bool use_prepared = false,
+    const char *log_tag = "收手");
+
+ArmLineMoveResult arm_dual_rounded_corner_move_selective(
+    Robot_Arm &arm_r,
+    const Eigen::Matrix<double, 1, 6> &hover_r,
+    const Eigen::Matrix<double, 1, 6> &final_r,
+    bool move_r,
+    Robot_Arm &arm_l,
+    const Eigen::Matrix<double, 1, 6> &hover_l,
+    const Eigen::Matrix<double, 1, 6> &final_l,
+    bool move_l,
+    double cruise_mps);
+
 /** 二次 Bezier 抓取轨迹。
- *  A=当前实测 TCP，B=(C.x,C.y,C.z+guide_height)，C=final_goal。
- *  每 2–4 mm 一个 IK 关键点（约 100–200 个），关键点之间关节空间插值到 5 ms。
- *  起点 A 用当前关节，不重解；最后一个关键点严格求解 C。全部关键点成功后才下发。
- *  前 orient_finish_ratio 保持 A 的 RPY，之后才 slerp 到 C。 */
+ *  A=当前实测 TCP，B=guide（直线流程的物体上方点，只拉弯，不经过、不停），C=final_goal。
+ *  每 2–4 mm 一个 IK 关键点，关键点之间关节空间插值到 5 ms。
+ *  起点用当前关节；最后一个关键点严格求解 C。全部关键点成功后才下发。
+ *  路径前 orient_finish_ratio 从 A 的姿态转到 C，之后保持 C。 */
 int arm_quadratic_bezier_move(
     Robot_Arm &arm,
+    const Eigen::Matrix<double, 1, 6> &guide,
     const Eigen::Matrix<double, 1, 6> &final_goal,
-    double guide_height_m,
     double cart_max_velocity,
     double orient_finish_ratio);
 
 ArmLineMoveResult arm_dual_quadratic_bezier_move_selective(
     Robot_Arm &arm_r,
+    const Eigen::Matrix<double, 1, 6> &guide_r,
     const Eigen::Matrix<double, 1, 6> &final_r,
     bool move_r,
     Robot_Arm &arm_l,
+    const Eigen::Matrix<double, 1, 6> &guide_l,
     const Eigen::Matrix<double, 1, 6> &final_l,
     bool move_l,
-    double guide_height_m,
     double cart_max_velocity,
     double orient_finish_ratio);
 

@@ -126,11 +126,14 @@ const uint32_t *arm_ids(int a)
     return a == 1 ? kRightArmCanIds : kLeftArmCanIds;
 }
 
+std::mutex g_motor_sdk_mu;
+
 template <typename Fn>
 bool sdk_try(uint32_t can_id, const char *what, Fn &&fn)
 {
     if (skip_id(can_id))
         return true;
+    std::lock_guard<std::mutex> lock(g_motor_sdk_mu);
     try
     {
         fn();
@@ -152,6 +155,7 @@ bool motor_get_pos_rad(uint32_t id, double &rad)
         rad = 0.0;
         return true;
     }
+    std::lock_guard<std::mutex> lock(g_motor_sdk_mu);
     try
     {
         rad = get_Position(id);
@@ -675,6 +679,7 @@ int socketcan_sendsimplecommand(int, int cannum, uint32_t *can_idlist, uint8_t c
         {
             try
             {
+                std::lock_guard<std::mutex> lock(g_motor_sdk_mu);
                 const double v = get_Speed(id);
                 if (data)
                     data[i] = rad_to_cnt(v);

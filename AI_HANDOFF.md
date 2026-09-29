@@ -1,191 +1,184 @@
 # T170C 交接文档（给下一任 AI）
 
-更新：2026-09-23 傍晚  
+更新：2026-09-29  
 权威目录（机器人本机）：`/home/ti5robot/T170Clean`  
 用户：`ti5robot`，主机 Ubuntu aarch64（Jetson/Tegra），无 ROS2。  
 机器人：钛虎 T170C，双 7 轴 + 腰腿 LowerBody 5 轴 + 头 3 电机 + DEX1 夹爪 + 仙工底盘。
 
-**2026-09-21 及更早的交接正文已过时。** 当时的主问题是料盘左右分列、传送带未接入、底盘未接。那些都已经做完。以本文和 `config/move_box_params.yaml` 为准。yaml 里 `conveyor:` / `conveyor2:` 上方仍有「第一传送带 AP6、第二传送带 AP5」的旧注释，**不要信**。站点以 `chassis:` 和 `vision_grasp_then_belt()` 的日志为准。
+**以本文和当前代码为准。** `config/move_box_params.yaml` 里 `conveyor:` / `conveyor2:` 上方仍有「第一传送带 AP6、第二传送带 AP5」「抓完回 grasp_tcp」「料盘二放置仍走直线」等旧注释，**不要信注释，信 `chassis:` 和 `robot_runtime.cpp`。**
+
+本轮会话：[调度与动作衔接](11893e6d-7422-405d-adb8-aceae908e7c8)。更早：[料盘抓取与皮带起点](e7664eb9-388a-499a-8efc-1835dd777a93)、[T170C 抓取分列](fd4f66e4-07f1-48c0-9b5c-6e3b4579aee1)、[传送带放置与精度](a5b4797e-df10-4e29-b342-e25c3524a140)。
 
 ---
 
-## 0. 下一任立刻要遵守的硬约束
+## 0. 立刻要遵守的硬约束
 
 1. **不要用 ROS2。** 没有 rclcpp / topic。
-2. **右臂已解锁：`kLockRightArmMotors = false`**（`src/Ti5_socketcan.cpp`）。旧机右臂曾撞断，开关保留；不要删右臂代码。再锁定只改这一处为 `true`。
-3. **右 DEX1 经常扫不到。** 启动允许少一个夹爪；缺侧 `open/grasp` 直接跳过，手臂仍走。不要把「没夹爪」当成启动失败。缺右爪时右手仍可能计一次成功。
-4. **YOLO 只给类别，不参与定位。** 料盘孔位 XY 来自 ArUco 盘系 → 基座。码不够禁止回退 YOLO 抓取。传送带抓取的 YOLO 门禁默认关（`grasp_yolo_enable: false`）。
-5. **不要把盘心再加进孔位 XY。** `t_avg` 已经在 `xyz_level` 里。再加一次就是双重平移。
-6. **C++ 改完必须重编 `build_robot/t170c_debug` 并重启进程。** yaml 数值（含 offset、固定 Z）可 `reload`。新命令、Python 视觉引擎、头/腰运动逻辑不行。不要擅自启动 `t170c_debug`，除非用户要求。
-7. **不要 git commit，除非用户明确要求。**
-8. 软件 `abort` **不能替代实体急停**。动腰/臂时旁边要有人。
-9. 头俯仰现场大约最多 **47°**。`far_pitch_deg: 47`。不要再写 65°。
-10. **放置不要再加 J2 锁，也不要加额外的 XY 回退。** 用户试过，结论是越改越糟。放置松爪后只抬约 3 cm，然后一条直线回准备。
-11. **不要用每天改 offset 去吞 2–3 cm 的随机高度差。** 见 §3。offset 只改下发目标，改不了跟踪没走完。
-
-坐标系（全工程统一）：**基座 +X 前、+Y 左、+Z 上**。料盘 / 皮带 ArUco 系同样前左上。
+2. **右臂已解锁：`kLockRightArmMotors = false`**（`src/Ti5_socketcan.cpp`）。旧机右臂曾撞断，开关保留。再锁定只改这一处为 `true`。
+3. **右 DEX1 经常扫不到。** 启动允许少一个夹爪；缺侧 `open/grasp` 直接跳过，手臂仍走。不要把「没夹爪」当成启动失败。
+4. **YOLO 只给类别，不参与定位。** 料盘孔位 XY 来自 ArUco。码不够禁止回退 YOLO 抓取。传送带抓取 YOLO 门禁默认关。
+5. **不要把盘心再加进孔位 XY。** `t_avg` 已经在 `xyz_level` 里。
+6. **C++ 改完必须重编并重启。** `cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170c_debug`。yaml 数值可 `reload`。新命令、新分支逻辑不行。**不要擅自启动 `t170c_debug`，除非用户要求。**
+7. **不要 git commit / push，除非用户明确要求。** `origin` 是 jihulab，不要推那里。GitHub 远程若存在，也只在用户点名时推。不要在文档或回复里重复任何 token。
+8. 软件 `abort` **不能替代实体急停**，也**杀不掉**正在跑的服务端命令。客户端 Ctrl+C 只断自己。要停进程：`pkill -f build_robot/t170c_debug`，然后再启动才能发下一条。
+9. 头远排俯仰是 **`far_pitch_deg: 47`**。不要写成 65°。标定俯仰约 40°，传送带拍照俯仰 38°。
+10. **抹角失败不要退回两段停车直线。** 收手衔接失败才允许退回「先抬升、停住、再走直线」。
+11. **抹角长度是 8 cm**（`kCornerBlendM = 0.08`），不是 8 mm。不要改成几毫米。
+12. **不要在手臂 `set_Position` 的同时再开一条腰/头的 CAN 线程。** 曾经因此 `std::bad_alloc`，进程死掉，客户端只看到 `Expecting value: line 1 column 1`。电机 SDK 已有 `g_motor_sdk_mu`（`sdk_try` / 设位置）。底盘是仙工 TCP，可以单独线程和手臂重叠。去料盘二时腰和底盘一起动，是刻意加的，腰走这条互斥锁。
+13. **不要用每天改 offset 去吞 2–3 cm 的随机高度差。** offset 只改下发目标。
+14. 坐标系：**基座 +X 前、+Y 左、+Z 上**。料盘 / 皮带 ArUco 同样前左上。
 
 ---
 
-## 1. 当前进度（2026-09-23）
+## 1. 当前进度（2026-09-29）
 
-整圈已经打通，执行起来没有大的流程问题。用户明确的下一步是：
+整圈、料盘↔传送带一、传送带二↔料盘二、以及调度三任务都已接上。用户在收尾效率和腰的安全顺序，不是在重写识别。
 
-1. **抓取 / 放置精度**（先把误差变小、变稳，再谈微调）。
-2. **手臂动作平滑。**
-3. **效率**（动作连贯，少停、少分段）。
-4. **和机床信号配合**（还没做，不要先发明协议）。
+未提交。改完要用户自己重启 `t170c_debug` 才生效。
 
-### 已跑通的闭环
+### 1.1 `cycle`（`grasp_belt`）现在的顺序
 
-`cycle` → `vision_grasp_then_belt()`，一直循环到 abort 或某步失败：
+一直循环到 abort 或某步失败：
 
 ```
-AP7 料盘抓毛坯
-  → home（站起 + home_tcp，保持合爪）
-  → AP5 第一传送带放置（conveyor）
-  → belt_grasp（原地，不转腰）
-  → AP6 第二传送带放置（conveyor2）
-  → belt2_grasp（原地，不转腰）
-  → AP9 空孔放置（料盘2，YOLO class 3）
-  → 站起 + home_tcp
-  → 底盘回 AP7
-  → 下一圈
+AP7 抓毛坯（抹角 0.16 m/s）
+  收手不停，只把抓到的手送到传送带准备 tcp
+  收手一结束：底盘去 AP5，同时腰到拍照位（见 §2.5，远端不能在 x=0.18 上直接站）
+→ AP5 放置（抹角/收手都 0.15 m/s，松爪到 0.2，收手回准备 tcp）
+  拍照时钟从导航完成 task_status==4 起算，再补满 3 s
+→ 原地抓半成品（0.15 m/s）
+  右手一合爪，等 2 s，底盘去 AP6，不等两只手都收到位
+  收手平移回传送带准备 tcp，腕角先保持，到位再 40°/s 转到准备姿态
+→ AP6 放置
+→ 原地抓成品
+  收手直接去料盘放置准备 standby（不是 grasp_tcp / home_tcp）
+  右手一合爪，等 2 s：底盘去 AP9，同时腰开始到料盘放置高度
+→ AP9 空孔放置
+  放完升腰并回 AP7，再下一圈
 ```
 
-底盘是仙工 `GoToStation`，`chassis.host: 192.168.192.5`。曾经出现的 `code=-6` 是导航「control is preempted」，不是流程逻辑错。
+`cycle1`（`grasp_belt1`）：只在 AP7 抓和 AP5 放之间循环，放完回 AP7 再抓。回程时**站名变成 AP7 就提前摆头、手臂和腰**，导航完成才算到站，拍照仍在停稳之后。
 
-### 站点
+`cycle3`（`cycle3`）：AP6 抓成品 → AP9 放置 → **停在原地结束**。不升腰，不回 AP7。右手合爪后同样 2 s 出发，腰和底盘一起动。
+
+### 1.2 站点
 
 | 名字 | yaml | 工位 | 参数 |
 |------|------|------|------|
-| 料盘抓取 | `chassis.tray_station` | **AP7** | `head_grasp` + 料盘 5×5 |
-| 第一传送带 | `chassis.belt_station` | **AP5** | `conveyor` |
-| 第二传送带 | `chassis.out_station` | **AP6** | `conveyor2` |
-| 空盘放置 | `chassis.tray2_station` | **AP9** | `tray2_place`，识别空孔 |
+| 料盘抓取 | `tray_station` | **AP7** | `head_grasp` + 料盘 5×5 |
+| 第一传送带 | `belt_station` | **AP5** | `conveyor` |
+| 第二传送带 | `out_station` | **AP6** | `conveyor2` |
+| 空盘放置 | `tray2_station` | **AP9** | `tray2_place`，class 3 |
 
-传送带腰高都是 `waist_z: 0.63`。料盘抓取腰高仍是 `ready_z_m: 0.36`，home 腰高 `layer3_home.z: 0.63`。
-
----
-
-## 2. 各段在做什么
-
-### 2.1 料盘抓取（AP7，`grasp`）
-
-- 只抓 YOLO **class 0**（毛坯）。左右分列用 **ArUco 列号**：1–3 右、4–6 左。盘转 180° 时按列的基座 Y 判断对调，不要改回用 `Y=0` 当盘心。
-- 远近用 `from_robot`（1 最远）。近三排 4–6 在 ready 起始 x；远三排 1–3 腰前伸 `far_row_forward_m: 0.18`，头 `far_pitch_deg: 47`，live `free_calib` 后重拍。
-- 满排同时抓的列对是 3–6 / 2–5 / 1–4。姿态按离机器人远近，不按 ArUco 行号。`ready1/2/3/6` 只摆这些姿态。
-- Z：物体顶面 = `tray_z_ref_now() + part_above_tray_m`。相机顶面与参考差超过 `z_refine_max_m`（3 mm）就用参考。最终 Z = 顶面 + 该手 `grasp_z_offset`。`nearest_row_grasp_z_offset_m` 只叠在 `from_robot=6`。
-- 左右 offset **不共用、不取反**。当前左手 z=+0.02、右手 z=+0.04，所以同一参考下右手目标高 2 cm。
-- 盘面参考公式仍是 `z_now = z_ref_m − (当前腰z − z_ref_waist_z_m)`，标定锚点是腰 **0.55**（`z_ref_waist_z_m`）。home 腰后来改成 0.63，不要把 `z_ref_m` 无测量地改掉。
-- 手相机关：`use_hand_camera: false`。轨迹：`use_bezier_grasp: false`，直线下压。Bezier 代码留着。
-- 料盘抓取在笛卡尔检查前会 `wait_arms_motors_stopped`。传送带直线 **不会**。
-
-### 2.2 第一传送带（AP5，`conveyor`）
-
-放置和抓取都先到观察姿态，然后停稳 **1.5 s** 再拍照。底盘刚到之后不再另等 1 s / 0.5 s。抓取点仍停 **0.5 s** 才合爪。传送带直线在读正运动学前会 `wait_arms_motors_stopped`，编码器没停稳不算到位。
-
-- 放置 XYZ = 码原点 + `R_识别 × offset`。RPY 用 `place_tcp`，不是 `tcp`。
-- 抓取点 = 码原点 + `R_识别 × grasp_offset`。RPY 用 `grasp_rpy_deg`，不是 tcp 的 RPY。
-- 左右手都可以过 Y=0。放置右手先放，抓取左手先抓。先动的那只手夹爪一完成，另一只手立刻过来，先动的手同时抬起撤回，不等整段结束。不预开爪。
-- 准备姿态夹爪先收到 `grasp_ready_close_ratio`（现 0.20），避免下探磕皮带边。
-- **码平面 Z 已固定，不用相机高度。** `use_fixed_origin_z: true`，`fixed_origin_z_m: -0.29`。这是腰 0.63 m 时卷尺：手臂基座到传送带（码平面）29 cm，Z 向上，传送带在下方。XY 和板朝向仍用二维码。offset 和 hover 仍叠在 −0.29 上。左右手因此共用同一个码平面 Z；若两边 `grasp_offset` 相同，下发的抓取 XYZ 也相同。
-- 调试客户端里的 `grasp_z` / `belt_z` 在抓取时是 **左手抓取点**，不是码原点，也不是右手。
-
-只摆手腕、不拍照不夹取：`belt_grasp_rpy`（tcp 的 XYZ + `grasp_rpy_deg`）。准备姿态本身是 `belt_ready`。`belt_place` 是放置末端预览，不是抓取前的准备位。
-
-### 2.3 第二传送带（AP6，`conveyor2`）
-
-流程和第一套相同，参数独立。底盘到 AP6 后同样是准备姿态到位，再停稳 **1.5 s** 拍照。
-
-**仍用相机读出的码平面 Z**（`use_fixed_origin_z: false`）。固定 −0.29 先只开在第一套上，方便对比。用户确认第一套之后，再同样接到第二套。
-
-当前抓取 offset 左右不完全相同：左 `{−0.04, 0.12, 0.05}`，右 `{−0.04, 0.105, 0.05}`。RPY 是 pitch 45°、rz ∓40°，和第一套的 40° / ∓60° 不同。
-
-### 2.4 料盘2 空孔放置（AP9，`tray2` / `tray2_place`）
-
-复用料盘抓取的孔序和腰/头，但 YOLO 要 **class 3 空孔**，不是 class 0。四组 RPY 在 `tray2_place`，**不要复用** `ready1/2/3/6`。调试命令 `tray2ready1/2/3/6`。XYZ offset 在 `tray2_place.offset`，左右手分开，还有 `nearest_row_z_offset_m`。改 `head_grasp` 的 offset 不再带动料盘2。放置是张开夹爪，不是合爪。放完站起，手臂到和第一次抓完一样的 `home_tcp`。
+传送带腰：`waist_x: 0.15`，`waist_z: 0.63`，头俯仰 38°。料盘抓取/放置腰高 `ready_z_m: 0.36`。home 腰 `layer3_home.z: 0.63`。底盘 `192.168.192.5`。导航完成才算到站：仙工 `task_status==4`。站名提前变成目标站**不算**到站（那会在还在滑的时候拍照）。
 
 ---
 
-## 3. 精度：已经查清的原因（先看这个再改）
+## 2. 动作（和代码一致，不要按 yaml 旧注释）
 
-用户要的是误差小且稳定，不要求 100% 精准。每天改一个 offset 吃掉随机厘米级偏差，没有意义。
+### 2.1 料盘抓取（AP7）
 
-### 3.1 日志里的「到位误差」是什么
+- class 0 毛坯。列 1–3 右、4–6 左。远近用 `from_robot`（1 最远）。远三排腰前伸 `far_row_forward_m: 0.18`，头 47°，按编码器重算外参再拍。
+- `use_hand_camera: false`。`use_bezier_grasp: true` 且 `approach_nostop: false`：**伸手是抹角**，巡航 **0.16 m/s**，B 前约 8 cm 抹到 C，不在 B 停车，失败不退回分段直线。
+- 收手：竖直抬 `lift_after_grasp_z`（0.08 m）后**不停**，直线去 **传送带准备 `conveyor.tcp`**，不是 `home_tcp`。速度 `lift_vel` / `return_vel`，yaml 里都是 **0.16 m/s**。只收回抓到的那只手。
+- 合爪的同时预规划这段收手。衔接失败才退回先抬、停、再走直线。
+- 收手全部结束后，底盘线程立刻去 AP5；主线程同时把头和腰摆到传送带拍照位。不要再改成「等腰完再开底盘」，也不要在收手还没完时动腰。
+- `approach_vel_m_s: 0.12` 只留给仍走直线的旧路径，**不是**传送带抓取速度。
 
-下发的笛卡尔目标，对上 **当前编码器关节的正运动学**。两边用同一套模型。它不是卷尺量到的夹爪在世界上的位置。
+### 2.2 两条传送带放置
 
-2026-09-23 起，传送带 `move_one_arm_line_to` 先 `wait_arms_motors_stopped`，停稳后再读 FK。在这之前它是最后一个关节设定点刚发出去就读，所以下降会看到 2–3 cm。料盘抓取本来就会等电机停稳再查。
+伸手抹角、收手两段直线，都是 **0.15 m/s**。松爪到闭合比例 **0.2**（0 全开，1 全合），不是张到最大。到位后仍停 0.5 s 再松。收手抬 **3 cm** 后不停，回到该传送带的 `tcp`。
 
-2026-09-23 16:36 第一传送带抓取（固定 Z 已生效），左右下发 Z 都是 **−0.2493 m**：
+拍照：`go_belt_station` 从 **导航完成** 起算满 **3 s**。准备动作如果已经花掉这 3 s，就立刻拍。不要再把「站名已经是 AP5」当成到达。
 
-| | 下发 Z | 发完瞬间的 FK Z | 还差 |
-|--|--------|-----------------|------|
-| 左手 | −0.2493 | −0.2236 | 高 25 mm |
-| 右手 | −0.2493 | −0.2244 | 高 25 mm |
+### 2.3 传送带抓取
 
-两手之间只差 0.8 mm。悬停（同一姿态、还没下降）Z 误差约 1 mm。下降短一截、抬升也短一截，方向跟着运动走。这组数是改「停稳再读」之前的。之后传送带会等编码器到位再打印误差。
+伸手抹角、收手平移都是 **0.15 m/s**。第一只手拍照前仍停 **1.5 s**；第二只手底盘没动，**不再多停 1.5 s**，但仍重新拍照。抓取点停 0.5 s 再合爪。准备时夹爪先收到 0.2。
 
-所以「左右实际高度不一致」若是看这个日志，两手命令相同、瞬间 FK 也几乎相同，共同的问题是下降没走完就被当成到位。
+收手平移时**保持抓取腕角**。接到目标位置后，再以 **40°/s** 转到目标姿态。两段接缝的单个关节上限是 **25°/s**（`stitch_cruise_lines`）。以前是 8°/5 ms（约 1600°/s），右手从皮带中间收回时会抽一下。不要把这个上限改回。
 
-### 3.2 怎么把一次误差拆开
+收手目标：
 
-同一条日志、等停稳之后：
+| 从哪抓 | 收到哪 |
+|--------|--------|
+| 传送带一（AP5） | `conveyor.tcp`（和抓取准备同一套） |
+| 传送带二（AP6） | yaml `standby`（料盘放置前的准备，不是 `grasp_tcp`，也不是 `home_tcp`） |
 
-| 比较 | 说明 | 该怎么处理 |
-|------|------|------------|
-| FK(最后下发的 q) 对目标 | 逆解 / 限位把目标投影丢了 | offset 推不过去。要拒掉 FK 离目标太远的 `Line_Trajectory` |
-| FK(编码器) 对最后下发的 q | 跟踪没到 | 等编码器；最后 2 cm 放慢。只有重复出现的几毫米才进 offset |
-| 编码器跟上了、日志误差很小，零件仍偏 | 腰沉、视觉、工具长度 | 不要改手臂 offset |
+`grasp_tcp`（姿态 0,0,0）还在 yaml 里，**这两段抓取收手已经不用它。**
 
-### 3.3 已经排除或次要的
+联动出发（`start_belt_depart_after_right`）：右手合爪成功后 **等 2 s**，底盘出发，收手继续。单独的 `belt_grasp` / `belt2_grasp` **不会**因此开走。
 
-- **工具长度** `[0.23, 0, 0]` 沿法兰 X。长度错会在 45° 俯仰下同时出现在 X 和 Z，解释不了「XY 约 1 mm、纯 Z 差 25 mm」。
-- **腰下沉 / 连杆变形** 不进手臂基座 FK。日志写 2 mm 但零件没抓到，去看腰和视觉。
-- **编码器量化** 可忽略。`grasp_valid.z_min=-0.65` 不会夹到传送带大约 −0.25 的目标。
-- **J2/J6 的 yaml 限位只约束求解器，不挡住电机。** 曾看到左手传送带抓取模型 J6 约 −53°，yaml 是 ±40°，手臂已经在公布限位外面。冗余 J2 在抓取直线上不锁，种子不同会留几毫米。
-- `Line_Trajectory`（闭源 `Ti5_Arm`）路点 IK 返回 0 就算成功，**不像** `solve_bezier_ik` 那样用 FK 复核 1 mm / 0.5°。限位投影出的「最近姿态」也会报成功。
-- 料盘等待里，稳定误差到约 2500 计数（≈3.4°）会当已到位。0.25 m 连杆上 1°≈4 mm，3.4°≈15 mm。
-- 第一传送带码平面相机 Z 曾经大约 −0.32，剔除一个 −0.317 的离群后散布约 4 mm。这是改成固定 −0.29 的原因。固定的是码平面，不是最终 TCP。
+- 传送带一之后要去传送带二（`cycle`、调度转运）：2 s 后去 **AP6**。这时不要同时动腰。
+- 传送带二之后要去料盘二（`cycle`、`cycle3`、调度下料）：2 s 后去 **AP9**，并且腰同时收到料盘放置高度（`ensure_waist_ready_start`）。不要等导航完成才动腰。
 
-### 3.4 精度上先做的事（用户还没要求改代码）
+左手合爪后就可以开始申请右手，和左手收手重叠。`PICK_UP_DONE` 仍是合爪后至少 2 s 才发。
 
-1. 传送带直线已经等编码器停稳再读 FK。还没做的是：`Line_Trajectory` 成功但 FK 离目标超过几毫米就当失败。
-2. 不要把「平台期还差 3°」当成功。
-3. 做完上面两件，只把重复、稳定的几毫米写进 offset。
-4. 第一传送带固定 Z 对比满意后，再给 `conveyor2` 打开 `use_fixed_origin_z`。
+### 2.4 料盘二放置（AP9）
 
----
+伸手同样是抹角 **0.16 m/s**（`tray_place_uses_corner`）。收手两段直线不停，目标是 `home_tcp`，张爪时把这段规划好。放置是张爪，不是合爪。
 
-## 4. 平滑和效率（还没改，先知道停在哪）
+- **`tray2` / `tray2_place`**：放完 **不升腰、不回 AP7**，停在原地。
+- **`cycle`**：放完仍升腰并回 AP7，以便下一圈抓毛坯。`vision_place_tray2(..., return_to_tray=true)`。
+- **`cycle3`**：AP6 抓 → AP9 放 → 停在原地结束。
+- **调度下料**：放完停在 AP9 等下一条任务，不回 AP7。
 
-现在为了认码和松爪，故意插了多段等待，动作是一段一段的：
+### 2.5 远端抓完，腰怎么去拍照位（2026-09-29 刚改）
 
-- 两条传送带都是准备姿态到位后再等 1.5 s 才拍照。
-- 抓取点再 0.5 s 才合爪。
-- 右手放置回准备后间隔 0.5 s，左手才开始放。
-- 传送带双手是依次的，不是同时。
-- 放置下降用直线，速度走 `head_grasp` 的接近速度，最后一段没有单独放慢。
+远排抓完腰在 x≈0.18 m、z≈0.36 m（深蹲）。**禁止**锁着 x=0.18 从 0.36 直接升到 0.63。2026-09-29 11:15 那次就是这样：规划终点 (0.180, 0.630) 能解，实际俯仰甩到约 −11°，x 缩到约 0.07 m，z 冲到 0.646 m；接着在这个偏高的位置把 x 推到 0.15 m，`Move_Limit`，`code=-2`，日志 `grasp_depart 腰平移 X 失败`。底盘当时已经到了 AP5，失败的是腰。
 
-提效率时先减这些确定的空等和衔接，不要先改几何。平滑和「等电机真正到位」是一件事的两面：现在发完就报到位，看起来快，高度却是虚的。
+现在 `conveyor_waist_and_head`：若当前 x 比拍照 x 大过 2 cm，**先在当前高度收到拍照 x=0.15，再上升**。近处仍是先站直再前伸。上升后 |dx| 或 |dz| > 2 cm 不算到位，先收到 `waist_ready_x()` 再站直，然后再伸到 0.15。
 
 ---
 
-## 5. 机床信号
+## 3. 调度（已接入，不要再说「机床还没做」）
 
-未接入。闭环目前只到空盘放回 AP9 再回 AP7。不要在用户给出信号定义之前加 Modbus / IO 占位流程。
+机器人**不连机床**。只连调度 `192.168.122.120:8080`（`RobotClient`，库在 `/opt/ti5-jindi-faactory-robot-client`）。机床允许放/抓，由调度回 `PLACE` / `PICK_HALF` / `PICK_WELL`。
+
+启动先回 AP7 待命，报 `STANDBY`，卡住等 `apply_mission()`。任务只有 `TASK_LOAD` / `TASK_TRANSFER` / `TASK_UNLOAD`。`CHARGE` 能被库返回，**没有实现**。
+
+| 任务 | 动作 |
+|------|------|
+| 上料 | AP7 抓毛坯 → AP5 申请放置 → 放下 |
+| 转运 | AP5 左右手各申请抓半成品 → AP6 申请放置 |
+| 下料 | AP6 按空孔抓 1 或 2 只手 → AP9 放入空孔 |
+
+申请超时 5 s。抓的超时跳过该手；放的超时不放。**手里还有件时不发 `DONE`，也不回 AP7 再抓**（`kDispatchHoldStay`）。手里没件的失败仍回 AP7。
+
+回报都是先满 2 s 再发：`PLACE_DONE`、`PICK_UP_DONE`、`DONE`。上料把开抓前数到的零件拿光，另发 `RAW_MATERIAL_EMPTY`。下料放下后没有空孔，另发 `WELL_DONE_MATERIAL_FULL`。
+
+上料、转运完成后原地等 **5 s**。这 5 s 内来任务就在原地做；没有任务才回 AP7，到站再停 2 s。下料放到 AP9 之后**一直等**，没有这 5 s 回 AP7。
+
+人已经在对应传送带、双手都在该站准备 `tcp` 附近（12 mm、5°）时，转运/下料**不再 `go_home`**，直接申请并抓。否则路上直接摆拍照准备，不先回 home。
+
+转运抓取在传送带 +X 再加 5 mm；转运放置松手 Z 再低 5 mm。只影响这两段。
 
 ---
 
-## 6. 架构与启动
+## 4. 已经踩过的坑
 
-常驻进程是 **C++** `./build_robot/t170c_debug`（CMake 在 `build_robot/`）。
+- **`std::bad_alloc` / 客户端 `Expecting value`**：手臂轨迹和腰/头同时打 CAN，堆被打坏，未捕获异常把进程杀掉。SDK 已加锁。不要再无锁并发 CAN。进程死了必须重启，`abort` 没用。
+- **收手抽一下**：两段直线接缝用关节空间抄近路，并且曾允许单关节 8°/5 ms。传送带抓取已改成平移时保持腕角、接缝 ≤25°/s、到位再慢转腕。
+- **拍照太早**：把行进中的站名匹配当成到达。现在只在 `task_status==4`（或发导航前已经在站上）打到达时间。
+- **远端站起抖一下然后腰失败**：见 §2.5。不要改回「锁 x=0.18 直接升高」。
+- **`home` 的混合逆解预览 `code=-3`**：腕部奇异，仍会下发，不是抹角失败，也不是贝塞尔。`use_bezier_grasp: true` 在 `approach_nostop: false` 时表示抹角，不是二次贝塞尔。
+- **传送带「未检测到 6x6 码」**：识别失败，命令可以正常返回，不是崩溃。手臂停在准备位。
+- **放置申请超时仍报完成**：旧行为已改掉。现在手里有件就不报完成、不回料盘加抓。
 
-- 监听 **仅** `127.0.0.1:8099`，一行 JSON 一命令。
-- `tools/debug_client.py` 和 `web_debug/` 只是遥控器。流程在 `orchestrator/cpp/robot_runtime.cpp`。
-- Python 通过 pybind11 嵌在 C++ 里做视觉。料盘 `board_yf100_aruco/`（5×5），传送带 `board_belt_aruco/`（6×6），两套互不覆盖。
-- 底盘已接入，不是 `chassis=disabled`。
+---
+
+## 5. 精度（仍有效，先看再改 offset）
+
+到位误差是下发目标对上**编码器 FK**，不是卷尺。传送带直线会等电机停稳再读。FK 已经跟上、零件仍偏，去查腰和视觉，不要把厘米级跟踪误差写进 offset。
+
+`Line_Trajectory`（闭源）路点 IK 返回 0 就算成功，不按 1 mm 复核。料盘抓取会在 C 点用编码器复核，超差不合爪/不张爪。
+
+第一传送带码平面 Z 固定 **−0.29 m**（腰 0.63 m 时基座到皮带 29 cm）。第二传送带仍是相机高度（`use_fixed_origin_z: false`）。用户没说打开之前不要改。
+
+盘面参考锚点仍是腰 **0.55**（`z_ref_waist_z_m`）。不要因为 home 腰是 0.63 就改 `z_ref_m`。
+
+---
+
+## 6. 启动
 
 ```bash
 cd ~/T170Clean
@@ -195,37 +188,43 @@ sudo -v
 
 ```bash
 cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170c_debug
-python3 tools/debug_client.py reload    # 只重载 yaml 数值
+python3 tools/debug_client.py reload
 python3 tools/debug_client.py cycle
 python3 tools/debug_client.py abort
 ```
 
-Conda 视觉环境：`/home/ti5robot/anaconda3/envs/human_interaction_env`。直接跑二进制即可。`startup.log` 由 tee 写出，有时缓冲，查高度以进程终端和该文件里带时间的那一段为准。截图在 `picture_debug/head/`。
+监听 **仅** `127.0.0.1:8099`。流程在 `orchestrator/cpp/robot_runtime.cpp`。`startup.log` 经 tee 时可能缓冲，崩溃现场以终端为准。截图在 `picture_debug/head/`。
+
+Conda：`/home/ti5robot/anaconda3/envs/human_interaction_env`。直接跑二进制即可。
 
 ---
 
 ## 7. 调试命令
 
-| CLI | JSON `cmd` | 作用 |
-|-----|------------|------|
-| ping / status / reload / abort | 同名或 snapshot / reload_config | 探活、TCP、重载 yaml、软件中止 |
-| home | home | 头标定角 → `home_tcp` → 腰到 `layer3_home` |
-| ready1/2/3/6 | grasp_readyN | 料盘抓取腰高 + 该组 RPY |
-| tray2ready1/2/3/6 | tray2readyN | 料盘2 放置腰高 + **独立** RPY |
-| tray2 / tray2_place | tray2 / tray2_place | AP9 → 下蹲 → 拍空孔 → 放置 → 站起 home_tcp |
-| grasp | vision_grasp | 只做 AP7 料盘抓取 |
-| belt_ready | belt_ready | 第一传送带腰/头 + `tcp`，不动底盘 |
-| belt_place | belt_place | 预览 `place_tcp` 整段 6D |
-| belt_grasp_rpy | belt_grasp_rpy | `tcp` XYZ + `grasp_rpy_deg`，不拍照不夹取 |
-| belt | belt | 底盘 AP5 → 准备 → 认码 → 左右放置 |
-| belt_grasp | belt_grasp | 底盘 AP5 → 认码 → 抓取 |
-| belt2_ready / belt2_place / belt2_grasp_rpy / belt2 / belt2_grasp | 对应 belt2* | 第二传送带，站点 AP6，参数 `conveyor2` |
-| cycle | grasp_belt | §1 的整圈闭环 |
-| cycle1 | grasp_belt1 | 只在 AP7 抓和 AP5 放置之间循环。不抓传送带，不去 AP6 / AP9 |
-| waist1 / waist2 / waist_jog | 同名 | 腰回 home x / 远排前伸 / 5 轴点动 |
-| qr / tray | aruco_detect / detect_tray_holes | 只看码或料盘，不动臂 |
+| CLI | 作用 |
+|-----|------|
+| ping / status / reload / abort | 探活、快照、重载 yaml、软件中止（不杀进程） |
+| home | 头标定 → `home_tcp` → 腰回 home。不动底盘，不开爪 |
+| ready1/2/3/6 | 只摆该排抓取准备，不动底盘 |
+| grasp | AP7 抓。抓到后底盘去 AP5，腰按 §2.5 去拍照位 |
+| belt_ready / belt_place / belt_grasp_rpy | 只动上半身，人要已在 AP5 附近 |
+| belt | 底盘去 AP5，停稳后放置 |
+| belt_grasp | 底盘去 AP5 抓取。**不会**接着去 AP6 |
+| belt2_ready | 底盘去 AP6，只摆准备 |
+| belt2 / belt2_place | 底盘去 AP6 并放置 |
+| belt2_grasp_rpy | 只摆手腕，不动底盘 |
+| belt2_grasp | 去 AP6 抓取，收手到料盘放置准备。**不会**接着去 AP9 |
+| tray2ready1/2/3/6 | 料盘二放置准备，独立 RPY，不动底盘 |
+| tray2 / tray2_place | AP9 放空孔。**放完不升腰、不回 AP7** |
+| tray2test | AP9 精度测试：合爪到位，不松、不起身 |
+| cycle | §1.1 整圈，放完 AP9 **会**回 AP7 |
+| cycle1 | 只在 AP7 和 AP5 之间循环 |
+| cycle3 | AP6 抓 → AP9 放 → 原地结束 |
+| dispatch | §3。不要和桌面调度测试脚本同时开 |
+| qr / tray | 只看码或料盘孔，不动臂 |
+| waist1 / waist2 / waist_jog | 腰回 home x / 远排前伸 / 点动 |
 
-腰 jog：1 脚踝、2 膝盖、3 髋、4 侧倾、5 回转。CAN 4/3/2/5/1。零位站立约 z=0.67，`z_max: 0.67`。
+腰 jog：1 脚踝、2 膝盖、3 髋、4 侧倾、5 回转。
 
 ---
 
@@ -233,32 +232,34 @@ Conda 视觉环境：`/home/ti5robot/anaconda3/envs/human_interaction_env`。直
 
 ```
 orchestrator/cpp/orch_hw_main.cpp     命令分发
-orchestrator/cpp/robot_runtime.cpp    cycle、传送带放置/抓取、固定 Z、料盘2
-src/grasp_to_standby.cpp              料盘一轮；空孔放置复用，张开而不是合爪
-src/move_box_runtime.cpp              分列、A-B-C、传送带直线与到位误差打印
-src/move_box_config.cpp               yaml。conveyor2 先整份拷贝 conveyor 再覆盖
-include/move_box_config.h
-include/seg_pose_bridge.h             class 0 抓取，class 3 空孔
-board_belt_aruco/belt_detect_api.py   传送带抓取点 = 原点 + R×offset
-board_yf100_aruco/                    料盘 5×5
-config/move_box_params.yaml           现场唯一调参入口
-config/Robot_Arm_Model.yaml           工具 0.230；J2/J6 限位只进求解器
+orchestrator/cpp/robot_runtime.cpp    cycle、传送带、底盘、调度、出发时机
+src/grasp_to_standby.cpp              料盘一轮；空孔放置复用
+src/move_box_runtime.cpp              抹角/直线选择、收手预规划
+src/function.cpp                      抹角、两段直线接缝（25°/s）、慢转腕
+src/Ti5_socketcan.cpp                 电机 SDK 互斥、右臂锁
+src/waist.cpp                         腰笛卡尔。code=-2 是目标不可达
+config/move_box_params.yaml           现场调参。注释可能过时
 tools/debug_client.py
-web_debug/                            同一套 JSON
 ```
 
 头相机 SN `261722072173`。头 CAN：30 偏航 / 32 俯仰 / 31 横滚。  
-`load_conveyor_station` 之后有 `cfg.conveyor2 = cfg.conveyor`，所以第一套新开关会先抄到第二套，再被 `conveyor2:` 里写明的键盖掉。第二套要保持关闭的项必须在 yaml 里写出来。
+`load_conveyor_station` 之后有 `cfg.conveyor2 = cfg.conveyor`，第二套要保持不同的项必须在 yaml 里写出来。
+
+调度库头文件：`/opt/ti5-jindi-faactory-robot-client/include/robot_client.hpp`。
 
 ---
 
 ## 9. 不要再做的事
 
-- 用基座 `Y=0` 给料盘分列，或把盘心 4 cm 再加进抓取 XY。
-- 传送带放置加 J2 锁、加一段 XY 撤出。
-- 把 2–3 cm 的下降跟踪误差写进 `grasp_offset.z` / `offset.z`。
-- 让料盘2 直接引用 `ready1/2/3/6` 的 RPY。
-- 在用户点头前把第二传送带改成固定 Z，或改机床信号。
-- 删右臂代码、打开 YOLO 定位回退、把皮带参数写进 `tray.*`。
-
-先前会话：[料盘抓取与皮带起点](e7664eb9-388a-499a-8efc-1835dd777a93)、[T170C 抓取分列](fd4f66e4-07f1-48c0-9b5c-6e3b4579aee1)、本轮闭环与固定高度 [传送带放置与精度](a5b4797e-df10-4e29-b342-e25c3524a140)。
+- 用基座 `Y=0` 分列，或把盘心再加进抓取 XY。
+- 传送带放置加 J2 锁，或加一段 XY 撤出。
+- 把厘米级跟踪误差写进 offset；未让用户确认就给 `conveyor2` 开固定 Z。
+- 料盘二直接引用 `ready1/2/3/6` 的 RPY。
+- 删右臂代码，或打开 YOLO 定位回退。
+- 抹角失败时静默退回两段停车直线；把 8 cm 抹角改成几毫米。
+- 把行进中的站名当成导航完成。
+- 远排锁着 x≈0.18 m 从深蹲直接升到 0.63 m。
+- 收手接缝再用 8°/5 ms 的关节步长。
+- 手臂还在 `set_Position` 时再无锁开一条腰/头线程。
+- 手里还有件时发 `DONE` 或回 AP7 再抓。
+- 未让用户要求就 commit、push，或启动 `t170c_debug`。

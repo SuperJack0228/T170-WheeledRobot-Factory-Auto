@@ -39,6 +39,7 @@ COMMANDS = {
     "cycle": {"cmd": "grasp_belt"},
     "dispatch": {"cmd": "dispatch"},
     "cycle1": {"cmd": "grasp_belt1"},
+    "cycle3": {"cmd": "cycle3"},
     "qr": {"cmd": "aruco_detect"},
     "tray": {"cmd": "detect_tray_holes"},
     "abort": {"cmd": "abort"},

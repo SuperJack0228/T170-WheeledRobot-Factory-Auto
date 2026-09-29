@@ -48,6 +48,10 @@ struct HeadAssignState
     int col_aruco_r = 0;
     int col_aruco_l = 0;
     HeadHandAssignZones zones;
+    /** 与本次选孔同一张照片里，工作区可分配目标数。料盘解算失败时 ok 为 false。 */
+    bool zone_count_ok = false;
+    int zone_right = 0;
+    int zone_left = 0;
 };
 
 /** 本轮抓取腰进已用步数（与 stagger_max_steps 合计，双手共享；头相机不重拍，只补偿 goal x） */
@@ -168,8 +172,13 @@ bool move_one_arm_line_to(
     bool hold_j2 = false);
 /** 夹后回程：一次 TCP 直线到 yaml standby（XYZ+姿态）。不分段抬/平移/落Z/转腕。右臂锁定则只动左。 */
 bool move_arms_tcp_to_standby(Robot_Arm &arm_r, Robot_Arm &arm_l);
-/** 夹后回程：抬升后一次 TCP 直线到 yaml home_tcp。不分段。 */
-bool move_arms_tcp_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/** 夹后回程：抬升后一次 TCP 直线到 yaml home_tcp。不分段。
+ *  allow_r/allow_l 为 false 的那一侧留在原地，不跟着回 home。 */
+bool move_arms_tcp_to_home(
+    Robot_Arm &arm_r,
+    Robot_Arm &arm_l,
+    bool allow_r = true,
+    bool allow_l = true);
 /** 仅 grasp 指令入口：保持当前 XYZ，原地转到 yaml standby 末端姿态。 */
 bool rotate_arms_in_place_to_standby_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l);
 void refresh_head_move_flags(HeadAssignState &st);
@@ -324,6 +333,10 @@ struct GraspToStandbyResult
     bool grasped_l = false;
     bool waist_adjusted = false;
     HeadAssignState st;
+    /** 本轮第一张选孔照片的工作区目标数。远排重拍不覆盖。 */
+    bool zone_count_ok = false;
+    int zone_right = 0;
+    int zone_left = 0;
 };
 
 /**
@@ -346,7 +359,8 @@ GraspToStandbyResult run_grasp_to_standby(
     SegEngineId engine_id = SegEngineId::Default,
     bool adaptive_approach_rpy = false,
     bool holding_r = false,
-    bool holding_l = false);
+    bool holding_l = false,
+    const std::function<void(bool did_r, bool did_l)> &on_place_retract = {});
 
 void lift_grasped_after_pick(
     Robot_Arm &arm_r,

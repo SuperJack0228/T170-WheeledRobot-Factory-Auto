@@ -35,7 +35,8 @@ GraspToStandbyResult run_grasp_to_standby(
     SegEngineId engine_id,
     bool adaptive_approach_rpy,
     bool holding_r,
-    bool holding_l)
+    bool holding_l,
+    const std::function<void(bool did_r, bool did_l)> &on_place_retract)
 {
     GraspToStandbyResult out;
     g_grasp_adaptive_rpy = adaptive_approach_rpy;
@@ -102,6 +103,9 @@ GraspToStandbyResult run_grasp_to_standby(
     HeadAssignState st = detect_and_assign_head(
         cameras, bridge, cam2robot, true, engine_id, skip_r, skip_l);
     out.st = st;
+    out.zone_count_ok = st.zone_count_ok;
+    out.zone_right = st.zone_right;
+    out.zone_left = st.zone_left;
     if (aborting(should_abort))
     {
         out.status = GraspToStandbyStatus::Aborted;
@@ -254,6 +258,68 @@ GraspToStandbyResult run_grasp_to_standby(
     bool lifted_r = false;
     bool lifted_l = false;
 
+    auto retract_placed_nostop = [&](bool want_r, bool want_l) -> bool {
+        if (!want_r && !want_l)
+            return true;
+        auto fill = [](Robot_Arm &arm, bool is_right,
+                       Eigen::Matrix<double, 1, 6> &mid,
+                       Eigen::Matrix<double, 1, 6> &goal) {
+            mid = arm_get_tcp_pos(arm);
+            mid(2) += g_move_cfg.head_grasp.lift_after_grasp_z;
+            if (mid(2) > g_move_cfg.grasp_valid.z_max)
+                mid(2) = g_move_cfg.grasp_valid.z_max;
+            if (tray_hole_task() == TrayHoleTask::PlaceEmpty)
+                goal = is_right ? make_home_tcp_right() : make_home_tcp_left();
+            else
+                goal = is_right ? g_move_cfg.conveyor.tcp.right : g_move_cfg.conveyor.tcp.left;
+        };
+        Eigen::Matrix<double, 1, 6> mid_r = Eigen::Matrix<double, 1, 6>::Zero();
+        Eigen::Matrix<double, 1, 6> goal_r = Eigen::Matrix<double, 1, 6>::Zero();
+        Eigen::Matrix<double, 1, 6> mid_l = Eigen::Matrix<double, 1, 6>::Zero();
+        Eigen::Matrix<double, 1, 6> goal_l = Eigen::Matrix<double, 1, 6>::Zero();
+        if (want_r)
+            fill(arm_r, true, mid_r, goal_r);
+        if (want_l)
+            fill(arm_l, false, mid_l, goal_l);
+        const auto &hg = g_move_cfg.head_grasp;
+        const ArmLineMoveResult stitched = arm_dual_line_then_line_nostop(
+            arm_r, mid_r, goal_r, want_r,
+            arm_l, mid_l, goal_l, want_l,
+            hg.lift_vel_m_s, hg.return_vel_m_s,
+            [&]() {
+                if (on_place_retract)
+                    on_place_retract(grasped_r, grasped_l);
+            },
+            true);
+        const bool ok_r = !want_r || stitched.ret_r == 0;
+        const bool ok_l = !want_l || stitched.ret_l == 0;
+        if (ok_r && ok_l)
+            return true;
+        std::cerr << "[arm] 收手衔接失败 右=" << stitched.ret_r
+                  << " 左=" << stitched.ret_l << "，退回抬升后直线\n";
+        lift_grasped_selective(arm_r, arm_l, cameras, st, want_r, want_l);
+        if (on_place_retract)
+            on_place_retract(grasped_r, grasped_l);
+        return move_arms_tcp_to_home(arm_r, arm_l, want_r, want_l);
+    };
+
+    auto clear_after_place = [&](bool is_right) {
+        if (!tray2_precision_test())
+        {
+            retract_placed_nostop(is_right, !is_right);
+            if (is_right)
+                lifted_r = true;
+            else
+                lifted_l = true;
+            return;
+        }
+        lift_grasped_selective(arm_r, arm_l, cameras, st, is_right, !is_right);
+        if (is_right)
+            lifted_r = true;
+        else
+            lifted_l = true;
+    };
+
     auto finish_to_standby = [&](GraspToStandbyStatus if_empty) -> GraspToStandbyResult
     {
         GraspToStandbyResult r;
@@ -261,6 +327,9 @@ GraspToStandbyResult run_grasp_to_standby(
         r.grasped_r = grasped_r;
         r.grasped_l = grasped_l;
         r.waist_adjusted = waist_adjusted;
+        r.zone_count_ok = out.zone_count_ok;
+        r.zone_right = out.zone_right;
+        r.zone_left = out.zone_left;
         if (!grasped_r && !grasped_l)
         {
             std::cout << (tray_hole_task() == TrayHoleTask::PlaceEmpty
@@ -280,11 +349,12 @@ GraspToStandbyResult run_grasp_to_standby(
         else
         {
             log_phase_banner(tray_hole_task() == TrayHoleTask::PlaceEmpty
-                                 ? "放置完成 → 抬升后一次 TCP 回 yaml home_tcp"
-                                 : "抓取完成 → 抬升后一次 TCP 回 yaml home_tcp");
-            lift_grasped_after_pick(
-                arm_r, arm_l, cameras, st, grasped_r, grasped_l, lifted_r, lifted_l);
-            move_arms_tcp_to_home(arm_r, arm_l);
+                                 ? "放置完成 → 竖直抬升后不停，直接直线回 home_tcp"
+                                 : "抓取完成 → 竖直抬升后不停，只把抓到的手去传送带准备 tcp");
+            const bool need_r = grasped_r && !lifted_r;
+            const bool need_l = grasped_l && !lifted_l;
+            if (need_r || need_l)
+                retract_placed_nostop(need_r, need_l);
         }
         r.st = st;
         r.status = GraspToStandbyStatus::Ok;
@@ -329,8 +399,7 @@ GraspToStandbyResult run_grasp_to_standby(
         if (grasp_tr_l.ret_l == 0)
         {
             grasped_l = true;
-            lift_grasped_selective(arm_r, arm_l, cameras, st, false, true);
-            lifted_l = true;
+            clear_after_place(false);
             if (aborted_now())
                 return out;
         }
@@ -373,8 +442,7 @@ GraspToStandbyResult run_grasp_to_standby(
             if (grasp_tr_r.ret_r == 0)
             {
                 grasped_r = true;
-                lift_grasped_selective(arm_r, arm_l, cameras, st, true, false);
-                lifted_r = true;
+            clear_after_place(true);
                 if (aborted_now())
                     return out;
             }
@@ -418,8 +486,7 @@ GraspToStandbyResult run_grasp_to_standby(
             return out;
         }
         grasped_r = true;
-        lift_grasped_selective(arm_r, arm_l, cameras, st, true, false);
-        lifted_r = true;
+            clear_after_place(true);
         if (aborted_now())
             return out;
 
@@ -461,8 +528,7 @@ GraspToStandbyResult run_grasp_to_standby(
             if (grasp_tr_l.ret_l == 0)
             {
                 grasped_l = true;
-                lift_grasped_selective(arm_r, arm_l, cameras, st, false, true);
-                lifted_l = true;
+                clear_after_place(false);
                 if (aborted_now())
                     return out;
             }
@@ -600,8 +666,7 @@ GraspToStandbyResult run_grasp_to_standby(
                 if (grasp_tr_r.ret_r == 0)
                 {
                     grasped_r = true;
-                    lift_grasped_selective(arm_r, arm_l, cameras, st, true, false);
-                    lifted_r = true;
+            clear_after_place(true);
                     if (aborted_now())
                         return out;
                 }
@@ -632,8 +697,7 @@ GraspToStandbyResult run_grasp_to_standby(
                 if (grasp_tr_l.ret_l == 0)
                 {
                     grasped_l = true;
-                    lift_grasped_selective(arm_r, arm_l, cameras, st, false, true);
-                    lifted_l = true;
+                    clear_after_place(false);
                     if (aborted_now())
                         return out;
                 }
