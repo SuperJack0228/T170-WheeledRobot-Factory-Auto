@@ -150,6 +150,12 @@ void record_arm_cartesian_arrival(
  * 不锁 J2（不传冗余角），让七轴逆解自己选肘，保证抓取工作空间。 */
 int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);
 
+/** 与 arm_line_move 相同。轨迹走完后再等 settle_ms，然后打印理论关节角、实际关节角和差。 */
+int arm_line_move_settle(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms);
+
+/** 打印该臂最近一次下发的编码器计数、当前读数和差。 */
+void log_arm_encoder_command_vs_actual(Robot_Arm &arm, const char *tag);
+
 /** 当前 7 轴电机角 (rad)。 */
 Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Robot_Arm &arm);
 
@@ -265,7 +271,7 @@ ArmLineMoveResult arm_dual_transfer_move_selective(
  * - shoulder: J2 原点
  * - elbow:    J4 原点（上臂末端）
  * - wrist:    J5 原点（腕中心）
- * - flange:   J7 原点（法兰，未加工具 230mm）
+ * - flange:   J7 原点（法兰，未加工具 260mm）
  * - tcp:      SDK 末端
  */
 struct ArmLinkFk

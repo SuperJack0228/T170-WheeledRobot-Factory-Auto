@@ -21,6 +21,7 @@ COMMANDS = {
     "tray2": {"cmd": "tray2"},
     "tray2_place": {"cmd": "tray2_place"},
     "tray2test": {"cmd": "tray2_precision"},
+    "tray2center": {"cmd": "tray2center"},
     "waist1": {"cmd": "waist1"},
     "waist2": {"cmd": "waist2"},
     "belt": {"cmd": "belt"},

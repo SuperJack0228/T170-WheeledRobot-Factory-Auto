@@ -2,13 +2,14 @@
 """
 RealSense 在线料盘 6D 位姿：用盘上 5 个 5×5 ArUco（ID 0–4）联合 PnP。
 
-布局（俯视，码面朝上）：
+布局（俯视，码面朝上，料盘一现场四角码，没有中心码）：
         前 (+X)
-  ID0 左上           ID1 右上
-左(+Y)      ID2 中心            右(-Y)
-  ID3 左下           ID4 右下
+  ID2 前左           ID5 前右
+左(+Y)                          右(-Y)
+  ID6 后左           ID7 后右
         后 (-X)
-+Z 上，垂直码面向外。原点在中心码中心。
++Z 上。原点在四角中心。码的「上」朝 +X。
+近三行、远三行按机器人基座 X 重排，不跟 ArUco 行号写死。
 
 打印最外边 40 mm（含白边）。OpenCV 检测角点是黑框外角，黑框边长固定 31.2 mm。
 
@@ -58,6 +59,25 @@ R_MARKER_IN_TRAY = np.array(
 )
 
 SLOT_KEYS = ("front_left", "front_right", "center", "rear_left", "rear_right")
+CORNER_KEYS = ("front_left", "front_right", "rear_left", "rear_right")
+
+
+def parse_slot_ids(ids_raw: dict, label: str) -> dict[str, int]:
+    """四角必填。center 缺省或小于 0 表示这块板没有中心码。"""
+    if not isinstance(ids_raw, dict):
+        raise ValueError(f"{label}.ids 必须是槽位表")
+    slot_to_id: dict[str, int] = {}
+    for key in CORNER_KEYS:
+        if key not in ids_raw:
+            raise ValueError(f"{label}.ids 缺少槽位 {key}")
+        slot_to_id[key] = int(ids_raw[key])
+    center = ids_raw.get("center", None)
+    if center is not None and int(center) >= 0:
+        slot_to_id["center"] = int(center)
+    values = list(slot_to_id.values())
+    if len(set(values)) != len(values):
+        raise ValueError(f"{label} 槽位 ID 必须互不相同")
+    return slot_to_id
 
 
 @dataclass
@@ -140,14 +160,7 @@ def load_config(path: Path) -> AppConfig:
     camera = raw.get("camera", {})
     display = raw.get("display", {})
 
-    ids_raw = tray.get("ids", {})
-    slot_to_id: dict[str, int] = {}
-    for key in SLOT_KEYS:
-        if key not in ids_raw:
-            raise ValueError(f"tray.ids 缺少槽位 {key}")
-        slot_to_id[key] = int(ids_raw[key])
-    if len(set(slot_to_id.values())) != 5:
-        raise ValueError("五个槽位的 ID 必须互不相同")
+    slot_to_id = parse_slot_ids(tray.get("ids", {}), "tray")
 
     print_size = float(tray.get("print_size_m", 0.04))
     bit_cells = int(tray.get("bit_cells", 5))
@@ -230,11 +243,14 @@ def marker_corners_local(black_side_m: float) -> np.ndarray:
     )
 
 
-def marker_corners_in_tray(cfg: AppConfig, marker_id: int) -> np.ndarray:
-    slot = cfg.id_to_slot[marker_id]
+def marker_corners_at_slot(cfg: AppConfig, slot: str) -> np.ndarray:
     local = marker_corners_local(cfg.black_side_m)
     center = cfg.marker_center_tray(slot)
     return local @ R_MARKER_IN_TRAY.T + center
+
+
+def marker_corners_in_tray(cfg: AppConfig, marker_id: int) -> np.ndarray:
+    return marker_corners_at_slot(cfg, cfg.id_to_slot[marker_id])
 
 
 def rotation_matrix_to_euler_zyx_deg(R: np.ndarray) -> tuple[float, float, float]:
@@ -315,6 +331,142 @@ def estimate_tray_pose(
     )
 
 
+def _marker_pose_facing_camera(
+    img_pts: np.ndarray,
+    black_side_m: float,
+    K: np.ndarray,
+    dist: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """单个码的位姿。码面朝相机，+Z 指向相机。"""
+    obj = marker_corners_local(black_side_m).astype(np.float32)
+    img = np.asarray(img_pts, dtype=np.float32).reshape(4, 2)
+    flag = getattr(cv2, "SOLVEPNP_IPPE", cv2.SOLVEPNP_ITERATIVE)
+    try:
+        ok, rvecs, tvecs, errs = cv2.solvePnPGeneric(obj, img, K, dist, flags=flag)
+    except cv2.error:
+        return None
+    if not ok or len(rvecs) == 0:
+        return None
+    best: tuple[float, np.ndarray, np.ndarray] | None = None
+    for rvec, tvec, err in zip(rvecs, tvecs, errs):
+        R, _ = cv2.Rodrigues(np.asarray(rvec, dtype=np.float64))
+        t = np.asarray(tvec, dtype=np.float64).reshape(3)
+        if float(np.dot(R[:, 2], t)) >= 0.0:
+            continue
+        e = float(np.mean(np.asarray(err, dtype=np.float64)))
+        if best is None or e < best[0]:
+            best = (e, R, t)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+def estimate_diagonal_tray_pose(
+    corners,
+    ids,
+    cfg: AppConfig,
+    locate_id: int,
+    info_id: int,
+    K: np.ndarray,
+    dist: np.ndarray,
+) -> TrayPose | None:
+    """对角线同号的四角码。
+
+    左上、右下（前左、后右）是定位码，右上、左下（前右、后左）是信息码。
+    相同 ID 不能按编号对槽位，先用每个码自己的朝向分到四个角，再联合解料盘位姿。
+    四个码的「上」都朝料盘 +X。必须四个都在，且 ID 和角位一致，否则不给位姿。
+    """
+    if ids is None or len(corners) == 0 or locate_id == info_id:
+        return None
+    hits: list[tuple[int, np.ndarray, np.ndarray, np.ndarray]] = []
+    for i, mid_raw in enumerate(ids.flatten()):
+        mid = int(mid_raw)
+        if mid != locate_id and mid != info_id:
+            continue
+        img = corners[i].reshape(4, 2).astype(np.float64)
+        posed = _marker_pose_facing_camera(img, cfg.black_side_m, K, dist)
+        if posed is None:
+            continue
+        R, t = posed
+        hits.append((mid, img, R, t))
+    if sum(1 for mid, *_ in hits if mid == locate_id) != 2:
+        return None
+    if sum(1 for mid, *_ in hits if mid == info_id) != 2:
+        return None
+
+    ups = [R[:, 1] for *_rest, R, _t in hits]
+    lefts = [-R[:, 0] for *_rest, R, _t in hits]
+    axis_x = ups[0] / np.linalg.norm(ups[0])
+    axis_y = lefts[0] / np.linalg.norm(lefts[0])
+    acc_x = np.zeros(3, dtype=np.float64)
+    acc_y = np.zeros(3, dtype=np.float64)
+    for up, left in zip(ups, lefts):
+        u = up / np.linalg.norm(up)
+        v = left / np.linalg.norm(left)
+        if float(np.dot(u, axis_x)) < 0.95 or float(np.dot(v, axis_y)) < 0.95:
+            return None
+        acc_x += u
+        acc_y += v
+    axis_x = acc_x / np.linalg.norm(acc_x)
+    axis_y = acc_y - axis_x * float(np.dot(acc_y, axis_x))
+    y_norm = float(np.linalg.norm(axis_y))
+    if y_norm < 1e-6:
+        return None
+    axis_y = axis_y / y_norm
+    centers = np.stack([t for *_rest, t in hits], axis=0)
+    centroid = np.mean(centers, axis=0)
+    if float(np.dot(np.cross(axis_x, axis_y), centroid)) >= 0.0:
+        return None
+
+    expect = {
+        "front_left": locate_id,
+        "rear_right": locate_id,
+        "front_right": info_id,
+        "rear_left": info_id,
+    }
+    half = cfg.pitch_xy_m * 0.25
+    assigned: dict[str, tuple[int, np.ndarray]] = {}
+    for mid, img, _R, t in hits:
+        d = t - centroid
+        dx = float(np.dot(d, axis_x))
+        dy = float(np.dot(d, axis_y))
+        if abs(dx) < half or abs(dy) < half:
+            return None
+        slot = ("front_" if dx > 0.0 else "rear_") + ("left" if dy > 0.0 else "right")
+        if slot in assigned or mid != expect[slot]:
+            return None
+        assigned[slot] = (mid, img)
+    if set(assigned) != set(expect):
+        return None
+
+    obj_list: list[np.ndarray] = []
+    img_list: list[np.ndarray] = []
+    used: list[int] = []
+    corners_by_id: dict[int, np.ndarray] = {}
+    for slot in ("front_left", "front_right", "rear_left", "rear_right"):
+        mid, img = assigned[slot]
+        obj_list.append(marker_corners_at_slot(cfg, slot))
+        img_list.append(img)
+        used.append(mid)
+        corners_by_id[mid] = img.reshape(1, 4, 2)
+    obj_pts = np.concatenate(obj_list, axis=0).astype(np.float32)
+    img_pts = np.concatenate(img_list, axis=0).astype(np.float32)
+    flag = PNP_FLAGS.get(cfg.pnp_flag, cv2.SOLVEPNP_SQPNP)
+    ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, K, dist, flags=flag)
+    if not ok:
+        return None
+    if cfg.pnp_refine and hasattr(cv2, "solvePnPRefineLM"):
+        rvec, tvec = cv2.solvePnPRefineLM(obj_pts, img_pts, K, dist, rvec, tvec)
+    err = mean_reprojection_error(obj_pts, img_pts, rvec, tvec, K, dist)
+    return TrayPose(
+        rvec=rvec.reshape(3),
+        tvec=tvec.reshape(3),
+        reproj_px=err,
+        used_ids=used,
+        corners_by_id=corners_by_id,
+    )
+
+
 def draw_pose_text(vis: np.ndarray, lines: list[str], origin: tuple[int, int], color) -> None:
     x0, y0 = origin
     for j, line in enumerate(lines):
@@ -332,7 +484,8 @@ def draw_detected_markers_thin(vis: np.ndarray, corners, ids, tray_ids: set[int]
         pts = corners[i].reshape(-1, 2).astype(np.int32)
         color = (0, 255, 0) if mid in tray_ids else (80, 80, 80)
         cv2.polylines(vis, [pts], True, color, 1, cv2.LINE_AA)
-        cv2.circle(vis, (int(pts[0, 0]), int(pts[0, 1])), 2, (0, 0, 255), -1, cv2.LINE_AA)
+        for k in range(pts.shape[0]):
+            cv2.circle(vis, (int(pts[k, 0]), int(pts[k, 1])), 4, (0, 0, 255), -1, cv2.LINE_AA)
         tx = int(pts[:, 0].min())
         ty = int(max(pts[:, 1].min() - 3, 10))
         cv2.putText(
@@ -446,7 +599,7 @@ def overlay_tray(
     draw_pose_text(
         vis,
         [
-            f"tray n={len(tray.used_ids)}/5 ids={tray.used_ids}",
+            f"tray n={len(tray.used_ids)}/{len(cfg.slot_to_id)} ids={tray.used_ids}",
             f"t(mm)=({t_mm[0]:+.0f},{t_mm[1]:+.0f},{t_mm[2]:+.0f}) dist={dist_mm:.0f}",
             f"rpy=({rpy[0]:+.1f},{rpy[1]:+.1f},{rpy[2]:+.1f})  reproj={tray.reproj_px:.2f}px",
             f"FLU: F=+X L=+Y U=+Z  black={cfg.black_side_m * 1000:.2f}mm",
@@ -540,9 +693,11 @@ def print_startup(cfg: AppConfig, device: RealSenseDevice) -> None:
     print(f"  四角中心距: {cfg.pitch_xy_m * 1000:.1f} mm")
     print(
         "  槽位: "
-        + ", ".join(f"{slot}={cfg.slot_to_id[slot]}" for slot in SLOT_KEYS)
+        + ", ".join(
+            f"{slot}={cfg.slot_to_id[slot]}" for slot in SLOT_KEYS if slot in cfg.slot_to_id
+        )
     )
-    print("  坐标系: 原点=中心码  +X前 +Y左 +Z上")
+    print("  坐标系: 原点=四角中心  +X前 +Y左 +Z上")
     print(
         f"  孔位: {cfg.hole_rows}x{cfg.hole_cols}  间距 {cfg.hole_pitch_m * 1000:.1f} mm  "
         f"直径 {cfg.hole_diameter_m * 1000:.1f} mm  共 {cfg.hole_rows * cfg.hole_cols} 个"
@@ -606,7 +761,7 @@ def main() -> int:
             if cfg.print_every > 0 and frame_i % cfg.print_every == 0 and tray is not None:
                 rpy, t_mm, dist_mm = pose_to_rpy_tmm(tray.rvec, tray.tvec)
                 print(
-                    f"n={len(tray.used_ids)}/5 ids={tray.used_ids} "
+                    f"n={len(tray.used_ids)}/{len(cfg.slot_to_id)} ids={tray.used_ids} "
                     f"t_mm=({t_mm[0]:+.1f},{t_mm[1]:+.1f},{t_mm[2]:+.1f}) "
                     f"rpy_deg=({rpy[0]:+.1f},{rpy[1]:+.1f},{rpy[2]:+.1f}) "
                     f"dist={dist_mm:.1f}mm reproj={tray.reproj_px:.2f}px"
@@ -614,7 +769,7 @@ def main() -> int:
 
             n_tray = 0 if ids is None else sum(int(i) in tray_ids for i in ids.flatten())
             status = (
-                f"tray={'ok' if tray else '---'} det={n_tray}/5 "
+                f"tray={'ok' if tray else '---'} det={n_tray}/{len(tray_ids)} "
                 f"| cam=...{cam.device.serial[-6:]}"
             )
             cv2.putText(

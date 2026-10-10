@@ -23,6 +23,14 @@ struct GraspRpyDeg
     double rz = 0.0;
 };
 
+/** 基座系平移偏置，米。+X 前，+Y 左，+Z 上。 */
+struct XyzOffsetM
+{
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+};
+
 struct TrayHeightConfig
 {
     /** 基座系盘面 Z（卷尺/示教，向上为正）。对应量的时候那一档腰高。 */
@@ -71,6 +79,9 @@ struct HeadGraspConfig
     double grasp_z_offset_m = 0.02;
     /** 仅 from_robot=6（离机器人最近一排）额外 Z，叠在左右手 z_offset 上。向上为正。 */
     double nearest_row_grasp_z_offset_m = 0.0;
+    /** 按 from_robot 1..6（1=最远）。叠在整盘 goal_*_offset 上。 */
+    XyzOffsetM left_row_offset[6]{};
+    XyzOffsetM right_row_offset[6]{};
     /** false：跳过手相机，XY/Z 都用孔位+盘面参考。 */
     bool use_hand_camera = true;
     double hand_match_xy_max_m = 0.05;
@@ -160,7 +171,13 @@ struct ConveyorXyzOffset
 struct ChassisConfig
 {
     std::string host = "192.168.192.5";
+    /** 调度接入型号，只能是 T170C2.0 或 T230C。 */
+    std::string robot_type = "T170C2.0";
+    /** 调度里该组的从站号。 */
+    std::string sequence_number = "1";
     std::string tray_station = "AP4";
+    /** 调度刚启动时先到这里等任务。不替代料盘一，任务结束后的回位点仍是料架。 */
+    std::string dispatch_wait_station = "AP14";
     /** 第二个料盘（空孔放置）。调试指令 tray2 / tray2ready*。 */
     std::string tray2_station = "AP9";
     std::string belt_station = "AP6";
@@ -186,6 +203,11 @@ struct Tray2PlaceConfig
     double right_grasp_z_offset_m = 0.04;
     /** 仅 from_robot=6，叠在该手 z 上。 */
     double nearest_row_z_offset_m = -0.01;
+    /** 按 from_robot 1..6（1=最远）。与 head_grasp 的行偏置互不影响。 */
+    XyzOffsetM left_row_offset[6]{};
+    XyzOffsetM right_row_offset[6]{};
+    /** 远三排腰前伸，相对 layer3_home.x。不使用 waist.far_row_forward_m。 */
+    double far_row_forward_m = 0.20;
 };
 
 /** 传送带工位调试姿态。与料盘 waist/head/standby/home_tcp 独立。

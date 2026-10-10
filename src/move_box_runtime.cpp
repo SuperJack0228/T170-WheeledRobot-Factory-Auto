@@ -33,6 +33,12 @@ namespace move_box
     TrayHoleTask g_tray_hole_task = TrayHoleTask::GraspParts;
 
     bool g_tray2_precision_test = false;
+    std::unordered_set<int> g_tray2_visited_holes;
+
+    int tray2_visited_key(int row_aruco, int col_aruco)
+    {
+        return row_aruco * 100 + col_aruco;
+    }
 
     void set_tray_hole_task(TrayHoleTask task)
     {
@@ -47,6 +53,25 @@ namespace move_box
     bool tray2_precision_test()
     {
         return g_tray2_precision_test;
+    }
+
+    void tray2_precision_clear_visited()
+    {
+        g_tray2_visited_holes.clear();
+    }
+
+    void tray2_precision_mark_visited(int row_aruco, int col_aruco)
+    {
+        if (row_aruco < 1 || col_aruco < 1)
+            return;
+        g_tray2_visited_holes.insert(tray2_visited_key(row_aruco, col_aruco));
+    }
+
+    bool tray2_precision_visited(int row_aruco, int col_aruco)
+    {
+        if (row_aruco < 1 || col_aruco < 1)
+            return false;
+        return g_tray2_visited_holes.count(tray2_visited_key(row_aruco, col_aruco)) > 0;
     }
 
     TrayHoleTask tray_hole_task()
@@ -83,6 +108,19 @@ namespace move_box
             return is_right ? t.right_goal_y_offset : t.goal_y_offset;
         }
         return grasp_goal_y_offset(is_right);
+    }
+
+    XyzOffsetM active_row_offset(bool is_right, int from_robot_row)
+    {
+        XyzOffsetM none;
+        if (from_robot_row < 1 || from_robot_row > 6)
+            return none;
+        const int i = from_robot_row - 1;
+        if (tray2_place_active())
+            return is_right ? g_move_cfg.tray2_place.right_row_offset[i]
+                            : g_move_cfg.tray2_place.left_row_offset[i];
+        return is_right ? g_move_cfg.head_grasp.right_row_offset[i]
+                        : g_move_cfg.head_grasp.left_row_offset[i];
     }
 
     double active_nearest_row_z()
@@ -370,10 +408,14 @@ namespace move_box
             rpy_r.rx * rad, rpy_r.ry * rad, rpy_r.rz * rad;
         goal_last_l << left_hand_pos[0], left_hand_pos[1], z_l,
             rpy_l.rx * rad, rpy_l.ry * rad, rpy_l.rz * rad;
-        goal_last_r(0) += active_goal_x_offset(true);
-        goal_last_l(0) += active_goal_x_offset(false);
-        goal_last_r(1) += active_goal_y_offset(true);
-        goal_last_l(1) += active_goal_y_offset(false);
+        const XyzOffsetM row_off_r = active_row_offset(true, row_r);
+        const XyzOffsetM row_off_l = active_row_offset(false, row_l);
+        goal_last_r(0) += active_goal_x_offset(true) + row_off_r.x;
+        goal_last_l(0) += active_goal_x_offset(false) + row_off_l.x;
+        goal_last_r(1) += active_goal_y_offset(true) + row_off_r.y;
+        goal_last_l(1) += active_goal_y_offset(false) + row_off_l.y;
+        goal_last_r(2) += row_off_r.z;
+        goal_last_l(2) += row_off_l.z;
         clamp_cart_goal_z(goal_last_r, "fill_goal_last_from_head_assign(右手, 物体上方)");
         clamp_cart_goal_z(goal_last_l, "fill_goal_last_from_head_assign(左手, 物体上方)");
         auto log_hover = [&](const char *hand, bool is_right, const double pos[3], double hover_z,
@@ -388,6 +430,9 @@ namespace move_box
                       << " offset_xyz=(" << active_goal_x_offset(is_right) << ","
                       << active_goal_y_offset(is_right) << ","
                       << active_goal_z_offset(is_right, row) << ")"
+                      << " row_xyz=(" << active_row_offset(is_right, row).x << ","
+                      << active_row_offset(is_right, row).y << ","
+                      << active_row_offset(is_right, row).z << ")"
                       << (tray2_place_active() ? " [tray2]" : "")
                       << " from_robot=" << row;
             if (row == 1)
@@ -581,8 +626,9 @@ namespace move_box
         const double top_z = refined_object_top_z(
             object_z, have_object_z, hand);
         const double extra_z = (from_robot_row == 6) ? active_nearest_row_z() : 0.0;
-        const double z_off = active_goal_z_offset(is_right, from_robot_row);
-        const double hover_z = top_z + hg.hover_above_m + extra_z;
+        const XyzOffsetM row_off = active_row_offset(is_right, from_robot_row);
+        const double z_off = active_goal_z_offset(is_right, from_robot_row) + row_off.z;
+        const double hover_z = top_z + hg.hover_above_m + extra_z + row_off.z;
         const double final_z = top_z + z_off;
         log_hand_grasp_heights(hand, is_right, from_robot_row,
                                have_object_z ? object_z : expected_object_top_z(),
@@ -616,13 +662,15 @@ namespace move_box
     void apply_hand_xy_refine_keep_hole(
         const char *hand,
         bool is_right,
+        int from_robot_row,
         const Eigen::Matrix<double, 1, 6> &base_pos,
         Eigen::Matrix<double, 1, 6> &goal_last)
     {
         const auto &hg = g_move_cfg.head_grasp;
         const double maxd = hg.hand_xy_refine_max_m;
-        const double hole_x = goal_last(0) - active_goal_x_offset(is_right);
-        const double hole_y = goal_last(1) - active_goal_y_offset(is_right);
+        const XyzOffsetM row_off = active_row_offset(is_right, from_robot_row);
+        const double hole_x = goal_last(0) - active_goal_x_offset(is_right) - row_off.x;
+        const double hole_y = goal_last(1) - active_goal_y_offset(is_right) - row_off.y;
         if (!(maxd > 0.0))
         {
             std::cout << std::fixed << std::setprecision(4)
@@ -653,7 +701,9 @@ namespace move_box
         Eigen::Matrix<double, 1, 6> &goal_last_r,
         Eigen::Matrix<double, 1, 6> &goal_last_l,
         bool hover_z_from_hand,
-        bool keep_xy)
+        bool keep_xy,
+        int row_r,
+        int row_l)
     {
         (void)hover_z_from_hand;
         const auto &hg = g_move_cfg.head_grasp;
@@ -666,7 +716,7 @@ namespace move_box
             }
             else
             {
-                apply_hand_xy_refine_keep_hole("右", true, base_pos_r, goal_last_r);
+                apply_hand_xy_refine_keep_hole("右", true, row_r, base_pos_r, goal_last_r);
             }
             apply_hand_hover_z_if_valid(base_pos_r, goal_last_r);
             std::cout << std::fixed << std::setprecision(4)
@@ -683,7 +733,7 @@ namespace move_box
             }
             else
             {
-                apply_hand_xy_refine_keep_hole("左", false, base_pos_l, goal_last_l);
+                apply_hand_xy_refine_keep_hole("左", false, row_l, base_pos_l, goal_last_l);
             }
             apply_hand_hover_z_if_valid(base_pos_l, goal_last_l);
             std::cout << std::fixed << std::setprecision(4)
@@ -2271,6 +2321,12 @@ namespace move_box
                 std::cout << "  hole " << h.id << " 过滤(无 ArUco 列) col=" << h.col << "\n";
                 continue;
             }
+            if (tray2_precision_test() && tray2_precision_visited(h.row, h.col))
+            {
+                std::cout << "  hole " << h.id << " ArUco row=" << h.row
+                          << " col=" << h.col << " 已经伸过手，跳过\n";
+                continue;
+            }
             const bool is_right_col = col <= right_max_col;
             if (is_right_col
                     ? (y < valid.right_y_min || y > valid.right_y_max)
@@ -2344,12 +2400,10 @@ namespace move_box
         if (precision)
         {
             if (prefer_front)
-                std::cout << "[tray_xy] 精度测试：先前三排，从离机器人近的一行开始"
-                          << "（from_robot " << g_move_cfg.grasp_zone.far_row_max
-                          << "→1），不跳到最后一排\n";
+                std::cout << "[tray_xy] 精度测试：从料盘最前排（ArUco row1）往后排，"
+                             "已经伸过手的空孔跳过\n";
             else
-                std::cout << "[tray_xy] 精度测试：前三排已空，后三排 from_robot "
-                          << (g_move_cfg.grasp_zone.far_row_max + 1) << "-6\n";
+                std::cout << "[tray_xy] 精度测试：前排已伸完，继续后面的空孔\n";
         }
         else if (g_move_cfg.grasp_zone.far_row_max > 0)
         {
@@ -2385,21 +2439,27 @@ namespace move_box
         int shared_row = 0;
         if (precision)
         {
-            int best = 0;
+            int best_aruco = 0;
+            int best_from = 0;
             bool any = false;
             auto consider = [&](const Cand &c, bool skip) {
                 if (skip || !in_prefer_band(c))
                     return;
-                // 前三排从靠近机器人的一行开始（3→2→1），不要一上来跳到最远的最后一排。
-                if (!any || c.row > best)
-                    best = c.row;
-                any = true;
+                if (!any || c.row_aruco < best_aruco)
+                {
+                    best_aruco = c.row_aruco;
+                    best_from = c.row;
+                    any = true;
+                }
             };
             for (const Cand &c : right_zone)
                 consider(c, skip_r);
             for (const Cand &c : left_zone)
                 consider(c, skip_l);
-            shared_row = any ? best : 0;
+            shared_row = any ? best_from : 0;
+            if (any)
+                std::cout << "[tray_xy] 精度测试本轮 ArUco row=" << best_aruco
+                          << " from_robot=" << best_from << "\n";
         }
         else
         {
@@ -2992,12 +3052,14 @@ namespace move_box
 
         std::array<double, 16> cam2robot_r{};
         std::array<double, 16> cam2robot_l{};
+        const XyzOffsetM row_xy_r = active_row_offset(true, st.row_r);
+        const XyzOffsetM row_xy_l = active_row_offset(false, st.row_l);
         const Eigen::Vector2d expected_head_xy_r(
-            st.goal_last_r(0) - active_goal_x_offset(true),
-            st.goal_last_r(1) - active_goal_y_offset(true));
+            st.goal_last_r(0) - active_goal_x_offset(true) - row_xy_r.x,
+            st.goal_last_r(1) - active_goal_y_offset(true) - row_xy_r.y);
         const Eigen::Vector2d expected_head_xy_l(
-            st.goal_last_l(0) - active_goal_x_offset(false),
-            st.goal_last_l(1) - active_goal_y_offset(false));
+            st.goal_last_l(0) - active_goal_x_offset(false) - row_xy_l.x,
+            st.goal_last_l(1) - active_goal_y_offset(false) - row_xy_l.y);
         Eigen::Matrix<double, 1, 6> hand_cam_r, hand_cam_l;
         hand_cam_r << -1.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         hand_cam_l << -1.0, 0.0, 0.0, 0.0, 0.0, 0.0;
@@ -3039,7 +3101,9 @@ namespace move_box
             st.goal_last_r,
             st.goal_last_l,
             true,
-            st.xy_from_tray);
+            st.xy_from_tray,
+            st.row_r,
+            st.row_l);
         record_hand_object_z(hs, true, enable_r && matched_r, base_pos_r);
         record_hand_object_z(hs, false, enable_l && matched_l, base_pos_l);
         if (enable_r && matched_r &&
@@ -3095,7 +3159,7 @@ namespace move_box
                 }
                 else
                 {
-                    apply_hand_xy_refine_keep_hole("右", true, base_pos_r, st.goal_last_r);
+                    apply_hand_xy_refine_keep_hole("右", true, st.row_r, base_pos_r, st.goal_last_r);
                 }
                 apply_hand_hover_z_if_valid(base_pos_r, st.goal_last_r);
                 record_hand_object_z(hs, true, true, base_pos_r);
@@ -3149,7 +3213,7 @@ namespace move_box
                 }
                 else
                 {
-                    apply_hand_xy_refine_keep_hole("左", false, base_pos_l, st.goal_last_l);
+                    apply_hand_xy_refine_keep_hole("左", false, st.row_l, base_pos_l, st.goal_last_l);
                 }
                 apply_hand_hover_z_if_valid(base_pos_l, st.goal_last_l);
                 record_hand_object_z(hs, false, true, base_pos_l);
@@ -3249,8 +3313,8 @@ namespace move_box
         if (approach_nostop)
         {
             ArmLineMoveDebugStage stage("A→B→C 两段直线不停");
-            constexpr double kApproachCruiseMps = 0.16;
-            std::cout << "[approach] 直线 0.16m/s 到物体上方，不停，再下到抓取点\n";
+            constexpr double kApproachCruiseMps = 0.20;
+            std::cout << "[approach] 直线 0.20m/s 到物体上方，不停，再下到抓取点\n";
             out = arm_dual_line_then_line_nostop(
                 arm_r, hover_r, st.goal_last_r, hs.move_r,
                 arm_l, hover_l, st.goal_last_l, hs.move_l,
@@ -3260,12 +3324,13 @@ namespace move_box
                  (tray_grasp_uses_curve() || tray_place_uses_corner()))
         {
             ArmLineMoveDebugStage stage("A→B→C 抹角一次下发");
-            std::cout << "[corner] 直线 0.16m/s 原样走到 B 前 8cm，末段抹角收到 C，失败不回退分段直线\n";
-            constexpr double kCornerCruiseMps = 0.16;
+            constexpr double corner_mps = 0.20;
+            std::cout << "[corner] 直线 " << std::fixed << std::setprecision(2) << corner_mps
+                      << "m/s 原样走到 B 前 8cm，末段抹角收到 C，失败不回退分段直线\n";
             out = arm_dual_rounded_corner_move_selective(
                 arm_r, hover_r, st.goal_last_r, hs.move_r,
                 arm_l, hover_l, st.goal_last_l, hs.move_l,
-                kCornerCruiseMps);
+                corner_mps);
         }
         else
         {
@@ -3445,6 +3510,9 @@ namespace move_box
             return;
 
         const double lift_z = g_move_cfg.head_grasp.lift_after_grasp_z;
+        const double lift_mps = (tray_hole_task() == TrayHoleTask::PlaceEmpty)
+                                    ? 0.20
+                                    : g_move_cfg.head_grasp.lift_vel_m_s;
         Eigen::Matrix<double, 1, 6> lift_pos_r = Eigen::Matrix<double, 1, 6>::Zero();
         Eigen::Matrix<double, 1, 6> lift_pos_l = Eigen::Matrix<double, 1, 6>::Zero();
 
@@ -3468,7 +3536,7 @@ namespace move_box
             ArmLineMoveDebugStage stage("夹后抬升保持抓取姿态");
             arm_dual_line_move_selective(
                 arm_r, lift_pos_r, lift_r, arm_l, lift_pos_l, lift_l,
-                g_move_cfg.head_grasp.lift_vel_m_s);
+                lift_mps);
         }
         if (g_move_cfg.head_grasp.use_hand_camera)
             cameras.save_grasp_hand_camera_snapshots(lift_r, lift_l);
@@ -3524,9 +3592,10 @@ namespace move_box
 
     double waist_layer3_ensure_far_row_forward(
         WaistRobot &waist,
-        Eigen::Matrix<double, 1, 6> &layer3)
+        Eigen::Matrix<double, 1, 6> &layer3,
+        double forward_m)
     {
-        const double want = g_move_cfg.waist.far_row_forward_m;
+        const double want = forward_m >= 0.0 ? forward_m : g_move_cfg.waist.far_row_forward_m;
         if (want <= 1e-9)
             return 0.0;
         if (!waist_layer3_is_synced())
@@ -3536,7 +3605,7 @@ namespace move_box
         }
         if (!sync_waist_layer3_from_encoders(waist, layer3, "远三排腰进前"))
             return 0.0;
-        const double x_fwd = waist_far_row_x();
+        const double x_fwd = g_move_cfg.waist.layer3_home(0) + want;
         const double cur_x = layer3(0);
         layer3(0) = x_fwd;
         clamp_waist_layer3_xyz(layer3);

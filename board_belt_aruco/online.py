@@ -353,7 +353,8 @@ def draw_detected_markers_thin(vis: np.ndarray, corners, ids, known_ids: set[int
         pts = corners[i].reshape(-1, 2).astype(np.int32)
         color = (0, 255, 0) if mid in known_ids else (80, 80, 80)
         cv2.polylines(vis, [pts], True, color, 1, cv2.LINE_AA)
-        cv2.circle(vis, (int(pts[0, 0]), int(pts[0, 1])), 2, (0, 0, 255), -1, cv2.LINE_AA)
+        for k in range(pts.shape[0]):
+            cv2.circle(vis, (int(pts[k, 0]), int(pts[k, 1])), 4, (0, 0, 255), -1, cv2.LINE_AA)
         tx = int(pts[:, 0].min())
         ty = int(max(pts[:, 1].min() - 3, 10))
         cv2.putText(

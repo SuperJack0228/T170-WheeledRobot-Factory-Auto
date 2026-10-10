@@ -1,5 +1,29 @@
 # T170C 圆柱抓取与头相机二维码调试工程
 
+## 本机登录
+
+| | |
+|---|---|
+| 用户名 | `ti5robot` |
+| 密码 | `dongguan` |
+| 有线 IP | `192.168.192.66`（`eno1`，和底盘 `192.168.192.5` 同一网段） |
+| 无线 IP | `192.168.113.124` |
+
+工作目录：`/home/ti5robot/T170Clean`。
+
+## 和系统联调
+
+第一个命令单独开一个终端，用来启动程序。后面三个分别在另一个终端执行：机器人在初始位置时回 home、开始对接调度、让当前动作停下来。
+
+```bash
+./build_robot/t170c_debug 2>&1 | tee startup.log
+python3 tools/debug_client.py home
+python3 tools/debug_client.py dispatch
+python3 tools/debug_client.py abort
+```
+
+`abort` 只请求停止当前动作，不退出第一个终端里的程序。
+
 本目录已收缩为一个无底盘调试工程，只保留：
 
 - T170C 左右七轴机械臂、腰部、DEX1 双夹爪；

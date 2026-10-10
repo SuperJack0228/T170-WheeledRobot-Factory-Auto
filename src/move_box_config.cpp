@@ -29,6 +29,21 @@ void read_value(const YAML::Node &node, const char *key, T &out)
         out = node[key].as<T>();
 }
 
+void read_row_xyz_list(const YAML::Node &node, XyzOffsetM out[6])
+{
+    if (!node || !node.IsSequence())
+        return;
+    const int n = std::min(6, static_cast<int>(node.size()));
+    for (int i = 0; i < n; ++i)
+    {
+        if (!node[i] || !node[i].IsMap())
+            continue;
+        read_value(node[i], "x", out[i].x);
+        read_value(node[i], "y", out[i].y);
+        read_value(node[i], "z", out[i].z);
+    }
+}
+
 bool read_pose(const YAML::Node &node, Eigen::Matrix<double, 1, 6> &out)
 {
     if (!node || !node.IsSequence() || node.size() != 6)
@@ -427,6 +442,12 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
                 read_value(off["right"], "z", cfg.tray2_place.right_grasp_z_offset_m);
             }
             read_value(t2, "nearest_row_z_offset_m", cfg.tray2_place.nearest_row_z_offset_m);
+            read_value(t2, "far_row_forward_m", cfg.tray2_place.far_row_forward_m);
+            if (t2["row_offset"])
+            {
+                read_row_xyz_list(t2["row_offset"]["left"], cfg.tray2_place.left_row_offset);
+                read_row_xyz_list(t2["row_offset"]["right"], cfg.tray2_place.right_row_offset);
+            }
         }
         read_value(hg, "adaptive_pitch_down_deg", cfg.head_grasp.adaptive_pitch_down_deg);
         read_value(hg, "adaptive_yaw_max_deg", cfg.head_grasp.adaptive_yaw_max_deg);
@@ -443,6 +464,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(hg, "right_goal_y_offset", cfg.head_grasp.right_goal_y_offset);
         read_value(hg, "right_grasp_z_offset_m", cfg.head_grasp.right_grasp_z_offset_m);
         read_value(hg, "nearest_row_grasp_z_offset_m", cfg.head_grasp.nearest_row_grasp_z_offset_m);
+        if (hg["row_offset"])
+        {
+            read_row_xyz_list(hg["row_offset"]["left"], cfg.head_grasp.left_row_offset);
+            read_row_xyz_list(hg["row_offset"]["right"], cfg.head_grasp.right_row_offset);
+        }
         read_value(hg, "use_hand_camera", cfg.head_grasp.use_hand_camera);
         read_value(hg, "hand_match_xy_max_m", cfg.head_grasp.hand_match_xy_max_m);
         read_value(hg, "hand_xy_refine_max_m", cfg.head_grasp.hand_xy_refine_max_m);
@@ -517,7 +543,10 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
 
         const YAML::Node chassis = root["chassis"];
         read_value(chassis, "host", cfg.chassis.host);
+        read_value(chassis, "robot_type", cfg.chassis.robot_type);
+        read_value(chassis, "sequence_number", cfg.chassis.sequence_number);
         read_value(chassis, "tray_station", cfg.chassis.tray_station);
+        read_value(chassis, "dispatch_wait_station", cfg.chassis.dispatch_wait_station);
         read_value(chassis, "tray2_station", cfg.chassis.tray2_station);
         read_value(chassis, "belt_station", cfg.chassis.belt_station);
         read_value(chassis, "out_station", cfg.chassis.out_station);
@@ -569,6 +598,8 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
             throw std::runtime_error("far_row_max 不能为负数");
         if (cfg.waist.far_row_forward_m < 0.0)
             throw std::runtime_error("far_row_forward_m 不能为负数");
+        if (cfg.tray2_place.far_row_forward_m < 0.0)
+            throw std::runtime_error("tray2_place.far_row_forward_m 不能为负数");
         if (cfg.waist.ready_forward_m < 0.0)
             throw std::runtime_error("ready_forward_m 不能为负数");
         if (cfg.waist.ready_z_m < cfg.waist.z_min || cfg.waist.ready_z_m > cfg.waist.z_max)
@@ -855,6 +886,8 @@ void print_move_box_config(const MoveBoxConfig &cfg)
     print_conveyor_station(cfg.conveyor2, "conveyor2");
     std::cout << std::fixed << std::setprecision(4)
               << "[cfg] chassis host=" << cfg.chassis.host
+              << " type=" << cfg.chassis.robot_type
+              << " seq=" << cfg.chassis.sequence_number
               << " tray=" << cfg.chassis.tray_station
               << " tray2=" << cfg.chassis.tray2_station
               << " belt=" << cfg.chassis.belt_station

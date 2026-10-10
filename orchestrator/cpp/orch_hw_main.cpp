@@ -582,8 +582,8 @@ Json::Value dispatch(const Json::Value &request)
     }
     if (cmd == "tray2" || cmd == "tray2_place")
     {
-        const int rc = orch::vision_place_tray2(true, true, false);
-        Json::Value out = reply(rc >= 0, rc < 0 ? "料盘2放置失败/中止" : "");
+        const int rc = orch::vision_place_tray2_precision();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "料盘2精度测试失败/中止" : "");
         out["code"] = rc;
         out["station"] = g_move_cfg.chassis.tray2_station;
         out["placed_right"] = g_session.last_grasped_r;
@@ -596,9 +596,17 @@ Json::Value dispatch(const Json::Value &request)
         }
         return out;
     }
+    if (cmd == "tray2center")
+    {
+        const int rc = orch::vision_tray2_center();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "料盘2中心点测试失败/中止" : "");
+        out["code"] = rc;
+        out["station"] = g_move_cfg.chassis.tray2_station;
+        return out;
+    }
     if (cmd == "vision_grasp")
     {
-        const int rc = orch::vision_grasp_existing_pipeline();
+        const int rc = orch::vision_grasp_existing_pipeline(false);
         Json::Value out = reply(rc >= 0, rc < 0 ? "视觉抓取失败/中止" : "");
         out["code"] = rc;
         out["grasped_right"] = g_session.last_grasped_r;
@@ -770,6 +778,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    orch::start_chassis_status_reporter();
     std::cerr << "T170C_DEBUG_READY port=" << port << " chassis=" << g_move_cfg.chassis.host
               << " belt=" << g_move_cfg.chassis.belt_station
               << " out=" << g_move_cfg.chassis.out_station << "\n";

@@ -3,14 +3,17 @@
 # ArUco 5 码联合（四角+中心）。当前字典 5×5，可在下方切换 4×4 / 6×6。
 # 打印 40 mm（含白边）。检测用黑框边长写在 tray.black_side_m（31.2 mm），不再按格数比例推。
 #
-# 贴码朝向：每个码的「上」朝向料盘前方（ID0、ID1 那一侧）。
-# 料盘坐标系在中心码（ID2）中心：+X 前、+Y 左、+Z 上（前左上）。
+# 料盘一，2026-10-08 现场照片 tray_yolo_20261008_165419_631。
+# 字典仍是 5×5。四个角码，没有中心码。每个码的「上」朝料盘 +X（前）。
+# 原点在四角中心：+X 前、+Y 左、+Z 上。
+# 照片里码的「上」指向画面下方，所以画面下方是前（+X），画面右是左（+Y）。
+# 近三行 / 远三行不跟这个前后走，抓取时按基座 X 重排。
 #
-#        前 (+X)
-#   ID0 左上         ID1 右上
-# 左(+Y)    ID2 中心          右(-Y)
-#   ID3 左下         ID4 右下
-#        后 (-X)
+#        前 (+X)          照片下方
+#   ID2 前左         ID5 前右
+# 左(+Y)                      右(-Y)
+#   ID6 后左         ID7 后右
+#        后 (-X)          照片上方
 
 aruco:
   # dictionary: DICT_4X4_1000     # 改 4×4 时用这个，并把 bit_cells 改为 4
@@ -24,12 +27,11 @@ tray:
   black_border_cells: 1           # ArUco 黑边，各 1 格（仅作记录，不再用来推边长）
   white_border_cells: 1           # 贴黑料盘用的白边，各 1 格
   pitch_xy_m: 0.30                # 四角码中心的左右 / 前后间距
-  ids:                            # 槽位 → ID
-    front_left: 0                 # 左上
-    front_right: 1                # 右上
-    center: 2
-    rear_left: 3                  # 左下
-    rear_right: 4                 # 右下
+  ids:                            # 槽位 → ID。没有中心码。
+    front_left: 2                 # 照片右下
+    front_right: 5                # 照片左下
+    rear_left: 6                  # 照片右上
+    rear_right: 7                 # 照片左上
   holes:
     rows: 6                       # 沿 +X（前）
     cols: 6                       # 沿 +Y（左）
@@ -38,11 +40,43 @@ tray:
     offset_x_m: 0.0               # 相对中心码的网格中心偏移（前）
     offset_y_m: 0.0               # 相对中心码的网格中心偏移（左）
 
-# 料盘2空孔放置专用码。字典、四角间距、孔距仍用上面的 tray。只改打印边长和黑框。
-# 外边含白边 30 mm；OpenCV 测的黑框（5×5 内码）23.4 mm。
+# 统一料盘码，抓取第一组。识别已备好，当前不启用，抓取仍用上面的 tray.ids（2/5/6/7）。
+# 启用时调用 set_active_board("grasp_code")，用完再切回 "tray"。程序默认不会切过去。
+# 5×5，打印外边 40 mm，黑框 31.2 mm。对角线 ID 相同。
+# 左上、右下是定位码，以后每块料盘都是 100。右上、左下是信息码，各盘不同；这一组是 2。
+# 俯视、前(+X)在上、左(+Y)在左：左上=前左，右上=前右，左下=后左，右下=后右。
+# 料盘一照片里码的「上」朝画面下方，照片相对上面转 180°，仍是同一条对角线：
+# 照片左上=后右、照片右下=前左 为 100；照片右上=后左、照片左下=前右 为 2。
+tray_grasp_code:
+  enabled: false                  # true 才改用这一组。当前 false，抓取仍认 2/5/6/7
+  dictionary: DICT_5X5_1000
+  print_size_m: 0.04
+  black_side_m: 0.0312
+  bit_cells: 5
+  pitch_xy_m: 0.30                # 四角中心间距，定位框用这个，和当前料盘一相同
+  locate_id: 100                  # 左上、右下，定位
+  info_id: 2                      # 右上、左下，信息
+  ids:
+    front_left: 100               # 右下 / 俯视左上，定位
+    rear_right: 100               # 左上 / 俯视右下，定位
+    front_right: 2                # 左下 / 俯视右上，信息
+    rear_left: 2                  # 右上 / 俯视左下，信息
+
+# 料盘二，2026-10-08 现场照片 waist2_20261008_170024。
+# 6×6 字典，四个角码，没有中心码。打印外边 40 mm，和料盘一一样。
+# 6×6 含白边 1 格：黑框 = 40 × 8/10 = 32 mm。
+# 码的「上」指向照片顶部。照片顶部是远三行（+X 前，ArUco row1），底部是近三行。
+# 左上 ID0、右上 ID1、左下 ID2、右下 ID3。
 tray2:
-  print_size_m: 0.03
-  black_side_m: 0.0234
+  dictionary: DICT_6X6_1000
+  print_size_m: 0.04
+  black_side_m: 0.032
+  bit_cells: 6
+  ids:
+    front_left: 0               # 照片左上，远
+    front_right: 1              # 照片右上，远
+    rear_left: 2                # 照片左下，近
+    rear_right: 3               # 照片右下，近
 
 pose:
   pnp_flag: SQPNP                 # SQPNP | ITERATIVE

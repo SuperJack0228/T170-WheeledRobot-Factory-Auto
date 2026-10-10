@@ -1192,9 +1192,9 @@ Matrix<double, 1, 6> arm_flange_tool(const Robot_Arm &arm)
 {
     Matrix<double, 1, 6> tool;
     if (arm_hand_side(arm) == 1)
-        tool << 0.23, 0, 0, 0, 0, 0;
+        tool << 0.26, 0, 0, 0, 0, 0;
     else
-        tool << 0.23, 0, 0, 0, 0, 0;
+        tool << 0.26, 0, 0, 0, 0, 0;
     return tool;
 }
 
@@ -1340,7 +1340,7 @@ T170Mdh t170_mdh_from_yaml(bool is_right)
         m.mdl_dir[5] = -1.0;
         m.mdl_off[1] = -h;
     }
-    m.tool << 0.230, 0, 0, 0, 0, 0;
+    m.tool << 0.260, 0, 0, 0, 0, 0;
     return m;
 }
 
@@ -1487,6 +1487,90 @@ int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_
     if (exec == 0)
         record_arm_cartesian_arrival(arm, pos, nullptr);
     return exec;
+}
+
+int arm_line_move_settle(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms)
+{
+    if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
+        return 0;
+    clamp_cart_goal_z(pos, "arm_line_move_settle(直线运动下发前)");
+    const int hand = arm_hand_side(arm);
+    Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
+    if (hardware_abort_requested())
+        return -4;
+    if (can_io_faulted())
+        return -2;
+
+    arm.Cart_Linear_Velocity = cart_linear_velocity;
+
+    Eigen::MatrixXd traj;
+    const int ret = arm.Line_Trajectory(q_start, pos, traj);
+    if (ret != 0)
+    {
+        const char *stage = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(g_arm_line_move_stage_mu);
+            stage = g_arm_line_move_debug_stage;
+        }
+        append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
+        return ret;
+    }
+    const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    if (exec != 0)
+        return exec;
+    if (settle_ms > 0)
+    {
+        std::cout << "[arm] 轨迹已下发完，再等 " << settle_ms << " ms 后回读关节角\n" << std::flush;
+        hardware_abort_sleep_ms(settle_ms);
+    }
+    if (hardware_abort_requested())
+        return -4;
+
+    const int n = static_cast<int>(std::min(traj.cols(), static_cast<Eigen::Index>(7)));
+    const Eigen::Matrix<double, 1, 7> q_act = arm_get_joint_pos(arm);
+    std::cout << std::fixed << std::setprecision(3)
+              << "[arm] " << (hand == 1 ? "右手" : "左手")
+              << " 关节角(度)  理论  实际  差\n";
+    for (int j = 0; j < n; ++j)
+    {
+        const double theory_deg = traj(traj.rows() - 1, j) * 180.0 / M_PI;
+        const double actual_deg = q_act(j) * 180.0 / M_PI;
+        std::cout << "  J" << (j + 1)
+                  << "  " << theory_deg
+                  << "  " << actual_deg
+                  << "  " << (actual_deg - theory_deg) << "\n";
+    }
+    const Eigen::Matrix<double, 1, 6> tcp = arm_get_tcp_pos(arm);
+    std::cout << std::setprecision(4)
+              << "[arm] 等稳后 TCP 目标=(" << pos(0) << "," << pos(1) << "," << pos(2)
+              << ") 实际=(" << tcp(0) << "," << tcp(1) << "," << tcp(2)
+              << ") 差=(" << (tcp(0) - pos(0)) << "," << (tcp(1) - pos(1)) << ","
+              << (tcp(2) - pos(2)) << ")\n";
+    record_arm_cartesian_arrival(arm, pos, nullptr);
+    return 0;
+}
+
+void log_arm_encoder_command_vs_actual(Robot_Arm &arm, const char *tag)
+{
+    const int hand = arm_hand_side(arm);
+    const char *name = (tag && tag[0]) ? tag : (hand == 1 ? "右手" : "左手");
+    if (hand < 0 || hand > 1 || !g_arm_last_cmd_valid[hand])
+    {
+        std::cout << "[tray2] " << name << " 没有本次下发的编码器理论值\n" << std::flush;
+        return;
+    }
+    int actual[7] = {};
+    get_motor_position(actual, hand);
+    std::cout << "[tray2] " << name << " 编码器  理论  实际  差\n";
+    for (int i = 0; i < 7; ++i)
+    {
+        const int theory = g_arm_last_cmd_cnt[hand][i];
+        std::cout << "  J" << (i + 1)
+                  << "  " << theory
+                  << "  " << actual[i]
+                  << "  " << (actual[i] - theory) << "\n";
+    }
+    std::cout << std::flush;
 }
 
 Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Robot_Arm &arm)

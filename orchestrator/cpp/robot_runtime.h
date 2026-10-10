@@ -106,13 +106,18 @@ int go_grasp_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group);
 /** 料盘2放置准备：腰/头同 grasp ready，手臂用 tray2_place 独立 RPY。 */
 int go_tray2_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group);
 /** AP9 → 下蹲同 grasp → 空孔放置。allow=false 的手不分配、不运动。
- *  return_to_tray 为真时放完升腰并回 AP7（完整 cycle）。为假时停在 AP9，不升腰。 */
+ *  return_to_tray 为真时放完先升腰，再去 AP7，到站后再降腰。为假时停在 AP9，不升腰。 */
 int vision_place_tray2(bool allow_right = true, bool allow_left = true, bool return_to_tray = true);
-/** 料盘2精度测试：到 AP9，先合爪，不松爪、不起身，先前三排再后三排，直到没有空孔或 abort。 */
+/** 料盘2精度测试：到 AP9，先合爪，不松爪、不起身，从最前排开始伸完所有空孔。 */
 int vision_place_tray2_precision();
-int vision_grasp_existing_pipeline();
-/** 调度对接：先到 AP7 等任务。转运/下料若已在对应传送带且手臂在准备位，不再回 home。下料放到 AP9 后停在原地等下一条任务。 */
+/** 料盘2中心点测试：AP9，合爪。远端右手再左手到码原点，回近处后左手再右手。 */
+int vision_tray2_center();
+/** depart_after_grasp 为假时：每轮收手后松爪并立刻再拍再抓，直到料盘空，停在原地。cycle / 调度仍抓住不放。 */
+int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
+/** 调度对接：先到 dispatch_wait_station（AP14）等任务。任务结束后的回料架不变。下料放到 AP9 后停在原地等下一条任务。 */
 int run_dispatch_mode();
+/** 程序启动后调用一次。后台线程以 2Hz 把底盘位姿和电量写入调度库的上报变量。 */
+void start_chassis_status_reporter();
 int vision_aruco_detect_pipeline();
 int vision_tray_holes_pipeline();
 

@@ -1,0 +1,37 @@
+# 2026-10-10 清零前的孔位/传送带 offset。只含定位偏置，不含手臂 DH、hover、固定高度。
+# 恢复时把这些值写回 config/move_box_params.yaml 的同名字段。单位米。基座系：+X 前，+Y 左，+Z 上。
+# 传送带 offset / grasp_offset 在识别板系：+X 前，+Y 左，+Z 上。
+
+head_grasp:
+  grasp_z_offset_m: 0.02
+  goal_x_offset: 0.015
+  goal_y_offset: -0.015
+  right_grasp_z_offset_m: 0.02
+  right_goal_x_offset: 0.0
+  right_goal_y_offset: -0.015
+  nearest_row_grasp_z_offset_m: -0.005
+  hand_grasp:
+    right: { offset_x: -0.01, offset_y: 0.02 }
+    left:  { offset_x: -0.01, offset_y: -0.02 }
+
+tray2_place:
+  offset:
+    left:  { x: 0.005, y: -0.02, z: 0.025 }
+    right: { x: -0.01, y: -0.02, z: 0.025 }
+  nearest_row_z_offset_m: -0.005
+
+conveyor:
+  offset:
+    right: { x: -0.015, y: -0.01, z: 0.04 }
+    left:  { x: -0.065, y: 0.00, z: 0.04 }
+  grasp_offset:
+    left:  { x: -0.03, y: 0.12, z: 0.025 }
+    right: { x: -0.03, y: 0.11, z: 0.030 }
+
+conveyor2:
+  offset:
+    right: { x: -0.015, y: -0.01, z: 0.06 }
+    left:  { x: -0.065, y: 0.00, z: 0.06 }
+  grasp_offset:
+    left:  { x: -0.04, y: 0.115, z: 0.040 }
+    right: { x: -0.04, y: 0.11, z: 0.040 }

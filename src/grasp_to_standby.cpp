@@ -1,4 +1,5 @@
 #include "move_box_runtime.h"
+#include "function.h"
 #include "head_control.h"
 #include "Ti5_socketcan.h"
 
@@ -6,6 +7,7 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <sys/select.h>
 #include <unistd.h>
 
 namespace move_box
@@ -17,6 +19,53 @@ namespace
 bool aborting(const std::function<bool()> &should_abort)
 {
     return hardware_abort_requested() || (should_abort && should_abort());
+}
+
+/** 料盘二精度测试：到位后停住。回车继续；输入 quit 再回车则退出。 */
+bool wait_tray2_step_key()
+{
+    std::cout << "\n[tray2] 已到位，动作暂停。在运行 t170c_debug 的终端按回车继续，或输入 quit 后回车退出\n"
+              << std::flush;
+    if (!isatty(STDIN_FILENO))
+    {
+        std::cerr << "[tray2] 标准输入不是终端，无法等待按键，直接继续\n";
+        return !hardware_abort_requested();
+    }
+    std::string line;
+    while (!hardware_abort_requested())
+    {
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(STDIN_FILENO, &fds);
+        timeval tv{};
+        tv.tv_sec = 0;
+        tv.tv_usec = 200000;
+        const int sel = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+        if (sel <= 0)
+            continue;
+        char ch = 0;
+        if (read(STDIN_FILENO, &ch, 1) <= 0)
+            continue;
+        if (ch == '\n' || ch == '\r')
+        {
+            if (line == "quit")
+            {
+                std::cout << "[tray2] 收到 quit，退出\n" << std::flush;
+                return false;
+            }
+            std::cout << "[tray2] 继续\n" << std::flush;
+            return true;
+        }
+        if (ch == 127 || ch == '\b')
+        {
+            if (!line.empty())
+                line.pop_back();
+            continue;
+        }
+        line.push_back(ch);
+    }
+    std::cerr << "[tray2] 暂停期间收到中止\n";
+    return false;
 }
 
 } // namespace
@@ -153,8 +202,11 @@ GraspToStandbyResult run_grasp_to_standby(
                                       " ArUco=" + std::to_string(st.row_aruco_l)
                                 : "")
                       << "，腰前伸后抓取，本轮抓完不收回\n";
+            const double forward_m = (tray_hole_task() == TrayHoleTask::PlaceEmpty)
+                                         ? g_move_cfg.tray2_place.far_row_forward_m
+                                         : g_move_cfg.waist.far_row_forward_m;
             const double actual =
-                waist_layer3_ensure_far_row_forward(waist, posup_down_3_layer);
+                waist_layer3_ensure_far_row_forward(waist, posup_down_3_layer, forward_m);
             if (actual > 1e-9)
                 waist_adjusted = true;
             if (aborting(should_abort))
@@ -281,11 +333,12 @@ GraspToStandbyResult run_grasp_to_standby(
             fill(arm_r, true, mid_r, goal_r);
         if (want_l)
             fill(arm_l, false, mid_l, goal_l);
-        const auto &hg = g_move_cfg.head_grasp;
+        constexpr double lift_mps = 0.20;
+        constexpr double return_mps = 0.20;
         const ArmLineMoveResult stitched = arm_dual_line_then_line_nostop(
             arm_r, mid_r, goal_r, want_r,
             arm_l, mid_l, goal_l, want_l,
-            hg.lift_vel_m_s, hg.return_vel_m_s,
+            lift_mps, return_mps,
             [&]() {
                 if (on_place_retract)
                     on_place_retract(grasped_r, grasped_l);
@@ -313,6 +366,9 @@ GraspToStandbyResult run_grasp_to_standby(
                 lifted_l = true;
             return;
         }
+        if (!wait_tray2_step_key())
+            return;
+        log_arm_encoder_command_vs_actual(is_right ? arm_r : arm_l, is_right ? "右手" : "左手");
         lift_grasped_selective(arm_r, arm_l, cameras, st, is_right, !is_right);
         if (is_right)
             lifted_r = true;
@@ -341,6 +397,18 @@ GraspToStandbyResult run_grasp_to_standby(
 
         if (tray2_precision_test())
         {
+            if (!lifted_r && !lifted_l && !wait_tray2_step_key())
+            {
+                r.status = GraspToStandbyStatus::Aborted;
+                return r;
+            }
+            if (!lifted_r && !lifted_l)
+            {
+                if (grasped_r)
+                    log_arm_encoder_command_vs_actual(arm_r, "右手");
+                if (grasped_l)
+                    log_arm_encoder_command_vs_actual(arm_l, "左手");
+            }
             log_phase_banner("精度测试放置完成 → 轻抬后回蹲姿 standby，不起身");
             lift_grasped_after_pick(
                 arm_r, arm_l, cameras, st, grasped_r, grasped_l, lifted_r, lifted_l);

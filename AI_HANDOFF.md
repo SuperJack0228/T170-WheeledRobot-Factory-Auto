@@ -19,7 +19,7 @@
 4. **YOLO 只给类别，不参与定位。** 料盘孔位 XY 来自 ArUco。码不够禁止回退 YOLO 抓取。传送带抓取 YOLO 门禁默认关。
 5. **不要把盘心再加进孔位 XY。** `t_avg` 已经在 `xyz_level` 里。
 6. **C++ 改完必须重编并重启。** `cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170c_debug`。yaml 数值可 `reload`。新命令、新分支逻辑不行。**不要擅自启动 `t170c_debug`，除非用户要求。**
-7. **不要 git commit / push，除非用户明确要求。** `origin` 是 jihulab，不要推那里。GitHub 远程若存在，也只在用户点名时推。不要在文档或回复里重复任何 token。
+7. **不要 git commit / push，除非用户明确要求。** 不要在文档或回复里重复任何 token。
 8. 软件 `abort` **不能替代实体急停**，也**杀不掉**正在跑的服务端命令。客户端 Ctrl+C 只断自己。要停进程：`pkill -f build_robot/t170c_debug`，然后再启动才能发下一条。
 9. 头远排俯仰是 **`far_pitch_deg: 47`**。不要写成 65°。标定俯仰约 40°，传送带拍照俯仰 38°。
 10. **抹角失败不要退回两段停车直线。** 收手衔接失败才允许退回「先抬升、停住、再走直线」。

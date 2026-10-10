@@ -64,10 +64,10 @@ constexpr uint32_t kWaistAllCanIds[5] = {1, 5, 2, 3, 4};
 /** 左臂 23–29、右臂 16–22（锁定时跳过）。 */
 constexpr uint32_t kRightArmCanIds[7] = {16, 17, 18, 19, 20, 21, 22};
 constexpr uint32_t kLeftArmCanIds[7] = {23, 24, 25, 26, 27, 28, 29};
-/** 顺序：偏航、俯仰、横滚。本机 31/32 对调：俯仰=32，横滚=31。 */
+/** 顺序：偏航、俯仰、横滚。偏航=30，俯仰=31，横滚=32。 */
 constexpr uint32_t kHeadYawCanId = 30;
-constexpr uint32_t kHeadPitchCanId = 32;
-constexpr uint32_t kHeadRollCanId = 31;
+constexpr uint32_t kHeadPitchCanId = 31;
+constexpr uint32_t kHeadRollCanId = 32;
 constexpr uint32_t kHeadCanIds[3] = {kHeadYawCanId, kHeadPitchCanId, kHeadRollCanId};
 
 /** 清错并使能腰全部 5 轴（位置模式，笛卡尔/点动都会写 5 轴）。 */

@@ -131,9 +131,12 @@ TrayZoneCount count_tray_zone_holes(
     RealSenseMultiCam &cameras,
     SegPoseBridge &bridge,
     const std::array<double, 16> &cam2robot);
-/** 料盘2精度测试：先前三排（from_robot 1–3）再后三排，到位不松爪，不回 home。 */
+/** 料盘2精度测试：到 AP9 后合爪，按空孔从最前排一组一组伸手，不松爪。 */
 void set_tray2_precision_test(bool on);
 bool tray2_precision_test();
+void tray2_precision_clear_visited();
+void tray2_precision_mark_visited(int row_aruco, int col_aruco);
+bool tray2_precision_visited(int row_aruco, int col_aruco);
 /** home 指令：安全抬离后走到 yaml home_tcp（默认 TCP 原点、RPY=0）。不走抓取 standby，也不用料盘左右分区卡 Y。 */
 bool move_arms_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l);
 /** belt_ready：绝对走到该套 conveyor.tcp（准备姿态）。 */
@@ -285,10 +288,11 @@ void lift_grasped_selective(
     bool move_l);
 
 bool restore_waist_layer3_x(WaistRobot &waist, Eigen::Matrix<double, 1, 6> &posup_down_3_layer);
-/** 腰向前伸到 home_x + far_row_forward_m（远三排）；已到位则跳过。返回实际前进量（>0）。抓完不收回。 */
+/** 腰向前伸到 home_x + forward_m。forward_m < 0 时用 waist.far_row_forward_m。已到位则跳过。 */
 double waist_layer3_ensure_far_row_forward(
     WaistRobot &waist,
-    Eigen::Matrix<double, 1, 6> &layer3);
+    Eigen::Matrix<double, 1, 6> &layer3,
+    double forward_m = -1.0);
 void apply_grasp_stagger_waist_comp(HeadAssignState &st, double waist_actual_delta);
 /** 抓取腰进 ×mult，返回实际 waist x delta(>0 表示前进) */
 double waist_layer3_stagger_forward(
