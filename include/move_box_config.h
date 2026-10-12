@@ -64,7 +64,7 @@ struct HeadGraspConfig
     /** 最远一行（ArUco row1）专用末端姿态。yaml: row1_rpy_deg。 */
     GraspRpyDeg left_row6_rpy_deg;
     GraspRpyDeg right_row6_rpy_deg;
-    /** true=料盘抓取走抹角（B 前约 8cm 收到 C）。料盘二放置仍走直线。 */
+    /** true=料盘抓取走抹角（B 前约 6cm 收到 C）。料盘二放置仍走直线。 */
     bool use_bezier_grasp = false;
     /** true=料盘抓取伸手改两段直线（到上方、再下降）中间不停。抹角代码仍保留，此项优先。 */
     bool approach_nostop = false;
@@ -100,12 +100,11 @@ struct HeadGraspConfig
     /** 到 C 后 FK 实测位置/姿态超过阈值则禁止合爪。 */
     double bezier_endpoint_xyz_tol_m = 0.003;
     double bezier_endpoint_rpy_tol_deg = 3.0;
-    /** 到上方 / 回起始点 的笛卡尔线速度（m/s）。 */
-    double approach_vel_m_s = 0.12;
-    /** 从上方下压的线速度，应明显慢于接近。 */
-    double descend_vel_m_s = 0.05;
-    double lift_vel_m_s = 0.16;
-    double return_vel_m_s = 0.16;
+    /** 到上方 / 下压 / 抬起 / 收回 的笛卡尔线速度（m/s）。 */
+    double approach_vel_m_s = 0.25;
+    double descend_vel_m_s = 0.25;
+    double lift_vel_m_s = 0.25;
+    double return_vel_m_s = 0.25;
     /** 下压到位后、合爪前等待（秒），避免还在晃就夹。 */
     double pre_grasp_settle_sec = 0.5;
     int hand_detect_invalid_redo_max = 10;
@@ -254,6 +253,10 @@ struct ConveyorStationConfig
     bool use_fixed_origin_z = false;
     /** 手臂基座系码平面高度（米，向上为正）。腰 0.63m 时传送带在基座下方 0.29m。 */
     double fixed_origin_z_m = -0.29;
+    /** 底盘到站后，放置拍照前再等这么久（秒）。从到站时刻起算，路上已耗掉的时间会扣掉。 */
+    double photo_after_arrival_sec = 3.0;
+    /** 腰头到位后，抓取拍照前再等这么久（秒）。 */
+    double grasp_photo_settle_sec = 1.5;
 };
 
 struct StaggerConfig

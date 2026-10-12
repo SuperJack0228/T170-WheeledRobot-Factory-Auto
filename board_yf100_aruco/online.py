@@ -243,8 +243,12 @@ def marker_corners_local(black_side_m: float) -> np.ndarray:
     )
 
 
-def marker_corners_at_slot(cfg: AppConfig, slot: str) -> np.ndarray:
+def marker_corners_at_slot(cfg: AppConfig, slot: str, half_turn: bool = False) -> np.ndarray:
     local = marker_corners_local(cfg.black_side_m)
+    if half_turn:
+        local = local.copy()
+        local[:, 0] *= -1.0
+        local[:, 1] *= -1.0
     center = cfg.marker_center_tray(slot)
     return local @ R_MARKER_IN_TRAY.T + center
 
@@ -366,22 +370,25 @@ def estimate_diagonal_tray_pose(
     ids,
     cfg: AppConfig,
     locate_id: int,
-    info_id: int,
+    info_ids: set[int],
     K: np.ndarray,
     dist: np.ndarray,
 ) -> TrayPose | None:
-    """对角线同号的四角码。
+    """四个码的角点联合定位。号码不决定是哪个角。
 
-    左上、右下（前左、后右）是定位码，右上、左下（前右、后左）是信息码。
-    相同 ID 不能按编号对槽位，先用每个码自己的朝向分到四个角，再联合解料盘位姿。
-    四个码的「上」都朝料盘 +X。必须四个都在，且 ID 和角位一致，否则不给位姿。
+    码的「上」朝向一致时，用它定料盘 +X。某个码相对其他码转了 180°，
+    只把这个码的四个角点转 180° 再参与求解，定位框不跟着歪。
+    整盘转 180° 时框跟着转，36 个孔仍落在原来的孔位上。
+    必须正好四个，否则不给位姿。
     """
-    if ids is None or len(corners) == 0 or locate_id == info_id:
+    allowed = set(info_ids)
+    allowed.add(int(locate_id))
+    if ids is None or len(corners) == 0 or not info_ids:
         return None
     hits: list[tuple[int, np.ndarray, np.ndarray, np.ndarray]] = []
     for i, mid_raw in enumerate(ids.flatten()):
         mid = int(mid_raw)
-        if mid != locate_id and mid != info_id:
+        if mid not in allowed:
             continue
         img = corners[i].reshape(4, 2).astype(np.float64)
         posed = _marker_pose_facing_camera(img, cfg.black_side_m, K, dist)
@@ -389,24 +396,40 @@ def estimate_diagonal_tray_pose(
             continue
         R, t = posed
         hits.append((mid, img, R, t))
-    if sum(1 for mid, *_ in hits if mid == locate_id) != 2:
-        return None
-    if sum(1 for mid, *_ in hits if mid == info_id) != 2:
+    if len(hits) != 4:
         return None
 
     ups = [R[:, 1] for *_rest, R, _t in hits]
     lefts = [-R[:, 0] for *_rest, R, _t in hits]
     axis_x = ups[0] / np.linalg.norm(ups[0])
-    axis_y = lefts[0] / np.linalg.norm(lefts[0])
+    if sum(1 for up in ups if float(np.dot(up, axis_x)) < 0.0) > 2:
+        axis_x = -axis_x
+    axis_y = None
+    for up, left in zip(ups, lefts):
+        if float(np.dot(up, axis_x)) <= 0.0:
+            continue
+        axis_y = left / np.linalg.norm(left)
+        break
+    if axis_y is None:
+        return None
     acc_x = np.zeros(3, dtype=np.float64)
     acc_y = np.zeros(3, dtype=np.float64)
+    half_turn: list[bool] = []
     for up, left in zip(ups, lefts):
         u = up / np.linalg.norm(up)
         v = left / np.linalg.norm(left)
-        if float(np.dot(u, axis_x)) < 0.95 or float(np.dot(v, axis_y)) < 0.95:
-            return None
-        acc_x += u
-        acc_y += v
+        agree = float(np.dot(u, axis_x))
+        if agree >= 0.95 and float(np.dot(v, axis_y)) >= 0.95:
+            half_turn.append(False)
+            acc_x += u
+            acc_y += v
+            continue
+        if agree <= -0.95 and float(np.dot(v, axis_y)) <= -0.95:
+            half_turn.append(True)
+            acc_x += -u
+            acc_y += -v
+            continue
+        return None
     axis_x = acc_x / np.linalg.norm(acc_x)
     axis_y = acc_y - axis_x * float(np.dot(acc_y, axis_x))
     y_norm = float(np.linalg.norm(axis_y))
@@ -418,25 +441,20 @@ def estimate_diagonal_tray_pose(
     if float(np.dot(np.cross(axis_x, axis_y), centroid)) >= 0.0:
         return None
 
-    expect = {
-        "front_left": locate_id,
-        "rear_right": locate_id,
-        "front_right": info_id,
-        "rear_left": info_id,
-    }
+    slots = ("front_left", "front_right", "rear_left", "rear_right")
     half = cfg.pitch_xy_m * 0.25
-    assigned: dict[str, tuple[int, np.ndarray]] = {}
-    for mid, img, _R, t in hits:
+    assigned: dict[str, tuple[int, np.ndarray, bool]] = {}
+    for (mid, img, _R, t), turned in zip(hits, half_turn):
         d = t - centroid
         dx = float(np.dot(d, axis_x))
         dy = float(np.dot(d, axis_y))
         if abs(dx) < half or abs(dy) < half:
             return None
         slot = ("front_" if dx > 0.0 else "rear_") + ("left" if dy > 0.0 else "right")
-        if slot in assigned or mid != expect[slot]:
+        if slot in assigned:
             return None
-        assigned[slot] = (mid, img)
-    if set(assigned) != set(expect):
+        assigned[slot] = (mid, img, turned)
+    if set(assigned) != set(slots):
         return None
 
     obj_list: list[np.ndarray] = []
@@ -444,8 +462,8 @@ def estimate_diagonal_tray_pose(
     used: list[int] = []
     corners_by_id: dict[int, np.ndarray] = {}
     for slot in ("front_left", "front_right", "rear_left", "rear_right"):
-        mid, img = assigned[slot]
-        obj_list.append(marker_corners_at_slot(cfg, slot))
+        mid, img, turned = assigned[slot]
+        obj_list.append(marker_corners_at_slot(cfg, slot, turned))
         img_list.append(img)
         used.append(mid)
         corners_by_id[mid] = img.reshape(1, 4, 2)

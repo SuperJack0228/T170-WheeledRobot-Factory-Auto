@@ -20,12 +20,6 @@ LowerBody::Joints5 apply_motor_direct(const LowerBody::Joints5 &q)
     return out;
 }
 
-void hold_roll_yaw_zero(LowerBody::Joints5 &q)
-{
-    q(LowerBody::WaistRoll) = 0.0;
-    q(LowerBody::WaistYaw) = 0.0;
-}
-
 void unwrap_toward(LowerBody::Joints5 &q, const LowerBody::Joints5 &seed)
 {
     for (int i = 0; i < dof_waist; ++i)
@@ -162,7 +156,6 @@ int WaistRobot::moveLInterp(
         logJoints("目标不可达，当前", qc);
         return -2;
     }
-    hold_roll_yaw_zero(q_goal);
 
     Matrix<double, 1, 6> axis_p1, axis_p2;
     axis_p1.setZero();
@@ -192,7 +185,6 @@ int WaistRobot::moveLInterp(
             std::cout << "Move_error\n";
             return -1;
         }
-        hold_roll_yaw_zero(qc);
         servoJ(qc);
         const double elapsed_ms =
             duration<double, milli>(chrono::high_resolution_clock::now() - cycle_start).count();
@@ -257,7 +249,7 @@ int WaistRobot::moveJToJoint(Joints5 &qd, double vel)
     return moveJToJoint_Tf(qd, Tf);
 }
 
-int WaistRobot::moveJToJoint_Tf(Joints5 &q_end, double Tf)
+int WaistRobot::streamJoint(Joints5 &q_end, double Tf)
 {
     Joints5 q_start = readJoints();
     unwrap_toward(q_end, q_start);
@@ -283,6 +275,11 @@ int WaistRobot::moveJToJoint_Tf(Joints5 &q_end, double Tf)
     }
     servoJ(q_end);
     return 0;
+}
+
+int WaistRobot::moveJToJoint_Tf(Joints5 &q_end, double Tf)
+{
+    return streamJoint(q_end, Tf);
 }
 
 int WaistRobot::jogJoint(int joint_1based, double dq_rad, double vel)

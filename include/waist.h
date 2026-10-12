@@ -30,6 +30,7 @@ private:
         const Eigen::Matrix4d &T2,
         double vel,
         const std::function<bool()> &should_abort);
+    int streamJoint(LowerBody::Joints5 &q_end, double Tf);
     void logJoints(const char *tag, const LowerBody::Joints5 &q) const;
     bool jointsInLimit(const LowerBody::Joints5 &q) const;
     LowerBody::Joints5 readJoints();

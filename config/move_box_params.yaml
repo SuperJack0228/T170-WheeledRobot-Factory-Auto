@@ -38,7 +38,7 @@ head:
 
 
 head_grasp:
-  hover_above_m: 0.08
+  hover_above_m: 0.12
   # 左手孔位偏置（基座系）。X 前为正，Y 左为正，Z 上为正。
   grasp_z_offset_m: -0.01
   goal_z_base: -0.30
@@ -53,19 +53,19 @@ head_grasp:
   # 按离机器人远近。第 1 项=最远一行，第 6 项=最近一行。基座系，叠在上面的整盘 offset 上。
   row_offset:
     right:
-      - { x: 0.013, y: 0.01, z: 0.010 }
-      - { x: 0.01, y: 0.005, z: 0.007 }
-      - { x: 0.01, y: 0.005, z: 0.005 }
+      - { x: 0.009, y: 0.013, z: 0.015 }
+      - { x: 0.01, y: 0.007, z: 0.007 }
+      - { x: 0.013, y: 0.01, z: 0.005 }
       - { x: 0.01, y: 0.01, z: 0.005 }
       - { x: 0.01, y: 0.005, z: 0.0 }
-      - { x: 0.005, y: 0.005, z: -0.005 }
+      - { x: 0.005, y: 0.005, z: -0.008 }
     left:
-      - { x: 0.013, y: 0.01, z: 0.015 }
-      - { x: 0.005, y: 0.0, z: 0.01 }
-      - { x: 0.0, y: -0.005, z: 0.005 }
-      - { x: 0.01, y: 0.01, z: 0.005 }
-      - { x: 0.01, y: 0.0, z: 0.005 }
-      - { x: 0.005, y: 0.0, z: 0.002 }
+      - { x: 0.005, y: 0.007, z: 0.01 }
+      - { x: 0.005, y: 0.0, z: 0.005 }
+      - { x: 0.002, y: -0.005, z: 0.0 }
+      - { x: 0.01, y: 0.008, z: 0.005 }
+      - { x: 0.01, y: 0.0, z: -0.005 }
+      - { x: 0.005, y: 0.0, z: -0.003}
   goal_z_extra: 0.26
   # 无 row_grasp_rpy 时的回退。右手 = 左手 rz 取反。
   right_rx_deg: 0
@@ -85,21 +85,21 @@ head_grasp:
   row_grasp_rpy_deg:
     left:
       - [0, 50, -60]
-      - [0, 45, -50]
-      - [0, 45, -30]
+      - [5, 45, -50]
+      - [0, 50, -40]
     right:
       # 左手 rz 取反，夹爪相对中缝对称。
       - [0, 50, 60]
-      - [0, 45, 50]
-      - [0, 45, 30]
+      - [5, 45, 50]
+      - [0, 50, 40]
   # 最远一行（离机器人最远，正常朝向=ArUco row1）专用末端姿态。右手 rz 取反。
   row1_rpy_deg:
-    left: [0, 40, -30]
-    right: [0, 40, 30]
+    left: [0, 30, -30]
+    right: [0, 30, 30]
 
   # false：跳过手相机拍照和 XYZ 修正，抓取只用二维码孔位 XY + 盘面参考 Z。
   use_hand_camera: false
-  # true：料盘抓取在物体上方 B 前抹开约 8cm，一次走完、不停车。料盘二放置仍走直线。
+  # true：料盘抓取在物体上方 B 前抹开约 6cm，一次走完、不停车。料盘二放置仍走直线。
   use_bezier_grasp: true
   # true：伸手改为两段直线（到上方、再下降）中间不停。false：抹角小圆弧。
   approach_nostop: false
@@ -122,10 +122,10 @@ head_grasp:
   # 到C后按编码器FK复核；超差不合爪，便于XYZ offset只修正真实落点偏差。
   bezier_endpoint_xyz_tol_m: 0.008
   bezier_endpoint_rpy_tol_deg: 3.0
-  approach_vel_m_s: 0.12
-  descend_vel_m_s: 0.05
-  lift_vel_m_s: 0.16
-  return_vel_m_s: 0.16
+  approach_vel_m_s: 0.30
+  descend_vel_m_s: 0.20
+  lift_vel_m_s: 0.25
+  return_vel_m_s: 0.30
   # 下压到位后再等这么久才合爪。
   pre_grasp_settle_sec: 0.15
   hand_detect_invalid_redo_max: 10
@@ -135,34 +135,34 @@ head_grasp:
 # offset 相对孔位，基座系，左右分开。初值抄当前抓取，之后只调料盘2。
 tray2_place:
   offset:
-    left:  { x: 0.04, y: 0.00, z: -0.01 }
-    right: { x: 0.04, y: 0.01, z: -0.01 }
+    left:  { x: 0.039, y: 0.01, z: -0.01 }
+    right: { x: 0.039, y: 0.015, z: -0.01 }
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
   far_row_forward_m: 0.20
   # 从料盘一抓取偏置抄来。第 1 项=最远一行，第 6 项=最近一行。
   row_offset:
     right:
-      - { x: 0.005, y: 0.01, z: 0.02 }
-      - { x: -0.005, y: 0.0, z: 0.02 }
-      - { x: 0.0, y: 0.005, z: 0.01 }
-      - { x: 0.01, y: 0.01, z: 0.005 }
-      - { x: 0.01, y: 0.01, z: 0.005 }
-      - { x: 0.005, y: 0.005, z: 0.005 }
+      - { x: 0.002, y: 0.012, z: 0.009}
+      - { x: 0.005, y: 0.01, z: 0.006 }
+      - { x: 0.002, y: 0.007, z: 0.005 }
+      - { x: 0.007, y: 0.011, z: 0.0 }
+      - { x: 0.007, y: 0.012, z: -0.005}
+      - { x: 0.009, y: 0.008, z: -0.005 }
     left:
-      - { x: 0.005, y: 0.01, z: 0.02 }
-      - { x: -0.005, y: 0.0, z: 0.02 }
-      - { x: 0.005, y: 0.0, z: 0.01 }
-      - { x: 0.01, y: 0.01, z: 0.005 }
-      - { x: 0.01, y: 0.0, z: 0.005 }
-      - { x: 0.005, y: 0.0, z: 0.005 }
+      - { x: 0.002, y: 0.007, z: 0.009 }
+      - { x: 0.005, y: 0.004, z: 0.006 }
+      - { x: 0.001, y: -0.003, z: 0.005 }
+      - { x: 0.008, y: 0.006, z: 0.003 }
+      - { x: 0.007, y: 0.002, z: -0.005 }
+      - { x: 0.006, y: -0.002, z: -0.001 }
   row_place_rpy_deg:
     left:
-      - [0, 50, -55]
+      - [0, 45, -55]
       - [0, 45, -50]
       - [0, 45, -40]
     right:
-      - [0,50, 55]
+      - [0, 45, 55]
       - [0, 45, 50]
       - [0, 45, 40]
   row1_rpy_deg:
@@ -225,7 +225,7 @@ waist:
   # ready/grasp 起始相对 home.x 再向前（+X 为机器人前方）。home 仍停在 layer3_home.x。
   ready_forward_m: 0.03
   # 远三排 / waist2：相对 layer3_home.x 再向前伸。抓完不收回。
-  far_row_forward_m: 0.20
+  far_row_forward_m: 0.22
 
 stagger:
   head_x_threshold: 0.80
@@ -272,8 +272,8 @@ conveyor:
   # 相对识别板系（米，+X前 +Y左 +Z上）。
   # 先放的右手在原 x 上 +2.5cm，后放的左手在原 x 上 -2.5cm，避免零件还在皮带上时叠放。
   offset:
-    right: { x: 0.0, y: 0.0, z: 0.01 }
-    left:  { x: -0.06, y: -0.015, z: 0.01 }
+    right: { x: 0.0, y: 0.01, z: 0.01 }
+    left:  { x: -0.06, y: -0.01, z: 0.01 }
   # 传送带抓取（半成品）。开始准备仍用上面的 tcp，不改。
   # 抓完回到 grasp_tcp（专用，不再用放置 tcp）。
   # 抓取点 = 码原点 + R_识别 × 该手 grasp_offset。识别系 +X 前 +Y 左 +Z 上，不再乘腰 Rz。
@@ -281,8 +281,8 @@ conveyor:
     left: [0, 40, -60]
     right: [0, 40, 45]
   grasp_offset:
-    left:  { x: 0.0, y: 0.10, z: 0.01 }
-    right: { x: 0.0, y: 0.12, z: 0.005 }
+    left:  { x: 0.0, y: 0.10, z: -0.002 }
+    right: { x: 0.0, y: 0.12, z: -0.002 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
@@ -302,6 +302,10 @@ conveyor:
   # 第二传送带先保持相机高度，方便和这条固定高度对比。
   use_fixed_origin_z: true
   fixed_origin_z_m: -0.29
+  # 底盘到站后，放置拍照前再等这么久（秒）。从到站起算，路上已耗掉的时间会扣掉。
+  photo_after_arrival_sec: 2.0
+  # 腰头到位后，抓取拍照前再等这么久（秒）。
+  grasp_photo_settle_sec: 1
 
 # 第二条传送带（AP5）。初值抄第一套，可单独改。
 # belt2_ready：去 AP5 → 准备 tcp。
@@ -322,14 +326,14 @@ conveyor2:
     left:  [0.45,  0.30, -0.25, 0, 45, -60]
   # 先放的右手 x +2.5cm，后放的左手 x -2.5cm。Y/Z 不动。
   offset:
-    right: { x: 0.0, y: 0.01, z: -0.025 }
-    left:  { x: -0.06, y: -0.015, z: -0.02 }
+    right: { x: 0.0, y: 0.008, z: -0.02 }
+    left:  { x: -0.06, y: -0.015, z: -0.022 }
   grasp_rpy_deg:
     left: [0, 45, -50]
     right: [0, 45, 50]
   grasp_offset:
-    left:  { x: -0.01, y: 0.10, z: -0.03 }
-    right: { x: -0.01, y: 0.12, z: -0.035 }
+    left:  { x: -0.004, y: 0.109, z: -0.038 }
+    right: { x: -0.008, y: 0.127, z: -0.040 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
@@ -342,6 +346,8 @@ conveyor2:
   # 先保持相机读出的码平面高度，和第一传送带的固定 -0.29m 对比。
   use_fixed_origin_z: false
   fixed_origin_z_m: -0.29
+  photo_after_arrival_sec: 2.0
+  grasp_photo_settle_sec: 1.0
 
 # cycle：AP7 抓 → home → AP5 放置 → belt_grasp → AP6 放置 → belt2_grasp → AP9 空孔放置 → 回 AP7 再抓，闭环到 abort。
 chassis:

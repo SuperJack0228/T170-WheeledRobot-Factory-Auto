@@ -30,6 +30,97 @@ namespace move_box
 
     bool g_grasp_adaptive_rpy = false;
     double g_current_waist_layer3_z = std::numeric_limits<double>::quiet_NaN();
+    /** 编码器里的腰姿态。抓取/放置目标按直立基座算出，下发前用它换到真实手臂基座。 */
+    double g_waist_pitch_rad = 0.0;
+    double g_waist_roll_rad = 0.0;
+    double g_waist_yaw_rad = 0.0;
+    /** 与 LowerBody::Params::d2 相同。点头时手臂基座原点相对直立位置的前移。 */
+    constexpr double kWaistPitchLinkM = 0.110;
+
+    double wrap_pi(double a)
+    {
+        a = std::fmod(a + M_PI, 2.0 * M_PI);
+        if (a < 0.0)
+            a += 2.0 * M_PI;
+        return a - M_PI;
+    }
+
+    Eigen::Matrix3d rot_x(double a)
+    {
+        const double c = std::cos(a), s = std::sin(a);
+        Eigen::Matrix3d R;
+        R << 1, 0, 0, 0, c, -s, 0, s, c;
+        return R;
+    }
+
+    Eigen::Matrix3d rot_y(double a)
+    {
+        const double c = std::cos(a), s = std::sin(a);
+        Eigen::Matrix3d R;
+        R << c, 0, s, 0, 1, 0, -s, 0, c;
+        return R;
+    }
+
+    Eigen::Matrix3d rot_z(double a)
+    {
+        const double c = std::cos(a), s = std::sin(a);
+        Eigen::Matrix3d R;
+        R << c, -s, 0, s, c, 0, 0, 0, 1;
+        return R;
+    }
+
+    void remember_waist_attitude(const Eigen::MatrixXd &qj)
+    {
+        auto at = [&](int i) -> double {
+            if (qj.rows() == 1 && qj.cols() > i)
+                return qj(0, i);
+            if (qj.cols() == 1 && qj.rows() > i)
+                return qj(i, 0);
+            return std::numeric_limits<double>::quiet_NaN();
+        };
+        const double ankle = at(0);
+        const double knee = at(1);
+        const double hip = at(2);
+        const double roll = at(3);
+        const double yaw = at(4);
+        if (!std::isfinite(ankle) || !std::isfinite(knee) || !std::isfinite(hip) ||
+            !std::isfinite(roll) || !std::isfinite(yaw))
+            return;
+        const double leg_hip = wrap_pi(-ankle - knee);
+        g_waist_pitch_rad = wrap_pi(leg_hip - hip);
+        g_waist_roll_rad = roll;
+        g_waist_yaw_rad = yaw;
+    }
+
+    /** 直立基座（pitch=roll=yaw=0）下的位姿 → 当前腰姿态的手臂基座。
+     *  R = Ry(pitch) Rx(roll) Rz(yaw)，与弯腰、转腰同一套。点头还带上 d2 的原点前移。 */
+    Eigen::Matrix<double, 1, 6> arm_goal_in_real_waist_frame(const Eigen::Matrix<double, 1, 6> &upright)
+    {
+        const double pitch = g_waist_pitch_rad;
+        const double roll = g_waist_roll_rad;
+        const double yaw = g_waist_yaw_rad;
+        if (std::abs(pitch) < 0.05 * rad && std::abs(roll) < 0.05 * rad && std::abs(yaw) < 0.05 * rad)
+            return upright;
+        const Eigen::Matrix3d R = rot_y(pitch) * rot_x(roll) * rot_z(yaw);
+        const double cx = kWaistPitchLinkM * std::sin(pitch);
+        const double cz = kWaistPitchLinkM * (std::cos(pitch) - 1.0);
+        const Eigen::Vector3d xyz =
+            R.transpose() * (Eigen::Vector3d(upright(0), upright(1), upright(2)) -
+                             Eigen::Vector3d(cx, 0.0, cz));
+        Eigen::Matrix4d T = TR(upright);
+        const Eigen::Matrix3d Rout = R.transpose() * T.block<3, 3>(0, 0);
+        const Eigen::Matrix<double, 1, 3> eul = rotationMatrixToEulerAngles(Rout);
+        Eigen::Matrix<double, 1, 6> out;
+        out << xyz.transpose(), eul;
+        std::cout << std::fixed << std::setprecision(2)
+                  << "[waist_frame] 姿态误差 pitch=" << (pitch / rad)
+                  << "° roll=" << (roll / rad) << "° yaw=" << (yaw / rad)
+                  << "°，基座修正 Δxyz_mm=(" << std::setprecision(1)
+                  << ((xyz(0) - upright(0)) * 1000.0) << ","
+                  << ((xyz(1) - upright(1)) * 1000.0) << ","
+                  << ((xyz(2) - upright(2)) * 1000.0) << ")\n";
+        return out;
+    }
     TrayHoleTask g_tray_hole_task = TrayHoleTask::GraspParts;
 
     bool g_tray2_precision_test = false;
@@ -189,7 +280,7 @@ namespace move_box
             p(1) = origin_y + off.y;
             p(2) = origin_z + off.z;
         }
-        return p;
+        return arm_goal_in_real_waist_frame(p);
     }
 
     Eigen::Matrix<double, 1, 6> make_belt_goal_right(
@@ -239,7 +330,7 @@ namespace move_box
         p(3) = rpy.rx * rad;
         p(4) = rpy.ry * rad;
         p(5) = rpy.rz * rad;
-        return p;
+        return arm_goal_in_real_waist_frame(p);
     }
 
     Eigen::Matrix<double, 1, 6> make_belt_grasp_goal(
@@ -1943,16 +2034,36 @@ namespace move_box
                       << "[waist] " << tag << " 几何deg 踝/膝/髋/滚/回=["
                       << (qj(0) / rad) << "," << (qj(1) / rad) << "," << (qj(2) / rad) << ","
                       << (qj(3) / rad) << "," << (qj(4) / rad) << "]\n";
+            remember_waist_attitude(qj);
+            std::cout << std::fixed << std::setprecision(2)
+                      << "[waist] " << tag << " 姿态 pitch=" << (g_waist_pitch_rad / rad)
+                      << "° roll=" << (g_waist_roll_rad / rad)
+                      << "° yaw=" << (g_waist_yaw_rad / rad) << "°\n";
         }
         return true;
+    }
+
+    void read_arrived_pose(WaistRobot &waist, Eigen::Matrix<double, 1, 6> &layer3)
+    {
+        if (!sync_waist_layer3_from_encoders(waist, layer3, "到位读角度"))
+            return;
+        std::cout << std::fixed << std::setprecision(4)
+                  << "[waist] 实时位姿用于基座 xyz=(" << layer3(0) << ","
+                  << layer3(1) << "," << layer3(2) << ") m"
+                  << std::setprecision(2)
+                  << " pitch=" << (g_waist_pitch_rad / rad)
+                  << "° roll=" << (g_waist_roll_rad / rad)
+                  << "° yaw=" << (g_waist_yaw_rad / rad) << "°\n";
     }
 
     bool waist_layer3_move_z_only(
         WaistRobot &waist,
         Eigen::Matrix<double, 1, 6> &layer3,
         double z_target,
-        bool settle)
+        bool settle,
+        bool read_pose_when_done)
     {
+        enable_waist_motors();
         if (!sync_waist_layer3_from_encoders(waist, layer3, "竖直升降前"))
             return false;
         const double z0 = layer3(2);
@@ -1962,13 +2073,17 @@ namespace move_box
         {
             std::cout << std::fixed << std::setprecision(4)
                       << "[waist] 竖直 Z 已在 " << z0 << " m，跳过\n";
+            layer3(2) = z0;
             g_current_waist_layer3_z = layer3(2);
+            if (read_pose_when_done)
+                read_arrived_pose(waist, layer3);
             return true;
         }
         std::cout << std::fixed << std::setprecision(4)
                   << "[waist] 竖直 Z " << z0 << " → " << layer3(2)
                   << " 锁 x=" << layer3(0) << " y=" << layer3(1) << " m\n";
-        const int rc = waist.moveLToPosZ(layer3(2), 0.1);
+        const double z_cmd = layer3(2);
+        const int rc = waist.moveLToPosZ(z_cmd, 0.1);
         if (rc != 0)
         {
             std::cerr << "[waist] 竖直升降失败 code=" << rc << "\n";
@@ -1977,8 +2092,10 @@ namespace move_box
         }
         if (settle)
             hardware_abort_sleep_ms(static_cast<int>(g_move_cfg.waist.move_settle_sec * 1000.0));
-        if (!sync_waist_layer3_from_encoders(waist, layer3, "竖直升降后"))
-            g_current_waist_layer3_z = layer3(2);
+        if (read_pose_when_done)
+            read_arrived_pose(waist, layer3);
+        else if (!sync_waist_layer3_from_encoders(waist, layer3, "竖直升降后"))
+            g_current_waist_layer3_z = z_cmd;
         return true;
     }
 
@@ -1986,8 +2103,10 @@ namespace move_box
         WaistRobot &waist,
         Eigen::Matrix<double, 1, 6> &layer3,
         double x_target,
-        bool settle)
+        bool settle,
+        bool read_pose_when_done)
     {
+        enable_waist_motors();
         if (!sync_waist_layer3_from_encoders(waist, layer3, "腰平移前"))
             return false;
         const double x0 = layer3(0);
@@ -1998,6 +2117,8 @@ namespace move_box
             std::cout << std::fixed << std::setprecision(4)
                       << "[waist] 平移 X 已在 " << x0 << " m，跳过\n";
             layer3(0) = x0;
+            if (read_pose_when_done)
+                read_arrived_pose(waist, layer3);
             return true;
         }
         std::cout << std::fixed << std::setprecision(4)
@@ -2012,7 +2133,9 @@ namespace move_box
         }
         if (settle)
             hardware_abort_sleep_ms(static_cast<int>(g_move_cfg.waist.move_settle_sec * 1000.0));
-        if (!sync_waist_layer3_from_encoders(waist, layer3, "腰平移后"))
+        if (read_pose_when_done)
+            read_arrived_pose(waist, layer3);
+        else if (!sync_waist_layer3_from_encoders(waist, layer3, "腰平移后"))
             g_current_waist_layer3_z = layer3(2);
         return true;
     }
@@ -2787,10 +2910,12 @@ namespace move_box
                 return out;
             }
             log_phase_banner("抓取流程：直线 A→B 到物体上方并转该行姿态");
+            Eigen::Matrix<double, 1, 6> goal_r = arm_goal_in_real_waist_frame(st.goal_last_r);
+            Eigen::Matrix<double, 1, 6> goal_l = arm_goal_in_real_waist_frame(st.goal_last_l);
             {
                 ArmLineMoveDebugStage stage("A→B 到物体上方同时转抓取姿态");
                 out = arm_dual_line_move_selective(
-                    arm_r, st.goal_last_r, move_r, arm_l, st.goal_last_l, move_l,
+                    arm_r, goal_r, move_r, arm_l, goal_l, move_l,
                     g_move_cfg.head_grasp.approach_vel_m_s);
             }
             if (move_r && out.ret_r != 0)
@@ -2803,8 +2928,8 @@ namespace move_box
                 std::cout << std::fixed << std::setprecision(1)
                           << "[arm] A→B 后左实际 rpy_deg=(" << (tcp(3) / rad) << ","
                           << (tcp(4) / rad) << "," << (tcp(5) / rad)
-                          << ") 目标=(" << (st.goal_last_l(3) / rad) << ","
-                          << (st.goal_last_l(4) / rad) << "," << (st.goal_last_l(5) / rad)
+                          << ") 目标=(" << (goal_l(3) / rad) << ","
+                          << (goal_l(4) / rad) << "," << (goal_l(5) / rad)
                           << ")\n";
             }
             return out;
@@ -2826,25 +2951,27 @@ namespace move_box
 
             bool do_orient_r = false;
             bool do_orient_l = false;
-            Eigen::Matrix<double, 1, 6> orient_r = st.goal_last_r;
-            Eigen::Matrix<double, 1, 6> orient_l = st.goal_last_l;
+            Eigen::Matrix<double, 1, 6> goal_r = arm_goal_in_real_waist_frame(st.goal_last_r);
+            Eigen::Matrix<double, 1, 6> goal_l = arm_goal_in_real_waist_frame(st.goal_last_l);
+            Eigen::Matrix<double, 1, 6> orient_r = goal_r;
+            Eigen::Matrix<double, 1, 6> orient_l = goal_l;
             if (move_r)
             {
                 const Eigen::Matrix<double, 1, 6> cur = arm_get_tcp_pos(arm_r);
                 orient_r = cur;
-                orient_r(3) = st.goal_last_r(3);
-                orient_r(4) = st.goal_last_r(4);
-                orient_r(5) = st.goal_last_r(5);
-                do_orient_r = need_orient(cur, st.goal_last_r);
+                orient_r(3) = goal_r(3);
+                orient_r(4) = goal_r(4);
+                orient_r(5) = goal_r(5);
+                do_orient_r = need_orient(cur, goal_r);
             }
             if (move_l)
             {
                 const Eigen::Matrix<double, 1, 6> cur = arm_get_tcp_pos(arm_l);
                 orient_l = cur;
-                orient_l(3) = st.goal_last_l(3);
-                orient_l(4) = st.goal_last_l(4);
-                orient_l(5) = st.goal_last_l(5);
-                do_orient_l = need_orient(cur, st.goal_last_l);
+                orient_l(3) = goal_l(3);
+                orient_l(4) = goal_l(4);
+                orient_l(5) = goal_l(5);
+                do_orient_l = need_orient(cur, goal_l);
             }
 
             if (do_orient_r || do_orient_l)
@@ -2870,7 +2997,7 @@ namespace move_box
             {
                 ArmLineMoveDebugStage stage("自适应：带姿态到物体上方");
                 out = arm_dual_line_move_selective(
-                    arm_r, st.goal_last_r, move_r, arm_l, st.goal_last_l, move_l,
+                    arm_r, goal_r, move_r, arm_l, goal_l, move_l,
                     g_move_cfg.head_grasp.approach_vel_m_s);
             }
             if (move_r && out.ret_r != 0)
@@ -2904,17 +3031,19 @@ namespace move_box
                 ret_io = -7;
             };
             if (move_r)
-                verify_one(arm_r, st.goal_last_r, "右", out.ret_r);
+                verify_one(arm_r, goal_r, "右", out.ret_r);
             if (move_l)
-                verify_one(arm_l, st.goal_last_l, "左", out.ret_l);
+                verify_one(arm_l, goal_l, "左", out.ret_l);
             return out;
         }
 
         // 固定 yaml 姿态：一条 Line_Trajectory 到上方，同时转到 0/45/−10
+        Eigen::Matrix<double, 1, 6> goal_r = arm_goal_in_real_waist_frame(st.goal_last_r);
+        Eigen::Matrix<double, 1, 6> goal_l = arm_goal_in_real_waist_frame(st.goal_last_l);
         {
             ArmLineMoveDebugStage stage("到物体上方同时转抓取姿态");
             out = arm_dual_line_move_selective(
-                arm_r, st.goal_last_r, move_r, arm_l, st.goal_last_l, move_l,
+                arm_r, goal_r, move_r, arm_l, goal_l, move_l,
                 g_move_cfg.head_grasp.approach_vel_m_s);
         }
         if (move_r && out.ret_r != 0)
@@ -3309,27 +3438,32 @@ namespace move_box
         if (!g_move_cfg.head_grasp.use_hand_camera)
             apply_adaptive_grasp_rpy_selective(arm_r, arm_l, st, hs.move_r, hs.move_l);
 
+        Eigen::Matrix<double, 1, 6> hover_r_arm = arm_goal_in_real_waist_frame(hover_r);
+        Eigen::Matrix<double, 1, 6> hover_l_arm = arm_goal_in_real_waist_frame(hover_l);
+        Eigen::Matrix<double, 1, 6> goal_r_arm = arm_goal_in_real_waist_frame(st.goal_last_r);
+        Eigen::Matrix<double, 1, 6> goal_l_arm = arm_goal_in_real_waist_frame(st.goal_last_l);
+
         ArmLineMoveResult out;
         if (approach_nostop)
         {
             ArmLineMoveDebugStage stage("A→B→C 两段直线不停");
-            constexpr double kApproachCruiseMps = 0.20;
-            std::cout << "[approach] 直线 0.20m/s 到物体上方，不停，再下到抓取点\n";
+            constexpr double kApproachCruiseMps = 0.25;
+            std::cout << "[approach] 直线 0.25m/s 到物体上方，不停，再下到抓取点\n";
             out = arm_dual_line_then_line_nostop(
-                arm_r, hover_r, st.goal_last_r, hs.move_r,
-                arm_l, hover_l, st.goal_last_l, hs.move_l,
+                arm_r, hover_r_arm, goal_r_arm, hs.move_r,
+                arm_l, hover_l_arm, goal_l_arm, hs.move_l,
                 kApproachCruiseMps, kApproachCruiseMps, {}, false, "伸手");
         }
         else if (!g_move_cfg.head_grasp.use_hand_camera &&
                  (tray_grasp_uses_curve() || tray_place_uses_corner()))
         {
             ArmLineMoveDebugStage stage("A→B→C 抹角一次下发");
-            constexpr double corner_mps = 0.20;
+            const double corner_mps = 0.25;
             std::cout << "[corner] 直线 " << std::fixed << std::setprecision(2) << corner_mps
-                      << "m/s 原样走到 B 前 8cm，末段抹角收到 C，失败不回退分段直线\n";
+                      << "m/s 原样走到 B 前 6cm，末段抹角收到 C，失败不回退分段直线\n";
             out = arm_dual_rounded_corner_move_selective(
-                arm_r, hover_r, st.goal_last_r, hs.move_r,
-                arm_l, hover_l, st.goal_last_l, hs.move_l,
+                arm_r, hover_r_arm, goal_r_arm, hs.move_r,
+                arm_l, hover_l_arm, goal_l_arm, hs.move_l,
                 corner_mps);
         }
         else
@@ -3338,7 +3472,7 @@ namespace move_box
                 g_move_cfg.head_grasp.use_hand_camera ? "物体上方下压"
                                                      : "B→C 下压到最终抓取点");
             out = arm_dual_line_move_selective(
-                arm_r, st.goal_last_r, hs.move_r, arm_l, st.goal_last_l, hs.move_l,
+                arm_r, goal_r_arm, hs.move_r, arm_l, goal_l_arm, hs.move_l,
                 g_move_cfg.head_grasp.descend_vel_m_s);
         }
         if (hs.move_r && out.ret_r != 0)
@@ -3413,11 +3547,9 @@ namespace move_box
             }
         };
         if (hs.move_r)
-            verify_final_c(arm_r, st.goal_last_r, "右", out.ret_r);
+            verify_final_c(arm_r, goal_r_arm, "右", out.ret_r);
         if (hs.move_l)
-            verify_final_c(arm_l, st.goal_last_l, "左", out.ret_l);
-        if ((hs.move_r && out.ret_r != 0) || (hs.move_l && out.ret_l != 0))
-            return out;
+            verify_final_c(arm_l, goal_l_arm, "左", out.ret_l);
 
         if (!tray2_precision_test())
         {
@@ -3429,11 +3561,12 @@ namespace move_box
                 if (mid(2) > g_move_cfg.grasp_valid.z_max)
                     mid(2) = g_move_cfg.grasp_valid.z_max;
                 const Eigen::Matrix<double, 1, 6> goal =
-                    place ? (is_right ? make_home_tcp_right() : make_home_tcp_left())
+                    place ? (is_right ? g_move_cfg.conveyor2.tcp.right
+                                      : g_move_cfg.conveyor2.tcp.left)
                           : (is_right ? g_move_cfg.conveyor.tcp.right
                                       : g_move_cfg.conveyor.tcp.left);
                 std::cout << "[retract] " << (is_right ? "右" : "左")
-                          << (place ? " 张爪同时规划收手，目标是 home_tcp\n"
+                          << (place ? " 张爪同时规划收手，目标是传送带二 tcp\n"
                                     : " 合爪同时规划收手，目标是传送带准备 tcp\n");
                 arm_start_line_then_line_plan(
                     arm, mid, goal, hg.lift_vel_m_s, hg.return_vel_m_s);
@@ -3455,7 +3588,7 @@ namespace move_box
             return out;
         }
 
-        if (hs.move_r)
+        if (hs.move_r && out.ret_r == 0)
         {
             if (g_tray_hole_task == TrayHoleTask::PlaceEmpty && tray2_precision_test())
                 std::cout << "[gripper] 精度测试右手到位，不松爪\n";
@@ -3475,7 +3608,7 @@ namespace move_box
                 }
             }
         }
-        if (hs.move_l)
+        if (hs.move_l && out.ret_l == 0)
         {
             if (g_tray_hole_task == TrayHoleTask::PlaceEmpty && tray2_precision_test())
                 std::cout << "[gripper] 精度测试左手到位，不松爪\n";
@@ -3495,6 +3628,40 @@ namespace move_box
                 }
             }
         }
+
+        const bool miss_r = hs.move_r && out.ret_r == -7;
+        const bool miss_l = hs.move_l && out.ret_l == -7;
+        if ((miss_r || miss_l) && !tray2_precision_test())
+        {
+            const auto &hg = g_move_cfg.head_grasp;
+            const bool place = g_tray_hole_task == TrayHoleTask::PlaceEmpty;
+            auto miss_pose = [&](Robot_Arm &arm, bool is_right,
+                                 Eigen::Matrix<double, 1, 6> &mid,
+                                 Eigen::Matrix<double, 1, 6> &goal) {
+                mid = arm_get_tcp_pos(arm);
+                mid(2) += hg.lift_after_grasp_z;
+                if (mid(2) > g_move_cfg.grasp_valid.z_max)
+                    mid(2) = g_move_cfg.grasp_valid.z_max;
+                goal = place ? (is_right ? g_move_cfg.conveyor2.tcp.right
+                                         : g_move_cfg.conveyor2.tcp.left)
+                             : (is_right ? g_move_cfg.conveyor.tcp.right
+                                         : g_move_cfg.conveyor.tcp.left);
+            };
+            Eigen::Matrix<double, 1, 6> mid_r = Eigen::Matrix<double, 1, 6>::Zero();
+            Eigen::Matrix<double, 1, 6> goal_r = Eigen::Matrix<double, 1, 6>::Zero();
+            Eigen::Matrix<double, 1, 6> mid_l = Eigen::Matrix<double, 1, 6>::Zero();
+            Eigen::Matrix<double, 1, 6> goal_l = Eigen::Matrix<double, 1, 6>::Zero();
+            if (miss_r)
+                miss_pose(arm_r, true, mid_r, goal_r);
+            if (miss_l)
+                miss_pose(arm_l, false, mid_l, goal_l);
+            std::cout << "[bezier_C] 未到位的手不合爪、不计数，抬起收回准备位"
+                      << (miss_r ? " 右" : "") << (miss_l ? " 左" : "") << "\n";
+            arm_dual_line_then_line_nostop(
+                arm_r, mid_r, goal_r, miss_r,
+                arm_l, mid_l, goal_l, miss_l,
+                hg.lift_vel_m_s, hg.return_vel_m_s, {}, false, "未到位收回");
+        }
         return out;
     }
 
@@ -3510,9 +3677,7 @@ namespace move_box
             return;
 
         const double lift_z = g_move_cfg.head_grasp.lift_after_grasp_z;
-        const double lift_mps = (tray_hole_task() == TrayHoleTask::PlaceEmpty)
-                                    ? 0.20
-                                    : g_move_cfg.head_grasp.lift_vel_m_s;
+        const double lift_mps = g_move_cfg.head_grasp.lift_vel_m_s;
         Eigen::Matrix<double, 1, 6> lift_pos_r = Eigen::Matrix<double, 1, 6>::Zero();
         Eigen::Matrix<double, 1, 6> lift_pos_l = Eigen::Matrix<double, 1, 6>::Zero();
 
@@ -3586,6 +3751,7 @@ namespace move_box
         }
         hardware_abort_sleep_ms(
             static_cast<int>(g_move_cfg.waist.move_settle_sec * 1000.0));
+        read_arrived_pose(waist, posup_down_3_layer);
         g_current_waist_layer3_z = posup_down_3_layer(2);
         return posup_down_3_layer(0) - cur_x;
     }
@@ -3631,8 +3797,7 @@ namespace move_box
         }
         hardware_abort_sleep_ms(
             static_cast<int>(g_move_cfg.waist.move_settle_sec * 1000.0));
-        if (!sync_waist_layer3_from_encoders(waist, layer3, "远三排腰进后"))
-            g_current_waist_layer3_z = layer3(2);
+        read_arrived_pose(waist, layer3);
         const double moved = layer3(0) - cur_x;
         return moved > 1e-9 ? moved : 0.0;
     }
@@ -3715,26 +3880,16 @@ namespace move_box
                   << "（home_x=" << w.layer3_home(0) << " 再向前 "
                   << w.ready_forward_m << " m）z=" << z_ready
                   << "（home z=" << w.layer3_home(2) << "）\n";
-        if (!waist_layer3_move_x_only(waist, posup_down_3_layer, x_ready, false))
+        if (!waist_layer3_move_x_only(waist, posup_down_3_layer, x_ready, false, false))
             return false;
-        if (!waist_layer3_move_z_only(waist, posup_down_3_layer, z_ready, false))
+        if (!waist_layer3_move_z_only(waist, posup_down_3_layer, z_ready, false, false))
             return false;
-        if (!sync_waist_layer3_from_encoders(waist, posup_down_3_layer, "ready起始到位检查"))
-            return false;
-        const double dx = std::abs(posup_down_3_layer(0) - x_ready);
-        const double dz = std::abs(posup_down_3_layer(2) - z_ready);
-        if (dx > 0.01 || dz > 0.01)
-        {
-            std::cerr << std::fixed << std::setprecision(4)
-                      << "[waist] ready 起始未到位 当前 x=" << posup_down_3_layer(0)
-                      << " z=" << posup_down_3_layer(2)
-                      << " 目标 x=" << x_ready << " z=" << z_ready
-                      << " （|dx|=" << dx << " |dz|=" << dz << " > 0.01 m）\n";
-            return false;
-        }
+        hardware_abort_sleep_ms(static_cast<int>(g_move_cfg.waist.move_settle_sec * 1000.0));
+        read_arrived_pose(waist, posup_down_3_layer);
         std::cout << std::fixed << std::setprecision(4)
-                  << "[waist] ready 起始已到位 x=" << posup_down_3_layer(0)
-                  << " z=" << posup_down_3_layer(2) << " m\n";
+                  << "[waist] ready 已停，实际 x=" << posup_down_3_layer(0)
+                  << " z=" << posup_down_3_layer(2)
+                  << " 目标 x=" << x_ready << " z=" << z_ready << " m\n";
         return true;
     }
 

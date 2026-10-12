@@ -1,0 +1,86 @@
+frames:
+  - index: 1
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_001.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_001.json
+  - index: 2
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_002.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_002.json
+  - index: 3
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_003.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_003.json
+  - index: 4
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_004.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_004.json
+  - index: 5
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_005.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_005.json
+  - index: 6
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_006.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_006.json
+  - index: 7
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_007.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_007.json
+  - index: 8
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_008.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_008.json
+  - index: 9
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_009.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_009.json
+  - index: 10
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_010.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_010.json
+  - index: 11
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_011.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_011.json
+  - index: 12
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_012.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_012.json
+  - index: 13
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_013.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_013.json
+  - index: 14
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_014.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_014.json
+  - index: 15
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_015.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_015.json
+  - index: 16
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_016.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_016.json
+  - index: 17
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_017.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_017.json
+  - index: 18
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_018.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_018.json
+  - index: 19
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_019.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_019.json
+  - index: 20
+    image: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_020.png
+    pose_json: /home/ti5robot/T170Clean/tmp_calib_session_swap/raw_images/raw_020.json
+calibration_mode: eye_in_hand
+camera_id: rs:261722072173
+camera_name: "[RealSense] Intel RealSense D435I (SN:261722072173)"
+image_rotation_deg: 0
+arm: head
+base_intrinsic_cam:
+  fx: 908.23419189453125
+  fy: 908.4349365234375
+  cx: 646.8258056640625
+  cy: 366.428466796875
+  width: 1280
+  height: 720
+intrinsic_cam_used:
+  fx: 908.23419189453125
+  fy: 908.4349365234375
+  cx: 646.8258056640625
+  cy: 366.428466796875
+  width: 1280
+  height: 720
+dist_coeffs:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0

@@ -203,23 +203,29 @@ bool sync_waist_layer3_from_encoders(
     Eigen::Matrix<double, 1, 6> &layer3,
     const char *tag);
 
+/** 读编码器实时位姿，打印，并作为随后手臂基座计算的腰姿态。不下使能。 */
+void read_arrived_pose(WaistRobot &waist, Eigen::Matrix<double, 1, 6> &layer3);
+
 /** layer3 是否可信；未同步时禁止一切基于 layer3 的腰部笛卡尔运动 */
 bool waist_layer3_is_synced();
 void waist_layer3_set_synced(bool synced);
 
-/** 腰只动 X（前后平移），Y/Z/姿态锁当前值。成功返回 true */
+/** 腰只动 X（前后平移），Y/Z/姿态保持当前规划。成功返回 true。
+ *  read_pose_when_done：这一段是最后一步时读实时位姿并打印，供手臂基座计算。腰保持使能，不下使能。 */
 bool waist_layer3_move_x_only(
     WaistRobot &waist,
     Eigen::Matrix<double, 1, 6> &layer3,
     double x_target,
-    bool settle);
+    bool settle,
+    bool read_pose_when_done = true);
 
-/** 腰只动 Z（竖直升/降），X/Y 锁当前值。成功返回 true */
+/** 腰只动 Z（竖直升/降），X/Y 保持当前规划。成功返回 true。最后一步同样只读位姿，不下使能。 */
 bool waist_layer3_move_z_only(
     WaistRobot &waist,
     Eigen::Matrix<double, 1, 6> &layer3,
     double z_target,
-    bool settle);
+    bool settle,
+    bool read_pose_when_done = true);
 
 /** 腰下降 drop_m（layer3 z 减小），受 z_min 限制。一次直线到位。返回实际下降量，0=没动 */
 double waist_layer3_lower_z(

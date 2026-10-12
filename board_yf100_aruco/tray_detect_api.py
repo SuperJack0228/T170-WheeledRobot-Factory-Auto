@@ -56,13 +56,13 @@ _detector_tray2 = None
 _active_board = "tray"
 _tray2_print_m: float | None = None
 _tray2_black_m: float | None = None
-_tray2_dictionary = "DICT_6X6_1000"
+_tray2_pitch_m: float | None = None
 _tray2_slot_to_id: dict[str, int] | None = None
 _grasp_code: dict[str, Any] | None = None
 
 
 def _load_grasp_code(raw: dict, pitch_m: float) -> dict[str, Any]:
-    """统一料盘抓取码。识别已写好，默认不启用。"""
+    """统一料盘码。四角都用来定位，信息码 ID 不限制。"""
     block = raw.get("tray_grasp_code")
     if not isinstance(block, dict):
         raise ValueError("缺少 tray_grasp_code")
@@ -71,13 +71,14 @@ def _load_grasp_code(raw: dict, pitch_m: float) -> dict[str, Any]:
         raise ValueError("tray_grasp_code.ids 必须是槽位表")
     slots = {key: int(ids[key]) for key in ("front_left", "front_right", "rear_left", "rear_right")}
     locate_id = int(block.get("locate_id"))
-    info_id = int(block.get("info_id"))
-    if slots["front_left"] != locate_id or slots["rear_right"] != locate_id:
-        raise ValueError("定位码必须是左上和右下，且 ID 相同")
-    if slots["front_right"] != info_id or slots["rear_left"] != info_id:
-        raise ValueError("信息码必须是右上和左下，且 ID 相同")
-    if locate_id == info_id:
-        raise ValueError("定位码和信息码不能相同")
+    raw_info = block.get("info_ids", block.get("info_id"))
+    if isinstance(raw_info, (list, tuple)):
+        info_ids = {int(v) for v in raw_info}
+    else:
+        info_ids = {int(raw_info)}
+    info_ids.discard(locate_id)
+    if not info_ids:
+        raise ValueError("tray_grasp_code 至少要有一个信息码 ID")
     dictionary = str(block.get("dictionary", ""))
     print_m = float(block.get("print_size_m", 0.0))
     black_m = float(block.get("black_side_m", 0.0))
@@ -97,7 +98,7 @@ def _load_grasp_code(raw: dict, pitch_m: float) -> dict[str, Any]:
         "bit_cells": bit_cells,
         "pitch_xy_m": pitch,
         "locate_id": locate_id,
-        "info_id": info_id,
+        "info_ids": info_ids,
         "ids": slots,
     }
 
@@ -115,7 +116,7 @@ class _Hole:
 
 def init(config_path: str | Path | None = None) -> str:
     global _cfg, _detector, _detector_tray2, _grasp_code
-    global _tray2_print_m, _tray2_black_m, _tray2_dictionary, _tray2_slot_to_id, _active_board
+    global _tray2_print_m, _tray2_black_m, _tray2_pitch_m, _tray2_slot_to_id, _active_board
     path = Path(config_path) if config_path else HERE / "config.yaml"
     _cfg = load_config(path)
     _detector = make_detector(get_aruco_dictionary(_cfg.dictionary))
@@ -124,8 +125,8 @@ def init(config_path: str | Path | None = None) -> str:
     tray2 = raw.get("tray2") or {}
     _tray2_print_m = float(tray2.get("print_size_m", _cfg.print_size_m))
     _tray2_black_m = float(tray2.get("black_side_m", _cfg.black_side_m))
-    _tray2_dictionary = str(tray2.get("dictionary", "DICT_6X6_1000"))
-    _detector_tray2 = make_detector(get_aruco_dictionary(_tray2_dictionary))
+    _tray2_pitch_m = float(tray2.get("pitch_xy_m", _cfg.pitch_xy_m))
+    _detector_tray2 = None
     if tray2.get("ids"):
         _tray2_slot_to_id = parse_slot_ids(tray2.get("ids"), "tray2")
     else:
@@ -137,27 +138,30 @@ def init(config_path: str | Path | None = None) -> str:
         f"dict={_cfg.dictionary} holes={_cfg.hole_rows}x{_cfg.hole_cols} "
         f"pitch={_cfg.hole_pitch_m:.3f}m black={_cfg.black_side_m * 1000:.2f}mm "
         f"ids={sorted(_cfg.slot_to_id.values())} "
-        f"tray2_dict={_tray2_dictionary} tray2_black={_tray2_black_m * 1000:.2f}mm "
-        f"tray2_ids={sorted(_tray2_slot_to_id.values())} "
-        f"grasp_code=locate:{_grasp_code['locate_id']} info:{_grasp_code['info_id']} (standby)"
+        f"tray2=5x5 pitch={_tray2_pitch_m:.3f}m black={_tray2_black_m * 1000:.2f}mm "
+        f"grasp_code=locate:{_grasp_code['locate_id']} "
+        f"info:{sorted(_grasp_code['info_ids'])} "
+        f"enabled:{_grasp_code['enabled']}"
     )
 
 
 def set_active_board(board: str) -> str:
-    """料盘1用 5×5。料盘2用 6×6。grasp_code 是对角线同号的备用组，默认不启用。"""
+    """料盘一和料盘二都用四角码定位，不按 ID 分角。"""
     global _active_board
     name = str(board)
     if name == "tray2":
         _active_board = "tray2"
-    elif name == "grasp_code":
+    elif name == "grasp_code" or (
+        name == "tray" and _grasp_code is not None and _grasp_code["enabled"]
+    ):
         _active_board = "grasp_code"
     else:
         _active_board = "tray"
     cfg = _board_cfg()
-    if _active_board == "grasp_code" and _grasp_code is not None:
+    if _active_board in ("grasp_code", "tray2") and _grasp_code is not None:
         extra = (
-            f"locate={_grasp_code['locate_id']} info={_grasp_code['info_id']} "
-            f"pitch={_grasp_code['pitch_xy_m']:.3f}m"
+            f"locate={_grasp_code['locate_id']} info={sorted(_grasp_code['info_ids'])} "
+            f"pitch={cfg.pitch_xy_m:.3f}m"
         )
     else:
         extra = f"ids={sorted(cfg.slot_to_id.values())}"
@@ -186,32 +190,29 @@ def _grasp_code_cfg() -> AppConfig:
 def _board_cfg() -> AppConfig:
     if _cfg is None:
         raise RuntimeError("tray engine is not initialized")
+    if _active_board == "tray2":
+        cfg = _grasp_code_cfg()
+        return replace(
+            cfg,
+            print_size_m=float(_tray2_print_m if _tray2_print_m is not None else cfg.print_size_m),
+            black_side_m=float(_tray2_black_m if _tray2_black_m is not None else cfg.black_side_m),
+            pitch_xy_m=float(_tray2_pitch_m if _tray2_pitch_m is not None else cfg.pitch_xy_m),
+        )
     if _active_board == "grasp_code":
         return _grasp_code_cfg()
-    if _active_board != "tray2" or _tray2_print_m is None or _tray2_black_m is None:
-        return _cfg
-    slot = _tray2_slot_to_id if _tray2_slot_to_id is not None else _cfg.slot_to_id
-    return replace(
-        _cfg,
-        dictionary=_tray2_dictionary,
-        print_size_m=_tray2_print_m,
-        black_side_m=_tray2_black_m,
-        slot_to_id=slot,
-    )
+    return _cfg
 
 
 def _require() -> tuple[AppConfig, Any]:
     if _cfg is None or _detector is None:
         raise RuntimeError("tray engine is not initialized")
-    if _active_board == "tray2":
-        if _detector_tray2 is None:
-            raise RuntimeError("tray2 detector is not initialized")
-        return _board_cfg(), _detector_tray2
+    # 料盘二已换成和料盘一相同的 5×5 四角码，不再用 6×6 检测器。
     return _board_cfg(), _detector
 
 
 def _estimate_active_pose(corners, ids, cfg: AppConfig, K: np.ndarray, dist: np.ndarray):
-    if _active_board == "grasp_code":
+    # 料盘一和料盘二都是四角码。号码不决定角，只按码的朝向定位。
+    if _active_board in ("grasp_code", "tray2"):
         if _grasp_code is None:
             return None
         return estimate_diagonal_tray_pose(
@@ -219,7 +220,7 @@ def _estimate_active_pose(corners, ids, cfg: AppConfig, K: np.ndarray, dist: np.
             ids,
             cfg,
             int(_grasp_code["locate_id"]),
-            int(_grasp_code["info_id"]),
+            set(_grasp_code["info_ids"]),
             K,
             dist,
         )
@@ -495,7 +496,10 @@ def detect_and_annotate(
     tray = _estimate_active_pose(corners, ids, cfg, K, dist)
 
     vis = bgr.copy()
-    draw_detected_markers_thin(vis, corners, ids, set(cfg.slot_to_id.values()))
+    draw_ids = set(cfg.slot_to_id.values())
+    if _active_board in ("grasp_code", "tray2") and _grasp_code is not None:
+        draw_ids = {int(_grasp_code["locate_id"])} | set(_grasp_code["info_ids"])
+    draw_detected_markers_thin(vis, corners, ids, draw_ids)
     n_ids = 0 if ids is None else int(len(ids.flatten()))
     used: list[int] = []
     holes_out: list[dict[str, Any]] = []

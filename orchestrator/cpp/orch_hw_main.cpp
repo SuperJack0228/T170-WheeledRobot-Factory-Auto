@@ -275,6 +275,40 @@ Json::Value dispatch(const Json::Value &request)
         Json::Value out = reply(true);
         out["right_tcp_m_deg"] = pose_json(arm_get_tcp_pos(*g_arm_r));
         out["left_tcp_m_deg"] = pose_json(arm_get_tcp_pos(*g_arm_l));
+        out["grasped_right"] = g_session.last_grasped_r;
+        out["grasped_left"] = g_session.last_grasped_l;
+        out["grasped_count"] = g_session.last_grasp_count;
+        out["chassis_ok"] = g_session.last_chassis_ok;
+        out["chassis_station"] = g_session.last_chassis_station;
+        out["chassis_message"] = g_session.last_chassis_message;
+        out["belt_ok"] = g_session.last_belt_ok;
+        out["belt_message"] = g_session.last_belt_message;
+        out["tray_message"] = g_session.last_tray_message;
+        if (g_session.layer3 != nullptr)
+        {
+            out["waist_x"] = (*g_session.layer3)(0);
+            out["waist_y"] = (*g_session.layer3)(1);
+            out["waist_z"] = (*g_session.layer3)(2);
+        }
+        if (g_session.waist != nullptr)
+        {
+            try
+            {
+                const Eigen::MatrixXd q = g_session.waist->getJointPos();
+                Json::Value joints(Json::arrayValue);
+                const int n = static_cast<int>(q.cols() > 1 ? q.cols() : q.rows());
+                const int count = std::min(n, 5);
+                for (int i = 0; i < count; ++i)
+                {
+                    const double rad = q.cols() > 1 ? q(0, i) : q(i, 0);
+                    joints.append(rad * 180.0 / M_PI);
+                }
+                out["waist_joints_deg"] = joints;
+            }
+            catch (const std::exception &)
+            {
+            }
+        }
         return out;
     }
     if (cmd == "reload_config")
@@ -288,6 +322,66 @@ Json::Value dispatch(const Json::Value &request)
     {
         const int rc = orch::go_home(*g_arm_r, *g_arm_l);
         return rc == 0 ? reply(true) : reply(false, "归位失败/中止，code=" + std::to_string(rc));
+    }
+    if (cmd == "bow")
+    {
+        const int waist_rc = orch::home_waist_upright();
+        if (waist_rc != 0)
+        {
+            Json::Value out = reply(false, "鞠躬：腰升到 home 失败/中止，code=" + std::to_string(waist_rc));
+            out["code"] = waist_rc;
+            return out;
+        }
+        const int rc = arm_bow(*g_arm_r, *g_arm_l);
+        Json::Value out = reply(
+            rc == 0, rc == 0 ? std::string() : ("鞠躬失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        return out;
+    }
+    if (cmd == "wave")
+    {
+        const int waist_rc = orch::home_waist_upright();
+        if (waist_rc != 0)
+        {
+            Json::Value out = reply(false, "挥手：腰升到 home 失败/中止，code=" + std::to_string(waist_rc));
+            out["code"] = waist_rc;
+            return out;
+        }
+        const int rc = arm_wave_right(*g_arm_r, *g_arm_l);
+        Json::Value out = reply(
+            rc == 0, rc == 0 ? std::string() : ("挥手失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        return out;
+    }
+    if (cmd == "welcome")
+    {
+        const int waist_rc = orch::home_waist_upright();
+        if (waist_rc != 0)
+        {
+            Json::Value out = reply(false, "迎宾：腰升到 home 失败/中止，code=" + std::to_string(waist_rc));
+            out["code"] = waist_rc;
+            return out;
+        }
+        const int rc = arm_welcome(*g_arm_r, *g_arm_l);
+        Json::Value out = reply(
+            rc == 0, rc == 0 ? std::string() : ("迎宾失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        return out;
+    }
+    if (cmd == "wave_ready")
+    {
+        const int waist_rc = orch::home_waist_upright();
+        if (waist_rc != 0)
+        {
+            Json::Value out = reply(false, "挥手准备：腰回 home 失败/中止，code=" + std::to_string(waist_rc));
+            out["code"] = waist_rc;
+            return out;
+        }
+        const int rc = arm_wave_hang(*g_arm_r, *g_arm_l);
+        Json::Value out = reply(
+            rc == 0, rc == 0 ? std::string() : ("挥手准备失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        return out;
     }
     if (cmd == "tray2ready" || cmd == "tray2ready1" || cmd == "tray2ready2" ||
         cmd == "tray2ready3" || cmd == "tray2ready6")

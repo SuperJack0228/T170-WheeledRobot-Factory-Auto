@@ -333,8 +333,8 @@ GraspToStandbyResult run_grasp_to_standby(
             fill(arm_r, true, mid_r, goal_r);
         if (want_l)
             fill(arm_l, false, mid_l, goal_l);
-        constexpr double lift_mps = 0.20;
-        constexpr double return_mps = 0.20;
+        constexpr double lift_mps = 0.25;
+        constexpr double return_mps = 0.25;
         const ArmLineMoveResult stitched = arm_dual_line_then_line_nostop(
             arm_r, mid_r, goal_r, want_r,
             arm_l, mid_l, goal_l, want_l,

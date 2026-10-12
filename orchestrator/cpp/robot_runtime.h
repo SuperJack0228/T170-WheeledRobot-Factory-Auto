@@ -70,6 +70,8 @@ struct HwSession
 extern HwSession *g_hw;
 
 int go_home(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/** 腰 yaw 回 0，x 回到 layer3_home，再升到 home 高度。不动手臂。 */
+int home_waist_upright();
 /** 调试：仅平移腰 X。1=layer3_home.x，2=home_x + far_row_forward_m（前伸位，并低头 far_pitch 后截一帧）。 */
 int go_waist_debug(int pose);
 /** 传送带准备：腰/头到 conveyor，手臂到 tcp。 */
@@ -114,7 +116,7 @@ int vision_place_tray2_precision();
 int vision_tray2_center();
 /** depart_after_grasp 为假时：每轮收手后松爪并立刻再拍再抓，直到料盘空，停在原地。cycle / 调度仍抓住不放。 */
 int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
-/** 调度对接：先到 dispatch_wait_station（AP14）等任务。任务结束后的回料架不变。下料放到 AP9 后停在原地等下一条任务。 */
+/** 调度对接：先到 dispatch_wait_station（AP14），到站后保持 home 姿态等任务。任务结束后的回料架不变。下料放到 AP9 后停在原地等下一条任务。 */
 int run_dispatch_mode();
 /** 程序启动后调用一次。后台线程以 2Hz 把底盘位姿和电量写入调度库的上报变量。 */
 void start_chassis_status_reporter();

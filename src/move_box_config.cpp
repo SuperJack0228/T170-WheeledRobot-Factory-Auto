@@ -152,6 +152,12 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     read_value(node, "grasp_yolo_class_id", dst.grasp_yolo_class_id);
     read_value(node, "use_fixed_origin_z", dst.use_fixed_origin_z);
     read_value(node, "fixed_origin_z_m", dst.fixed_origin_z_m);
+    read_value(node, "photo_after_arrival_sec", dst.photo_after_arrival_sec);
+    read_value(node, "grasp_photo_settle_sec", dst.grasp_photo_settle_sec);
+    if (dst.photo_after_arrival_sec < 0.0)
+        dst.photo_after_arrival_sec = 0.0;
+    if (dst.grasp_photo_settle_sec < 0.0)
+        dst.grasp_photo_settle_sec = 0.0;
 }
 
 void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
@@ -187,7 +193,9 @@ void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
               << " yolo=" << (c.grasp_yolo_enable ? "on" : "off")
               << " class=" << c.grasp_yolo_class_id
               << " fixed_z=" << (c.use_fixed_origin_z ? "on" : "off")
-              << " " << c.fixed_origin_z_m << "m\n";
+              << " " << c.fixed_origin_z_m << "m"
+              << " 到站放置等=" << c.photo_after_arrival_sec
+              << "s 抓取拍照等=" << c.grasp_photo_settle_sec << "s\n";
 }
 
 } // namespace

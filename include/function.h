@@ -144,7 +144,8 @@ std::vector<ArmArrivalRecord> arm_arrival_log_copy();
 void record_arm_cartesian_arrival(
     Robot_Arm &arm,
     const Eigen::Matrix<double, 1, 6> &goal,
-    const char *stage = nullptr);
+    const char *stage = nullptr,
+    double settle_sec = 15.0);
 
 /** 读编码器 → Line_Trajectory → 每 5ms set_motor_position。
  * 不锁 J2（不传冗余角），让七轴逆解自己选肘，保证抓取工作空间。 */
@@ -171,7 +172,7 @@ ArmLineMoveResult arm_dual_line_move_hold_redundant_selective(
     bool move_l,
     double cart_linear_velocity);
 
-/** 料盘抓取抹角：A→B 按巡航速度规划后原样下发到 B 前 8 cm，末段收到 C。
+/** 料盘抓取抹角：A→B 按巡航速度规划后原样下发到 B 前 6 cm，末段收到 C。
  *  不在 B 停车。规划失败则整段失败，不退回分段直线。 */
 /** 后台规划两段直线衔接。手臂停在起点时调用，可与合爪重叠。 */
 void arm_start_line_then_line_plan(
@@ -337,6 +338,23 @@ void log_phase_banner(const char *title);
 void log_cycle_banner(int round_index = -1);
 
 int arm_joint_move(Robot_Arm &arm, Matrix<double, 1, 7> &qd);
+/** 抓取终点：关节还差过 550 计数时，慢速补到上次下发的关节角。已在容差内则不动。 */
+int arm_creep_unreached_joints(bool move_r, bool move_l);
+/** 该手各关节是否已在上次下发角的 ±550 计数内。 */
+bool arm_at_last_command(bool is_right);
+/** 左手收到镜像下垂后停住。右手下垂、抬到肩高、左右挥 3 下，再沿原路放下。 */
+int arm_wave_right(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/** 双手收到挥手前的自然下垂，夹爪闭合。不挥，不动腰、头。 */
+int arm_wave_hang(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/** 鞠躬：下垂，右手松开到 0.2 收到胸前，腰前倾约 25°，左手只弯肘，再沿原路回来。 */
+int arm_bow(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/** 迎宾：双手下垂后交替挥手。左手是右手的镜像。直到急停。 */
+int arm_welcome(Robot_Arm &arm_r, Robot_Arm &arm_l);
+
+namespace orch {
+/** 挥手夹爪。ratio 0 全开，1 全合。 */
+void wave_grip_ratio(bool is_right, double ratio);
+}
 /** 读编码器 → 关节角(rad) → FK 4x4 → 1x6(x,y,z m; rx,ry,rz 欧拉角 rad) */
 Matrix<double, 1, 6> arm_get_tcp_pos(Robot_Arm &arm);
 /** 读编码器→rad→FK→法兰×视觉位姿→基座 1×6（读数路径同 arm_get_tcp_pos） */

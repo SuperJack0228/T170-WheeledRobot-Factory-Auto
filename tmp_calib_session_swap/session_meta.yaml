@@ -1,0 +1,5 @@
+camera_id: rs:261722072173
+camera_name: "[RealSense] Intel RealSense D435I (SN:261722072173)"
+calibration_mode: eye_in_hand
+image_rotation_deg: 0
+arm: head
