@@ -33,6 +33,9 @@ from urllib.parse import parse_qs, urlparse
 import yaml
 
 
+# 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
+WEB_API_VERSION = 4
+UI_VERSION = "1.1.6"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
 CONFIG_FILES = {
@@ -162,12 +165,20 @@ FIELD_GROUPS = {
             ("conveyor2.grasp_offset.left.y", "左手抓取左右", "米"),
             ("conveyor2.grasp_offset.left.z", "左手抓取上下", "米"),
         ]),
+        ("空抓检测", [
+            ("gripper_check.enable", "合爪后判空抓，true 开 false 关", ""),
+            ("gripper_check.empty_q_rad", "合爪结束 q 不大于这个值算空抓，要明显小于夹住零件时的 q", "弧度"),
+            ("gripper_check.max_empty_retry", "同一只手空抓后最多重抓几次", "次"),
+        ]),
         ("站点", [
             ("chassis.tray_station", "料盘一", ""),
             ("chassis.belt_station", "传送带一", ""),
             ("chassis.out_station", "传送带二", ""),
             ("chassis.tray2_station", "料盘二", ""),
-            ("chassis.dispatch_wait_station", "调度等待点", ""),
+            ("chassis.dispatch_wait_station", "调度等待点（失败/无任务回这里）", ""),
+            ("chassis.charge_station", "调试充电点（charge 指令；调度仍用系统下发点）", ""),
+            ("chassis.charge_wait_station", "充完电后待命点", ""),
+            ("chassis.charge_done_percent", "调度充电结束电量阈值", "%"),
         ]),
     ],
     "tray_code": [
@@ -363,9 +374,11 @@ ALLOWED_COMMANDS = {
     "vision_detect",
     "aruco_detect",
     "vision_grasp",
+    "vision_grasp_once",
     "grasp_belt",
     "grasp_belt1",
     "dispatch",
+    "charge",
     "home",
     "grasp_ready",
     "grasp_ready1",
@@ -383,6 +396,7 @@ ALLOWED_COMMANDS = {
     "tray2test",
     "waist1",
     "waist2",
+    "waist_cycle",
     "belt",
     "belt_ready",
     "belt_place",
@@ -402,10 +416,20 @@ ALLOWED_COMMANDS = {
     "tray2center",
     "detect_tray_holes",
     "abort",
+    "dispatch_exit",
     "gripper_open",
     "gripper_grasp",
 }
-DANGEROUS_COMMANDS = ALLOWED_COMMANDS - {"ping", "snapshot", "reload_config", "vision_detect", "aruco_detect", "detect_tray_holes", "abort"}
+DANGEROUS_COMMANDS = ALLOWED_COMMANDS - {
+    "ping",
+    "snapshot",
+    "reload_config",
+    "vision_detect",
+    "aruco_detect",
+    "detect_tray_holes",
+    "abort",
+    "dispatch_exit",
+}
 
 
 class RobotClientError(RuntimeError):
@@ -448,7 +472,7 @@ class AppState:
         with self.log_lock:
             return self.log_seq, [line for line in self.log_lines if line["seq"] > since]
 
-    def robot_request(self, payload: dict[str, Any], timeout: float = 1800.0) -> dict[str, Any]:
+    def robot_request(self, payload: dict[str, Any], timeout: float | None = 1800.0) -> dict[str, Any]:
         data = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
         try:
             with socket.create_connection((self.robot_host, self.robot_port), timeout=3.0) as sock:
@@ -642,7 +666,7 @@ def host_status() -> dict[str, Any]:
 
 
 class DebugHandler(BaseHTTPRequestHandler):
-    server_version = "T170DebugWeb/1.0"
+    server_version = "T170DebugWeb/1.1.0"
 
     @property
     def state(self) -> AppState:
@@ -720,6 +744,8 @@ class DebugHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     {
                         "ok": True,
+                        "api": WEB_API_VERSION,
+                        "ui_version": UI_VERSION,
                         "robot_online": online,
                         "managed_process": process is not None,
                         "managed_process_running": process is not None and process.poll() is None,
@@ -745,6 +771,13 @@ class DebugHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/job":
                 self._json(HTTPStatus.OK, {"ok": True, **self.state.job_view()})
+                return
+            if parsed.path == "/api/dispatch":
+                result = self.state.robot_request({"cmd": "dispatch_status"}, timeout=3.0)
+                if not result.get("ok") and "未知命令" in str(result.get("error", "")):
+                    result["error"] = "t170c_debug 是旧版本，重启它之后才有调度面板"
+                result["job"] = self.state.job_view()
+                self._json(HTTPStatus.OK, result)
                 return
             if parsed.path == "/api/fields":
                 file_id = parse_qs(parsed.query).get("file", ["motion"])[0]
@@ -819,6 +852,9 @@ class DebugHandler(BaseHTTPRequestHandler):
             self._serve_static(parsed.path)
         except (OSError, RobotClientError) as exc:
             self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+        except Exception as exc:  # noqa: BLE001
+            self.state.log(f"GET {parsed.path} 出错: {type(exc).__name__}: {exc}", "error")
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
 
     def _serve_static(self, url_path: str) -> None:
         relative = "index.html" if url_path in {"", "/"} else url_path.lstrip("/")
@@ -834,7 +870,7 @@ class DebugHandler(BaseHTTPRequestHandler):
         content_type = mimetypes.guess_type(candidate.name)[0] or "application/octet-stream"
         if content_type.startswith("text/") or content_type in {"application/javascript", "application/json"}:
             content_type += "; charset=utf-8"
-        self._send(HTTPStatus.OK, candidate.read_bytes(), content_type, cache=candidate.name != "index.html")
+        self._send(HTTPStatus.OK, candidate.read_bytes(), content_type)
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -850,13 +886,16 @@ class DebugHandler(BaseHTTPRequestHandler):
                 if cmd in DANGEROUS_COMMANDS and payload.pop("confirm", "") != cmd:
                     self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "危险动作缺少二次确认"})
                     return
-                if cmd != "abort" and not self.state.begin_action(cmd):
+                if cmd not in {"abort", "dispatch_exit"} and not self.state.begin_action(cmd):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "已有动作在执行"})
                     return
                 try:
-                    result = self.state.robot_request(payload)
+                    # 调度模式一直跑到退出/停止，不能被 30 分钟超时断开后又放开网页的动作锁。
+                    result = self.state.robot_request(
+                        payload, timeout=None if cmd == "dispatch" else 1800.0
+                    )
                 finally:
-                    if cmd != "abort":
+                    if cmd not in {"abort", "dispatch_exit"}:
                         self.state.end_action()
                 self.state.log(f"命令 {cmd}: {json.dumps(result, ensure_ascii=False)}", "command")
                 self._json(HTTPStatus.OK, result)
@@ -968,6 +1007,9 @@ class DebugHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
         except OSError as exc:
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(exc)})
+        except Exception as exc:  # noqa: BLE001
+            self.state.log(f"POST {parsed.path} 出错: {type(exc).__name__}: {exc}", "error")
+            self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
 
 
 class DebugHTTPServer(ThreadingHTTPServer):

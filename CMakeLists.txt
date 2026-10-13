@@ -77,6 +77,7 @@ add_subdirectory(LowerBody)
 add_executable(t170c_debug
     orchestrator/cpp/orch_hw_main.cpp
     orchestrator/cpp/robot_runtime.cpp
+    orchestrator/cpp/dispatch_board.cpp
     src/grasp_to_standby.cpp
     src/function.cpp
     src/waist.cpp

@@ -52,6 +52,9 @@ struct HeadAssignState
     bool zone_count_ok = false;
     int zone_right = 0;
     int zone_left = 0;
+    /** 手臂到位合了爪，但夹爪合到底，没夹到件。手臂照常收回，只是不算持件。 */
+    bool empty_grasp_r = false;
+    bool empty_grasp_l = false;
 };
 
 /** 本轮抓取腰进已用步数（与 stagger_max_steps 合计，双手共享；头相机不重拍，只补偿 goal x） */
@@ -87,8 +90,17 @@ Eigen::Matrix<double, 1, 6> make_home_tcp_left();
 void log_arm_skip_right();
 void log_arm_skip_left();
 
+/** 按合爪结束时的关节角判空抓（gripper_check）。夹爪没配对、没反馈或关闭检测时按夹到处理。 */
+bool gripper_grasp_empty(gripper::Gripper &g, gripper::Side side,
+                         const gripper::GraspFeedback &fb, const char *tag);
+
 /** 本轮抓取是否启用 TCP→目标自适应 pitch/yaw（run_grasp_to_standby 置位） */
 extern bool g_grasp_adaptive_rpy;
+
+/** 料盘一：近三排已空并开始抓远三排。记住后直接远排腰/头拍照，不再每次先近排再切远排。 */
+bool tray1_far_band_active();
+void tray1_far_band_set(bool on);
+void tray1_far_band_clear();
 
 void grasp_snapshot_from_state(
     const HeadAssignState &st,
@@ -339,8 +351,12 @@ enum class GraspToStandbyStatus
 struct GraspToStandbyResult
 {
     GraspToStandbyStatus status = GraspToStandbyStatus::NoTarget;
+    /** 真正夹到件。空抓的手不算。 */
     bool grasped_r = false;
     bool grasped_l = false;
+    /** 本轮伸手合爪但没夹到，手已收回并张爪。 */
+    bool empty_r = false;
+    bool empty_l = false;
     bool waist_adjusted = false;
     HeadAssignState st;
     /** 本轮第一张选孔照片的工作区目标数。远排重拍不覆盖。 */

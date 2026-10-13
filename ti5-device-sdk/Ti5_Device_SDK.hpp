@@ -8,8 +8,9 @@
 
 /// 包含本头后进 main 前按 devices.json 自动配对；电机编解码缓存一并初始化。
 /// 已配对再调 pair() 直接返回。close() 之后可以再 pair()。
+/// 只 up 未 UP 的口，不同进程可以各用各的 CAN。
 void pair();
-/// 放开本进程持有的通道。未捕获异常进 terminate 时会先走这里。
+/// 放开本进程通道并 down 自己拉起的 CAN，路与路之间留间隔。未捕获异常进 terminate 时会先走这里。
 void close();
 
 bool motor_paired(std::uint32_t id);

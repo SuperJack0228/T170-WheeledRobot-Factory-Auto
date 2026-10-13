@@ -70,10 +70,14 @@ struct HwSession
 extern HwSession *g_hw;
 
 int go_home(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/** 充完电用：头标定 + 双臂回 home_tcp，腰高度/平移保持不动。 */
+int go_home_arms_keep_waist_z(Robot_Arm &arm_r, Robot_Arm &arm_l);
 /** 腰 yaw 回 0，x 回到 layer3_home，再升到 home 高度。不动手臂。 */
 int home_waist_upright();
 /** 调试：仅平移腰 X。1=layer3_home.x，2=home_x + far_row_forward_m（前伸位，并低头 far_pitch 后截一帧）。 */
 int go_waist_debug(int pose);
+/** 只动腰：home → 料盘抓取 ready → 远排，再逐个返回，循环 3 次，每到点停 3 秒。不动手臂、不转头。 */
+int go_waist_cycle();
 /** 传送带准备：腰/头到 conveyor，手臂到 tcp。 */
 int go_belt_ready(Robot_Arm &arm_r, Robot_Arm &arm_l);
 /** 传送带放置末端预览：腰/头到 conveyor，手臂到 place_tcp。 */
@@ -116,12 +120,21 @@ int vision_place_tray2_precision();
 int vision_tray2_center();
 /** depart_after_grasp 为假时：每轮收手后松爪并立刻再拍再抓，直到料盘空，停在原地。cycle / 调度仍抓住不放。 */
 int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
-/** 调度对接：先到 dispatch_wait_station（AP14），到站后保持 home 姿态等任务。任务结束后的回料架不变。下料放到 AP9 后停在原地等下一条任务。 */
+/** 料盘一抓一次：去料盘一，双手都持件（或料盘没件）就停，夹爪保持合上，底盘不走。 */
+int vision_grasp_once();
+/** 调度对接：启动与无任务/失败/断线后都先 home，再到 dispatch_wait_station（AP14）待命。 */
 int run_dispatch_mode();
+/** 调试：跑完整真实充电（home→AP14→挥手下垂→腰降→失能→充电点），检测到开始充电即成功结束，不停充、不等 95%。 */
+int run_charge_test();
 /** 程序启动后调用一次。后台线程以 2Hz 把底盘位姿和电量写入调度库的上报变量。 */
 void start_chassis_status_reporter();
 int vision_aruco_detect_pipeline();
 int vision_tray_holes_pipeline();
+
+/** 界面用：按实时夹爪 q 判持件（q ≥ gripper_check.empty_q_rad）。无反馈时回退到 last_grasped。 */
+bool live_gripper_holding(bool is_right);
+/** 松爪/放置后清流程闩锁 last_grasped（不影响实时 q 显示）。 */
+void clear_last_grasped(bool right, bool left);
 
 } // namespace orch
 

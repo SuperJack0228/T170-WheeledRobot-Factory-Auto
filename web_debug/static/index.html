@@ -4,12 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>T170C</title>
-  <link rel="stylesheet" href="/styles.css">
+  <title>T170C工厂自动上下料控制器</title>
+  <link rel="stylesheet" href="/styles.css?v=10">
 </head>
 <body>
   <header class="nav">
-    <div class="brand">T170C</div>
+    <a class="brand" href="/" title="T170C工厂自动上下料控制器">
+      <img class="brand-logo" src="/logo-tis-robot.png?v=2" alt="TiS ROBOT" width="160" height="49">
+      <span class="brand-text">T170C工厂自动上下料控制器</span>
+    </a>
     <nav class="tabs">
       <button class="tab active" data-page="status">状态</button>
       <button class="tab" data-page="motion">动作</button>
@@ -24,11 +27,13 @@
     </div>
   </header>
 
+  <div id="versionBanner" class="banner" hidden></div>
+
   <main>
     <section id="page-status" class="page active">
       <p class="kicker">Status</p>
-      <h1>机器人现在的样子</h1>
-      <p class="lead" id="statusLead">空闲时每秒读取一次。动作进行中不打断电机，沿用上一次读数。</p>
+      <h1>实时状态</h1>
+      <p class="lead" id="statusLead">空闲时每秒读取双臂 TCP、腰高、持件和底盘站位。动作进行中不打断电机，沿用上一次读数。</p>
       <div class="stats">
         <article><span>服务</span><strong id="metricService">—</strong></article>
         <article><span>底盘</span><strong id="metricChassis">—</strong></article>
@@ -57,45 +62,70 @@
       <h1>单步动作</h1>
       <p class="lead">每条都会让机器人真的动。旁边有人守着急停。</p>
       <div class="grid three">
-        <article class="card">
-          <h2>姿态</h2>
+        <article class="card mod-pose">
+          <div class="mod-head">
+            <h2>姿态</h2>
+            <p class="hint">home、挥手、鞠躬等姿态动作。</p>
+          </div>
           <div class="actions">
             <button class="cmd" data-command="home">回到 home</button>
-            <button class="cmd quiet" data-command="wave_ready">挥手前下垂</button>
-            <button class="cmd quiet" data-command="wave">挥右手</button>
-            <button class="cmd quiet" data-command="bow">鞠躬</button>
-            <button class="cmd quiet" data-command="welcome">迎宾循环</button>
+            <button class="cmd" data-command="waist_cycle">腰循环 3 次</button>
+            <button class="cmd" data-command="wave_ready">挥手前下垂</button>
+            <button class="cmd" data-command="wave">挥右手</button>
+            <button class="cmd" data-command="bow">鞠躬</button>
+            <button class="cmd" data-command="welcome">迎宾循环</button>
           </div>
         </article>
-        <article class="card">
-          <h2>料盘</h2>
+        <article class="card mod-tray">
+          <div class="mod-head">
+            <h2>料盘</h2>
+            <p class="hint">抓一次：两只手各抓到一件就停，夹爪保持合上，底盘不走。清空：一直抓到料盘空，每轮抓完松爪。</p>
+          </div>
           <div class="actions">
-            <button class="cmd" data-command="vision_grasp">抓一次料盘</button>
-            <button class="cmd quiet" data-command="grasp_ready1">准备 近排</button>
-            <button class="cmd quiet" data-command="grasp_ready3">准备 远排</button>
+            <button class="cmd" data-command="vision_grasp_once">抓一次料盘</button>
+            <button class="cmd" data-command="vision_grasp">清空料盘（每轮抓完松爪）</button>
+            <button class="cmd" data-command="grasp_ready1">准备 近排</button>
+            <button class="cmd" data-command="grasp_ready3">准备 远排</button>
             <button class="cmd" data-command="tray2">放到料盘二</button>
           </div>
         </article>
-        <article class="card">
-          <h2>传送带</h2>
+        <article class="card mod-belt">
+          <div class="mod-head">
+            <h2>传送带</h2>
+            <p class="hint">一号 / 二号传送带的准备、放置与抓取。</p>
+          </div>
           <div class="actions">
-            <button class="cmd quiet" data-command="belt_ready">一号准备</button>
+            <button class="cmd" data-command="belt_ready">一号准备</button>
             <button class="cmd" data-command="belt">一号放置</button>
             <button class="cmd" data-command="belt_grasp">一号抓取</button>
-            <button class="cmd quiet" data-command="belt2_ready">二号准备</button>
+            <button class="cmd" data-command="belt2_ready">二号准备</button>
             <button class="cmd" data-command="belt2">二号放置</button>
             <button class="cmd" data-command="belt2_grasp">二号抓取</button>
           </div>
         </article>
       </div>
-      <article class="card">
-        <h2>整圈</h2>
-        <div class="actions">
-          <button class="cmd" data-command="grasp_belt">cycle 整圈循环</button>
-          <button class="cmd" data-command="grasp_belt1">cycle1 料盘一和传送带一</button>
-          <button class="cmd" data-command="cycle3">cycle3 传送带二到料盘二</button>
-        </div>
-      </article>
+      <div class="grid two">
+        <article class="card mod-cycle">
+          <div class="mod-head">
+            <h2>整圈</h2>
+            <p class="hint cycle-hint">cycle：整圈 · cycle1：料盘一↔传送带一 · cycle3：传送带二→料盘二</p>
+          </div>
+          <div class="actions row wrap cycle-row">
+            <button class="cmd" data-command="grasp_belt">cycle</button>
+            <button class="cmd" data-command="grasp_belt1">cycle1</button>
+            <button class="cmd" data-command="cycle3">cycle3</button>
+          </div>
+        </article>
+        <article class="card mod-charge">
+          <div class="mod-head">
+            <h2>充电</h2>
+            <p class="hint">真实去充电：home→AP14→挥手下垂→腰降→充电点；检测到开始充电即结束。</p>
+          </div>
+          <div class="actions">
+            <button class="cmd" data-command="charge">充电</button>
+          </div>
+        </article>
+      </div>
       <article class="card">
         <h2>刚才的结果</h2>
         <pre id="motionResult">还没有从这里发过动作。</pre>
@@ -106,6 +136,14 @@
       <p class="kicker">Dispatch</p>
       <h1>调度</h1>
       <p class="lead">手动由你排顺序。自动去等待点，听工厂调度系统发来的任务。</p>
+      <div class="monitor">
+        <div class="monitor-head">
+          <h2>自动调度监控</h2>
+          <span id="dmUpdated" class="hint"></span>
+        </div>
+        <p id="dmError" class="form-error" hidden></p>
+        <div id="dmBody"></div>
+      </div>
       <div class="grid two">
         <article class="card">
           <h2>手动</h2>
@@ -124,8 +162,10 @@
         </article>
         <article class="card">
           <h2>自动</h2>
-          <p class="hint">和命令行里的 dispatch 相同。车到等待点后，上料、转运、下料、充电都由调度系统决定。停止按钮会中止当前动作。</p>
-          <button class="cmd fill" data-command="dispatch">进入调度</button>
+          <p class="hint">和命令行里的 dispatch 相同。车到等待点后，上料、转运、下料、充电都由调度系统决定。顶部「停止」只中止当前动作；要彻底离开调度模式请点下面的「退出调度」。调试充电请用「动作」页的充电按钮。</p>
+          <button class="cmd fill dispatch-enter" data-command="dispatch">进入调度</button>
+          <button type="button" id="exitDispatch" class="dispatch-exit">退出调度</button>
+          <p class="hint">退出调度会中止动作、断开与调度系统的等待，并结束调度模式；监控里「调度中」应变为未进入。</p>
         </article>
       </div>
     </section>
@@ -147,9 +187,9 @@
       <h1>最近的识别</h1>
       <p class="lead">头相机上一次检测留下的标注图。</p>
       <div class="actions row">
-        <button class="cmd quiet" data-command="vision_detect">拍一次 YOLO</button>
-        <button class="cmd quiet" data-command="aruco_detect">识别二维码</button>
-        <button class="cmd quiet" data-command="detect_tray_holes">识别料盘孔</button>
+        <button class="cmd" data-command="vision_detect">拍一次 YOLO</button>
+        <button class="cmd" data-command="aruco_detect">识别二维码</button>
+        <button class="cmd" data-command="detect_tray_holes">识别料盘孔</button>
       </div>
       <article class="card photo">
         <img id="visionImage" alt="最近的标注图">
@@ -160,11 +200,16 @@
     <section id="page-logs" class="page">
       <p class="kicker">Log</p>
       <h1>日志</h1>
+      <p class="lead">最新一行在最上。有新日志时自动滚回顶部。</p>
       <pre id="logView" class="log"></pre>
     </section>
   </main>
 
+  <footer class="site-foot">
+    <span id="uiVersion">T170C Web Debug</span>
+  </footer>
+
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>

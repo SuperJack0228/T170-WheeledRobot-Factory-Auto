@@ -505,6 +505,10 @@ def detect_and_annotate(
     holes_out: list[dict[str, Any]] = []
 
     have_override = R_level_override is not None and t_level_override is not None
+    # 末帧位姿失败时：仍可用多帧融合的扶平位姿算基座孔位，但不要把融合位姿
+    # 反投到末帧上画黄框/紫圈（和本帧码对不齐，看起来就会「歪」）。
+    used_fused_pose = False
+    skip_camera_overlay = False
     if tray is None and have_override and T_rc is not None:
         T_rt = _T_from_Rt(
             np.asarray(R_level_override, dtype=np.float64),
@@ -519,6 +523,13 @@ def detect_and_annotate(
             used_ids=[],
             corners_by_id={},
         )
+        used_fused_pose = True
+        skip_camera_overlay = n_ids >= 1
+        if skip_camera_overlay:
+            print(
+                f"[tray] 末帧位姿失败（markers={n_ids}），"
+                f"基座孔位用融合位姿，本帧不画投影框以免歪"
+            )
 
     if tray is None:
         cv2.putText(
@@ -547,7 +558,8 @@ def detect_and_annotate(
         }
 
     used = list(tray.used_ids)
-    overlay_tray(vis, tray, cfg, K, dist)
+    if not skip_camera_overlay:
+        overlay_tray(vis, tray, cfg, K, dist)
     holes = _enumerate_holes(cfg, tray.rvec, tray.tvec, K, dist, T_rc)
     radius_m = min(0.012, cfg.hole_diameter_m * 0.35)
     R_ct = t_ct = R_level = t_level = None
@@ -625,31 +637,32 @@ def detect_and_annotate(
         top_z_level = None
         if tray_z_level is not None and height_on_tray is not None:
             top_z_level = tray_z_level + height_on_tray
-        color = CLASS_BGR.get(cls_id, (255, 255, 255))
-        u, v = int(round(hole.uv[0])), int(round(hole.uv[1]))
-        cv2.circle(vis, (u, v), 11, color, 2, cv2.LINE_AA)
-        label = f"{hole.hole_id}"
-        if cls_id >= 0:
-            label += f" {CLASS_LABEL_EN.get(cls_id, cls_name or f'c{cls_id}')}"
-        z_txt = ""
-        if top_z_level is not None:
-            z_txt = f" z={top_z_level:.3f}"
-        elif top_z is not None:
-            z_txt = f" z={top_z:.3f}"
-        elif tray_z_level is not None:
-            z_txt = f" 盘={tray_z_level:.3f}"
-        elif tray_z is not None:
-            z_txt = f" 盘={tray_z:.3f}"
-        cv2.putText(
-            vis,
-            label + z_txt,
-            (u + 8, v - 6),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.38,
-            color,
-            1,
-            cv2.LINE_AA,
-        )
+        if not skip_camera_overlay:
+            color = CLASS_BGR.get(cls_id, (255, 255, 255))
+            u, v = int(round(hole.uv[0])), int(round(hole.uv[1]))
+            cv2.circle(vis, (u, v), 11, color, 2, cv2.LINE_AA)
+            label = f"{hole.hole_id}"
+            if cls_id >= 0:
+                label += f" {CLASS_LABEL_EN.get(cls_id, cls_name or f'c{cls_id}')}"
+            z_txt = ""
+            if top_z_level is not None:
+                z_txt = f" z={top_z_level:.3f}"
+            elif top_z is not None:
+                z_txt = f" z={top_z:.3f}"
+            elif tray_z_level is not None:
+                z_txt = f" 盘={tray_z_level:.3f}"
+            elif tray_z is not None:
+                z_txt = f" 盘={tray_z:.3f}"
+            cv2.putText(
+                vis,
+                label + z_txt,
+                (u + 8, v - 6),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.38,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
         holes_out.append(
             {
                 "id": hole.hole_id,
@@ -689,7 +702,19 @@ def detect_and_annotate(
         )
 
     warn = ""
-    if len(used) < 3:
+    if used_fused_pose and skip_camera_overlay:
+        warn = " fuse-only(no last-frame draw)"
+        cv2.putText(
+            vis,
+            "NO hole overlay: last-frame pose failed, robot uses fuse XYZ",
+            (8, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 165, 255),
+            1,
+            cv2.LINE_AA,
+        )
+    elif len(used) < 3:
         warn = f" only {len(used)} markers, far holes may drift"
     fuse_txt = f" fuse={fuse_ok}/{fuse_n}" if fuse_n > 0 else ""
     tilt_txt = f" tilt={tilt_deg:.1f}deg" if np.isfinite(tilt_deg) else ""

@@ -555,6 +555,13 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(chassis, "sequence_number", cfg.chassis.sequence_number);
         read_value(chassis, "tray_station", cfg.chassis.tray_station);
         read_value(chassis, "dispatch_wait_station", cfg.chassis.dispatch_wait_station);
+        read_value(chassis, "charge_station", cfg.chassis.charge_station);
+        read_value(chassis, "charge_wait_station", cfg.chassis.charge_wait_station);
+        read_value(chassis, "charge_done_percent", cfg.chassis.charge_done_percent);
+        if (cfg.chassis.charge_done_percent < 1.0)
+            cfg.chassis.charge_done_percent = 1.0;
+        if (cfg.chassis.charge_done_percent > 100.0)
+            cfg.chassis.charge_done_percent = 100.0;
         read_value(chassis, "tray2_station", cfg.chassis.tray2_station);
         read_value(chassis, "belt_station", cfg.chassis.belt_station);
         read_value(chassis, "out_station", cfg.chassis.out_station);
@@ -563,6 +570,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
             cfg.chassis.nav_timeout_ms = 1000;
 
         read_value(root["stagger"], "head_x_threshold", cfg.stagger.head_x_threshold);
+        read_value(root["gripper_check"], "enable", cfg.gripper_check.enable);
+        read_value(root["gripper_check"], "empty_q_rad", cfg.gripper_check.empty_q_rad);
+        read_value(root["gripper_check"], "max_empty_retry", cfg.gripper_check.max_empty_retry);
+        if (cfg.gripper_check.max_empty_retry < 0)
+            cfg.gripper_check.max_empty_retry = 0;
         read_value(root["cameras"], "width", cfg.cameras.width);
         read_value(root["cameras"], "height", cfg.cameras.height);
         read_value(root["cameras"], "head_fps", cfg.cameras.head_fps);

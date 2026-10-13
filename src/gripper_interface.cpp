@@ -44,22 +44,28 @@ void log_merror(const char *tag, int motor_id, std::uint32_t merror, bool io_ok)
 // SDK 的 get_Gripper_State 实际是 Brake：会停机，空闲后 MError=512。
 // 探活/读位置改走 FOC + kp=0，只问状态不拉位置。
 bool dex1_read(uint8_t id, float q_hint, float &q, float &dq, float &tau, std::uint32_t &merror) {
-  int temp_shell = 0;
-  int temp_winding = 0;
-  float voltage = 0.f;
+  GripperState st{};
   merror = 0;
-  return set_Gripper_Pos_get_State(id, q_hint, 0.f, 0.f, 0.f, 0.f, q, dq, tau, temp_shell,
-                                   temp_winding, voltage, merror, kDex1RecvMs);
+  const bool ok =
+      set_Gripper_Pos_get_State(id, q_hint, 0.f, 0.f, 0.f, 0.f, st, kDex1RecvMs, false);
+  q = st.q;
+  dq = st.dq;
+  tau = st.tau;
+  merror = st.merror;
+  return ok;
 }
 
 bool dex1_set_get(uint8_t id, float q, float dq, float tau, float kp, float kd, float &q_fb,
                   float &dq_fb, float &tau_fb, std::uint32_t &merror) {
-  int temp_shell = 0;
-  int temp_winding = 0;
-  float voltage = 0.f;
+  GripperState st{};
   merror = 0;
-  return set_Gripper_Pos_get_State(id, q, dq, tau, kp, kd, q_fb, dq_fb, tau_fb, temp_shell,
-                                   temp_winding, voltage, merror, kDex1RecvMs);
+  const bool ok =
+      set_Gripper_Pos_get_State(id, q, dq, tau, kp, kd, st, kDex1RecvMs, false);
+  q_fb = st.q;
+  dq_fb = st.dq;
+  tau_fb = st.tau;
+  merror = st.merror;
+  return ok;
 }
 
 bool moved_toward(double q0, double q, double target, double min_delta) {

@@ -365,6 +365,41 @@ def _marker_pose_facing_camera(
     return best[1], best[2]
 
 
+def _solve_tray_pnp_from_slots(
+    cfg: AppConfig,
+    assigned: dict[str, tuple[int, np.ndarray]],
+    K: np.ndarray,
+    dist: np.ndarray,
+) -> TrayPose | None:
+    """四角槽位已定：用固定相对几何做联合 PnP（码在盘上朝向一致，不单码转 180°）。"""
+    obj_list: list[np.ndarray] = []
+    img_list: list[np.ndarray] = []
+    used: list[int] = []
+    corners_by_id: dict[int, np.ndarray] = {}
+    for slot in ("front_left", "front_right", "rear_left", "rear_right"):
+        mid, img = assigned[slot]
+        obj_list.append(marker_corners_at_slot(cfg, slot, half_turn=False))
+        img_list.append(img)
+        used.append(mid)
+        corners_by_id[mid] = img.reshape(1, 4, 2)
+    obj_pts = np.concatenate(obj_list, axis=0).astype(np.float32)
+    img_pts = np.concatenate(img_list, axis=0).astype(np.float32)
+    flag = PNP_FLAGS.get(cfg.pnp_flag, cv2.SOLVEPNP_SQPNP)
+    ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, K, dist, flags=flag)
+    if not ok:
+        return None
+    if cfg.pnp_refine and hasattr(cv2, "solvePnPRefineLM"):
+        rvec, tvec = cv2.solvePnPRefineLM(obj_pts, img_pts, K, dist, rvec, tvec)
+    err = mean_reprojection_error(obj_pts, img_pts, rvec, tvec, K, dist)
+    return TrayPose(
+        rvec=rvec.reshape(3),
+        tvec=tvec.reshape(3),
+        reproj_px=err,
+        used_ids=used,
+        corners_by_id=corners_by_id,
+    )
+
+
 def estimate_diagonal_tray_pose(
     corners,
     ids,
@@ -374,11 +409,11 @@ def estimate_diagonal_tray_pose(
     K: np.ndarray,
     dist: np.ndarray,
 ) -> TrayPose | None:
-    """四个码的角点联合定位。号码不决定是哪个角。
+    """四角码联合定位。四码相对位置固定，号码不决定角位。
 
-    码的「上」朝向一致时，用它定料盘 +X。某个码相对其他码转了 180°，
-    只把这个码的四个角点转 180° 再参与求解，定位框不跟着歪。
-    整盘转 180° 时框跟着转，36 个孔仍落在原来的孔位上。
+    盘上各码「上」朝同一侧（料盘 +X）。整盘可转 180°：用四码朝向多数表决定 +X，
+    再按码心在盘平面上的前后左右分槽，最后联合 PnP。
+    不再因单个码朝向噪声/歧义直接失败（那种失败会落到多帧融合空 ids，孔位框会歪）。
     必须正好四个，否则不给位姿。
     """
     allowed = set(info_ids)
@@ -399,36 +434,24 @@ def estimate_diagonal_tray_pose(
     if len(hits) != 4:
         return None
 
-    ups = [R[:, 1] for *_rest, R, _t in hits]
-    lefts = [-R[:, 0] for *_rest, R, _t in hits]
-    axis_x = ups[0] / np.linalg.norm(ups[0])
+    ups = [R[:, 1] / (np.linalg.norm(R[:, 1]) + 1e-12) for *_rest, R, _t in hits]
+    lefts = [-R[:, 0] / (np.linalg.norm(R[:, 0]) + 1e-12) for *_rest, R, _t in hits]
+    axis_x = ups[0].copy()
     if sum(1 for up in ups if float(np.dot(up, axis_x)) < 0.0) > 2:
         axis_x = -axis_x
-    axis_y = None
-    for up, left in zip(ups, lefts):
-        if float(np.dot(up, axis_x)) <= 0.0:
-            continue
-        axis_y = left / np.linalg.norm(left)
-        break
-    if axis_y is None:
-        return None
     acc_x = np.zeros(3, dtype=np.float64)
     acc_y = np.zeros(3, dtype=np.float64)
-    half_turn: list[bool] = []
+    n_y = 0
     for up, left in zip(ups, lefts):
-        u = up / np.linalg.norm(up)
-        v = left / np.linalg.norm(left)
-        agree = float(np.dot(u, axis_x))
-        if agree >= 0.95 and float(np.dot(v, axis_y)) >= 0.95:
-            half_turn.append(False)
-            acc_x += u
-            acc_y += v
-            continue
-        if agree <= -0.95 and float(np.dot(v, axis_y)) <= -0.95:
-            half_turn.append(True)
-            acc_x += -u
-            acc_y += -v
-            continue
+        # 个别码 PnP 朝向翻了就取反再累加，不丢整帧。
+        if float(np.dot(up, axis_x)) >= 0.0:
+            acc_x += up
+            acc_y += left
+        else:
+            acc_x += -up
+            acc_y += -left
+        n_y += 1
+    if n_y == 0 or float(np.linalg.norm(acc_x)) < 1e-6:
         return None
     axis_x = acc_x / np.linalg.norm(acc_x)
     axis_y = acc_y - axis_x * float(np.dot(acc_y, axis_x))
@@ -438,51 +461,41 @@ def estimate_diagonal_tray_pose(
     axis_y = axis_y / y_norm
     centers = np.stack([t for *_rest, t in hits], axis=0)
     centroid = np.mean(centers, axis=0)
+    # 码面朝相机：若手性反了只翻 Y，不整帧失败。
     if float(np.dot(np.cross(axis_x, axis_y), centroid)) >= 0.0:
-        return None
+        axis_y = -axis_y
 
     slots = ("front_left", "front_right", "rear_left", "rear_right")
     half = cfg.pitch_xy_m * 0.25
-    assigned: dict[str, tuple[int, np.ndarray, bool]] = {}
-    for (mid, img, _R, t), turned in zip(hits, half_turn):
-        d = t - centroid
-        dx = float(np.dot(d, axis_x))
-        dy = float(np.dot(d, axis_y))
-        if abs(dx) < half or abs(dy) < half:
-            return None
-        slot = ("front_" if dx > 0.0 else "rear_") + ("left" if dy > 0.0 else "right")
-        if slot in assigned:
-            return None
-        assigned[slot] = (mid, img, turned)
-    if set(assigned) != set(slots):
-        return None
 
-    obj_list: list[np.ndarray] = []
-    img_list: list[np.ndarray] = []
-    used: list[int] = []
-    corners_by_id: dict[int, np.ndarray] = {}
-    for slot in ("front_left", "front_right", "rear_left", "rear_right"):
-        mid, img, turned = assigned[slot]
-        obj_list.append(marker_corners_at_slot(cfg, slot, turned))
-        img_list.append(img)
-        used.append(mid)
-        corners_by_id[mid] = img.reshape(1, 4, 2)
-    obj_pts = np.concatenate(obj_list, axis=0).astype(np.float32)
-    img_pts = np.concatenate(img_list, axis=0).astype(np.float32)
-    flag = PNP_FLAGS.get(cfg.pnp_flag, cv2.SOLVEPNP_SQPNP)
-    ok, rvec, tvec = cv2.solvePnP(obj_pts, img_pts, K, dist, flags=flag)
-    if not ok:
+    def assign_with(ax: np.ndarray, ay: np.ndarray) -> dict[str, tuple[int, np.ndarray]] | None:
+        assigned: dict[str, tuple[int, np.ndarray]] = {}
+        for mid, img, _R, t in hits:
+            d = t - centroid
+            dx = float(np.dot(d, ax))
+            dy = float(np.dot(d, ay))
+            if abs(dx) < half or abs(dy) < half:
+                return None
+            slot = ("front_" if dx > 0.0 else "rear_") + ("left" if dy > 0.0 else "right")
+            if slot in assigned:
+                return None
+            assigned[slot] = (mid, img)
+        if set(assigned) != set(slots):
+            return None
+        return assigned
+
+    # 整盘 180°：轴取反后再分槽，两边都解 PnP，取重投影更小的。
+    candidates: list[TrayPose] = []
+    for ax, ay in ((axis_x, axis_y), (-axis_x, -axis_y)):
+        assigned = assign_with(ax, ay)
+        if assigned is None:
+            continue
+        pose = _solve_tray_pnp_from_slots(cfg, assigned, K, dist)
+        if pose is not None:
+            candidates.append(pose)
+    if not candidates:
         return None
-    if cfg.pnp_refine and hasattr(cv2, "solvePnPRefineLM"):
-        rvec, tvec = cv2.solvePnPRefineLM(obj_pts, img_pts, K, dist, rvec, tvec)
-    err = mean_reprojection_error(obj_pts, img_pts, rvec, tvec, K, dist)
-    return TrayPose(
-        rvec=rvec.reshape(3),
-        tvec=tvec.reshape(3),
-        reproj_px=err,
-        used_ids=used,
-        corners_by_id=corners_by_id,
-    )
+    return min(candidates, key=lambda p: p.reproj_px)
 
 
 def draw_pose_text(vis: np.ndarray, lines: list[str], origin: tuple[int, int], color) -> None:

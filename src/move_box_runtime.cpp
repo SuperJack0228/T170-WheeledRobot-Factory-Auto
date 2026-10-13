@@ -29,6 +29,8 @@ namespace move_box
 {
 
     bool g_grasp_adaptive_rpy = false;
+    /** 料盘一近区已空、已进入远三排；跨轮次/回料盘仍有效，近区再有件时清除。 */
+    bool g_tray1_far_band_memory = false;
     double g_current_waist_layer3_z = std::numeric_limits<double>::quiet_NaN();
     /** 编码器里的腰姿态。抓取/放置目标按直立基座算出，下发前用它换到真实手臂基座。 */
     double g_waist_pitch_rad = 0.0;
@@ -168,6 +170,25 @@ namespace move_box
     TrayHoleTask tray_hole_task()
     {
         return g_tray_hole_task;
+    }
+
+    bool tray1_far_band_active()
+    {
+        return g_tray1_far_band_memory;
+    }
+
+    void tray1_far_band_set(bool on)
+    {
+        if (on == g_tray1_far_band_memory)
+            return;
+        g_tray1_far_band_memory = on;
+        std::cout << "[tray_xy] 料盘一远三排记忆 " << (on ? "开启" : "关闭")
+                  << (on ? "：后续直接远排姿态拍照\n" : "\n");
+    }
+
+    void tray1_far_band_clear()
+    {
+        tray1_far_band_set(false);
     }
 
     int tray_assign_class_id()
@@ -946,6 +967,33 @@ namespace move_box
     {
         std::cerr << "[arm] " << hand << "轨迹解析失败 ret=" << ret << "\n";
         // 详细记录（goal/stage）由 arm_line_move 内 append_line_trajectory_fail_debug 写入
+    }
+
+    bool gripper_grasp_empty(gripper::Gripper &g, gripper::Side side,
+                             const gripper::GraspFeedback &fb, const char *tag)
+    {
+        const char *hand = side == gripper::Side::Right ? "右手" : "左手";
+        const char *result = fb.result == gripper::GraspResult::TorqueLimit ? "力矩到上限"
+                             : fb.result == gripper::GraspResult::PositionReached ? "合到底"
+                                                                               : "超时";
+        const auto &gc = g_move_cfg.gripper_check;
+        const bool known = g.hasSide(side) && g.feedback(side).have_feedback;
+        // 夹零件时 q 约 ≥0.5；空爪/松到 ~0.3 不能算持件 → q < empty_q_rad 空抓。
+        const bool empty = gc.enable && known && fb.position_rad < gc.empty_q_rad;
+        std::cout << std::fixed << std::setprecision(3)
+                  << "[gripper] " << tag << ' ' << hand << " 合爪结束 q=" << fb.position_rad
+                  << " rad 力矩=" << fb.torque << " N·m（" << result << "）";
+        if (!known)
+            std::cout << "，夹爪没配对或无反馈，不判空抓\n";
+        else if (!gc.enable)
+            std::cout << "，空抓检测已关闭\n";
+        else if (empty)
+            std::cout << " < " << gc.empty_q_rad << "，判为空抓\n";
+        else
+            std::cout << " ≥ " << gc.empty_q_rad << "，夹到件\n";
+        if (empty)
+            std::cerr << "[gripper] 警告：" << tag << ' ' << hand << "空抓，没夹到件\n";
+        return empty;
     }
 
     void log_arm_skip_right()
@@ -2516,10 +2564,20 @@ namespace move_box
         const bool prefer_front =
             precision &&
             ((!skip_l && zone_has_far(left_zone)) || (!skip_r && zone_has_far(right_zone)));
-        const bool prefer_near =
-            !precision &&
-            ((!skip_l && zone_has_near(left_zone)) ||
-             (!skip_r && zone_has_near(right_zone)));
+        const bool near_present =
+            (!skip_l && zone_has_near(left_zone)) || (!skip_r && zone_has_near(right_zone));
+        const bool far_present =
+            (!skip_l && zone_has_far(left_zone)) || (!skip_r && zone_has_far(right_zone));
+        // 料盘一抓取：近区再有件则清记忆；近空且远还有件则记住，后续轮次直接远排姿态。
+        if (!precision && tray_hole_task() == TrayHoleTask::GraspParts &&
+            g_move_cfg.grasp_zone.far_row_max > 0)
+        {
+            if (near_present)
+                tray1_far_band_clear();
+            else if (far_present)
+                tray1_far_band_set(true);
+        }
+        const bool prefer_near = !precision && near_present;
         if (precision)
         {
             if (prefer_front)
@@ -2536,7 +2594,8 @@ namespace move_box
                           << "-6），远三排暂缓\n";
             else
                 std::cout << "[tray_xy] 3+3 近区已空，开始离机器人远的三排 from_robot 1-"
-                          << g_move_cfg.grasp_zone.far_row_max << "\n";
+                          << g_move_cfg.grasp_zone.far_row_max
+                          << (tray1_far_band_active() ? "（远三排记忆已开）\n" : "\n");
         }
 
         auto in_prefer_band = [&](const Cand &c) {
@@ -2811,14 +2870,29 @@ namespace move_box
 
         const bool need_r = !skip_right && !right_arm_motors_locked();
         const bool need_l = !skip_left;
-        const bool missing = (need_r && !st.have_r) || (need_l && !st.have_l);
-        if (retry_if_incomplete && missing)
+        const bool miss_r = need_r && !st.have_r;
+        const bool miss_l = need_l && !st.have_l;
+        const bool any_assigned = (need_r && st.have_r) || (need_l && st.have_l);
+        const bool zone_has_target =
+            (miss_r && st.zone_right > 0) || (miss_l && st.zone_left > 0);
+        const bool retry = retry_if_incomplete && (miss_r || miss_l) &&
+                           (!st.zone_count_ok || (!any_assigned && zone_has_target));
+        if (retry_if_incomplete && (miss_r || miss_l) && !retry)
+        {
+            cout << "[head] 未分配手(右=" << (miss_r ? "无" : "有/不需")
+                 << " 左=" << (miss_l ? "无" : "有/不需") << ")"
+                 << (any_assigned ? "，另一只手已有目标" : "")
+                 << "，料盘已解算 本侧剩余 右=" << st.zone_right << " 左=" << st.zone_left
+                 << "，不重拍\n";
+        }
+        if (retry)
         {
             cout << "[head] 未分配到可动目标(右="
                  << (st.have_r ? "有" : "无") << " 左=" << (st.have_l ? "有" : "无")
                  << (skip_right ? " 右手已持件" : "")
                  << (skip_left ? " 左手已持件" : "")
                  << (right_arm_motors_locked() ? " 右臂锁定" : "")
+                 << (st.zone_count_ok ? "" : " 料盘未解算")
                  << ")，头相机重试一次\n";
             if (kDebugVisualize)
                 pose_vis_clear_panels({PoseVisPanel::Head});
@@ -3600,12 +3674,7 @@ namespace move_box
             else
             {
                 const auto grasp_r = g.graspAndWait(gripper::Side::Right);
-                if (grasp_r.result != gripper::GraspResult::TorqueLimit &&
-                    grasp_r.result != gripper::GraspResult::PositionReached)
-                {
-                    std::cerr << "[gripper] 右手夹取异常 result=" << static_cast<int>(grasp_r.result)
-                              << " q=" << grasp_r.position_rad << "\n";
-                }
+                st.empty_grasp_r = gripper_grasp_empty(g, gripper::Side::Right, grasp_r, "料盘抓取");
             }
         }
         if (hs.move_l && out.ret_l == 0)
@@ -3620,12 +3689,7 @@ namespace move_box
             else
             {
                 const auto grasp_l = g.graspAndWait(gripper::Side::Left);
-                if (grasp_l.result != gripper::GraspResult::TorqueLimit &&
-                    grasp_l.result != gripper::GraspResult::PositionReached)
-                {
-                    std::cerr << "[gripper] 左手夹取异常 result=" << static_cast<int>(grasp_l.result)
-                              << " q=" << grasp_l.position_rad << "\n";
-                }
+                st.empty_grasp_l = gripper_grasp_empty(g, gripper::Side::Left, grasp_l, "料盘抓取");
             }
         }
 

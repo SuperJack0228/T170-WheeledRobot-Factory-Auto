@@ -136,24 +136,24 @@ head_grasp:
 tray2_place:
   offset:
     left:  { x: 0.039, y: 0.01, z: -0.01 }
-    right: { x: 0.039, y: 0.015, z: -0.01 }
+    right: { x: 0.036, y: 0.013, z: -0.01 }
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
   far_row_forward_m: 0.20
   # 从料盘一抓取偏置抄来。第 1 项=最远一行，第 6 项=最近一行。
   row_offset:
     right:
-      - { x: 0.002, y: 0.012, z: 0.009}
-      - { x: 0.005, y: 0.01, z: 0.006 }
-      - { x: 0.002, y: 0.007, z: 0.005 }
-      - { x: 0.007, y: 0.011, z: 0.0 }
+      - { x: 0.002, y: 0.012, z: 0.004}
+      - { x: 0.005, y: 0.01, z: 0.002 }
+      - { x: 0.002, y: 0.003, z: 0.0 }
+      - { x: 0.007, y: 0.008, z: -0.005 }
       - { x: 0.007, y: 0.012, z: -0.005}
       - { x: 0.009, y: 0.008, z: -0.005 }
     left:
-      - { x: 0.002, y: 0.007, z: 0.009 }
-      - { x: 0.005, y: 0.004, z: 0.006 }
-      - { x: 0.001, y: -0.003, z: 0.005 }
-      - { x: 0.008, y: 0.006, z: 0.003 }
+      - { x: 0.002, y: 0.007, z: 0.004 }
+      - { x: 0.005, y: 0.004, z: 0.002 }
+      - { x: 0.001, y: -0.003, z: 0.0 }
+      - { x: 0.008, y: 0.006, z: 0.00 }
       - { x: 0.007, y: 0.002, z: -0.005 }
       - { x: 0.006, y: -0.002, z: -0.001 }
   row_place_rpy_deg:
@@ -281,8 +281,8 @@ conveyor:
     left: [0, 40, -60]
     right: [0, 40, 45]
   grasp_offset:
-    left:  { x: 0.0, y: 0.10, z: -0.002 }
-    right: { x: 0.0, y: 0.12, z: -0.002 }
+    left:  { x: 0.0, y: 0.10, z: -0.001 }
+    right: { x: 0.0, y: 0.12, z: -0.001 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
@@ -357,7 +357,21 @@ chassis:
   sequence_number: "TH-T170C-0124"
   tray_station: AP7
   dispatch_wait_station: AP14
+  # 调试指令 charge 用的充电点。调度 CHARGE 仍用系统下发的 charge_point。
+  charge_station: CP11
+  # 充完电后待命点（手臂回 home_tcp、腰高不变，底盘来这里）。与 AP14 分开。
+  charge_wait_station: AP12
+  # 调度充电：电量达到该百分比后汇报完成并停止充电（1～100）。
+  charge_done_percent: 78
   tray2_station: AP9
   belt_station: AP5
   out_station: AP6
   nav_timeout_ms: 600000
+
+# 空抓检测：合爪结束时夹爪关节角 q（rad，0=全合，约 5.5=全开）。
+# q >= empty_q_rad 才算夹着零件；q < empty_q_rad（空爪常会合到 ~0.3）一律不算持件。
+# 没夹到：这只手不算持件、不计数、不汇报，收回后张爪，原地重拍重抓这一侧。
+gripper_check:
+  enable: true
+  empty_q_rad: 0.5
+  max_empty_retry: 2

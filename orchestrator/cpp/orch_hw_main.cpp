@@ -1,6 +1,7 @@
 /** T170C 调试守护进程。仅监听 127.0.0.1。 */
 
 #include "robot_runtime.h"
+#include "dispatch_board.h"
 
 #include "function.h"
 #include "gripper_interface.hpp"
@@ -248,17 +249,121 @@ bool init_hardware(std::string &err)
     return true;
 }
 
+Json::Value dispatch_status_json()
+{
+    const orch::DispatchBoard b = orch::dispatch_board_snapshot();
+    Json::Value out = reply(true);
+    out["active"] = b.active;
+    out["started_at"] = b.started_at;
+    out["server"] = b.server;
+    out["robot"] = b.robot;
+    out["log_path"] = b.log_path;
+    out["link"] = b.link;
+    out["robot_state"] = b.robot_state;
+    out["robot_state_zh"] = orch::dispatch_state_zh(b.robot_state);
+    out["robot_state_ok"] = b.robot_state_ok;
+    out["robot_state_time"] = b.robot_state_time;
+    out["last_command"] = b.last_command;
+    out["last_command_zh"] = orch::dispatch_mission_zh(b.last_command);
+    out["last_command_time"] = b.last_command_time;
+    out["mission"] = b.mission;
+    out["mission_zh"] = orch::dispatch_mission_zh(b.mission);
+    out["mission_since"] = b.mission_since;
+    Json::Value steps(Json::arrayValue);
+    for (const auto &s : b.steps)
+        steps.append(s);
+    out["steps"] = steps;
+    out["step_index"] = b.step_index;
+    out["activity"] = b.activity;
+
+    Json::Value apply;
+    apply["name"] = b.apply_name;
+    apply["grant"] = b.apply_grant;
+    apply["what"] = b.apply_what;
+    apply["state"] = b.apply_state;
+    apply["time"] = b.apply_time;
+    out["apply"] = apply;
+
+    Json::Value report;
+    report["name"] = b.report_name;
+    report["what"] = b.report_what;
+    report["state"] = b.report_state;
+    report["time"] = b.report_time;
+    out["report"] = report;
+
+    out["station"] = b.station;
+    out["target_station"] = b.target_station;
+    // 界面持件：实时夹爪 q；闩锁仅作流程用，附带上报便于对照。
+    out["holding_right"] = orch::live_gripper_holding(true);
+    out["holding_left"] = orch::live_gripper_holding(false);
+    out["latch_holding_right"] = g_session.last_grasped_r;
+    out["latch_holding_left"] = g_session.last_grasped_l;
+    if (g_grip)
+    {
+        const auto fr = g_grip->feedback(gripper::Side::Right);
+        const auto fl = g_grip->feedback(gripper::Side::Left);
+        out["gripper_q_right"] = fr.position_rad;
+        out["gripper_q_left"] = fl.position_rad;
+        out["gripper_hold_thresh"] = g_move_cfg.gripper_check.empty_q_rad;
+    }
+
+    Json::Value t1;
+    t1["known"] = b.tray1_known;
+    t1["right"] = b.tray1_right;
+    t1["left"] = b.tray1_left;
+    t1["task"] = b.tray1_task_taken;
+    t1["session"] = b.tray1_session_taken;
+    t1["reported"] = b.tray1_empty_reported;
+    t1["time"] = b.tray1_time;
+    out["tray1"] = t1;
+
+    Json::Value t2;
+    t2["known"] = b.tray2_known;
+    t2["right"] = b.tray2_right;
+    t2["left"] = b.tray2_left;
+    t2["task"] = b.tray2_task_placed;
+    t2["session"] = b.tray2_session_placed;
+    t2["reported"] = b.tray2_full_reported;
+    t2["time"] = b.tray2_time;
+    out["tray2"] = t2;
+
+    out["tasks_done"] = b.tasks_done;
+    out["tasks_failed"] = b.tasks_failed;
+    out["last_result"] = b.last_result;
+    out["last_result_ok"] = b.last_result_ok;
+    out["last_error"] = b.last_error;
+
+    Json::Value events(Json::arrayValue);
+    for (const auto &e : b.events)
+    {
+        Json::Value ev;
+        ev["time"] = e.time;
+        ev["level"] = e.level;
+        ev["text"] = e.text;
+        events.append(ev);
+    }
+    out["events"] = events;
+    out["updated"] = b.updated;
+    return out;
+}
+
 Json::Value dispatch(const Json::Value &request)
 {
     const std::string cmd = request.get("cmd", "").asString();
     if (cmd == "ping")
         return reply(true);
-    if (cmd == "abort")
+    if (cmd == "abort" || cmd == "dispatch_exit")
     {
         g_abort.store(true);
         hardware_abort_request();
-        return reply(true);
+        Json::Value out = reply(true);
+        out["dispatch_exit"] = (cmd == "dispatch_exit");
+        if (cmd == "dispatch_exit")
+            out["message"] = "已请求退出调度（中止动作并离开调度模式）";
+        return out;
     }
+    if (cmd == "dispatch_status")
+        return dispatch_status_json();
 
     std::lock_guard<std::mutex> lock(g_hw_mu);
     g_abort.store(false);
@@ -275,9 +380,17 @@ Json::Value dispatch(const Json::Value &request)
         Json::Value out = reply(true);
         out["right_tcp_m_deg"] = pose_json(arm_get_tcp_pos(*g_arm_r));
         out["left_tcp_m_deg"] = pose_json(arm_get_tcp_pos(*g_arm_l));
-        out["grasped_right"] = g_session.last_grasped_r;
-        out["grasped_left"] = g_session.last_grasped_l;
+        out["grasped_right"] = orch::live_gripper_holding(true);
+        out["grasped_left"] = orch::live_gripper_holding(false);
+        out["latch_holding_right"] = g_session.last_grasped_r;
+        out["latch_holding_left"] = g_session.last_grasped_l;
         out["grasped_count"] = g_session.last_grasp_count;
+        if (g_grip)
+        {
+            out["gripper_q_right"] = g_grip->feedback(gripper::Side::Right).position_rad;
+            out["gripper_q_left"] = g_grip->feedback(gripper::Side::Left).position_rad;
+            out["gripper_hold_thresh"] = g_move_cfg.gripper_check.empty_q_rad;
+        }
         out["chassis_ok"] = g_session.last_chassis_ok;
         out["chassis_station"] = g_session.last_chassis_station;
         out["chassis_message"] = g_session.last_chassis_message;
@@ -420,6 +533,19 @@ Json::Value dispatch(const Json::Value &request)
             rc == 0, rc == 0 ? std::string() : ("抓取准备姿态失败/中止，code=" + std::to_string(rc)));
         out["code"] = rc;
         out["row_group"] = group;
+        if (g_session.layer3 != nullptr)
+        {
+            out["waist_x"] = (*g_session.layer3)(0);
+            out["waist_z"] = (*g_session.layer3)(2);
+        }
+        return out;
+    }
+    if (cmd == "waist_cycle")
+    {
+        const int rc = orch::go_waist_cycle();
+        Json::Value out = reply(
+            rc == 0, rc == 0 ? std::string() : ("腰循环测试失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
         if (g_session.layer3 != nullptr)
         {
             out["waist_x"] = (*g_session.layer3)(0);
@@ -698,6 +824,16 @@ Json::Value dispatch(const Json::Value &request)
         out["station"] = g_move_cfg.chassis.tray2_station;
         return out;
     }
+    if (cmd == "vision_grasp_once")
+    {
+        const int rc = orch::vision_grasp_once();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "抓一次料盘失败/中止" : "");
+        out["code"] = rc;
+        out["grasped_right"] = g_session.last_grasped_r;
+        out["grasped_left"] = g_session.last_grasped_l;
+        out["grasped_count"] = g_session.last_grasp_count;
+        return out;
+    }
     if (cmd == "vision_grasp")
     {
         const int rc = orch::vision_grasp_existing_pipeline(false);
@@ -779,6 +915,20 @@ Json::Value dispatch(const Json::Value &request)
         out["chassis_message"] = g_session.last_chassis_message;
         return out;
     }
+    if (cmd == "charge")
+    {
+        const int rc = orch::run_charge_test();
+        Json::Value out = reply(
+            rc == 0,
+            rc == 0 ? std::string()
+                    : (rc == -4 ? "充电测试已中止"
+                                : ("充电测试失败/中止，code=" + std::to_string(rc))));
+        out["code"] = rc;
+        out["chassis_ok"] = g_session.last_chassis_ok;
+        out["chassis_station"] = g_session.last_chassis_station;
+        out["chassis_message"] = g_session.last_chassis_message;
+        return out;
+    }
     if (cmd == "aruco_detect")
     {
         const int rc = orch::vision_aruco_detect_pipeline();
@@ -831,8 +981,14 @@ void handle_client(int fd)
     {
         try
         {
-            arm_arrival_log_clear();
-            write_json(fd, with_arm_arrivals(dispatch(request)));
+            const std::string cmd = request.get("cmd", "").asString();
+            if (cmd == "ping" || cmd == "abort" || cmd == "dispatch_status")
+                write_json(fd, dispatch(request));
+            else
+            {
+                arm_arrival_log_clear();
+                write_json(fd, with_arm_arrivals(dispatch(request)));
+            }
         }
         catch (const std::exception &ex)
         {

@@ -177,6 +177,12 @@ struct ChassisConfig
     std::string tray_station = "AP4";
     /** 调度刚启动时先到这里等任务。不替代料盘一，任务结束后的回位点仍是料架。 */
     std::string dispatch_wait_station = "AP14";
+    /** 调试指令 charge：调度未下发 charge_point 时去这里。调度 CHARGE 仍用系统下发的点。 */
+    std::string charge_station;
+    /** 调度充电结束后去这里待命（默认 AP12）。与 dispatch_wait_station（一般 AP14）分开。 */
+    std::string charge_wait_station = "AP12";
+    /** 调度充电：电量达到该百分比后汇报完成并停止充电。调试 charge 指令不等此项。 */
+    double charge_done_percent = 95.0;
     /** 第二个料盘（空孔放置）。调试指令 tray2 / tray2ready*。 */
     std::string tray2_station = "AP9";
     std::string belt_station = "AP6";
@@ -264,6 +270,16 @@ struct StaggerConfig
     double head_x_threshold = 0.80;
 };
 
+/** 合爪后按夹爪关节角判空抓。q 越小越合，0 为全合。 */
+struct GripperCheckConfig
+{
+    bool enable = true;
+    /** 合爪结束时 q < 该值算空抓；q >= 该值才算持件（夹零件约 ≥0.5，空爪常 ~0.3）。 */
+    double empty_q_rad = 0.5;
+    /** 同一只手连续空抓几次后停下报错，不再重抓。 */
+    int max_empty_retry = 2;
+};
+
 struct VisionDetectConfig
 {
     int head_grasp = 1;
@@ -308,6 +324,7 @@ struct MoveBoxConfig
     StaggerConfig stagger;
     VisionDetectConfig vision_detect;
     CameraStreamConfig cameras;
+    GripperCheckConfig gripper_check;
 };
 
 extern MoveBoxConfig g_move_cfg;
