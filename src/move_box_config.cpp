@@ -572,9 +572,12 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(root["stagger"], "head_x_threshold", cfg.stagger.head_x_threshold);
         read_value(root["gripper_check"], "enable", cfg.gripper_check.enable);
         read_value(root["gripper_check"], "empty_q_rad", cfg.gripper_check.empty_q_rad);
+        read_value(root["gripper_check"], "hold_q_max_rad", cfg.gripper_check.hold_q_max_rad);
         read_value(root["gripper_check"], "max_empty_retry", cfg.gripper_check.max_empty_retry);
         if (cfg.gripper_check.max_empty_retry < 0)
             cfg.gripper_check.max_empty_retry = 0;
+        if (cfg.gripper_check.hold_q_max_rad < cfg.gripper_check.empty_q_rad)
+            cfg.gripper_check.hold_q_max_rad = cfg.gripper_check.empty_q_rad;
         read_value(root["cameras"], "width", cfg.cameras.width);
         read_value(root["cameras"], "height", cfg.cameras.height);
         read_value(root["cameras"], "head_fps", cfg.cameras.head_fps);

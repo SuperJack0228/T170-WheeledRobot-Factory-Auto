@@ -364,6 +364,16 @@ Json::Value dispatch(const Json::Value &request)
     }
     if (cmd == "dispatch_status")
         return dispatch_status_json();
+    // 充电/调度占用 g_hw_mu 时也要能热更新阈值等参数，不能等任务结束。
+    if (cmd == "reload_config")
+    {
+        std::string err;
+        if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
+            return reply(false, err);
+        Json::Value out = reply(true);
+        out["charge_done_percent"] = g_move_cfg.chassis.charge_done_percent;
+        return out;
+    }
 
     std::lock_guard<std::mutex> lock(g_hw_mu);
     g_abort.store(false);
@@ -423,13 +433,6 @@ Json::Value dispatch(const Json::Value &request)
             }
         }
         return out;
-    }
-    if (cmd == "reload_config")
-    {
-        std::string err;
-        if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
-            return reply(false, err);
-        return reply(true);
     }
     if (cmd == "home")
     {

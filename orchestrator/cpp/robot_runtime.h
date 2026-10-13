@@ -131,7 +131,7 @@ void start_chassis_status_reporter();
 int vision_aruco_detect_pipeline();
 int vision_tray_holes_pipeline();
 
-/** 界面用：按实时夹爪 q 判持件（q ≥ gripper_check.empty_q_rad）。无反馈时回退到 last_grasped。 */
+/** 界面用：实时 q 在 [empty_q_rad, hold_q_max_rad] 算持件；张开的高 q 不算。无反馈回退 last_grasped。 */
 bool live_gripper_holding(bool is_right);
 /** 松爪/放置后清流程闩锁 last_grasped（不影响实时 q 显示）。 */
 void clear_last_grasped(bool right, bool left);

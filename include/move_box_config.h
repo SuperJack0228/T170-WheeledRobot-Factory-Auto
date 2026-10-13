@@ -270,12 +270,17 @@ struct StaggerConfig
     double head_x_threshold = 0.80;
 };
 
-/** 合爪后按夹爪关节角判空抓。q 越小越合，0 为全合。 */
+/** 合爪后按夹爪关节角判空抓。q 越小越合，0 为全合，约 5.5 全开。 */
 struct GripperCheckConfig
 {
     bool enable = true;
-    /** 合爪结束时 q < 该值算空抓；q >= 该值才算持件（夹零件约 ≥0.5，空爪常 ~0.3）。 */
+    /** 合爪结束：q < 该值算空抓；q >= 该值算夹到件。 */
     double empty_q_rad = 0.5;
+    /**
+     * 界面实时持件上界。夹零件约 0.8～1.6；松爪/准备态约 4.3～5.5。
+     * 仅当 empty_q_rad ≤ q ≤ hold_q_max_rad 才显示持件。
+     */
+    double hold_q_max_rad = 3.0;
     /** 同一只手连续空抓几次后停下报错，不再重抓。 */
     int max_empty_retry = 2;
 };

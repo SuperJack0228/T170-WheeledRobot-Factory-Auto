@@ -697,8 +697,12 @@ bool live_gripper_holding(bool is_right)
         g_hw->g->feedback(is_right ? gripper::Side::Right : gripper::Side::Left);
     if (!fb.have_feedback)
         return latch;
-    // 与空抓判定同一阈值：q >= empty_q_rad 才算夹着零件。
-    return fb.position_rad >= g_move_cfg.gripper_check.empty_q_rad;
+    // q：0=全合，≈5.5=全开。夹零件约 0.8～1.6；松爪/准备态约 4.3～5.5；空抓合到底约 0.03。
+    // 实时持件必须落在 [empty_q_rad, hold_q_max_rad]，张开的高 q 不能算持件。
+    const double q = fb.position_rad;
+    const double q_lo = g_move_cfg.gripper_check.empty_q_rad;
+    const double q_hi = g_move_cfg.gripper_check.hold_q_max_rad;
+    return q >= q_lo && q <= q_hi;
 }
 
 void clear_last_grasped(bool right, bool left)
@@ -4554,22 +4558,24 @@ int run_charge_flow(RobotClient *client, bool stop_when_charging)
         last_done_pct = done_pct;
         const int pct_i = static_cast<int>(std::lround(pct));
         const int done_i = static_cast<int>(std::lround(done_pct));
-        if (done_i != shown_done_pct)
+        const bool thresh_changed = (done_i != shown_done_pct);
+        if (thresh_changed)
         {
             shown_done_pct = done_i;
-            std::cout << "[dispatch] 充电结束阈值 " << done_i << "%\n";
+            std::cout << "[dispatch] 充电结束阈值热更新为 " << done_i << "%\n";
         }
         if (pct_i != shown_pct)
         {
             shown_pct = pct_i;
             std::cout << "[dispatch] 充电中 电量 " << pct_i << "%（阈值 " << done_i << "%）"
                       << (charging ? "，充电继电器吸合" : "，尚未充电") << "\n";
-            if (std::abs(pct_i - board_pct) >= 5)
-            {
-                board_pct = pct_i;
-                board_activity(std::string(charging ? "充电中" : "等待充电吸合") + " 电量 " +
-                               std::to_string(pct_i) + "% / 阈值 " + std::to_string(done_i) + "%");
-            }
+        }
+        // 电量跳 5% 或阈值被热更新时，立刻刷新调度监控文案。
+        if (thresh_changed || std::abs(pct_i - board_pct) >= 5)
+        {
+            board_pct = pct_i;
+            board_activity(std::string(charging ? "充电中" : "等待充电吸合") + " 电量 " +
+                           std::to_string(pct_i) + "% / 阈值 " + std::to_string(done_i) + "%");
         }
         if (!stop_when_charging && pct >= done_pct)
             break;
@@ -5050,13 +5056,19 @@ static int run_dispatch_mode_body()
         take_cached_or_standby();
         return 0;
     };
-    // 充完电：手臂回 home_tcp、腰高不动，底盘去 charge_wait_station（默认 AP12）。
+    // 充完电：手臂回 home_tcp、腰高不动，底盘去 charge_wait_station（默认 AP12）等指令。
+    // 在 AP12 待命期间断线重连也留在这里，不要自动改去 AP14。
+    bool post_charge_standby = false;
+    auto charge_wait_name = [&]() -> std::string {
+        return g_move_cfg.chassis.charge_wait_station.empty()
+                   ? "AP12"
+                   : g_move_cfg.chassis.charge_wait_station;
+    };
     auto recover_after_charge = [&]() -> int {
-        wait_station = g_move_cfg.chassis.charge_wait_station.empty()
-                           ? "AP12"
-                           : g_move_cfg.chassis.charge_wait_station;
+        post_charge_standby = true;
+        wait_station = charge_wait_name();
         std::cout << "[dispatch] 充电完成 → 手臂 home_tcp（腰高不变）→ " << wait_station
-                  << " 待命\n";
+                  << " 等指令（不回 AP14）\n";
         board_activity("充电完成，手臂回 home_tcp（腰高不变）");
         if (g_body_disabled_for_charge)
         {
@@ -5071,7 +5083,7 @@ static int run_dispatch_mode_body()
             return home_rc;
         if (hardware_abort_requested())
             return -4;
-        board_activity("去充电待命点 " + wait_station);
+        board_activity("去 " + wait_station + " 等指令");
         {
             ChassisTravel travel(wait_station);
             const int nav_rc = travel.join();
@@ -5081,6 +5093,14 @@ static int run_dispatch_mode_body()
         if (hardware_abort_requested())
             return -4;
         take_cached_or_standby();
+        // 没有缓存任务时：待命点固定为 charge_wait（AP12），不要被其它站名带去 AP14。
+        if (mission.empty())
+        {
+            wait_station = charge_wait_name();
+            if (g_hw != nullptr)
+                g_hw->last_chassis_station = wait_station;
+            board_activity("在 " + wait_station + " 等待任务");
+        }
         return 0;
     };
     dispatch_report_state(client, dispatch_msg::STANDBY);
@@ -5143,6 +5163,18 @@ static int run_dispatch_mode_body()
             return -4;
         if (mission.empty())
         {
+            if (post_charge_standby)
+            {
+                // 充完电在 AP12 等指令：断线只重连，不改去 AP14。
+                wait_station = charge_wait_name();
+                std::cerr << "[dispatch] 充电待命断线，仍在 " << wait_station << " 重连等指令\n";
+                board_link("断线，仍在 " + wait_station + " 等指令");
+                board_activity("在 " + wait_station + " 等待任务");
+                if (!box.running)
+                    inbox_start(box, client);
+                dispatch_report_state(client, dispatch_msg::STANDBY);
+                continue;
+            }
             std::cerr << "[dispatch] 调度断线或没有任务，回 home → " << wait_station << "\n";
             board_link("断线，回 AP14 待命");
             const int r = recover_home_ap14("调度断线或无任务");
@@ -5153,6 +5185,7 @@ static int run_dispatch_mode_body()
         std::cout << "[dispatch] 收到任务 " << mission << "\n";
         const std::string current = mission;
         mission.clear();
+        post_charge_standby = false;
         board_command(current);
         if (current != dispatch_msg::TASK_LOAD && current != dispatch_msg::TASK_TRANSFER &&
             current != dispatch_msg::TASK_UNLOAD && current != dispatch_msg::TASK_CHARGE)
@@ -5208,16 +5241,20 @@ static int run_dispatch_mode_body()
                     return r;
                 continue;
             }
-            if (rc != 0)
+            // 已达阈值并 mission_done 后，停充失败（-6）或汇报失败（-7）仍去 AP12 等指令。
+            if (rc == 0 || rc == -6 || rc == -7)
             {
-                board_mission_end(false, "充电未完成 code=" + std::to_string(rc));
-                const int r = recover_home_ap14("充电未完成 code=" + std::to_string(rc));
+                board_mission_end(rc == 0, rc == 0
+                                               ? ("充电完成，用时 " + spent_text())
+                                               : ("充电收尾异常 code=" + std::to_string(rc) +
+                                                  "，仍去 " + charge_wait_name() + " 等指令"));
+                const int r = recover_after_charge();
                 if (r != 0)
                     return r;
                 continue;
             }
-            board_mission_end(true, "充电完成，用时 " + spent_text());
-            const int r = recover_after_charge();
+            board_mission_end(false, "充电未完成 code=" + std::to_string(rc));
+            const int r = recover_home_ap14("充电未完成 code=" + std::to_string(rc));
             if (r != 0)
                 return r;
             continue;
