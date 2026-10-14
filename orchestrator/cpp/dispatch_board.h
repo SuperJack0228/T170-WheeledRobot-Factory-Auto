@@ -26,7 +26,7 @@ struct DispatchBoard
 
     /** 和调度系统的连接：等待任务 / 执行任务 / 断线重试 */
     std::string link;
-    /** 最近一次上报给调度的本机状态，STANDBY / WORKING / ERR_* */
+    /** 本机流程状态，STANDBY / WORKING / ERR_*。1.8 调度库不接收这些名字。 */
     std::string robot_state;
     bool robot_state_ok = true;
     std::string robot_state_time;

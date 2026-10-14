@@ -294,7 +294,7 @@ std::vector<std::string> steps_for(const std::string &mission)
     if (mission == "TASK_UNLOAD")
         return {"去传送带二", "左手申请抓取", "右手申请抓取", "去料盘二", "料盘二放置", "汇报完成"};
     if (mission == "CHARGE")
-        return {"上报去充电", "整机 home", "去等待点", "挥手下垂", "腰降抓取高",
+        return {"准备去充电", "整机 home", "去等待点", "挥手下垂", "腰降抓取高",
                 "失能电机", "去充电路上", "去充电点", "充电中", "汇报完成"};
     if (mission == "CHARGE_TEST")
         return {"整机 home", "去等待点", "挥手下垂", "腰降抓取高", "失能电机", "去充电路上",
@@ -418,8 +418,8 @@ void board_state(const std::string &state, bool sent_ok)
         const bool err = state.rfind("ERR_", 0) == 0;
         line = push_event_locked(
             !sent_ok || err ? "error" : "info",
-            "上报状态 " + state + "（" + dispatch_state_zh(state) + "）" +
-                (sent_ok ? "" : " 发送失败"));
+            "本机状态 " + state + "（" + dispatch_state_zh(state) + "）" +
+                (sent_ok ? "" : " 未记下"));
     }
     emit(line);
 }

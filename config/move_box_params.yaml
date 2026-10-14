@@ -356,6 +356,7 @@ chassis:
   robot_type: T170C2.0
   sequence_number: "TH-T170C-0124"
   tray_station: AP7
+  # 调度 1.8 若下发 standby_point，无任务去那个点；还没有时才用这里。
   dispatch_wait_station: AP14
   # 调试指令 charge 用的充电点。调度 CHARGE 仍用系统下发的 charge_point。
   charge_station: CP11

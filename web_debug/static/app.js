@@ -236,7 +236,7 @@ function renderDispatch(d) {
   return `
     <div class="tiles four">
       ${tile("调度模式", d.active ? "调度中" : "未进入", d.active ? `${d.server} · ${d.robot}` : "按下面“进入调度”开始", d.active ? "ok" : "idle")}
-      ${tile("本机状态", d.robot_state_zh || "未上报", stateSub, d.robot_state_ok === false ? "bad" : stateTone(d.robot_state))}
+      ${tile("本机状态", d.robot_state_zh || "未记录", stateSub, d.robot_state_ok === false ? "bad" : stateTone(d.robot_state))}
       ${tile("调度连接", d.link || "—", d.started_at ? `进入于 ${d.started_at}` : "", linkTone)}
       ${tile("底盘位置", station, stationSub, d.target_station ? "info" : "idle")}
     </div>

@@ -151,3 +151,74 @@ set_target_properties(t170c_debug PROPERTIES
     BUILD_RPATH_USE_ORIGIN ON
 )
 target_link_options(t170c_debug PRIVATE "-Wl,--disable-new-dtags")
+
+add_executable(arm_plane_repeat
+    orchestrator/cpp/arm_repeat_main.cpp
+    orchestrator/cpp/robot_runtime.cpp
+    orchestrator/cpp/dispatch_board.cpp
+    src/grasp_to_standby.cpp
+    src/function.cpp
+    src/waist.cpp
+    src/Ti5_socketcan.cpp
+    src/gripper_interface.cpp
+    src/realsense_get.cpp
+    src/seg_pose_bridge.cpp
+    src/move_box_config.cpp
+    src/move_box_runtime.cpp
+    src/head_cam2robot.cpp
+    src/head_control.cpp
+)
+target_include_directories(arm_plane_repeat PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/eigen3
+    ${PROJECT_SOURCE_DIR}/third_party/dex1/include
+    ${TI5_DEVICE_SDK_ROOT}/include
+    ${TI5_AGV_SEER_ROOT}/include
+    ${TI5_JINDI_CLIENT_ROOT}/include
+    ${JSONCPP_INCLUDE_DIRS}
+    ${REALSENSE2_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/third_party/libserialport/include
+)
+target_compile_definitions(arm_plane_repeat PRIVATE
+    SEG_POSE_CONDA_PREFIX="${HUMAN_INTERACTION_ENV_ROOT}"
+)
+target_link_directories(arm_plane_repeat PRIVATE
+    ${PROJECT_SOURCE_DIR}/lib
+    /usr/local/lib
+    ${TI5_DEVICE_SDK_ROOT}/lib
+    ${TI5_MOTOR_CODEC_ROOT}/lib
+    ${TI5_SERIAL_ROOT}/lib
+    ${TI5_CAN_MINI_ROOT}/lib
+    ${TI5_ROHAND_CODEC_ROOT}/lib
+    ${TI5_DEX1_CODEC_ROOT}/lib
+    ${TI5_AGV_SEER_ROOT}/lib
+    ${TI5_JINDI_CLIENT_ROOT}/lib
+)
+target_link_libraries(arm_plane_repeat PRIVATE
+    LowerBody::lower_body
+    ${TI5_ARM_SOLVER_LIB}
+    ${UNITREE_MOTOR_LIB}
+    ${TI5_DEVICE_SDK_LIB}
+    ${TI5_AGV_SEER_LIB}
+    ${TI5_JINDI_CLIENT_LIB}
+    ${TI5_MOTOR_CODEC_LIB}
+    ${TI5_ROHAND_CODEC_LIB}
+    ${TI5_DEX1_CODEC_LIB}
+    ${TI5_SERIAL_SDK_LIB}
+    ${SERIALPORT_LIB}
+    Threads::Threads
+    ${CMAKE_DL_LIBS}
+    ${JSONCPP_LIBRARIES}
+    ${OpenCV_LIBS}
+    yaml-cpp
+    ${REALSENSE2_LIBRARIES}
+    pybind11::embed
+    Python3::Python
+)
+set_target_properties(arm_plane_repeat PROPERTIES
+    BUILD_RPATH "${PROJECT_SOURCE_DIR}/lib:${PROJECT_SOURCE_DIR}/third_party/libserialport/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
+    INSTALL_RPATH "${PROJECT_SOURCE_DIR}/lib:${PROJECT_SOURCE_DIR}/third_party/libserialport/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
+    BUILD_RPATH_USE_ORIGIN ON
+)
+target_link_options(arm_plane_repeat PRIVATE "-Wl,--disable-new-dtags")

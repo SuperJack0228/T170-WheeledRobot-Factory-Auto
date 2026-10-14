@@ -175,7 +175,7 @@ FIELD_GROUPS = {
             ("chassis.belt_station", "传送带一", ""),
             ("chassis.out_station", "传送带二", ""),
             ("chassis.tray2_station", "料盘二", ""),
-            ("chassis.dispatch_wait_station", "调度等待点（失败/无任务回这里）", ""),
+            ("chassis.dispatch_wait_station", "调度未下发待命点时，失败/无任务回这里", ""),
             ("chassis.charge_station", "调试充电点（charge 指令；调度仍用系统下发点）", ""),
             ("chassis.charge_wait_station", "充完电后待命点", ""),
             ("chassis.charge_done_percent", "调度充电结束电量阈值", "%"),

@@ -15,8 +15,11 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include <cerrno>
 
 #include <atomic>
 #include <cmath>
@@ -376,8 +379,20 @@ Json::Value dispatch(const Json::Value &request)
     }
 
     std::lock_guard<std::mutex> lock(g_hw_mu);
+    if (app_stop_requested())
+    {
+        g_abort.store(true);
+        hardware_abort_request();
+        return reply(false, "进程正在退出");
+    }
     g_abort.store(false);
     hardware_abort_clear();
+    if (app_stop_requested())
+    {
+        g_abort.store(true);
+        hardware_abort_request();
+        return reply(false, "进程正在退出");
+    }
     can_io_fault_clear();
     can_io_watch_begin();
     struct WatchEnd
@@ -966,6 +981,62 @@ Json::Value dispatch(const Json::Value &request)
     return reply(false, "未知命令: " + cmd);
 }
 
+[[noreturn]] void shutdown_process(int code)
+{
+    static std::atomic<int> once{0};
+    if (once.exchange(1) != 0)
+        _Exit(code);
+
+    // 先打标：清理若卡在 close()，再按一次 Ctrl+C 才会硬退出。
+    mark_app_cleanup_started();
+    g_abort.store(true);
+    hardware_abort_request();
+    request_app_stop();
+    std::cerr << "[t170c_debug] 正在退出，释放 CAN\n" << std::flush;
+
+    // 持锁直到进程结束，避免已排队的客户端在 close() 之后再写电机。
+    g_hw_mu.lock();
+    try
+    {
+        if (g_grip)
+            g_grip->stop();
+        if (g_pipeline)
+        {
+            if (Py_IsInitialized())
+            {
+                pybind11::gil_scoped_acquire gil;
+                g_pipeline->shutdown(false);
+            }
+            else
+                g_pipeline->shutdown(false);
+        }
+        close_can_channels();
+    }
+    catch (const std::exception &ex)
+    {
+        std::cerr << "[t170c_debug] 退出清理异常: " << ex.what() << "\n";
+        try
+        {
+            close_can_channels();
+        }
+        catch (...)
+        {
+        }
+    }
+    catch (...)
+    {
+        try
+        {
+            close_can_channels();
+        }
+        catch (...)
+        {
+        }
+    }
+    std::cerr << "[t170c_debug] CAN 已释放\n" << std::flush;
+    _Exit(code);
+}
+
 void handle_client(int fd)
 {
     std::string line;
@@ -1005,43 +1076,73 @@ void handle_client(int fd)
 
 int main(int argc, char **argv)
 {
-    int port = 8099;
-    for (int i = 1; i + 1 < argc; ++i)
-        if (std::string(argv[i]) == "--port")
-            port = std::atoi(argv[++i]);
-
-    install_app_sigint_handler();
-    std::string error;
-    if (!init_hardware(error))
+    try
     {
-        std::cerr << "[t170c_debug] 初始化失败: " << error << "\n";
-        return 1;
-    }
+        int port = 8099;
+        for (int i = 1; i + 1 < argc; ++i)
+            if (std::string(argv[i]) == "--port")
+                port = std::atoi(argv[++i]);
 
-    const int server = ::socket(AF_INET, SOCK_STREAM, 0);
-    int yes = 1;
-    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    sockaddr_in address{};
-    address.sin_family = AF_INET;
-    address.sin_port = htons(static_cast<uint16_t>(port));
-    inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
-    if (bind(server, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0 || listen(server, 8) != 0)
-    {
-        std::cerr << "[t170c_debug] 无法监听 127.0.0.1:" << port << "\n";
-        return 1;
-    }
+        install_app_sigint_handler();
+        std::string error;
+        if (!init_hardware(error))
+        {
+            std::cerr << "[t170c_debug] 初始化失败: " << error << "\n";
+            shutdown_process(1);
+        }
 
-    orch::start_chassis_status_reporter();
-    std::cerr << "T170C_DEBUG_READY port=" << port << " chassis=" << g_move_cfg.chassis.host
-              << " belt=" << g_move_cfg.chassis.belt_station
-              << " out=" << g_move_cfg.chassis.out_station << "\n";
-    pybind11::gil_scoped_release release_gil;
-    while (!app_stop_requested())
-    {
-        const int client = accept(server, nullptr, nullptr);
-        if (client >= 0)
-            std::thread(handle_client, client).detach();
+        const int server = ::socket(AF_INET, SOCK_STREAM, 0);
+        int yes = 1;
+        setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_port = htons(static_cast<uint16_t>(port));
+        inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+        if (bind(server, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0 || listen(server, 8) != 0)
+        {
+            std::cerr << "[t170c_debug] 无法监听 127.0.0.1:" << port << "\n";
+            if (server >= 0)
+                ::close(server);
+            shutdown_process(1);
+        }
+
+        orch::start_chassis_status_reporter();
+        std::cerr << "T170C_DEBUG_READY port=" << port << " chassis=" << g_move_cfg.chassis.host
+                  << " belt=" << g_move_cfg.chassis.belt_station
+                  << " out=" << g_move_cfg.chassis.out_station << "\n";
+        {
+            pybind11::gil_scoped_release release_gil;
+            while (!app_stop_requested())
+            {
+                pollfd pfd{};
+                pfd.fd = server;
+                pfd.events = POLLIN;
+                const int pr = ::poll(&pfd, 1, 200);
+                if (pr < 0)
+                {
+                    if (errno == EINTR)
+                        continue;
+                    std::cerr << "[t170c_debug] poll 失败\n";
+                    break;
+                }
+                if (pr == 0 || app_stop_requested())
+                    continue;
+                const int client = ::accept(server, nullptr, nullptr);
+                if (client >= 0)
+                    std::thread(handle_client, client).detach();
+            }
+        }
+        ::close(server);
+        shutdown_process(app_stop_requested() ? 130 : 0);
     }
-    ::close(server);
-    return 0;
+    catch (const std::exception &ex)
+    {
+        std::cerr << "[t170c_debug] 未捕获异常: " << ex.what() << "\n";
+        shutdown_process(1);
+    }
+    catch (...)
+    {
+        std::cerr << "[t170c_debug] 未捕获异常\n";
+        shutdown_process(1);
+    }
 }

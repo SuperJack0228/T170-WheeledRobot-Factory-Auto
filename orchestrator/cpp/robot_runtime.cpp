@@ -74,7 +74,7 @@ constexpr int kDefaultPort = 8080;
 } // namespace dispatch_msg
 
 HwSession *g_hw = nullptr;
-/** 料盘/传送带二维码解算失败（调度里会上报后重新申请并重试）。 */
+/** 料盘/传送带二维码解算失败（记下本机异常后重新申请并重试）。 */
 constexpr int kVisionQrFail = 10;
 /** 二维码解算失败后，最多再申请并重试几次（不含第一次）。 */
 constexpr int kDispatchQrRetry = 3;
@@ -352,11 +352,14 @@ std::string chassis_location_station()
     return cur;
 }
 
-void publish_dispatch_pose(double x, double y, double angle)
+void publish_dispatch_pose(double x, double y, double angle, const std::string &station = {})
 {
     RobotClient::x = static_cast<float>(x);
     RobotClient::y = static_cast<float>(y);
     RobotClient::angle = static_cast<float>(angle);
+    // 1.8：POSE 带 current_point。空站名不覆盖上一次，避免定位短暂失败把点位清掉。
+    if (!station.empty())
+        RobotClient::current_point = station;
 }
 
 void publish_dispatch_battery(double level)
@@ -382,7 +385,7 @@ void chassis_status_loop()
             int loc_state = 0;
             bool in_forbidden = false;
             if (robot.GetLocation(x, y, angle, cur, last, confidence, loc_state, in_forbidden) == 0)
-                publish_dispatch_pose(x, y, angle);
+                publish_dispatch_pose(x, y, angle, cur);
             double level = 0, voltage = 0, current = 0, temp = 0;
             bool charging = false;
             int cycle = 0;
@@ -442,7 +445,7 @@ int chassis_goto_station(
     bool in_forbidden = false;
     int loc_rc = robot.GetLocation(x, y, angle, cur, last, confidence, loc_state, in_forbidden);
     if (loc_rc == 0)
-        publish_dispatch_pose(x, y, angle);
+        publish_dispatch_pose(x, y, angle, cur);
     if (loc_rc == 0 && station_name_matches(cur, station))
     {
         std::cout << "[orch] 底盘已在 " << cur << "，不再发导航\n";
@@ -1502,8 +1505,8 @@ int go_belt()
     return go_belt_station(g_move_cfg.conveyor, "belt");
 }
 
-/** 传送带重抓几次后仍空抓。 */
-constexpr int kBeltGraspEmpty = 10;
+/** 传送带重抓几次后仍空抓。不能用 10，那是 kVisionQrFail。 */
+constexpr int kBeltGraspEmpty = 11;
 constexpr int kEmptyRight = 1;
 constexpr int kEmptyLeft = 2;
 
@@ -3716,7 +3719,9 @@ constexpr int kDispatchApplyTimeoutMs = 20000;
 /** 子任务完成后，原地听下一条任务的最长时间；超时再 home→AP14。 */
 constexpr int kDispatchNextMissionWaitMs = 20000;
 constexpr int kDispatchHandSkipped = 8;
-/** 申请超时或手里还有件但这次没放成：原地待命，不报完成，也不回料盘再抓。 */
+/** 申请已经等满仍没许可。放置改为直接放，抓取改为跳过这只手并继续任务。 */
+constexpr int kDispatchApplyTimeout = 6;
+/** 手里还有件但这次没放成（例如二维码连续失败）：原地待命，不报完成。 */
 constexpr int kDispatchHoldStay = 9;
 constexpr int kDispatchPointsMissing = 7;
 
@@ -3738,7 +3743,9 @@ TaskPoints read_task_points()
     std::cout << "[dispatch] 调度点位 上料架=" << p.raw
               << " 上料点=" << p.load
               << " 下料点=" << p.unload
-              << " 下料架=" << p.well << "\n";
+              << " 下料架=" << p.well
+              << " 待命点=" << RobotClient::standby_point
+              << " 充电点=" << RobotClient::charge_point << "\n";
     return p;
 }
 
@@ -3787,17 +3794,24 @@ int dispatch_back_to_tray(bool watch_obstacle = false)
     return ch_rc;
 }
 
-bool dispatch_report_state(RobotClient &client, const std::string &state)
+/** 1.8 库没有 report_state。STANDBY / WORKING / 充电过程 / ERR_* 只留在本机面板。
+ *  调度靠 POSE 里的 current_point 知道人在哪个点。 */
+void dispatch_note_state(const std::string &state)
 {
-    std::cout << "[dispatch] 上报状态 " << state << "\n";
-    const bool ok = client.report_state(state);
-    board_state(state, ok);
-    if (!ok)
-    {
-        std::cerr << "[dispatch] 上报状态 " << state << " 失败\n";
-        return false;
-    }
-    return true;
+    std::cout << "[dispatch] 本机状态 " << state
+              << "（调度 1.8 不接收该状态，站点随 POSE 的 current_point 上报）\n";
+    board_state(state, true);
+}
+
+/** 无任务时去的点：调度下发的 standby_point 优先，否则 yaml 的 dispatch_wait_station。
+ *  收到 CHARGE 时库会清空 standby_point，那时自然回到 yaml。 */
+std::string dispatch_idle_station()
+{
+    if (!RobotClient::standby_point.empty())
+        return RobotClient::standby_point;
+    if (!g_move_cfg.chassis.dispatch_wait_station.empty())
+        return g_move_cfg.chassis.dispatch_wait_station;
+    return g_move_cfg.chassis.tray_station;
 }
 
 bool dispatch_apply(
@@ -3813,12 +3827,13 @@ bool dispatch_apply(
 void dispatch_report_qr_fail(RobotClient &client, const char *what)
 {
     const std::string msg = std::string(what) + " 二维码解算失败";
-    std::cerr << "[dispatch] " << msg << "，上报 " << dispatch_msg::ERR_CAMERA
-              << " 后重新申请执行\n";
+    std::cerr << "[dispatch] " << msg << "，记下 " << dispatch_msg::ERR_CAMERA
+              << " 后重新申请执行（该状态不发给调度）\n";
     board_error(msg);
-    board_note("warn", "上报解算失败，重新申请执行任务");
-    dispatch_report_state(client, dispatch_msg::ERR_CAMERA);
-    dispatch_report_state(client, dispatch_msg::WORKING);
+    board_note("warn", "二维码解算失败，重新申请执行任务");
+    (void)client;
+    dispatch_note_state(dispatch_msg::ERR_CAMERA);
+    dispatch_note_state(dispatch_msg::WORKING);
 }
 
 int dispatch_reapply_after_qr(
@@ -3829,8 +3844,9 @@ int dispatch_reapply_after_qr(
     if (!dispatch_apply(request, grant, what, apply_fn))
     {
         std::cout << "[dispatch] " << what
-                  << " 解算失败后重新申请 20s 未允许，原地待命\n";
-        return kDispatchHoldStay;
+                  << " 重新申请超时，不再等待许可\n";
+        board_note("warn", std::string(what) + " 重新申请超时，不再等待许可");
+        return kDispatchApplyTimeout;
     }
     std::cout << "[dispatch] " << what << " 已重新获准，再次执行\n";
     return 0;
@@ -3841,7 +3857,7 @@ int dispatch_wait_system(RobotClient &client, const std::string &state)
     std::cerr << "[dispatch] 异常 " << state << "，停止动作，保持连接等待系统处理\n";
     board_error("异常 " + state + "（" + dispatch_state_zh(state) + "），停止动作，等待系统处理");
     board_activity("异常停机，等待系统处理");
-    dispatch_report_state(client, state);
+    dispatch_note_state(state);
     while (!hardware_abort_requested())
         hardware_abort_sleep_ms(500);
     return -4;
@@ -4017,8 +4033,13 @@ int dispatch_pick_one(
             if (!dispatch_apply(request_state, grant_state, done_what, raw_apply))
             {
                 std::cout << "[dispatch] " << done_what
-                          << " 申请 20s 未允许，原地待命，不继续抓取\n";
-                return kDispatchHoldStay;
+                          << " 申请超时，不抓这只手，发送 "
+                          << dispatch_msg::PICK_UP_DONE << " 后继续任务\n";
+                board_note("warn", std::string(done_what) + " 申请超时，跳过这只手并继续任务");
+                const int note_rc = dispatch_report(client, DispatchNote::PickHand, done_what);
+                if (note_rc != 0)
+                    return note_rc;
+                return 0;
             }
             std::cout << "[dispatch] 已收到 " << grant_state << "，" << done_what << " 放行\n";
         }
@@ -4038,8 +4059,12 @@ int dispatch_pick_one(
         if (rc == kBeltGraspEmpty)
         {
             std::cerr << "[dispatch] " << done_what
-                      << " 重抓后仍空抓，不汇报 PICK_UP_DONE，原地待命\n";
-            return kDispatchHoldStay;
+                      << " 没抓到，仍发送 " << dispatch_msg::PICK_UP_DONE
+                      << "，避免卡住传送带\n";
+            const int note_rc = dispatch_report(client, DispatchNote::PickHand, done_what);
+            if (note_rc != 0)
+                return note_rc;
+            return 0;
         }
         if (rc != kVisionQrFail)
             return rc;
@@ -4051,6 +4076,16 @@ int dispatch_pick_one(
         }
         const int re_rc = dispatch_reapply_after_qr(
             client, request_state, grant_state, done_what, raw_apply);
+        if (re_rc == kDispatchApplyTimeout)
+        {
+            std::cout << "[dispatch] " << done_what
+                      << " 重新申请超时，不抓这只手，发送 "
+                      << dispatch_msg::PICK_UP_DONE << " 后继续任务\n";
+            const int note_rc = dispatch_report(client, DispatchNote::PickHand, done_what);
+            if (note_rc != 0)
+                return note_rc;
+            return 0;
+        }
         if (re_rc != 0)
             return re_rc;
         // 已在 reapply 里申请成功，下一轮不再重复申请。
@@ -4075,8 +4110,8 @@ int dispatch_place_belt(
     auto raw_apply = [&]() { return apply_place(client, kDispatchApplyTimeoutMs); };
     bool need_apply = !already_granted;
     if (already_granted)
-        std::cout << "[dispatch] " << place_what << " 的 " << grant_state
-                  << " 已在料盘抓完后收到，底盘停稳后再拍照放置\n";
+        std::cout << "[dispatch] " << place_what
+                  << " 的申请已在来的路上结束，底盘停稳后拍照放置\n";
     for (int attempt = 0;; ++attempt)
     {
         if (need_apply)
@@ -4086,11 +4121,12 @@ int dispatch_place_belt(
             if (!dispatch_apply(request_state, grant_state, place_what, raw_apply))
             {
                 std::cout << "[dispatch] " << place_what
-                          << " 申请 20s 未允许，原地待命，不放置，不报完成\n";
-                return kDispatchHoldStay;
+                          << " 申请超时，不再等待，直接放置\n";
+                board_note("warn", std::string(place_what) + " 申请超时，直接放置");
             }
-            std::cout << "[dispatch] 已收到 " << grant_state << "，" << place_what
-                      << " 放行\n";
+            else
+                std::cout << "[dispatch] 已收到 " << grant_state << "，" << place_what
+                          << " 放行\n";
         }
         need_apply = true;
         bool reported = false;
@@ -4135,7 +4171,12 @@ int dispatch_place_belt(
             }
             const int re_rc = dispatch_reapply_after_qr(
                 client, request_state, grant_state, place_what, raw_apply);
-            if (re_rc != 0)
+            if (re_rc == kDispatchApplyTimeout)
+            {
+                std::cout << "[dispatch] " << place_what
+                          << " 重新申请超时，直接再放一次\n";
+            }
+            else if (re_rc != 0)
                 return re_rc;
             need_apply = false;
             continue;
@@ -4286,10 +4327,11 @@ int place_while_driving(
     if (!granted.load())
     {
         std::cout << "[dispatch] " << place_what
-                  << " 申请 20s 未允许，原地待命，不放置，不报完成\n";
-        return kDispatchHoldStay;
+                  << " 申请超时，不再等待，直接放置\n";
+        board_note("warn", std::string(place_what) + " 申请超时，直接放置");
     }
-    std::cout << "[dispatch] 已收到 " << grant_state << "，" << place_what << " 放行\n";
+    else
+        std::cout << "[dispatch] 已收到 " << grant_state << "，" << place_what << " 放行\n";
     auto raw_apply = [&]() { return apply_place(client, kDispatchApplyTimeoutMs); };
     for (int attempt = 0;; ++attempt)
     {
@@ -4306,7 +4348,10 @@ int place_while_driving(
             }
             const int re_rc = dispatch_reapply_after_qr(
                 client, request_state, grant_state, place_what, raw_apply);
-            if (re_rc != 0)
+            if (re_rc == kDispatchApplyTimeout)
+                std::cout << "[dispatch] " << place_what
+                          << " 重新申请超时，直接再放一次\n";
+            else if (re_rc != 0)
                 return re_rc;
             continue;
         }
@@ -4406,12 +4451,9 @@ int run_charge_flow(RobotClient *client, bool stop_when_charging)
         std::cerr << "[dispatch] 手臂未初始化，不充电\n";
         return -1;
     }
-    const std::string wait_ap =
-        g_move_cfg.chassis.dispatch_wait_station.empty()
-            ? g_move_cfg.chassis.tray_station
-            : g_move_cfg.chassis.dispatch_wait_station;
+    const std::string wait_ap = dispatch_idle_station();
 
-    // 先报去充电（调度），再整机 home → AP14 → 挥手下垂 → 腰降抓取高，最后才失能去充电点。
+    // 先在本机记下准备去充电，再整机 home → 待命点 → 挥手下垂 → 腰降抓取高，最后才失能去充电点。
     // 结束电量阈值每秒从 g_move_cfg 重读，网页改参 reload 后本次充电即可生效。
     std::cout << "[dispatch] 充电："
               << (stop_when_charging
@@ -4423,8 +4465,8 @@ int run_charge_flow(RobotClient *client, bool stop_when_charging)
               << "，home → " << wait_ap << " → 挥手下垂 → 腰降抓取高，再去 " << station << "\n";
     if (client != nullptr)
     {
-        dispatch_report_state(*client, dispatch_msg::GO_CHARGE);
-        board_step("上报去充电");
+        dispatch_note_state(dispatch_msg::GO_CHARGE);
+        board_step("准备去充电");
     }
     board_activity("去充电：整机回 home");
 
@@ -4491,13 +4533,11 @@ int run_charge_flow(RobotClient *client, bool stop_when_charging)
                 set_body_motors(true);
         }
     } reenable;
-    // AP14 已准备好，底盘出发去充电点：上报 commuting。
+    // 准备点已经到位，底盘出发去充电点。commuting 只记在本机面板。
     board_step("去充电路上");
     if (client != nullptr)
-        dispatch_report_state(*client, dispatch_msg::COMMUTING);
-    std::cout << "[dispatch] "
-              << (client != nullptr ? std::string("上报 ") + dispatch_msg::COMMUTING + "，" : "")
-              << "导航去充电点 " << station << "\n";
+        dispatch_note_state(dispatch_msg::COMMUTING);
+    std::cout << "[dispatch] 导航去充电点 " << station << "\n";
     board_step("去充电点");
     board_activity("去充电路上 → " + station);
     const int nav = chassis_goto_station(station);
@@ -4537,8 +4577,8 @@ int run_charge_flow(RobotClient *client, bool stop_when_charging)
             std::cout << "[dispatch] 检测到正在充电";
             if (client != nullptr)
             {
-                std::cout << "，上报 " << dispatch_msg::CHARGING << "\n";
-                dispatch_report_state(*client, dispatch_msg::CHARGING);
+                std::cout << "，本机记 " << dispatch_msg::CHARGING << "\n";
+                dispatch_note_state(dispatch_msg::CHARGING);
             }
             else
             {
@@ -4697,18 +4737,21 @@ int dispatch_load(RobotClient &client)
         granted = grant.ok.load();
         if (!granted)
         {
-            std::cout << "[dispatch] 上料放置申请 20s 未允许，原地待命，不放置，不报完成\n";
-            return kDispatchHoldStay;
+            std::cout << "[dispatch] 上料放置申请超时，不再等待，直接放置\n";
+            board_note("warn", "上料放置申请超时，直接放置");
         }
-        std::cout << "[dispatch] 已收到 " << dispatch_msg::PLACE
-                  << "，等传送带一停稳后再拍照放置\n";
+        else
+            std::cout << "[dispatch] 已收到 " << dispatch_msg::PLACE
+                      << "，等传送带一停稳后再拍照放置\n";
     }
     const bool pose_ready = station_name_matches(
         g_photo_ready_station, g_move_cfg.chassis.belt_station);
+    // 路上已经申请过就不要再等一轮；没申请过的仍由放置流程等一次，超时同样直接放。
     const int place_rc = dispatch_place_belt(
         client, [](RobotClient &c, int timeout_ms) { return c.apply_place_raw_material(timeout_ms); },
         dispatch_msg::APPLY_PLACE_RAW, dispatch_msg::PLACE,
-        g_move_cfg.conveyor, "belt", hold_r, hold_l, "上料放置", pose_ready, granted);
+        g_move_cfg.conveyor, "belt", hold_r, hold_l, "上料放置", pose_ready,
+        grant.started.load());
     if (place_rc != 0)
         return place_rc;
     std::cout << "[dispatch] 上料完成，停在当前位置\n";
@@ -4726,8 +4769,8 @@ int dispatch_transfer(RobotClient &client)
     g_move_cfg.chassis.belt_station = points.load;
     g_move_cfg.chassis.out_station = points.unload;
     std::cout << "[dispatch] 转运：" << points.load
-              << " 左右手各申请 20s，超时原地待命；有件才去 " << points.unload
-              << " 放，然后发 " << dispatch_msg::DONE << "\n";
+              << " 左右手各申请 20s，超时跳过该手并继续；有件才去 " << points.unload
+              << " 放，放置申请超时则直接放，然后发 " << dispatch_msg::DONE << "\n";
     board_step("去传送带一");
     if (!belt_ready_to_pick(g_move_cfg.chassis.belt_station, g_move_cfg.conveyor, "转运"))
     {
@@ -4786,7 +4829,7 @@ int dispatch_unload(RobotClient &client)
     g_move_cfg.chassis.out_station = points.unload;
     g_move_cfg.chassis.tray2_station = points.well;
     std::cout << "[dispatch] 下料：" << points.unload
-              << " 按上次剩下的空孔抓 1 或 2 只手，申请 20s 超时原地待命；放到 "
+              << " 按上次剩下的空孔抓 1 或 2 只手，申请 20s 超时跳过该手并继续；放到 "
               << points.well << " 后若没有空孔就报满盘，再发 "
               << dispatch_msg::DONE << "\n";
     board_step("去传送带二");
@@ -4936,7 +4979,7 @@ int run_charge_test()
 void start_chassis_status_reporter()
 {
     std::thread(chassis_status_loop).detach();
-    std::cout << "[orch] 底盘状态上报已启动，2Hz 写入位置和电量\n";
+    std::cout << "[orch] 底盘状态上报已启动，2Hz 写入位置、电量和当前站名\n";
 }
 
 static int run_dispatch_mode_body()
@@ -4958,8 +5001,8 @@ static int run_dispatch_mode_body()
     std::cout << "[dispatch] 系统对接模式，调度 "
               << dispatch_msg::kDefaultHost << ":" << dispatch_msg::kDefaultPort
               << " 型号 " << ch.robot_type << " 编号 " << ch.sequence_number
-              << "。底盘点位由系统下发，原地先 home，再到 "
-              << ch.dispatch_wait_station << " 等任务\n";
+              << "。底盘点位由系统下发。无任务时去调度 standby_point，还没有则去 "
+              << dispatch_idle_station() << "\n";
     // client 必须活过 inbox 线程；退出时先拆连接，apply_mission 才会返回，否则 join 卡死、
     // board_end 迟迟不跑，网页一直显示「调度中」。
     auto client_holder = std::make_unique<RobotClient>(ch.robot_type, ch.sequence_number);
@@ -4989,9 +5032,7 @@ static int run_dispatch_mode_body()
         }
     } wake_inbox{client_holder, box};
     std::string mission;
-    std::string wait_station = ch.dispatch_wait_station.empty()
-                                   ? g_move_cfg.chassis.tray_station
-                                   : ch.dispatch_wait_station;
+    std::string wait_station = dispatch_idle_station();
     auto take_ready = [&]() -> bool {
         if (!inbox_poll(box, mission))
             return false;
@@ -5003,7 +5044,7 @@ static int run_dispatch_mode_body()
         g_dispatch_stay_at_tray2 = false;
         if (g_hw != nullptr && !g_hw->last_chassis_station.empty())
             wait_station = g_hw->last_chassis_station;
-        dispatch_report_state(client, dispatch_msg::STANDBY);
+        dispatch_note_state(dispatch_msg::STANDBY);
         std::string cached;
         if (inbox_poll(box, cached))
         {
@@ -5024,11 +5065,10 @@ static int run_dispatch_mode_body()
         if (!box.running)
             inbox_start(box, client);
     };
-    // 无任务 / 失败 / 断线：先 home，再去 AP14（dispatch_wait_station）待命。途中缓存任务。
+    // 无任务 / 失败 / 断线：先 home，再去待命点。调度 standby_point 优先于 yaml。途中缓存任务。
     auto recover_home_ap14 = [&](const std::string &reason) -> int {
         move_box::tray1_far_band_clear();
-        wait_station = ch.dispatch_wait_station.empty() ? g_move_cfg.chassis.tray_station
-                                                       : ch.dispatch_wait_station;
+        wait_station = dispatch_idle_station();
         std::cout << "[dispatch] " << reason << " → home → " << wait_station << " 待命\n";
         board_activity(reason + "，回 home");
         if (g_body_disabled_for_charge)
@@ -5038,7 +5078,7 @@ static int run_dispatch_mode_body()
         }
         if (!box.running)
             inbox_start(box, client);
-        dispatch_report_state(client, dispatch_msg::WORKING);
+        dispatch_note_state(dispatch_msg::WORKING);
         const int home_rc = go_home(*g_hw->arm_r, *g_hw->arm_l);
         if (home_rc != 0)
             return home_rc;
@@ -5077,7 +5117,7 @@ static int run_dispatch_mode_body()
         }
         if (!box.running)
             inbox_start(box, client);
-        dispatch_report_state(client, dispatch_msg::WORKING);
+        dispatch_note_state(dispatch_msg::WORKING);
         const int home_rc = go_home_arms_keep_waist_z(*g_hw->arm_r, *g_hw->arm_l);
         if (home_rc != 0)
             return home_rc;
@@ -5103,7 +5143,7 @@ static int run_dispatch_mode_body()
         }
         return 0;
     };
-    dispatch_report_state(client, dispatch_msg::STANDBY);
+    dispatch_note_state(dispatch_msg::STANDBY);
     {
         const int boot_rc = recover_home_ap14("调度启动");
         if (boot_rc != 0)
@@ -5142,15 +5182,15 @@ static int run_dispatch_mode_body()
                             if (charging && !wait_reported_charging)
                             {
                                 wait_reported_charging = true;
-                                std::cout << "[dispatch] 待命时检测到充电，上报 "
+                                std::cout << "[dispatch] 待命时检测到充电，本机记 "
                                           << dispatch_msg::CHARGING << "\n";
-                                dispatch_report_state(client, dispatch_msg::CHARGING);
+                                dispatch_note_state(dispatch_msg::CHARGING);
                                 board_activity("充电中（待命）");
                             }
                             else if (!charging && wait_reported_charging)
                             {
                                 wait_reported_charging = false;
-                                dispatch_report_state(client, dispatch_msg::STANDBY);
+                                dispatch_note_state(dispatch_msg::STANDBY);
                                 board_activity("在 " + wait_station + " 等待任务");
                             }
                         }
@@ -5172,7 +5212,7 @@ static int run_dispatch_mode_body()
                 board_activity("在 " + wait_station + " 等待任务");
                 if (!box.running)
                     inbox_start(box, client);
-                dispatch_report_state(client, dispatch_msg::STANDBY);
+                dispatch_note_state(dispatch_msg::STANDBY);
                 continue;
             }
             std::cerr << "[dispatch] 调度断线或没有任务，回 home → " << wait_station << "\n";
@@ -5216,7 +5256,7 @@ static int run_dispatch_mode_body()
         g_hw->last_tray_message.clear();
         g_dispatch_nav_fault.clear();
         g_dispatch_stay_at_tray2 = false;
-        dispatch_report_state(client, dispatch_msg::WORKING);
+        dispatch_note_state(dispatch_msg::WORKING);
         int rc = -1;
         if (current == dispatch_msg::TASK_CHARGE)
             rc = dispatch_charge(client);
@@ -5294,7 +5334,7 @@ static int run_dispatch_mode_body()
         }
 
         board_mission_end(true, "完成，用时 " + spent_text());
-        dispatch_report_state(client, dispatch_msg::STANDBY);
+        dispatch_note_state(dispatch_msg::STANDBY);
         g_dispatch_stay_at_tray2 = false;
         if (g_hw != nullptr && !g_hw->last_chassis_station.empty())
             wait_station = g_hw->last_chassis_station;

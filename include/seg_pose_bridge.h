@@ -337,10 +337,12 @@ void pose_vis_save_debug_pair_bgr(
 void pose_vis_set_panel_bgr(int panel_index, int height, int width, const uint8_t *bgr, size_t bgr_bytes);
 void pose_vis_refresh_composite();
 
-/** Ctrl+C 请求退出循环 */
+/** Ctrl+C / SIGTERM 请求退出循环。处理函数只打标记，不在信号里关 CAN。 */
 void request_app_stop();
 bool app_stop_requested();
 void install_app_sigint_handler();
+/** 开始收尾后再次收到信号才硬退出，避免清理卡死时无法打断。 */
+void mark_app_cleanup_started();
 void interruptible_sleep_ms(int ms);
 
 /** 三台相机 + Python 位姿引擎，init 后可直接 grab / run */

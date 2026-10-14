@@ -132,7 +132,9 @@ AP7 抓毛坯（夹爪保持闭合）
 
 ## 6. 调度
 
-启动报 `STANDBY`，去 **AP14**，到站后保持 home 姿态等任务，不等待时挥手。任务：`TASK_LOAD` / `TASK_TRANSFER` / `TASK_UNLOAD` / `TASK_CHARGE`。缺站点就不动。
+库是 `ti5-jindi-faactory-robot-client` **1.8.0**。没有 `report_state`，不要再发 `STANDBY` / `WORKING` / `GO_CHARGE` / `commuting` / `CHARGING` / `ERR_*`。这些只留在本机面板。调度靠每 2 秒的 `POSE` 看位置，报文里有 `current_point`（底盘当前站名，由程序写入 `RobotClient::current_point`）。
+
+`apply_mission` 在料架、待命点、两个工序点都空时，先发 `NEED_POINTS` 再要任务。任务报文里的同名点才覆盖：`raw_material_point`、`well_done_point`、`standby_point`、`sequence_one`、`sequence_two`。任务结束不清。收到 `CHARGE` 时库清空料架、待命点和工序点，并写入 `charge_point`。无任务去 `standby_point`，还没有则去 yaml `dispatch_wait_station`（AP14）。到站后保持 home 姿态等任务，不等待时挥手。任务：`TASK_LOAD` / `TASK_TRANSFER` / `TASK_UNLOAD` / `TASK_CHARGE`。缺站点就不动。
 
 | 任务 | 动作 |
 |------|------|
@@ -145,7 +147,7 @@ AP7 抓毛坯（夹爪保持闭合）
 
 手里还有件的失败：留下，不报完成，不回料盘再抓（`kDispatchHoldStay=9`）。上料/转运成功后等 5 s，没新任务才 `go_home` 并回料架（`g_dispatch_rack_point` 或 AP7）。下料成功停在成品点。充电成功停在充电点。
 
-进程内只有一个仙工连接，2 Hz 写位姿和电量。不要再 `Disconnect`，不要再 new 第二个 `Seer`。
+进程内只有一个仙工连接，2 Hz 写位姿、电量和 `current_point`。不要再 `Disconnect`，不要再 new 第二个 `Seer`。
 
 ---
 

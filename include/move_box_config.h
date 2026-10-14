@@ -175,7 +175,7 @@ struct ChassisConfig
     /** 调度里该组的从站号。 */
     std::string sequence_number = "1";
     std::string tray_station = "AP4";
-    /** 调度刚启动时先到这里等任务。不替代料盘一，任务结束后的回位点仍是料架。 */
+    /** 调度还没下发 standby_point 时，无任务回到这里。下发之后以 standby_point 为准。 */
     std::string dispatch_wait_station = "AP14";
     /** 调试指令 charge：调度未下发 charge_point 时去这里。调度 CHARGE 仍用系统下发的点。 */
     std::string charge_station;

@@ -122,11 +122,12 @@ int vision_tray2_center();
 int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
 /** 料盘一抓一次：去料盘一，双手都持件（或料盘没件）就停，夹爪保持合上，底盘不走。 */
 int vision_grasp_once();
-/** 调度对接：启动与无任务/失败/断线后都先 home，再到 dispatch_wait_station（AP14）待命。 */
+/** 调度对接：启动与无任务/失败/断线后都先 home，再去待命点。
+ *  待命点优先用调度下发的 standby_point，否则用 yaml 的 dispatch_wait_station。 */
 int run_dispatch_mode();
 /** 调试：跑完整真实充电（home→AP14→挥手下垂→腰降→失能→充电点），检测到开始充电即成功结束，不停充、不等 95%。 */
 int run_charge_test();
-/** 程序启动后调用一次。后台线程以 2Hz 把底盘位姿和电量写入调度库的上报变量。 */
+/** 程序启动后调用一次。后台线程以 2Hz 把底盘位姿、电量和当前站名写入调度库。 */
 void start_chassis_status_reporter();
 int vision_aruco_detect_pipeline();
 int vision_tray_holes_pipeline();
