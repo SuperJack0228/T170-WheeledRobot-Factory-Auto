@@ -208,7 +208,7 @@ private:
 void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
 
 /** 当前唯一启用的 YOLO 类别：0=圆柱物料。 */
-constexpr int kGraspDetectClassId = 0; // bestlatest.pt: original_product
+constexpr int kGraspDetectClassId = 0; // best1015.pt: original_product
 constexpr int kEmptyHoleClassId = 3;   // feeding_hole / 空孔，料盘2放置用
 
 /** 抓取阶段：按 move_box_params.yaml vision_detect 与相机槽返回 algorithm_id（-1/0/1） */

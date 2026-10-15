@@ -78,6 +78,7 @@ add_executable(t170c_debug
     orchestrator/cpp/orch_hw_main.cpp
     orchestrator/cpp/robot_runtime.cpp
     orchestrator/cpp/dispatch_board.cpp
+    orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
     src/function.cpp
     src/waist.cpp
@@ -94,6 +95,7 @@ add_executable(t170c_debug
 target_include_directories(t170c_debug PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/orchestrator/cpp
     ${PROJECT_SOURCE_DIR}/eigen3
     ${PROJECT_SOURCE_DIR}/third_party/dex1/include
     ${TI5_DEVICE_SDK_ROOT}/include
@@ -156,6 +158,7 @@ add_executable(arm_plane_repeat
     orchestrator/cpp/arm_repeat_main.cpp
     orchestrator/cpp/robot_runtime.cpp
     orchestrator/cpp/dispatch_board.cpp
+    orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
     src/function.cpp
     src/waist.cpp
@@ -171,6 +174,7 @@ add_executable(arm_plane_repeat
 target_include_directories(arm_plane_repeat PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/orchestrator/cpp
     ${PROJECT_SOURCE_DIR}/eigen3
     ${PROJECT_SOURCE_DIR}/third_party/dex1/include
     ${TI5_DEVICE_SDK_ROOT}/include

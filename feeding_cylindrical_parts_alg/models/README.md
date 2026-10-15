@@ -1,10 +1,10 @@
 # 分割模型
 
-将 YOLO 分割权重放在此目录，默认文件名：
+将 YOLO 分割权重放在此目录。当前默认：
 
 ```
-models/best.pt
+models/best1015.pt
 ```
 
-当前权重已保留在 `best.pt`。嵌入式 `CirclePoseEngine` 会按
-`../config/pose_params.yaml` 中的 `segmentation.model` 加载它。
+嵌入式 `CirclePoseEngine` 按 `../config/pose_params.yaml` 的
+`segmentation.model` 加载。

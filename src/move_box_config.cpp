@@ -146,6 +146,10 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
         dst.grasp_tcp = dst.tcp;
     read_value(node, "grasp_hover_above_m", dst.grasp_hover_above_m);
     read_value(node, "place_hover_above_m", dst.place_hover_above_m);
+    read_value(node, "place_approach_vel_m_s", dst.place_approach_vel_m_s);
+    read_value(node, "place_retract_vel_m_s", dst.place_retract_vel_m_s);
+    read_value(node, "grasp_approach_vel_m_s", dst.grasp_approach_vel_m_s);
+    read_value(node, "grasp_retract_vel_m_s", dst.grasp_retract_vel_m_s);
     read_value(node, "grasp_waist_yaw_deg", dst.grasp_waist_yaw_deg);
     read_value(node, "grasp_ready_close_ratio", dst.grasp_ready_close_ratio);
     read_value(node, "grasp_yolo_enable", dst.grasp_yolo_enable);
@@ -158,6 +162,18 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
         dst.photo_after_arrival_sec = 0.0;
     if (dst.grasp_photo_settle_sec < 0.0)
         dst.grasp_photo_settle_sec = 0.0;
+    auto clamp_vel = [](double &v) {
+        if (!(v > 0.0) || !std::isfinite(v))
+            v = 0.25;
+        if (v < 0.02)
+            v = 0.02;
+        if (v > 0.50)
+            v = 0.50;
+    };
+    clamp_vel(dst.place_approach_vel_m_s);
+    clamp_vel(dst.place_retract_vel_m_s);
+    clamp_vel(dst.grasp_approach_vel_m_s);
+    clamp_vel(dst.grasp_retract_vel_m_s);
 }
 
 void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
@@ -188,7 +204,11 @@ void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
               << ") 右=(" << c.grasp_offset_right.x << ","
               << c.grasp_offset_right.y << "," << c.grasp_offset_right.z
               << ") hover=" << c.grasp_hover_above_m
-              << "m yaw_left=" << c.grasp_waist_yaw_deg
+              << "m place_vel approach=" << c.place_approach_vel_m_s
+              << " retract=" << c.place_retract_vel_m_s
+              << " grasp_vel approach=" << c.grasp_approach_vel_m_s
+              << " retract=" << c.grasp_retract_vel_m_s
+              << "m/s yaw_left=" << c.grasp_waist_yaw_deg
               << "deg ready_grip=" << c.grasp_ready_close_ratio
               << " yolo=" << (c.grasp_yolo_enable ? "on" : "off")
               << " class=" << c.grasp_yolo_class_id
@@ -239,6 +259,10 @@ MoveBoxConfig default_move_box_config()
     cfg.conveyor.offset_left = {-0.04, 0.00, 0.08};
     cfg.conveyor.grasp_hover_above_m = 0.06;
     cfg.conveyor.place_hover_above_m = 0.06;
+    cfg.conveyor.place_approach_vel_m_s = 0.25;
+    cfg.conveyor.place_retract_vel_m_s = 0.25;
+    cfg.conveyor.grasp_approach_vel_m_s = 0.25;
+    cfg.conveyor.grasp_retract_vel_m_s = 0.25;
     cfg.conveyor.grasp_waist_yaw_deg = 0.0;
     cfg.conveyor.grasp_ready_close_ratio = 0.30;
     cfg.conveyor.grasp_yolo_enable = false;

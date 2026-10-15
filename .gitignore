@@ -65,8 +65,9 @@ picture_debug/
 *.bmp
 
 # --- YOLO / vision weights ---
-# best.pt 超过 GitHub 100MB 上限，不入库。当前使用的是 bestlatest.pt。
+# best.pt 超过 GitHub 100MB 上限，不入库。当前使用的是 best1015.pt。
 *.pt
+!feeding_cylindrical_parts_alg/models/best1015.pt
 !feeding_cylindrical_parts_alg/models/bestlatest.pt
 *.pth
 *.onnx

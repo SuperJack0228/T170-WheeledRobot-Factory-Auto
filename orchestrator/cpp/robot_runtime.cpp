@@ -1,6 +1,7 @@
 #include "robot_runtime.h"
 
 #include "dispatch_board.h"
+#include "dispatch_timing.h"
 #include "function.h"
 #include "head_cam2robot.h"
 #include "head_control.h"
@@ -240,10 +241,12 @@ bool belt_grasp_yolo_class_ok(
 {
     if (require_id < 0)
         return true;
+    TimingSpan span("vision_yolo");
     const PoseRunResult yolo = bridge.run(frame, -1, false, CameraSlot::Head, -1);
     if (!yolo.ok)
     {
         err = "YOLO失败: " + yolo.message;
+        span.fail();
         return false;
     }
     bool found = false;
@@ -269,6 +272,7 @@ bool belt_grasp_yolo_class_ok(
         err += "（画面无物料）";
     else
         err += std::string("（最高置信是") + belt_yolo_class_zh(best_id) + "）";
+    span.fail();
     return false;
 }
 
@@ -409,8 +413,13 @@ int chassis_goto_station(
     bool watch_obstacle = false,
     const std::function<void()> &on_station_name = {})
 {
+    TimingSpan span("nav");
+    auto done = [&](int code) {
+        span.set_ok(code == 0);
+        return code;
+    };
     if (g_hw == nullptr)
-        return -1;
+        return done(-1);
     g_hw->last_chassis_ok = false;
     g_hw->last_chassis_station = station;
     g_hw->last_chassis_message.clear();
@@ -420,7 +429,7 @@ int chassis_goto_station(
     {
         g_hw->last_chassis_message = "chassis.host 或站点名为空";
         std::cerr << "[orch] " << g_hw->last_chassis_message << "\n";
-        return -1;
+        return done(-1);
     }
 
     auto aborted = []() {
@@ -435,7 +444,7 @@ int chassis_goto_station(
                                          ? "底盘连接失败"
                                          : chassis_seer().LastMessage();
         std::cerr << "[orch] 底盘连接失败: " << g_hw->last_chassis_message << "\n";
-        return -6;
+        return done(-6);
     }
     Seer &robot = chassis_seer();
 
@@ -454,7 +463,7 @@ int chassis_goto_station(
         g_hw->last_chassis_station = cur;
         g_hw->last_chassis_message = "已在目标站";
         board_station(cur, {});
-        return 0;
+        return done(0);
     }
     board_station(loc_rc == 0 ? cur : std::string(), station);
 
@@ -466,7 +475,7 @@ int chassis_goto_station(
                                          : robot.LastMessage();
         std::cerr << "[orch] 底盘去 " << station << " 下发失败 code=" << go_rc
                   << " " << g_hw->last_chassis_message << "\n";
-        return go_rc < 0 ? go_rc : -6;
+        return done(go_rc < 0 ? go_rc : -6);
     }
     std::cout << "[orch] 已通知底盘去 " << station << "，等待到位\n";
 
@@ -481,7 +490,7 @@ int chassis_goto_station(
             std::cerr << "[orch] 等待底盘到位时中止，取消导航\n";
             robot.CancelNav();
             g_hw->last_chassis_message = "中止";
-            return -4;
+            return done(-4);
         }
 
         loc_rc = robot.GetLocation(x, y, angle, cur, last, confidence, loc_state, in_forbidden);
@@ -504,7 +513,7 @@ int chassis_goto_station(
                 robot.CancelNav();
                 g_hw->last_chassis_message = "遇到障碍";
                 g_dispatch_nav_fault = dispatch_msg::ERR_AGV_OBSTACLE;
-                return -11;
+                return done(-11);
             }
         }
 
@@ -520,7 +529,7 @@ int chassis_goto_station(
                 g_hw->last_chassis_station = target_id;
                 g_hw->last_chassis_message = "导航完成";
                 board_station(target_id, {});
-                return 0;
+                return done(0);
             }
             if (loc_rc == 0 && station_name_matches(cur, station) && task_status != 4)
             {
@@ -544,7 +553,7 @@ int chassis_goto_station(
                     (task_status == 5 ? "导航失败" : "导航取消") + std::string(" target=") + target_id;
                 std::cerr << "[orch] 底盘 " << g_hw->last_chassis_message << "\n";
                 board_error("底盘" + g_hw->last_chassis_message);
-                return -6;
+                return done(-6);
             }
         }
         hardware_abort_sleep_ms(300);
@@ -554,7 +563,7 @@ int chassis_goto_station(
     std::cerr << "[orch] 底盘去 " << station << " 超时\n";
     board_error("底盘去 " + station + " 超时");
     robot.CancelNav();
-    return -9;
+    return done(-9);
 }
 
 /** 底盘在自己的线程里赶路，上半身在当前线程同时动。返回底盘结果。 */
@@ -766,25 +775,30 @@ int home_waist_upright()
 
 int go_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
 {
+    TimingSpan span("motion_home");
+    auto done = [&](int code) {
+        span.set_ok(code == 0);
+        return code;
+    };
     std::cout << "[orch] home：先头部标定姿态，再安全抬升走到 yaml home_tcp，再腰 yaw=0，先回 x 再竖直升到 layer3_home\n";
     const int head_rc = enable_head_calib_pose();
     if (head_rc != 0)
     {
         std::cerr << "[orch] 头部使能/到位失败，不继续 home\n";
-        return head_rc;
+        return done(head_rc);
     }
     if (hardware_abort_requested())
-        return -4;
+        return done(-4);
     if (!move_box::move_arms_to_home(arm_r, arm_l))
     {
         std::cerr << "[orch] 双臂安全退出或回 home_tcp 失败，不转腰\n";
-        return hardware_abort_requested() ? -4 : -5;
+        return done(hardware_abort_requested() ? -4 : -5);
     }
     if (hardware_abort_requested())
-        return -4;
+        return done(-4);
     waist_rotate_deg(0.0, 30.0);
     if (hardware_abort_requested())
-        return -4;
+        return done(-4);
     if (g_hw != nullptr && g_hw->waist != nullptr && g_hw->layer3 != nullptr)
     {
         const double x_home = g_move_cfg.waist.layer3_home(0);
@@ -794,18 +808,18 @@ int go_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
         if (!move_box::ensure_waist_layer3_x_home(*g_hw->waist, *g_hw->layer3))
         {
             std::cerr << "[orch] 腰平移回初始 x 失败，不上升\n";
-            return hardware_abort_requested() ? -4 : -5;
+            return done(hardware_abort_requested() ? -4 : -5);
         }
         if (hardware_abort_requested())
-            return -4;
+            return done(-4);
         if (!move_box::waist_layer3_move_z_only(*g_hw->waist, *g_hw->layer3, z_home, false))
         {
             std::cerr << "[orch] 腰竖直升降失败\n";
-            return hardware_abort_requested() ? -4 : -5;
+            return done(hardware_abort_requested() ? -4 : -5);
         }
         move_box::waist_layer3_set_synced(true);
     }
-    return 0;
+    return done(0);
 }
 
 int go_home_arms_keep_waist_z(Robot_Arm &arm_r, Robot_Arm &arm_l)
@@ -1345,7 +1359,7 @@ int go_belt_station(
             return 0;
         }
         Eigen::Matrix<double, 1, 6> goal = is_right ? goal_r : goal_l;
-        constexpr double place_mps = 0.25;
+        const double place_mps = c.place_approach_vel_m_s;
         std::cout << "[orch] belt " << (is_right ? "右手" : "左手")
                   << " " << std::fixed << std::setprecision(2) << place_mps
                   << "m/s 先到上方再放下\n";
@@ -1363,10 +1377,6 @@ int go_belt_station(
                       << " 放置伸手失败 code=" << approach_rc << "\n";
             return aborted() ? -4 : -5;
         }
-        if (aborted())
-            return -4;
-        std::cout << "[orch] belt " << (is_right ? "右手" : "左手") << " 放置到位，停 0.5s 再松爪\n";
-        hardware_abort_sleep_ms(500);
         if (aborted())
             return -4;
         if (g_hw->g != nullptr)
@@ -1392,7 +1402,7 @@ int go_belt_station(
             return -4;
         Robot_Arm &arm = is_right ? *g_hw->arm_r : *g_hw->arm_l;
         constexpr double kPlaceNudgeUpM = 0.03;
-        constexpr double place_mps = 0.25;
+        const double place_mps = c.place_retract_vel_m_s;
         Eigen::Matrix<double, 1, 6> lift = arm_get_tcp_pos(arm);
         const double z0 = lift(2);
         lift(2) = z0 + kPlaceNudgeUpM;
@@ -1426,7 +1436,7 @@ int go_belt_station(
     int right_note_rc = 0;
     std::thread th_r;
     const bool run_right = do_right && !right_arm_motors_locked();
-    // 调度完成上报改到「最后放的那只手」开始上抬时，不再在松爪时发。
+    // 调度完成上报：最后放的那只手收回到准备位后再发 DONE（通常是左手）。
     const bool last_hand_is_left = do_left;
     const bool last_hand_is_right = run_right && !do_left;
     if (run_right)
@@ -1435,13 +1445,11 @@ int go_belt_station(
         if (right_rc != 0)
             return right_rc;
         th_r = std::thread([&]() {
-            if (last_hand_is_right && on_hand_placed)
-            {
-                right_note_rc = on_hand_placed(true);
-                if (right_note_rc != 0)
-                    return;
-            }
             right_back_rc = lift_and_retract(true);
+            if (right_back_rc != 0)
+                return;
+            if (last_hand_is_right && on_hand_placed)
+                right_note_rc = on_hand_placed(true);
         });
     }
     else if (!do_right)
@@ -1456,7 +1464,8 @@ int go_belt_station(
         left_rc = place_arrive_and_open(false);
         if (left_rc == 0)
         {
-            if (last_hand_is_left && on_hand_placed)
+            left_back_rc = lift_and_retract(false);
+            if (left_back_rc == 0 && last_hand_is_left && on_hand_placed)
             {
                 const int note_rc = on_hand_placed(false);
                 if (note_rc != 0)
@@ -1466,7 +1475,6 @@ int go_belt_station(
                     return note_rc;
                 }
             }
-            left_back_rc = lift_and_retract(false);
         }
     }
     else
@@ -1771,7 +1779,7 @@ static int go_belt_grasp_attempt(
         Eigen::Matrix<double, 1, 6> hover = goal;
         const double hover_z = c.grasp_hover_above_m > 1e-9 ? c.grasp_hover_above_m : 0.08;
         hover(2) += hover_z;
-        constexpr double reach_mps = 0.25;
+        const double reach_mps = c.grasp_approach_vel_m_s;
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
                   << "m/s 先到上方再下去\n";
@@ -1851,7 +1859,7 @@ static int go_belt_grasp_attempt(
         back_move(3) = lift(3);
         back_move(4) = lift(4);
         back_move(5) = lift(5);
-        constexpr double retract_mps = 0.25;
+        const double retract_mps = c.grasp_retract_vel_m_s;
         std::cout << std::fixed << std::setprecision(3)
                   << "[orch] belt_grasp " << hand << " " << retract_mps
                   << "m/s 抬 " << lift_z << "m 后不停，先平移回 " << back_name
@@ -3818,9 +3826,11 @@ bool dispatch_apply(
     const std::string &request, const std::string &grant, const std::string &what,
     const std::function<bool()> &call)
 {
+    TimingSpan span("apply_wait");
     board_apply_begin(request, grant, what);
     const bool ok = call();
     board_apply_end(ok);
+    span.set_ok(ok);
     return ok;
 }
 
@@ -4135,7 +4145,7 @@ int dispatch_place_belt(
                 return 0;
             reported = true;
             std::cout << "[dispatch] " << place_what
-                      << " 最后一手上抬，立刻发送 "
+                      << " 最后一手已收回准备位，发送 "
                       << dispatch_msg::PLACE_DONE << " 和 " << dispatch_msg::DONE << "\n";
             board_step("汇报完成");
             const bool place_ok = client.place_done();

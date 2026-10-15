@@ -53,7 +53,7 @@ head_grasp:
   # 按离机器人远近。第 1 项=最远一行，第 6 项=最近一行。基座系，叠在上面的整盘 offset 上。
   row_offset:
     right:
-      - { x: 0.009, y: 0.013, z: 0.015 }
+      - { x: 0.009, y: 0.013, z: 0.01 }
       - { x: 0.01, y: 0.007, z: 0.007 }
       - { x: 0.013, y: 0.01, z: 0.005 }
       - { x: 0.01, y: 0.01, z: 0.005 }
@@ -122,10 +122,10 @@ head_grasp:
   # 到C后按编码器FK复核；超差不合爪，便于XYZ offset只修正真实落点偏差。
   bezier_endpoint_xyz_tol_m: 0.008
   bezier_endpoint_rpy_tol_deg: 3.0
-  approach_vel_m_s: 0.30
-  descend_vel_m_s: 0.20
+  approach_vel_m_s: 0.35
+  descend_vel_m_s: 0.25
   lift_vel_m_s: 0.25
-  return_vel_m_s: 0.30
+  return_vel_m_s: 0.35
   # 下压到位后再等这么久才合爪。
   pre_grasp_settle_sec: 0.15
   hand_detect_invalid_redo_max: 10
@@ -153,8 +153,8 @@ tray2_place:
       - { x: 0.002, y: 0.007, z: 0.004 }
       - { x: 0.005, y: 0.004, z: 0.002 }
       - { x: 0.001, y: -0.003, z: 0.0 }
-      - { x: 0.008, y: 0.006, z: 0.00 }
-      - { x: 0.007, y: 0.002, z: -0.005 }
+      - { x: 0.008, y: 0.006, z: 0.003 }
+      - { x: 0.005, y: 0.0, z: -0.002 }
       - { x: 0.006, y: -0.002, z: -0.001 }
   row_place_rpy_deg:
     left:
@@ -225,7 +225,7 @@ waist:
   # ready/grasp 起始相对 home.x 再向前（+X 为机器人前方）。home 仍停在 layer3_home.x。
   ready_forward_m: 0.03
   # 远三排 / waist2：相对 layer3_home.x 再向前伸。抓完不收回。
-  far_row_forward_m: 0.22
+  far_row_forward_m: 0.21
 
 stagger:
   head_x_threshold: 0.80
@@ -281,7 +281,7 @@ conveyor:
     left: [0, 40, -60]
     right: [0, 40, 45]
   grasp_offset:
-    left:  { x: 0.0, y: 0.10, z: -0.001 }
+    left:  { x: 0.0, y: 0.10, z: 0.003 }
     right: { x: 0.0, y: 0.12, z: -0.001 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
@@ -290,6 +290,11 @@ conveyor:
   grasp_hover_above_m: 0.08
   # 放置：先到码+offset 上方这么多，再下降松爪。松爪后只轻抬约 3cm，然后直接回准备。
   place_hover_above_m: 0.06
+  # 传送带手臂线速度（米/秒），允许约 0.02～0.50。
+  place_approach_vel_m_s: 0.35
+  place_retract_vel_m_s: 0.35
+  grasp_approach_vel_m_s: 0.35
+  grasp_retract_vel_m_s: 0.35
   # 站点已更新，传送带抓取不再转腰。0=不转。左右手可以过中轴，不卡料盘中缝。
   grasp_waist_yaw_deg: 0
   # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
@@ -339,6 +344,10 @@ conveyor2:
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
   grasp_hover_above_m: 0.08
   place_hover_above_m: 0.06
+  place_approach_vel_m_s: 0.35
+  place_retract_vel_m_s: 0.35
+  grasp_approach_vel_m_s: 0.35
+  grasp_retract_vel_m_s: 0.35
   grasp_waist_yaw_deg: 0
   grasp_ready_close_ratio: 0.20
   grasp_yolo_enable: false

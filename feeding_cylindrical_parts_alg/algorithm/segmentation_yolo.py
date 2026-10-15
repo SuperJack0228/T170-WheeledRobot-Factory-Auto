@@ -66,23 +66,46 @@ def contour_from_mask(mask: np.ndarray, min_points: int = 5) -> np.ndarray | Non
     return cnt.reshape(-1, 2).astype(np.float32)
 
 
+def _masks_from_boxes(yolo_result) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """检测权重无 mask 时，用框生成矩形伪 mask，保证 class_id 仍能进后续流程。"""
+    if yolo_result.boxes is None or len(yolo_result.boxes) == 0:
+        return None
+    oh, ow = int(yolo_result.orig_shape[0]), int(yolo_result.orig_shape[1])
+    xyxy = yolo_result.boxes.xyxy.cpu().numpy()
+    cls = yolo_result.boxes.cls.cpu().numpy().astype(int)
+    conf = yolo_result.boxes.conf.cpu().numpy()
+    masks = np.zeros((len(xyxy), oh, ow), dtype=np.uint8)
+    for i, box in enumerate(xyxy):
+        x1 = max(0, int(np.floor(box[0])))
+        y1 = max(0, int(np.floor(box[1])))
+        x2 = min(ow, int(np.ceil(box[2])))
+        y2 = min(oh, int(np.ceil(box[3])))
+        if x2 > x1 and y2 > y1:
+            masks[i, y1:y2, x1:x2] = 1
+    return masks, cls, conf
+
+
 def _instances_from_yolo_result(
     yolo_result,
 ) -> list[tuple[np.ndarray, np.ndarray | None, int, float]]:
     """(mask, contour, class_id, confidence) in original image coordinates."""
-    if yolo_result.masks is None or yolo_result.masks.data is None:
-        return []
-
     orig_shape = yolo_result.orig_shape
-    bin_masks = masks_to_orig_binary(yolo_result.masks.data, orig_shape)
-    n = len(bin_masks)
-
-    if yolo_result.boxes is not None:
-        cls = yolo_result.boxes.cls.cpu().numpy().astype(int)
-        conf = yolo_result.boxes.conf.cpu().numpy()
+    if yolo_result.masks is not None and yolo_result.masks.data is not None:
+        bin_masks = masks_to_orig_binary(yolo_result.masks.data, orig_shape)
+        n = len(bin_masks)
+        if yolo_result.boxes is not None:
+            cls = yolo_result.boxes.cls.cpu().numpy().astype(int)
+            conf = yolo_result.boxes.conf.cpu().numpy()
+        else:
+            cls = np.zeros(n, dtype=int)
+            conf = np.ones(n, dtype=np.float32)
     else:
-        cls = np.zeros(n, dtype=int)
-        conf = np.ones(n, dtype=np.float32)
+        # best1015 等 detect 权重：无分割 mask，用框兜底，类别仍用 boxes.cls。
+        boxed = _masks_from_boxes(yolo_result)
+        if boxed is None:
+            return []
+        bin_masks, cls, conf = boxed
+        n = len(bin_masks)
 
     out: list[tuple[np.ndarray, np.ndarray | None, int, float]] = []
     for i in range(n):

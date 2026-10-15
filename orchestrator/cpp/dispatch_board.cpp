@@ -1,4 +1,5 @@
 #include "dispatch_board.h"
+#include "dispatch_timing.h"
 
 #include "seg_pose_bridge.h"
 
@@ -469,10 +470,12 @@ void board_mission_begin(const std::string &mission)
         line = push_event_locked("info", "====== 开始任务 " + dispatch_mission_zh(mission) + " ======");
     }
     emit(line);
+    timing_mission_begin(mission);
 }
 
 void board_mission_end(bool ok, const std::string &result)
 {
+    timing_mission_end(ok, result);
     std::string line;
     {
         std::lock_guard<std::mutex> lk(g_mu);
@@ -494,6 +497,7 @@ void board_mission_end(bool ok, const std::string &result)
 void board_step(const std::string &step)
 {
     std::string line;
+    bool advanced = false;
     {
         std::lock_guard<std::mutex> lk(g_mu);
         if (!g_board.active)
@@ -505,8 +509,11 @@ void board_step(const std::string &step)
         if (idx == g_board.step_index)
             return;
         g_board.step_index = idx;
+        advanced = true;
         line = push_event_locked("info", "步骤：" + step);
     }
+    if (advanced)
+        timing_step(step);
     emit(line);
 }
 

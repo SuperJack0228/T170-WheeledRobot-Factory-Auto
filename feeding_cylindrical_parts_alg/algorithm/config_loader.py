@@ -198,7 +198,7 @@ def load_pose_params(config_path: str | Path | None = None) -> PoseParams:
     pnp_global = _parse_pnp(root.get("algorithm_pnp"))
     centroid_global = _parse_centroid(root.get("algorithm_centroid"))
 
-    model_raw = seg_node.get("model", "models/bestlatest.pt")
+    model_raw = seg_node.get("model", "models/best1015.pt")
     model_path = resolve_model_path(model_raw)
 
     class_ids = seg_node.get("class_ids")

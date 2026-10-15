@@ -1,4 +1,5 @@
 #include "seg_pose_bridge.h"
+#include "dispatch_timing.h"
 #include "head_cam2robot.h"
 #include "move_box_config.h"
 #include "function.h"
@@ -1023,22 +1024,26 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
     CameraSlot vis_slot,
     bool tray2_markers)
 {
+    orch::TimingSpan span("vision_aruco");
     py::gil_scoped_acquire gil;
     TrayDetectResult result;
     if (!impl_->tray_ready || !impl_->tray_detect_fn || impl_->tray_detect_fn.is_none())
     {
         result.message = "料盘引擎未初始化";
+        span.fail();
         return result;
     }
     if (frames.empty())
     {
         result.message = "没有料盘识别帧";
+        span.fail();
         return result;
     }
     const CameraFrameData &frame = frames.back();
     if (!frame.ok || frame.color_bgr.empty() || frame.width <= 0 || frame.height <= 0)
     {
         result.message = "无效相机帧: " + frame.message;
+        span.fail();
         return result;
     }
 
@@ -1221,6 +1226,8 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
     {
         result.message = std::string("tray 异常: ") + e.what();
     }
+    if (!result.ok)
+        span.fail();
     return result;
 }
 
