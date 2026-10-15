@@ -11,10 +11,11 @@ if TYPE_CHECKING:
     from algorithm.pose_pnp import EllipseFit
 
 # 算法类型 ID（与业务约定）
-ALGO_PNP = 0          # 分割 + 圆盘 PnP 6D
+ALGO_PNP = 0          # 分割 + 圆盘 PnP 6D（需原生 mask/轮廓）
 ALGO_CENTROID = 1     # 分割 + mask 深度重心，R=I
+ALGO_BOX = 2          # 检测框中心 + 深度粗点，R=I（关联用；detect 权重默认）
 
-ALGO_IDS = (ALGO_PNP, ALGO_CENTROID)
+ALGO_IDS = (ALGO_PNP, ALGO_CENTROID, ALGO_BOX)
 
 
 @dataclass
@@ -50,7 +51,9 @@ class TargetPose:
     success: bool = True
     message: str = ""
     mask: np.ndarray | None = None
-    """(H,W) uint8 分割 mask，供可视化。"""
+    """(H,W) uint8 分割 mask，供可视化；detect 路径可为 None。"""
+    xyxy: np.ndarray | None = None
+    """检测框 (4,) x1y1x2y2，供可视化。"""
     ellipse: "EllipseFit | None" = None
     """算法 0 的拟合椭圆，供可视化。"""
 

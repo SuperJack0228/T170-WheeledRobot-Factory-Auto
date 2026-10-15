@@ -55,7 +55,7 @@ head_grasp:
     right:
       - { x: 0.009, y: 0.013, z: 0.01 }
       - { x: 0.01, y: 0.007, z: 0.007 }
-      - { x: 0.013, y: 0.01, z: 0.005 }
+      - { x: 0.013, y: 0.01, z: 0.003 }
       - { x: 0.01, y: 0.01, z: 0.005 }
       - { x: 0.01, y: 0.005, z: 0.0 }
       - { x: 0.005, y: 0.005, z: -0.008 }
@@ -225,16 +225,16 @@ waist:
   # ready/grasp 起始相对 home.x 再向前（+X 为机器人前方）。home 仍停在 layer3_home.x。
   ready_forward_m: 0.03
   # 远三排 / waist2：相对 layer3_home.x 再向前伸。抓完不收回。
-  far_row_forward_m: 0.21
+  far_row_forward_m: 0.20
 
 stagger:
   head_x_threshold: 0.80
 
-# -1=模型配置，0=PnP，1=深度重心。
+# -1=模型配置，0=分割PnP，1=mask重心，2=检测框中心粗点（best1015 detect 推荐；引擎对 detect 权重会强制 2）。
 vision_detect:
-  head_grasp: 1
-  right_hand_grasp: 1
-  left_hand_grasp: 1
+  head_grasp: 2
+  right_hand_grasp: 2
+  left_hand_grasp: 2
 
 cameras:
   width: 1280
@@ -273,15 +273,15 @@ conveyor:
   # 先放的右手在原 x 上 +2.5cm，后放的左手在原 x 上 -2.5cm，避免零件还在皮带上时叠放。
   offset:
     right: { x: 0.0, y: 0.01, z: 0.01 }
-    left:  { x: -0.06, y: -0.01, z: 0.01 }
+    left: { x: -0.06, y: -0.015, z: 0.01 }
   # 传送带抓取（半成品）。开始准备仍用上面的 tcp，不改。
   # 抓完回到 grasp_tcp（专用，不再用放置 tcp）。
   # 抓取点 = 码原点 + R_识别 × 该手 grasp_offset。识别系 +X 前 +Y 左 +Z 上，不再乘腰 Rz。
   grasp_rpy_deg:
-    left: [0, 40, -60]
+    left: [0, 40, -20]
     right: [0, 40, 45]
   grasp_offset:
-    left:  { x: 0.0, y: 0.10, z: 0.003 }
+    left: { x: 0.08, y: 0.11, z: 0.015 }
     right: { x: 0.0, y: 0.12, z: -0.001 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
@@ -299,7 +299,21 @@ conveyor:
   grasp_waist_yaw_deg: 0
   # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
   grasp_ready_close_ratio: 0.20
-  # 抓取前 YOLO 只判定类别，不参与定位。false=不跑 YOLO。1=半加工料 2=精加工料。
+  # 传送带 YOLO：只计有无与数量，不参与定位（定位仍用码）。
+  # ROI 跟码坐标系投影。沿左右对半：抓取用左半（+Y），放置用右半（−Y）。
+  # 抓取左半再切（仅非调度）：Y 轴沿 +X 平移 yolo_grasp_split_x_m。调度按整片计数：1=右手，≥2=双手，0=不抓并报错。
+  yolo_grasp_split_x_m: 0.02
+  # 调试图：T170_VISION_DEBUG≥1 → picture_debug/head/belt_yolo_roi_*.jpg（黄四边形）。
+  # yolo_roi 像素矩形只在 yolo_roi_from_marker=false 时使用。
+  yolo_roi_enable: true
+  yolo_roi_from_marker: true
+  yolo_roi_marker: { front_m: 0.152, rear_m: 0.152, left_m: 0.167, right_m: 0.070 }
+  yolo_roi: { x: 320, y: 160, width: 640, height: 400 }
+  yolo_min_conf: 0.25
+  yolo_part_class_ids: [0, 1, 2]   # 计入零件的类别；不含 3=空孔
+  yolo_grasp_min_count: 1
+  yolo_place_max_count: 0
+  # 旧：全图按类别门禁（仅当 yolo_roi_enable=false 时生效）
   grasp_yolo_enable: false
   grasp_yolo_class_id: 1
   # 腰高 waist_z=0.63m 时，手臂基座到传送带（码平面）29cm。基座 Z 向上，传送带在下方，所以是 -0.29。
@@ -312,10 +326,10 @@ conveyor:
   # 腰头到位后，抓取拍照前再等这么久（秒）。
   grasp_photo_settle_sec: 1
 
-# 第二条传送带（AP5）。初值抄第一套，可单独改。
-# belt2_ready：去 AP5 → 准备 tcp。
-# belt2 / belt2_place：去 AP5 → 准备 → 放置 → 停准备 tcp。
-# belt2_grasp：去 AP5 → 准备 → 抓取（不转腰）→ 回 grasp_tcp。
+# 第二条传送带。初值抄第一套，可单独改。抓取选手规则同 conveyor（先右后左）。
+# belt2_ready：去站 → 准备 tcp。
+# belt2 / belt2_place：去站 → 准备 → 放置 → 停准备 tcp。
+# belt2_grasp：去站 → 准备 → 抓取（不转腰）→ 回 grasp_tcp。
 conveyor2:
   waist_x: 0.15
   waist_z: 0.63
@@ -337,8 +351,8 @@ conveyor2:
     left: [0, 45, -50]
     right: [0, 45, 50]
   grasp_offset:
-    left:  { x: -0.004, y: 0.109, z: -0.038 }
-    right: { x: -0.008, y: 0.127, z: -0.040 }
+    left: { x: 0.072, y: 0.109, z: -0.032 }
+    right: { x: -0.008, y: 0.127, z: -0.036 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
@@ -350,6 +364,15 @@ conveyor2:
   grasp_retract_vel_m_s: 0.35
   grasp_waist_yaw_deg: 0
   grasp_ready_close_ratio: 0.20
+  yolo_roi_enable: true
+  yolo_roi_from_marker: true
+  yolo_roi_marker: { front_m: 0.152, rear_m: 0.152, left_m: 0.167, right_m: 0.070 }
+  yolo_grasp_split_x_m: 0.02
+  yolo_roi: { x: 320, y: 160, width: 640, height: 400 }
+  yolo_min_conf: 0.25
+  yolo_part_class_ids: [0, 1, 2]
+  yolo_grasp_min_count: 1
+  yolo_place_max_count: 0
   grasp_yolo_enable: false
   grasp_yolo_class_id: 2
   # 先保持相机读出的码平面高度，和第一传送带的固定 -0.29m 对比。

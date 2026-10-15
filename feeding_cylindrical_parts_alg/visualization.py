@@ -23,6 +23,12 @@ def draw_results(bgr, output, K, dist_coeffs, show_xy_axes=False):
 
     for index, target in enumerate(targets):
         color = _COLORS[int(getattr(target, "class_id", index)) % len(_COLORS)]
+        xyxy = getattr(target, "xyxy", None)
+        if xyxy is not None:
+            box = np.asarray(xyxy, dtype=np.float64).reshape(4)
+            p1 = (int(round(box[0])), int(round(box[1])))
+            p2 = (int(round(box[2])), int(round(box[3])))
+            cv2.rectangle(image, p1, p2, color, 2, cv2.LINE_AA)
         ellipse = getattr(target, "ellipse", None)
         if ellipse is not None:
             cv2.ellipse(image, (ellipse.center, ellipse.axes, ellipse.angle_deg), color, 2)

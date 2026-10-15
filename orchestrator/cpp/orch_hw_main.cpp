@@ -9,6 +9,7 @@
 #include "move_box_runtime.h"
 #include "seg_pose_bridge.h"
 #include "Ti5_socketcan.h"
+#include "vision_debug.h"
 
 #include <json/json.h>
 #include <pybind11/embed.h>
@@ -188,8 +189,9 @@ bool init_hardware(std::string &err)
     if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
         return false;
     print_move_box_config(g_move_cfg);
-    pose_vis_set_save_debug(kDebugVisualize);
-    pose_vis_set_gui_enabled(false);
+    vision_debug_init_from_env();
+    pose_vis_set_save_debug(vision_debug_save_pairs());
+    pose_vis_set_gui_enabled(vision_debug_gui());
 
     if (!init_socketcan())
     {

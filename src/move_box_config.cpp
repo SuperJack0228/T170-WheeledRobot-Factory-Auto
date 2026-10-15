@@ -63,7 +63,10 @@ void read_hand_offset(const YAML::Node &node, HandXyOffsetConfig &out)
 
 int clamp_algorithm_id(int value)
 {
-    return (value == 0 || value == 1) ? value : -1;
+    // -1=沿用模型配置；0=PnP；1=mask重心；2=检测框中心
+    if (value == 0 || value == 1 || value == 2)
+        return value;
+    return -1;
 }
 
 void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, const char *name)
@@ -152,6 +155,44 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     read_value(node, "grasp_retract_vel_m_s", dst.grasp_retract_vel_m_s);
     read_value(node, "grasp_waist_yaw_deg", dst.grasp_waist_yaw_deg);
     read_value(node, "grasp_ready_close_ratio", dst.grasp_ready_close_ratio);
+    read_value(node, "yolo_roi_enable", dst.yolo_roi_enable);
+    if (node["yolo_roi"] && node["yolo_roi"].IsMap())
+    {
+        read_value(node["yolo_roi"], "x", dst.yolo_roi_x);
+        read_value(node["yolo_roi"], "y", dst.yolo_roi_y);
+        read_value(node["yolo_roi"], "width", dst.yolo_roi_w);
+        read_value(node["yolo_roi"], "height", dst.yolo_roi_h);
+        // 兼容 w/h 简写
+        if (!node["yolo_roi"]["width"] && node["yolo_roi"]["w"])
+            dst.yolo_roi_w = node["yolo_roi"]["w"].as<int>();
+        if (!node["yolo_roi"]["height"] && node["yolo_roi"]["h"])
+            dst.yolo_roi_h = node["yolo_roi"]["h"].as<int>();
+    }
+    read_value(node, "yolo_roi_from_marker", dst.yolo_roi_from_marker);
+    if (node["yolo_roi_marker"] && node["yolo_roi_marker"].IsMap())
+    {
+        const YAML::Node m = node["yolo_roi_marker"];
+        read_value(m, "front_m", dst.yolo_roi_front_m);
+        read_value(m, "rear_m", dst.yolo_roi_rear_m);
+        read_value(m, "left_m", dst.yolo_roi_left_m);
+        read_value(m, "right_m", dst.yolo_roi_right_m);
+    }
+    read_value(node, "yolo_grasp_split_x_m", dst.yolo_grasp_split_x_m);
+    read_value(node, "yolo_min_conf", dst.yolo_min_conf);
+    if (node["yolo_part_class_ids"] && node["yolo_part_class_ids"].IsSequence())
+    {
+        dst.yolo_part_class_ids.clear();
+        for (const auto &item : node["yolo_part_class_ids"])
+            dst.yolo_part_class_ids.push_back(item.as<int>());
+    }
+    read_value(node, "yolo_grasp_min_count", dst.yolo_grasp_min_count);
+    read_value(node, "yolo_place_max_count", dst.yolo_place_max_count);
+    if (dst.yolo_grasp_min_count < 0)
+        dst.yolo_grasp_min_count = 0;
+    if (dst.yolo_place_max_count < 0)
+        dst.yolo_place_max_count = 0;
+    if (!(dst.yolo_min_conf > 0.0) || !std::isfinite(dst.yolo_min_conf))
+        dst.yolo_min_conf = 0.25;
     read_value(node, "grasp_yolo_enable", dst.grasp_yolo_enable);
     read_value(node, "grasp_yolo_class_id", dst.grasp_yolo_class_id);
     read_value(node, "use_fixed_origin_z", dst.use_fixed_origin_z);
@@ -210,8 +251,16 @@ void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
               << " retract=" << c.grasp_retract_vel_m_s
               << "m/s yaw_left=" << c.grasp_waist_yaw_deg
               << "deg ready_grip=" << c.grasp_ready_close_ratio
-              << " yolo=" << (c.grasp_yolo_enable ? "on" : "off")
-              << " class=" << c.grasp_yolo_class_id
+              << " yolo_roi=" << (c.yolo_roi_enable ? "on" : "off")
+              << (c.yolo_roi_from_marker ? " marker" : " pixel")
+              << " edge=(" << c.yolo_roi_front_m << "," << c.yolo_roi_rear_m << ","
+              << c.yolo_roi_left_m << "," << c.yolo_roi_right_m << ")m"
+              << " rect=(" << c.yolo_roi_x << "," << c.yolo_roi_y << ","
+              << c.yolo_roi_w << "x" << c.yolo_roi_h << ")"
+              << " min_conf=" << c.yolo_min_conf
+              << " grasp≥" << c.yolo_grasp_min_count
+              << " place≤" << c.yolo_place_max_count
+              << " legacy_yolo=" << (c.grasp_yolo_enable ? "on" : "off")
               << " fixed_z=" << (c.use_fixed_origin_z ? "on" : "off")
               << " " << c.fixed_origin_z_m << "m"
               << " 到站放置等=" << c.photo_after_arrival_sec

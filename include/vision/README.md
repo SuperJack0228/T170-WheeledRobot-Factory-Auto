@@ -1,0 +1,13 @@
+# vision/ — M1–M5 薄封装（S3–S6）
+
+| 头文件 | 模块 | 说明 |
+|--------|------|------|
+| `types.h` | — | `Frame` = `CameraFrameData` |
+| `camera.h` | M1 | `ICameraBackend` / `RealSenseCameraBackend` |
+| `dl.h` | M2 | `ModelRegistry` / `DlResult` / `BridgeDlEngine` |
+| `marker.h` | M3 | `BridgeMarkerEngine`（单码 ArUco） |
+| `pose.h` | M4 | `BridgePoseSolver`（`solve_tray` / `solve_belt`） |
+| `pipeline.h` | M5 | `perceive_tray` / `perceive_belt` |
+
+历史入口 `perceive_tray_head` / `perceive_belt_head`（`seg_pose_bridge.h`）已转发到本目录。  
+`SegPoseBridge` 类名保留。目录级搬家（原 E / S7）另做。

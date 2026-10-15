@@ -1,4 +1,4 @@
-"""算法统一入口：分割 + 按 algorithm_id 估计位姿。"""
+"""算法统一入口：YOLO 检测/分割 + 按 algorithm_id 估计位姿。"""
 
 from __future__ import annotations
 
@@ -10,10 +10,12 @@ from algorithm.config_loader import (
     PoseParams,
     load_pose_params,
 )
+from algorithm.pose_box import estimate_pose_box_center
 from algorithm.pose_centroid import estimate_pose_centroid
 from algorithm.pose_pnp import estimate_pose_pnp
 from algorithm.segmentation_yolo import YoloSegmenter
 from algorithm.types import (
+    ALGO_BOX,
     ALGO_CENTROID,
     ALGO_IDS,
     ALGO_PNP,
@@ -27,11 +29,14 @@ DEFAULT_RADIUS_M = 0.025
 
 class CirclePoseEngine:
     """
-    分割圆盘位姿引擎。
+    YOLO 位姿/关联点引擎。
 
-    algorithm_id（配置 algorithm.default_id / classes.*.algorithm_id）:
-      0 — YOLO 分割 + 椭圆 PnP
-      1 — YOLO 分割 + mask 深度重心
+    algorithm_id:
+      0 — 分割 + 椭圆 PnP（需原生 mask）
+      1 — 分割 + mask 深度重心
+      2 — 检测框中心 + 深度粗点（detect 权重；料盘关联用）
+
+    detect 权重（from_detect=True）一律走算法 2，忽略帧上的 0/1 覆盖。
     """
 
     def __init__(self, params: PoseParams | str | Path | None = None) -> None:
@@ -46,7 +51,7 @@ class CirclePoseEngine:
         model_file = p.segmentation.model_path
         if not model_file.is_file():
             raise FileNotFoundError(
-                f"分割模型不存在: {model_file}\n"
+                f"YOLO 模型不存在: {model_file}\n"
                 f"请检查 config 中 segmentation.model 或放置到 models/best1015.pt"
             )
 
@@ -59,7 +64,9 @@ class CirclePoseEngine:
             retina_masks=p.segmentation.retina_masks,
         )
 
-    def _resolve_algorithm_id(self, class_id: int, frame_override: int | None) -> int:
+    def _resolve_algorithm_id(self, class_id: int, frame_override: int | None, from_detect: bool) -> int:
+        if from_detect:
+            return ALGO_BOX
         if frame_override is not None:
             if frame_override not in ALGO_IDS:
                 raise ValueError(f"unsupported algorithm_id={frame_override}, use {ALGO_IDS}")
@@ -82,6 +89,7 @@ class CirclePoseEngine:
             class_id=inst.class_id,
             confidence=inst.confidence,
             mask=inst.mask,
+            xyxy=np.asarray(inst.xyxy, dtype=np.float32).reshape(4),
             class_name=class_name,
             radius_m=radius_m,
             algorithm_id=algo_id,
@@ -90,6 +98,15 @@ class CirclePoseEngine:
         if spec is not None and not spec.enabled:
             return TargetPose(
                 np.eye(4), success=False, message="class disabled in config", **base_kw
+            )
+
+        if algo_id == ALGO_BOX:
+            res = estimate_pose_box_center(inst.xyxy, depth_m, K)
+            return TargetPose(
+                res.pose_4x4 if res.pose_4x4 is not None else np.eye(4),
+                success=res.success,
+                message=res.message,
+                **base_kw,
             )
 
         if algo_id == ALGO_PNP:
@@ -125,6 +142,13 @@ class CirclePoseEngine:
                 message="centroid requires depth",
                 **base_kw,
             )
+        if inst.mask is None:
+            return TargetPose(
+                np.eye(4),
+                success=False,
+                message="centroid requires mask",
+                **base_kw,
+            )
         cen_cfg = self.params.centroid_for(inst.class_id)
         res = estimate_pose_centroid(
             inst.mask,
@@ -147,19 +171,16 @@ class CirclePoseEngine:
         dist = np.asarray(frame.dist_coeffs, dtype=np.float64).reshape(-1)
         instances = self._segmenter.predict(frame.rgb)
 
-        need_depth = any(
-            self._resolve_algorithm_id(inst.class_id, frame.algorithm_id) == ALGO_CENTROID
-            for inst in instances
-        )
-        if need_depth and frame.depth is None:
-            raise ValueError("algorithm_id=1 (centroid) requires depth aligned to rgb")
-
         depth_m = np.asarray(frame.depth, dtype=np.float32) if frame.depth is not None else None
         targets: list[TargetPose] = []
         for inst in instances:
             if not self.params.is_class_enabled(inst.class_id):
                 continue
-            algo_id = self._resolve_algorithm_id(inst.class_id, frame.algorithm_id)
+            algo_id = self._resolve_algorithm_id(
+                inst.class_id, frame.algorithm_id, inst.from_detect
+            )
+            if algo_id == ALGO_CENTROID and depth_m is None:
+                raise ValueError("algorithm_id=1 (centroid) requires depth aligned to rgb")
             pose = self._estimate_one(inst, algo_id, K, dist, depth_m)
             if not pose.success and (
                 pose.message.startswith("ellipse area too small")
@@ -167,6 +188,7 @@ class CirclePoseEngine:
             ):
                 continue
             pose.mask = inst.mask
+            pose.xyxy = np.asarray(inst.xyxy, dtype=np.float32).reshape(4)
             targets.append(pose)
 
         return AlgorithmOutput(targets=targets)

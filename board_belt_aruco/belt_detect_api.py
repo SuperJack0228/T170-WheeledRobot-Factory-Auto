@@ -227,6 +227,8 @@ def detect_frame(
         "origin_cam": list(chosen["origin_cam"]) if chosen else None,
         "origin_robot": list(chosen["origin_robot"]) if chosen else None,
         "R_robot": list(chosen["R_robot"]) if chosen and chosen.get("R_robot") else None,
+        "rvec": list(chosen["rvec"]) if chosen and chosen.get("rvec") is not None else None,
+        "tvec": list(chosen["tvec"]) if chosen and chosen.get("tvec") is not None else None,
         "grasp_cam": grasp_cam_l.tolist() if grasp_cam_l is not None else None,
         "grasp_robot": list(grasp_robot_l) if grasp_robot_l is not None else None,
         "grasp_left_robot": list(grasp_robot_l) if grasp_robot_l is not None else None,

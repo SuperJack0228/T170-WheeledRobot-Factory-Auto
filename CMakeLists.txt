@@ -86,6 +86,12 @@ add_executable(t170c_debug
     src/gripper_interface.cpp
     src/realsense_get.cpp
     src/seg_pose_bridge.cpp
+    src/vision_debug.cpp
+    src/vision/camera.cpp
+    src/vision/dl.cpp
+    src/vision/marker.cpp
+    src/vision/pose.cpp
+    src/vision/pipeline.cpp
     src/move_box_config.cpp
     src/move_box_runtime.cpp
     src/head_cam2robot.cpp
@@ -166,6 +172,12 @@ add_executable(arm_plane_repeat
     src/gripper_interface.cpp
     src/realsense_get.cpp
     src/seg_pose_bridge.cpp
+    src/vision_debug.cpp
+    src/vision/camera.cpp
+    src/vision/dl.cpp
+    src/vision/marker.cpp
+    src/vision/pose.cpp
+    src/vision/pipeline.cpp
     src/move_box_config.cpp
     src/move_box_runtime.cpp
     src/head_cam2robot.cpp

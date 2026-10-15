@@ -1,0 +1,7 @@
+# RealSense D405 型号 profile（手相机）。本机 SN 仍在 realsense_cameras.yaml。
+name: d405
+device: Intel RealSense D405
+color_width: 1280
+color_height: 720
+depth_aligned: true
+default_fps: 15

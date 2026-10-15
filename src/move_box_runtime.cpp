@@ -2295,38 +2295,12 @@ namespace move_box
             out.message = "料盘引擎未就绪";
             return out;
         }
-
-        std::array<double, 16> T = cam2robot;
-        std::string ext_err;
-        if (!load_head_cam2robot(T, ext_err))
-            T = cam2robot;
-
-        const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
-        cameras.flush(CameraSlot::Head);
-        std::vector<CameraFrameData> frames;
-        frames.reserve(static_cast<size_t>(fuse_n));
-        for (int i = 0; i < fuse_n; ++i)
-        {
-            CameraFrameData one = cameras.grab_wait(CameraSlot::Head);
-            one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
-            if (!one.ok)
-                continue;
-            frames.push_back(std::move(one));
-        }
-        if (frames.empty())
-        {
-            out.message = "取帧失败";
-            return out;
-        }
-        const CameraFrameData &frame = frames.back();
-        const int algorithm_id = algorithm_id_for_slot(CameraSlot::Head);
-        const PoseRunResult yolo = bridge.run(
-            frame, algorithm_id, false, CameraSlot::Head, -1, SegEngineId::Default);
-        const PoseDetectionRecords yolo_all =
-            pose_records_from_run(yolo, CameraSlot::Head, frame, -1, false);
-        const TrayDetectResult tray = bridge.run_tray_annotate_multiframe(
-            frames, yolo_all, false, CameraSlot::Head, tray2_place_active());
-        return count_zone_from_tray(tray);
+        (void)cam2robot;
+        PerceiveTrayOptions opts;
+        opts.run_yolo = true;
+        opts.tray2_markers = tray2_place_active();
+        const HeadTrayPerception perc = perceive_tray_head(cameras, bridge, opts);
+        return count_zone_from_tray(perc.tray);
     }
 
     bool assign_from_tray_holes(
@@ -2783,50 +2757,30 @@ namespace move_box
             std::cerr << "[head_ext] 现算失败: " << ext_err << "，用传入外参\n";
             T = cam2robot;
         }
+        (void)T;
 
-        const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
-        cameras.flush(CameraSlot::Head);
-        std::vector<CameraFrameData> frames;
-        frames.reserve(static_cast<size_t>(fuse_n));
-        for (int i = 0; i < fuse_n; ++i)
-        {
-            CameraFrameData one = cameras.grab_wait(CameraSlot::Head);
-            one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
-            if (!one.ok)
-            {
-                std::cerr << "[head] 取帧失败[" << i << "]: " << one.message << std::endl;
-                continue;
-            }
-            frames.push_back(std::move(one));
-        }
-        if (frames.empty())
+        const bool tray_ready = bridge.tray_engine_ready();
+        PerceiveTrayOptions opts;
+        opts.run_yolo = true;
+        opts.tray2_markers = tray2_place_active();
+        opts.show_tray_visualization = kDebugVisualize;
+        opts.show_yolo_visualization = !tray_ready && kDebugVisualize;
+        opts.engine_id = engine_id;
+        const HeadTrayPerception perc = perceive_tray_head(cameras, bridge, opts);
+        if (perc.frames.empty())
         {
             std::cerr << "[head] 取帧失败: 多帧融合没有有效帧\n";
             return;
         }
-        const CameraFrameData &frame = frames.back();
+        if (opts.run_yolo && !perc.yolo.ok)
+            std::cerr << "[head] YOLO 失败: " << perc.yolo.message << std::endl;
 
-        const int algorithm_id = algorithm_id_for_slot(CameraSlot::Head);
-        const bool tray_ready = bridge.tray_engine_ready();
-        const PoseRunResult yolo = bridge.run(
-            frame, algorithm_id, !tray_ready && kDebugVisualize, CameraSlot::Head, -1, engine_id);
-        if (!yolo.ok)
-            std::cerr << "[head] YOLO 失败: " << yolo.message << std::endl;
-
-        const PoseDetectionRecords yolo_all =
-            pose_records_from_run(yolo, CameraSlot::Head, frame, -1, false);
-
-        TrayDetectResult tray;
-        if (tray_ready)
-        {
-            tray = bridge.run_tray_annotate_multiframe(
-                frames, yolo_all, kDebugVisualize, CameraSlot::Head, tray2_place_active());
-            if (!tray.ok)
-                std::cerr << "[tray_xy] 料盘解算失败: " << tray.message
-                          << "，不回退 YOLO，本轮不抓\n";
-        }
-        else
+        const TrayDetectResult &tray = perc.tray;
+        if (!tray_ready)
             std::cerr << "[tray_xy] 料盘引擎未就绪，不回退 YOLO，本轮不抓\n";
+        else if (!tray.ok)
+            std::cerr << "[tray_xy] 料盘解算失败: " << tray.message
+                      << "，不回退 YOLO，本轮不抓\n";
 
         if (!assign_from_tray_holes(tray, st, skip_right, skip_left))
         {

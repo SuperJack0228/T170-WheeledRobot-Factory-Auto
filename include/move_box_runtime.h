@@ -15,10 +15,15 @@
 #include "realsense_get.h"
 #include "seg_pose_bridge.h"
 #include "Ti5_Arm.h"
+#include "vision_debug.h"
 #include "waist.h"
 
-// true=OpenCV 可视化调试；false=仅终端打印
-constexpr bool kDebugVisualize = true;
+/** 历史名：实际读 T170_VISION_DEBUG（默认关重可视化）。见 vision_debug.h。 */
+struct DebugVisualizeFlag
+{
+    operator bool() const { return vision_debug_annotate(); }
+};
+inline constexpr DebugVisualizeFlag kDebugVisualize{};
 
 namespace move_box
 {

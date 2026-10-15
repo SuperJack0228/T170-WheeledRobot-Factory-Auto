@@ -1,6 +1,6 @@
 # T170C 交接文档（给下一任 AI）
 
-更新：2026-10-10  
+更新：2026-10-15  
 权威目录：`/home/ti5robot/T170Clean`  
 用户：`ti5robot`。Ubuntu aarch64（Jetson/Tegra），无 ROS2。  
 机器人：钛虎 T170C，双 7 轴 + 腰腿 5 轴 + 头 3 电机 + DEX1 夹爪 + 仙工底盘。
@@ -18,7 +18,7 @@
 1. **不要用 ROS2。**
 2. **右臂当前解锁：`kLockRightArmMotors = false`**（`src/Ti5_socketcan.cpp`）。再锁定只改这一处为 `true`。
 3. **右 DEX1 经常扫不到。** 启动允许少一个夹爪；缺侧跳过，手臂仍走。不要把「没夹爪」当成启动失败。
-4. **YOLO 只给类别，不参与定位。** 料盘孔位 XY 来自 ArUco。码不够禁止回退 YOLO 抓取。
+4. **YOLO 只给类别（+关联用粗点），不参与抓放定位。** 料盘孔位 XY 来自 ArUco。码不够禁止回退 YOLO 抓取。detect 权重走算法 2（框中心+深度），不再造伪 mask / 跑分割轮廓。
 5. **不要把盘心再加进孔位 XY。**
 6. **C++ 改完必须重编，并且用户自己重启进程。**  
    `cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170c_debug`  
@@ -139,8 +139,8 @@ AP7 抓毛坯（夹爪保持闭合）
 | 任务 | 动作 |
 |------|------|
 | 上料 | 料架抓毛坯（保持合爪，可以出发）→ 上料点申请 5 s，允许才放 |
-| 转运 | 上料点抓，传送带 +X 再加 5 mm；去下料点的路上申请放置；放置 Z 再低 5 mm |
-| 下料 | 下料点按剩余空孔抓 1 或 2 只手 → 成品点真放置，停在那里 |
+| 转运 | 上料点抓：对照点 = grasp_offset 且 X 后移 3 cm，±2 cm 匹配（左右都有则先右后左，手臂仍走 grasp_offset）；去下料点路上申请放置；放置 Z 再低 5 mm |
+| 下料 | 下料点 ROI+空孔侧选手（右侧满且仅 1 件→左手）→ 成品点真放置，停在那里 |
 | 充电 | 手臂到传送带一准备，腰回 home，失能腰/臂/头（右臂锁定则跳过右臂），去充电点，95% 后 `mission_done` 并断开充电继电器，退出时重新使能。停在充电点 |
 
 申请超时 5 s。放置没被允许：**不放、不报 `DONE`、停在原地继续拿着。** 客户端日志看不到「申请已发出」；只有 `t170c_debug` 控制台有「去某站的同时发送 APPLY_…」以及没有「发送失败」。
@@ -152,6 +152,61 @@ AP7 抓毛坯（夹爪保持闭合）
 ---
 
 ## 7. 视觉
+
+### 分层与谁调谁
+
+**目标模块（权威见草案）：** M1 Camera · M2 DL · M3 Marker · M4 Pose · M5 编排；Skill 在模块外。  
+旧称对照：Sensor→M1；YOLO/码检测→M2+M3；Fusion/手眼→M4；`perceive_*`/Bridge→M5。
+
+| 层（旧称） | 对应 | 职责 | 现状入口 |
+|------------|------|------|----------|
+| Sensor | M1 | 取图、K/dist、槽位 | `realsense_get` → `CameraFrameData` |
+| Detector | M2+M3 | YOLO；料盘/传送带 ArUco | `feeding_*`、`tray_detect_api`、`belt_detect_api`；`SegPoseBridge` |
+| Fusion | M4 | 孔融合、手眼→基座 | `tray_fusion` + `cam2robot`（仍散落） |
+| 编排 | M5 | 取帧→检→融合收口 | `perceive_tray/belt_head`（Bridge 仍偏厚） |
+| Skill | — | 抓/放/IK/导航 | `robot_runtime` / `move_box_runtime` |
+
+业务路径（省略失败分支）：
+
+```
+Skill
+  → perceive_tray_head / perceive_belt_head   （M5 铺路）
+       → 取帧 + run_yolo / run_tray / run_belt （仍经 SegPoseBridge）
+  → Skill：门禁 / 选孔 / TCP / 偏置 / 抹角
+传送带门禁另：同一帧 ROI 裁切计数（belt_yolo_count_in_roi）
+```
+
+**边界：** 感知不导航、不开爪；Skill 不直接 `import` Python 检测包（经 Bridge）；调试图只经 `vision_debug`。
+
+**C 已落地（收口）：** 业务编排走 helper，勿再复制「取帧→YOLO→料盘/皮带」：
+
+- `grab_head_fused_frames` / `perceive_tray_head` / `perceive_belt_head`（`seg_pose_bridge.h`）
+- Bridge 稳定名：`run_yolo` / `run_tray` / `run_belt`（薄包装旧 API）
+- 已改调用方：`fill_head_assign_from_frame`、`count_tray_zone_holes`、料盘调试命令、`tray2center`、皮带识别/抓取
+
+**D 已落地（Python fusion）：** `board_yf100_aruco/tray_fusion.py` 专管孔↔YOLO 关联与多帧扶平平均；`tray_detect_api` 只做 ArUco/孔几何/画图并编排。C++ 仍调 `detect_and_annotate` / `fuse_and_annotate`。自测：`python3 board_yf100_aruco/tray_fusion.py`。
+
+**Detect 链路已换：** `best1015` 检测 → 算法 2 框中心粗点（`pose_box.py`）；无伪 mask。关联仍用该粗点挂类别到孔；抓放 XY 仍是 ArUco。`vision_detect: 2`；分割权重仍可走 0/1。
+
+**视觉模块权威约定：** [`docs/vision_modules_draft.md`](docs/vision_modules_draft.md)  
+- **M1–M5 薄封装已落地（S3–S6）**：`include/vision/`（见该目录 README）。  
+- 历史 `perceive_tray_head` / `perceive_belt_head` 转发到 `vision::pipeline`；皮带 ROI 经 `BridgeDlEngine`（`belt_presence`）。  
+- **传送带 ROI** ✅（S1）；**料盘 class 挂孔** ⏸（S2）；**S7 搬家 / S8 预热并行** ⏳。  
+- `SegPoseBridge` 不改名。
+
+### 调试图开关（VisionDebug）
+
+环境变量 **`T170_VISION_DEBUG`**（进程启动时读，改完需重启）：
+
+| 值 | 行为 |
+|----|------|
+| `0` 或未设 | **默认**：业务路径不写 `picture_debug`、不弹窗 |
+| `1` | 写标注图 + 原图/标注成对（`pose_vis_save_*`） |
+| `2` | 在 1 基础上允许 OpenCV GUI（本机无显示器勿开） |
+
+实现：`include/vision_debug.h`、`src/vision_debug.cpp`；`orch_hw_main` 里 `vision_debug_init_from_env()` + `pose_vis_set_save_debug` / `pose_vis_set_gui_enabled`。历史名 `kDebugVisualize` 现为读该开关的代理，不再写死 `true`。路径规则：`picture_debug/<slot>/<stem>_YYYYMMDD_HHMMSS_mmm.jpg`（`vision_debug_make_path`）。
+
+例：`T170_VISION_DEBUG=1 ./build_robot/t170c_debug`。计时另见 `T170_TIMING`（`ProblemNote` 待处理第 3 条）。
 
 ### 当前在用的手眼
 
@@ -177,7 +232,7 @@ AP7 抓毛坯（夹爪保持闭合）
 
 **新的统一码组已写好，默认关闭**（`board_yf100_aruco/config.yaml` 的 `tray_grasp_code.enabled: false`）。5×5，黑框 31.2 mm，角距 0.30 m。左上和右下都是 **100**（定位），右上和左下都是 **2**（这一组的信息号；以后各盘这个号不同）。对角线同号，是为了料盘转 180° 时孔仍落在同一批对称孔上，定位框不靠四个不同 ID。启用：把 `enabled` 改成 `true` 并重启；或调用 `set_active_board("grasp_code")`。程序自己不会切过去。当前抓取不要改去认这组。
 
-调试图 `picture_debug/head/tray_yolo_*.jpg`、`belt_aruco_*.jpg` 会把四个 ArUco 角画成红点。要看到新画法必须重启进程。
+调试图（仅 `T170_VISION_DEBUG≥1`）`picture_debug/head/tray_yolo_*.jpg`、`belt_aruco_*.jpg` 会把四个 ArUco 角画成红点。要看到新画法必须重启进程。
 
 ### 孔位 Z
 
@@ -226,10 +281,15 @@ orchestrator/cpp/orch_hw_main.cpp          命令分发
 orchestrator/cpp/robot_runtime.cpp         cycle、传送带、底盘、调度、腰的时序
 src/grasp_to_standby.cpp                   料盘一轮；tray2 暂停、quit、编码器回读
 src/move_box_runtime.cpp                   抹角、行偏置、远排前伸
+src/vision_debug.cpp                       T170_VISION_DEBUG 写图/GUI 门控
 src/function.cpp                           抹角、接缝、编码器理论/实际
 board_yf100_aruco/config.yaml              料盘一 2/5/6/7、料盘二 0/1/2/3、备用 grasp_code
 board_yf100_aruco/online.py                estimate_diagonal_tray_pose（备用，默认不走）
-board_yf100_aruco/tray_detect_api.py       set_active_board：tray / tray2 / grasp_code
+board_yf100_aruco/tray_detect_api.py       Detector 编排；set_active_board：tray / tray2 / grasp_code
+board_yf100_aruco/tray_fusion.py           孔↔YOLO 关联、多帧扶平融合
+docs/vision_modules_draft.md               视觉 M1–M5 约定与落地状态（权威）
+include/vision/*.h                         M1–M5 薄接口（camera/dl/marker/pose/pipeline）
+src/vision/*.cpp                           上述实现；旧 Bridge API 仍可用
 config/move_box_params.yaml                现场偏置和站点
 free_calib/config/camera_to_head_connector_result.yaml
 ```

@@ -4,6 +4,8 @@
 #include "move_box_config.h"
 #include "function.h"
 #include "Ti5_socketcan.h"
+#include "vision_debug.h"
+#include "vision/pipeline.h"
 
 #include <atomic>
 #include <chrono>
@@ -910,9 +912,13 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
         if (got_ext)
             cam2robot_arg = pose16_to_numpy(cam2robot);
 
-        py::object belt_api = py::module_::import("sys").attr("modules")["t170c_belt_detect_api"];
-        const std::string save_path =
-            py::str(belt_api.attr("default_save_path")(project_root_dir()));
+        py::object save_arg = py::none();
+        if (show_visualization)
+        {
+            const std::string save_path = vision_debug_annotate_path("head", "belt_aruco");
+            if (!save_path.empty())
+                save_arg = py::str(save_path);
+        }
 
         auto make_off = [](const double *src) -> py::object {
             if (src == nullptr)
@@ -928,7 +934,7 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
             K_to_numpy(frame.K),
             dist_to_numpy(frame.dist),
             cam2robot_arg,
-            save_path,
+            save_arg,
             prefer_name,
             py::none(),
             make_off(grasp_offset_left),
@@ -958,6 +964,19 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
             return std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
         };
         read_xyz(out.attr("get")("origin_cam"), result.cam_x, result.cam_y, result.cam_z);
+        double rv0 = 0, rv1 = 0, rv2 = 0, tv0 = 0, tv1 = 0, tv2 = 0;
+        const bool got_r = read_xyz(out.attr("get")("rvec"), rv0, rv1, rv2);
+        const bool got_t = read_xyz(out.attr("get")("tvec"), tv0, tv1, tv2);
+        if (got_r && got_t)
+        {
+            result.rvec[0] = rv0;
+            result.rvec[1] = rv1;
+            result.rvec[2] = rv2;
+            result.tvec[0] = tv0;
+            result.tvec[1] = tv1;
+            result.tvec[2] = tv2;
+            result.have_cam_pose = true;
+        }
         result.in_robot = read_xyz(
             out.attr("get")("origin_robot"), result.origin_x, result.origin_y, result.origin_z);
         result.have_grasp_l = read_xyz(
@@ -1096,8 +1115,13 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
             dets.append(d);
         }
 
-        const std::string save_path =
-            py::str(py::module_::import("tray_detect_api").attr("default_save_path")(project_root_dir()));
+        py::object save_arg = py::none();
+        if (show_visualization)
+        {
+            const std::string save_path = vision_debug_annotate_path("head", "tray_yolo");
+            if (!save_path.empty())
+                save_arg = py::str(save_path);
+        }
 
         py::object out;
         const bool use_fuse = frames.size() > 1 && impl_->tray_fuse_fn && !impl_->tray_fuse_fn.is_none();
@@ -1117,7 +1141,7 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
                 dist_to_numpy(frame.dist),
                 cam2robot_arg,
                 dets,
-                save_path);
+                save_arg);
         }
         else
         {
@@ -1128,7 +1152,7 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
                 dist_to_numpy(frame.dist),
                 cam2robot_arg,
                 dets,
-                save_path);
+                save_arg);
         }
 
         result.ok = out.attr("get")("ok").cast<bool>();
@@ -1257,13 +1281,14 @@ PoseRunResult SegPoseBridge::run(
 
     try
     {
-        const bool need_depth = (algorithm_id == 1);
+        // 1=mask 重心，2=检测框中心；均需深度。detect 权重在 Python 侧强制走 2。
+        const bool need_depth = (algorithm_id == 1 || algorithm_id == 2);
         py::object depth_arg;
         if (need_depth)
         {
             if (frame.depth_m.empty())
             {
-                result.message = "算法 1 需要深度图";
+                result.message = "算法 1/2 需要深度图";
                 return result;
             }
             depth_arg = depth_vector_to_numpy(frame.height, frame.width, frame.depth_m);
@@ -1303,6 +1328,26 @@ PoseRunResult SegPoseBridge::run(
             one.success = t.attr("success").cast<bool>();
             one.message = py::str(t.attr("message"));
             one.pose_4x4 = numpy_pose_to_array(t.attr("pose_4x4"));
+            try
+            {
+                py::object xy = t.attr("xyxy");
+                if (!xy.is_none())
+                {
+                    const auto v = xy.attr("tolist")().cast<std::vector<double>>();
+                    if (v.size() >= 4 && std::isfinite(v[0]) && std::isfinite(v[2]))
+                    {
+                        one.box_x0 = static_cast<float>(v[0]);
+                        one.box_y0 = static_cast<float>(v[1]);
+                        one.box_x1 = static_cast<float>(v[2]);
+                        one.box_y1 = static_cast<float>(v[3]);
+                        one.box_u = static_cast<float>(0.5 * (v[0] + v[2]));
+                        one.box_v = static_cast<float>(0.5 * (v[1] + v[3]));
+                    }
+                }
+            }
+            catch (const std::exception &)
+            {
+            }
             result.targets.push_back(std::move(one));
         }
 
@@ -2042,6 +2087,43 @@ PoseDetectionRecords pose_records_from_run(
     return records;
 }
 
+std::vector<CameraFrameData> grab_head_fused_frames(RealSenseMultiCam &cameras, int fuse_n)
+{
+    vision::RealSenseCameraBackend cam(cameras);
+    return vision::grab_head_fused(cam, fuse_n);
+}
+
+HeadTrayPerception perceive_tray_from_frames(
+    SegPoseBridge &bridge,
+    std::vector<CameraFrameData> frames,
+    const PerceiveTrayOptions &opts)
+{
+    vision::BridgeDlEngine dl(bridge);
+    vision::BridgePoseSolver pose(bridge);
+    return vision::perceive_tray_from_frames(dl, pose, std::move(frames), opts);
+}
+
+HeadTrayPerception perceive_tray_head(
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const PerceiveTrayOptions &opts)
+{
+    return vision::perceive_tray_head(cameras, bridge, opts);
+}
+
+HeadBeltPerception perceive_belt_head(
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const std::string &prefer_name,
+    bool show_visualization,
+    const double *grasp_offset_left,
+    const double *grasp_offset_right)
+{
+    return vision::perceive_belt_head(
+        cameras, bridge, prefer_name, show_visualization, grasp_offset_left,
+        grasp_offset_right);
+}
+
 PoseDetectionRecords detect_pose_at_slot(
     RealSenseMultiCam &cameras,
     SegPoseBridge &bridge,
@@ -2075,7 +2157,7 @@ PoseDetectionRecords detect_pose_at_slot(
     frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), slot);
 
     const int algorithm_id = algorithm_id_for_slot(slot);
-    const PoseRunResult result = bridge.run(
+    const PoseRunResult result = bridge.run_yolo(
         frame, algorithm_id, show_visualization, slot, -1, engine_id);
     if (!result.ok)
     {
