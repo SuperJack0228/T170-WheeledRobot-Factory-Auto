@@ -1,31 +1,15 @@
-# 文档索引
+# 文档
 
-仓库根目录只留工程 [`README.md`](../README.md)。行为以代码为准；下面按用途分开，避免把现场记录当成当前流程。
+产品介绍在仓库根目录的 [README.md](../README.md)。这里是流程和参数的入口。
 
-## 当前运行时
+| 文档 | 内容 |
+|------|------|
+| [dispatch_flow.md](dispatch_flow.md) | 上料、转运、下料、充电的信号顺序，抓取窗口和放置 ±3 cm |
+| [vision_modules_draft.md](vision_modules_draft.md) | 相机、检测、标志、位姿、编排五层，以及检测和认码如何并行 |
+| [AI_HANDOFF.md](AI_HANDOFF.md) | 站点、速度、调试命令、手眼和偏置 |
+| [fallen_model_update.md](fallen_model_update.md) | 立件、空孔、倒件的类别，以及空抓后再拍的规则 |
+| [BEZIER_GRASP_README.md](BEZIER_GRASP_README.md) | 料盘抓取使用的二次 Bézier |
+| [wave_gesture.md](wave_gesture.md) | 挥手动作的关键帧 |
+| [PROJECT_MAP.md](PROJECT_MAP.md) | 目录地图 |
 
-| 文档 | 看什么 |
-|------|--------|
-| [`AI_HANDOFF.md`](AI_HANDOFF.md) | 硬约束、站点、调试命令、调度摘要、手眼和偏置。下一任先读这篇。 |
-| [`dispatch_flow.md`](dispatch_flow.md) | 调度信号、抓取窗口、放置 ±3 cm、异常码 true/false。比交接文档更细。 |
-| [`vision_modules_draft.md`](vision_modules_draft.md) | 视觉 M1–M5 和 S0–S8 的落地状态。 |
-| [`ProblemNote.md`](ProblemNote.md) | 还没做完的事，以及已经改过的记录。 |
-| [`PROJECT_MAP.md`](PROJECT_MAP.md) | 目录地图。不写进度。 |
-
-传送带抓取：整图检测框中心转到码系，窗口 x∈[-0.05, 0.05] m、y∈[0.10, 0.13] m。0 个不抓，1 个只右手，不少于 2 个双手。手臂仍走 `grasp_offset`。放置看放置点 ±3 cm。窗口在 C++ 里，改 yaml 不会改它。
-
-## 专题说明
-
-| 文档 | 看什么 |
-|------|--------|
-| [`wave_gesture.md`](wave_gesture.md) | 右手挥手的关键帧和命令。不要把里面的关节角写进抓取 yaml。 |
-| [`BEZIER_GRASP_README.md`](BEZIER_GRASP_README.md) | 料盘抓取的二次 Bézier。传送带伸手不走这条曲线。 |
-
-## 记录和未落地的方案
-
-| 文档 | 看什么 |
-|------|--------|
-| [`tray2_placement_error.md`](tray2_placement_error.md) | 2026-10-09 料盘二放置偏差的现场记录。当天的 `tray2` 不导航；现在的命令顺序看交接文档 §4。 |
-| [`tray2_placement_error_prompt.md`](tray2_placement_error_prompt.md) | 给分析者的约束。先读上面那篇记录。 |
-| [`fallen_model_update.md`](fallen_model_update.md) | 倒件模型更换方案。还没写进正在跑的类别编号。 |
-| [`T170-手相机视觉伺服误差修正技术方案-20261019.md`](T170-手相机视觉伺服误差修正技术方案-20261019.md) | 手相机伺服讨论稿。尚未接入当前抓放。 |
+传送带抓取看整图检测框在二维码坐标系里的窗口：x ∈ [-0.05, 0.05] m，y ∈ [0.10, 0.13] m。没有件不伸手，一件出右手，两件及以上先右后左。手臂走到 `grasp_offset`。放置看放置点 ±3 cm。窗口写在 C++ 常量里。
