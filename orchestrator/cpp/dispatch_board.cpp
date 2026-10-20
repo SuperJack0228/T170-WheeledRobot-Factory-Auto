@@ -291,9 +291,9 @@ std::vector<std::string> steps_for(const std::string &mission)
     if (mission == "TASK_LOAD")
         return {"去料盘一", "料盘一抓取", "去传送带一", "申请上料放置", "传送带一放置", "汇报完成"};
     if (mission == "TASK_TRANSFER")
-        return {"去传送带一", "左手申请抓取", "右手申请抓取", "去传送带二并申请放置", "传送带二放置", "汇报完成"};
+        return {"去传送带一", "检测框抓取", "去传送带二并申请放置", "传送带二放置", "汇报完成"};
     if (mission == "TASK_UNLOAD")
-        return {"去传送带二", "左手申请抓取", "右手申请抓取", "去料盘二", "料盘二放置", "汇报完成"};
+        return {"去传送带二", "申请抓取", "去料盘二", "料盘二放置", "汇报完成"};
     if (mission == "CHARGE")
         return {"准备去充电", "整机 home", "去等待点", "挥手下垂", "腰降抓取高",
                 "失能电机", "去充电路上", "去充电点", "充电中", "汇报完成"};
@@ -555,7 +555,7 @@ void board_apply_end(bool granted)
         line = push_event_locked(
             granted ? "ok" : "warn",
             granted ? ("已同意 " + g_board.apply_grant + "（" + g_board.apply_what + "）")
-                    : ("申请 " + g_board.apply_name + " 20s 未同意，原地待命"));
+                    : ("申请 " + g_board.apply_name + " 20s 没有回复"));
     }
     emit(line);
 }

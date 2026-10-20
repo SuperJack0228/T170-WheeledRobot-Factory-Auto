@@ -2,12 +2,11 @@
 # 长度单位：米 (m)；图像阈值为像素 (px)
 # YOLO class_id 须与训练 data.yaml 中 names 顺序一致
 
-# 与 best1015.pt（detect_factory_jindi / yolo11n）内 model.names 一致
+# 与 best1015.pt（倒件微调后的 yolo11n）内 model.names 一致。没有类别 3。
 yolo_class_names:
-  0: original_product          # 毛坯
-  1: semi_finished_product     # 半成品
-  2: finished_product          # 成品
-  3: feeding_hole              # 空孔
+  0: workpiece                 # 立件
+  1: feeding_hole              # 空孔
+  2: fallen                    # 倒件
 
 units:
   length: m
@@ -28,8 +27,8 @@ segmentation:
   iou: 0.5  # 过滤大于该值的框
   imgsz: 1280        # 推理长边；1280×720 勿用默认 640，0=自动 max(H,W)
   retina_masks: true # 仅分割权重有意义；detect 忽略
-  # 四类均参与推理和调试显示；C++ 抓取层仍只接受 class 0（毛坯）。
-  class_ids: [0, 1, 2, 3]
+  # 三类都参与推理。传送带零件计 0 和 2；料盘抓取用 0，料盘放置用 1。
+  class_ids: [0, 1, 2]
 
 # ---------- 类别几何（不同圆柱/圆盘直径） ----------
 defaults:
@@ -38,24 +37,18 @@ defaults:
   algorithm_id: 2
 
 classes:
-  original_product:
+  workpiece:
     class_id: 0
     radius_m: 0.0275       # 圆柱件半径 27.5 mm
     enabled: true
     algorithm_id: 2
-
-  semi_finished_product:
+  feeding_hole:
     class_id: 1
     radius_m: 0.0275
     enabled: true
     algorithm_id: 2
-  finished_product:
+  fallen:
     class_id: 2
-    radius_m: 0.0275
-    enabled: true
-    algorithm_id: 2
-  feeding_hole:
-    class_id: 3
     radius_m: 0.0275
     enabled: true
     algorithm_id: 2

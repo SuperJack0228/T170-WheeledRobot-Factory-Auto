@@ -1,8 +1,8 @@
 # 工程地图
 
-**当前状态、已修问题、下一步以 `AI_HANDOFF.md` 为准（2026-09-21 已重写）。** 本文只列目录，不描述进度。
+**当前状态、已修问题、下一步以同目录 [`AI_HANDOFF.md`](AI_HANDOFF.md) 为准。** 调度逐步信号见 [`dispatch_flow.md`](dispatch_flow.md)。本文只列目录，不描述进度。
 
-这是清理后的 T170C 无底盘调试工程。建议按以下顺序阅读。
+这是 T170C 轮式调试工程。建议按以下顺序阅读。入口说明见 [`README.md`](../README.md)。当前行为以 [`AI_HANDOFF.md`](AI_HANDOFF.md) 为准。
 
 ## 1. 入口与命令
 
@@ -10,7 +10,7 @@
 - `tools/debug_client.py`：人用调试入口，提供 `status/qr/grasp/home/abort/reload`。
 - `orchestrator/cpp/robot_runtime.cpp`：home / grasp / waist1/2 / belt / waist_jog / ArUco。
 - `board_yf100_aruco/`：料盘 5×5 码 + `tray_detect_api.py`（嵌入 C++）。
-- `board_belt_aruco/`：传送带 6×6 码，目前仅独立 `online.py`，尚未嵌入。
+- `board_belt_aruco/`：传送带 6×6 码。运行时经 `belt_detect_api.py` 嵌入；`online.py` 仍可单独看。
 - `free_calib/`：头相机 `T_head_cam`，运行时按头角现算 `T_base_cam`。
 
 ## 2. 圆柱抓取

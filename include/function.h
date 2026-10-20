@@ -141,7 +141,7 @@ std::vector<ArmArrivalRecord> arm_arrival_log_copy();
  * 等该臂编码器到位后，用当前编码器正运动学记下目标 XYZ 和实际 XYZ。
  * stage 为空时用当前直线段名称。
  */
-void record_arm_cartesian_arrival(
+bool record_arm_cartesian_arrival(
     Robot_Arm &arm,
     const Eigen::Matrix<double, 1, 6> &goal,
     const char *stage = nullptr,
@@ -149,7 +149,11 @@ void record_arm_cartesian_arrival(
 
 /** 读编码器 → Line_Trajectory → 每 5ms set_motor_position。
  * 不锁 J2（不传冗余角），让七轴逆解自己选肘，保证抓取工作空间。 */
-int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);
+int arm_line_move(
+    Robot_Arm &arm,
+    Matrix<double, 1, 6> &pos,
+    double cart_linear_velocity,
+    bool snap_reach = false);
 
 /** 与 arm_line_move 相同。轨迹走完后再等 settle_ms，然后打印理论关节角、实际关节角和差。 */
 int arm_line_move_settle(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms);
@@ -200,7 +204,8 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     double vel_second_m_s,
     const std::function<void()> &before_move = {},
     bool use_prepared = false,
-    const char *log_tag = "收手");
+    const char *log_tag = "收手",
+    bool snap_reach = false);
 
 ArmLineMoveResult arm_dual_rounded_corner_move_selective(
     Robot_Arm &arm_r,
@@ -296,9 +301,11 @@ ArmLineMoveResult arm_dual_line_move(
     Matrix<double, 1, 6> &pos_r,
     Robot_Arm &arm_l,
     Matrix<double, 1, 6> &pos_l,
-    double cart_linear_velocity);
+    double cart_linear_velocity,
+    bool snap_reach = false);
 
-/** move_r/move_l 为 false 的一侧不移动；可只动单臂或双臂 */
+/** move_r/move_l 为 false 的一侧不移动；可只动单臂或双臂。
+ *  snap_reach 为真时，运动大约一半和到位后各异步存一张手相机原图。 */
 ArmLineMoveResult arm_dual_line_move_selective(
     Robot_Arm &arm_r,
     Matrix<double, 1, 6> &pos_r,
@@ -306,7 +313,8 @@ ArmLineMoveResult arm_dual_line_move_selective(
     Robot_Arm &arm_l,
     Matrix<double, 1, 6> &pos_l,
     bool move_l,
-    double cart_linear_velocity);
+    double cart_linear_velocity,
+    bool snap_reach = false);
 
 /** 记录最近一次 set_motor_position 下发（供 wait_arms_motors_stopped 编码器校验） */
 void save_arm_last_commanded_position(int hand, const int motor_cmd[7]);

@@ -119,7 +119,7 @@
         <article class="card mod-charge">
           <div class="mod-head">
             <h2>充电</h2>
-            <p class="hint">真实去充电：home→AP14→挥手下垂→腰降→充电点；检测到开始充电即结束。</p>
+            <p class="hint">调试充电：home → 等待点 → 挥手下垂 → 腰降到抓取高度 → 充电点，检测到开始充电就结束。调度任务里的充电要充到阈值，再去充电等待点。</p>
           </div>
           <div class="actions">
             <button class="cmd" data-command="charge">充电</button>
@@ -147,7 +147,7 @@
       <div class="grid two">
         <article class="card">
           <h2>手动</h2>
-          <p class="hint">上料：料盘抓取，再放到传送带一。转运：传送带一抓取，再放到传送带二。下料：传送带二抓取，再放到料盘二。不向调度系统申请许可。</p>
+          <p class="hint">上料：料盘抓毛坯，再放到传送带一。转运：传送带一按检测框窗口抓，再放到传送带二。下料：传送带二抓成品，再放到料盘二。这里不向调度申请。</p>
           <div class="actions row">
             <button class="quiet" id="addLoad" type="button">加上料</button>
             <button class="quiet" id="addTransfer" type="button">加转运</button>
@@ -162,7 +162,7 @@
         </article>
         <article class="card">
           <h2>自动</h2>
-          <p class="hint">和命令行里的 dispatch 相同。车到等待点后，上料、转运、下料、充电都由调度系统决定。顶部「停止」只中止当前动作；要彻底离开调度模式请点下面的「退出调度」。调试充电请用「动作」页的充电按钮。</p>
+          <p class="hint">和命令行里的 dispatch 相同。到等待点后听调度。上料：料盘抓完、去传送带一时申请放置，超时就直接放。转运：不申请，检测框中心落在码系窗口内才抓，有件才去传送带二并申请放置。下料：传送带二只申请一次再抓，然后放到成品盘。放置申请超时都是直接放。顶部「停止」只中止当前动作；离开调度请点「退出调度」。调试充电在「动作」页。</p>
           <button class="cmd fill dispatch-enter" data-command="dispatch">进入调度</button>
           <button type="button" id="exitDispatch" class="dispatch-exit">退出调度</button>
           <p class="hint">退出调度会中止动作、断开与调度系统的等待，并结束调度模式；监控里「调度中」应变为未进入。</p>
@@ -210,6 +210,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=11"></script>
+  <script src="/app.js?v=13"></script>
 </body>
 </html>

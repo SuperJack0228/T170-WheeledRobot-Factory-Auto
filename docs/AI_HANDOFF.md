@@ -1,15 +1,13 @@
 # T170C 交接文档（给下一任 AI）
 
-更新：2026-10-15  
+更新：2026-10-20  
 权威目录：`/home/ti5robot/T170Clean`  
 用户：`ti5robot`。Ubuntu aarch64（Jetson/Tegra），无 ROS2。  
 机器人：钛虎 T170C，双 7 轴 + 腰腿 5 轴 + 头 3 电机 + DEX1 夹爪 + 仙工底盘。
 
 **以本文和当前代码为准。** `config/move_box_params.yaml` 里不少注释过时（传送带站号、收手目标、「料盘二仍走直线」）。站点以 `chassis:` 为准，动作以 `orchestrator/cpp/robot_runtime.cpp` 为准。
 
-已推送的 `main` 尖端是 `a85e58e`（作者 Jack Liu）。本文这次更新还没提交。旧的 Coleram 提交已改写成本地作者并强制推过 `main`；最早那条初始提交仍是 song。不要再改历史，除非用户明确要求。
-
-本轮会话：[调度与动作衔接](11893e6d-7422-405d-adb8-aceae908e7c8)。
+当前分支 `20261015`，已推送尖端 `c16f770`。工作区还有未提交的现场修改。不要改历史，除非用户明确要求。
 
 ---
 
@@ -26,7 +24,7 @@
 7. **不要 git commit / push，除非用户明确要求。** 不要在文档或回复里写密码、token、私钥。
 8. 软件 `abort` **不是急停**，也杀不掉正在跑的服务端命令。客户端 Ctrl+C 只断自己。停进程：`pkill -f build_robot/t170c_debug`。客户端 `Expecting value: line 1 column 1` 是对端收下连接后没有返回 JSON，多半是进程已死。连接被拒是服务没在听 8099。
 9. 头远排俯仰 **`far_pitch_deg: 47`**。标定俯仰 40°。传送带拍照俯仰 38°。不要改成 65°。
-10. **抹角长度 8 cm**（`kCornerBlendM = 0.08`）。抹角失败不要退回两段停车直线。
+10. **抹角长度 6 cm**（`kCornerBlendM = 0.06`）。抹角失败不要退回两段停车直线。
 11. **不要在手臂 `set_Position` 之外再无锁开 CAN 线程。** 电机 SDK 有 `g_motor_sdk_mu`。已有的腰线程必须走这把锁。底盘是仙工 TCP，可以和手臂并行。
 12. 坐标系：**基座 +X 前、+Y 左、+Z 上。** 料盘 / 传送带识别系同样前左上。
 13. **行偏置叠在该手的全局偏置上**，不是替换。`from_robot` 1 = 最远，6 = 最近。`head_grasp.row_offset` 只管料盘一抓取；`tray2_place.row_offset` 只管料盘二放置。
@@ -41,8 +39,8 @@
 | 料盘一抓取 | `tray_station` | **AP7** | `head_grasp`，5×5 码 ID 2/5/6/7 |
 | 传送带一 | `belt_station` | **AP5** | `conveyor` |
 | 传送带二 | `out_station` | **AP6** | `conveyor2` |
-| 料盘二放置 | `tray2_station` | **AP9** | `tray2_place`，6×6 码 ID 0/1/2/3，空孔 class 3 |
-| 调度初始等待 | `dispatch_wait_station` | **AP14** | 到站后保持 home 姿态等任务。任务结束回料架仍去 `tray_station` 或调度下发的料架，不回 AP14 |
+| 料盘二放置 | `tray2_station` | **AP9** | `tray2_place`，6×6 码 ID 0/1/2/3，空孔 class 1 |
+| 调度初始等待 | `dispatch_wait_station` | **AP14** | 到站后保持 home 姿态等任务。任务结束且 20 s 内没有下一条，或普通失败，也回 `standby_point` 或 AP14。充电结束去 `charge_wait_station`（默认 AP12） |
 
 底盘 `192.168.192.5`。导航完成才算到站：仙工 `task_status==4`，或发导航前已经在站上。行进中站名提前变成目标站**不算**到站，不能据此拍照。`note_station_arrived()` 只在这两种情况打。
 
@@ -92,7 +90,7 @@ AP7 抓毛坯（夹爪保持闭合）
 → 下一圈
 ```
 
-手臂巡航现在是 **0.20 m/s**（传送带抓/放、料盘抓/放的伸手和收手）。不要改回 0.15 / 0.16，除非用户要求。腕再定向仍是 40°/s。接缝单关节上限仍是 25°/s，不要改回 8°/5 ms。
+传送带和料盘的伸手、收手速度在 `config/move_box_params.yaml`。当前伸手/收手 **0.35 m/s**，下降/抬起 **0.25 m/s**。改之前先读文件，不要用文档里的旧 0.20 覆盖。腕再定向仍是 40°/s。接缝单关节上限仍是 25°/s，不要改回 8°/5 ms。
 
 夹爪比例：`0` 全开，`1` 全合。传送带放置松爪、传送带抓取准备、料盘一抓取的预备和清空时松爪，都是 **0.2**。`closeAndWait` 的第二个 0.2 是容差，不是开合度。
 
@@ -122,11 +120,11 @@ AP7 抓毛坯（夹爪保持闭合）
 
 **料盘二放完要去 AP7 抓**（人在 `tray2_station`，或 `vision_place_tray2` 的 `return_to_tray=true`）：**先升腰，再开底盘，到 AP7 后再降腰。** `cycle` 走这条。`cycle3` 和调度下料 `return_to_tray=false`，放完停在 AP9 不升腰；下一次从这里发出的料盘一抓取，同样先升、再走、再降。
 
-**调度开局：** 去 AP14 的同时腰升到 home。到站后再 `go_home`，以 home 姿态等待，等待时不挥手。任务结束回料架仍是 `go_home` 和底盘并行，不要改成 AP14。
+**调度开局：** 去 AP14 的同时腰升到 home。到站后再 `go_home`，以 home 姿态等待，等待时不挥手。任务结束且没有下一条：先 `go_home`，再去 `standby_point` 或 AP14。`1101` / `1102` / `1201` 未解决时留在原地。充电结束去 AP12，不回 AP14。
 
 **不要改**腰 ready 检查那条：dx 约 0.0126 大于 0.01 就放弃。用户没要求就别放宽。
 
-传送带伸手时腰抖一下：没有新的腰指令，是直立位被手臂 0.20 m/s 起步带动。用户要求过不改。
+传送带伸手时腰抖一下：没有新的腰指令，是直立位被手臂起步带动。用户要求过不改。
 
 ---
 
@@ -138,14 +136,18 @@ AP7 抓毛坯（夹爪保持闭合）
 
 | 任务 | 动作 |
 |------|------|
-| 上料 | 料架抓毛坯（保持合爪，可以出发）→ 上料点申请 5 s，允许才放 |
-| 转运 | 上料点抓：对照点 = grasp_offset 且 X 后移 3 cm，±2 cm 匹配（左右都有则先右后左，手臂仍走 grasp_offset）；去下料点路上申请放置；放置 Z 再低 5 mm |
-| 下料 | 下料点 ROI+空孔侧选手（右侧满且仅 1 件→左手）→ 成品点真放置，停在那里 |
-| 充电 | 手臂到传送带一准备，腰回 home，失能腰/臂/头（右臂锁定则跳过右臂），去充电点，95% 后 `mission_done` 并断开充电继电器，退出时重新使能。停在充电点 |
+| 上料 | 料架抓毛坯（保持合爪，可以出发）→ 去上料点的同时申请放置，超时 20 s 后直接放 |
+| 转运 | 上料点不申请。整图检测框中心转到码系，窗口 x∈[-0.05,0.05]、y∈[0.10,0.13]：0 个不抓报 `1102`，1 个只右手，≥2 先右后左。手臂仍走 `grasp_offset`。抓完发 `PICK_UP_DONE`。去下料点路上申请放置；放置 Z 再低 5 mm |
+| 下料 | 下料点不申请。到站拍一次，用同一抓取窗口决定伸哪只手。抓完去成品点真放置。`DONE` 等放置结束才发 |
+| 充电 | home → 待命点 → 挥手下垂 → 腰降到抓取高度 → 失能腰/臂/头（右臂锁定则跳过右臂）→ 去充电点。达到 `charge_done_percent`（yaml 默认 95，可热改）后 `mission_done` 并断开充电继电器，重新使能。手臂回 `home_tcp`，腰高不动，底盘去充电等待点（默认 AP12） |
 
-申请超时 5 s。放置没被允许：**不放、不报 `DONE`、停在原地继续拿着。** 客户端日志看不到「申请已发出」；只有 `t170c_debug` 控制台有「去某站的同时发送 APPLY_…」以及没有「发送失败」。
+申请超时 **20 s**。放置申请超时：**直接放**。传送带抓取不再申请。客户端日志看不到「申请已发出」；只有 `t170c_debug` 控制台有「去某站的同时发送 APPLY_…」以及没有「发送失败」。
 
-手里还有件的失败：留下，不报完成，不回料盘再抓（`kDispatchHoldStay=9`）。上料/转运成功后等 5 s，没新任务才 `go_home` 并回料架（`g_dispatch_rack_point` 或 AP7）。下料成功停在成品点。充电成功停在充电点。
+`1101` / `1102` / `1201` 上报后等网页。返回 true：不再申请，原地再拍，重做刚才的抓或放，不回 AP14。返回 false：停在当前站等下一条，20 s 超时也不回 AP14。传送带取帧、二维码、检测失败先自动再拍一次，第二次仍失败才上报 `1201`。
+
+手里还有件的失败：留下，不报完成，不回料盘再抓（`kDispatchHoldStay=9`）。上料/转运/下料成功后在当前位置再听 **20 s**，没新任务才 `go_home` 并回待命点（`standby_point` 或 AP14）。充电成功停在充电等待点，在那里断线重连也不改去 AP14。
+
+传送带抓放的逐步信号见 [`dispatch_flow.md`](dispatch_flow.md)。
 
 进程内只有一个仙工连接，2 Hz 写位姿、电量和 `current_point`。不要再 `Disconnect`，不要再 new 第二个 `Seer`。
 
@@ -173,7 +175,7 @@ Skill
   → perceive_tray_head / perceive_belt_head   （M5 铺路）
        → 取帧 + run_yolo / run_tray / run_belt （仍经 SegPoseBridge）
   → Skill：门禁 / 选孔 / TCP / 偏置 / 抹角
-传送带门禁另：同一帧 ROI 裁切计数（belt_yolo_count_in_roi）
+传送带门禁：整图检测框中心转到码系。抓取看固定窗口；放置看放置点 ±3 cm
 ```
 
 **边界：** 感知不导航、不开爪；Skill 不直接 `import` Python 检测包（经 Bridge）；调试图只经 `vision_debug`。
@@ -188,10 +190,10 @@ Skill
 
 **Detect 链路已换：** `best1015` 检测 → 算法 2 框中心粗点（`pose_box.py`）；无伪 mask。关联仍用该粗点挂类别到孔；抓放 XY 仍是 ArUco。`vision_detect: 2`；分割权重仍可走 0/1。
 
-**视觉模块权威约定：** [`docs/vision_modules_draft.md`](docs/vision_modules_draft.md)  
+**视觉模块权威约定：** [`vision_modules_draft.md`](vision_modules_draft.md)  
 - **M1–M5 薄封装已落地（S3–S6）**：`include/vision/`（见该目录 README）。  
-- 历史 `perceive_tray_head` / `perceive_belt_head` 转发到 `vision::pipeline`；皮带 ROI 经 `BridgeDlEngine`（`belt_presence`）。  
-- **传送带 ROI** ✅（S1）；**料盘 class 挂孔** ⏸（S2）；**S7 搬家 / S8 预热并行** ⏳。  
+- 历史 `perceive_tray_head` / `perceive_belt_head` 转发到 `vision::pipeline`。传送带整图 YOLO 走 `BridgeDlEngine`（`belt_presence`），不再裁切 ROI。  
+- **传送带码系窗口** ✅；**料盘 class 挂孔** ⏸（S2）；**S8 预热/并行** ✅（启动空图预热；料盘与传送带 YOLO∥检码）；**S7 搬家** ⏳。  
 - `SegPoseBridge` 不改名。
 
 ### 调试图开关（VisionDebug）
@@ -206,7 +208,7 @@ Skill
 
 实现：`include/vision_debug.h`、`src/vision_debug.cpp`；`orch_hw_main` 里 `vision_debug_init_from_env()` + `pose_vis_set_save_debug` / `pose_vis_set_gui_enabled`。历史名 `kDebugVisualize` 现为读该开关的代理，不再写死 `true`。路径规则：`picture_debug/<slot>/<stem>_YYYYMMDD_HHMMSS_mmm.jpg`（`vision_debug_make_path`）。
 
-例：`T170_VISION_DEBUG=1 ./build_robot/t170c_debug`。计时另见 `T170_TIMING`（`ProblemNote` 待处理第 3 条）。
+例：`T170_VISION_DEBUG=1 ./build_robot/t170c_debug`。计时另见 `T170_TIMING`（[`ProblemNote.md`](ProblemNote.md) 待处理第 3 条）。
 
 ### 当前在用的手眼
 
@@ -288,6 +290,9 @@ board_yf100_aruco/online.py                estimate_diagonal_tray_pose（备用�
 board_yf100_aruco/tray_detect_api.py       Detector 编排；set_active_board：tray / tray2 / grasp_code
 board_yf100_aruco/tray_fusion.py           孔↔YOLO 关联、多帧扶平融合
 docs/vision_modules_draft.md               视觉 M1–M5 约定与落地状态（权威）
+docs/dispatch_flow.md                      调度信号与动作（比本文 §6 更细）
+docs/AI_HANDOFF.md                         本文
+docs/ProblemNote.md                        待办与已改记录
 include/vision/*.h                         M1–M5 薄接口（camera/dl/marker/pose/pipeline）
 src/vision/*.cpp                           上述实现；旧 Bridge API 仍可用
 config/move_box_params.yaml                现场偏置和站点

@@ -63,6 +63,12 @@ class CirclePoseEngine:
             imgsz=p.segmentation.imgsz,
             retina_masks=p.segmentation.retina_masks,
         )
+        self._model_path = str(model_file)
+
+    def warmup(self, height: int = 720, width: int = 1280) -> str:
+        """空图推理一次。模型对象保持在 self._segmenter，拍照时不再 YOLO()。"""
+        self._segmenter.warmup(height, width)
+        return self._model_path
 
     def _resolve_algorithm_id(self, class_id: int, frame_override: int | None, from_detect: bool) -> int:
         if from_detect:

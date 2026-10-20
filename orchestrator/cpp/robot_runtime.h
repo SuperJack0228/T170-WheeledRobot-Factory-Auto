@@ -84,6 +84,12 @@ int go_belt_ready(Robot_Arm &arm_r, Robot_Arm &arm_l);
 int go_belt_place(Robot_Arm &arm_r, Robot_Arm &arm_l);
 /** 第一传送带抓取手腕预览：腰/头同 belt_ready，手臂用 tcp 的 XYZ + grasp_rpy_deg。不拍照、不夹取、不动底盘。 */
 int go_belt_grasp_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/**
+ * 采集头相机原图。scene 为 cap_belt / cap_belt2 / cap_tray / cap_tray2。
+ * 先去对应站点，再把腰和头摆到该站拍照姿态，手臂不动。停稳后在本进程终端按回车拍一张，
+ * quit 回车结束。成功返回张数（≥0），失败返回负的 code。目录写入 dir_out。
+ */
+int capture_head_dataset(const std::string &scene, std::string &dir_out);
 /** 第一传送带放置：去 AP6 → 准备 → 认码 → 左右依次放置 → 停准备 tcp。不回 home。 */
 int go_belt();
 /** 仅放置流程（底盘已到位）。cycle 用。 */

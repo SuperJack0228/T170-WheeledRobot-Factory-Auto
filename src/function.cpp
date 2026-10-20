@@ -6,6 +6,7 @@
 #include "function.h"
 
 #include "Ti5_socketcan.h"
+#include "realsense_get.h"
 
 #include <chrono>
 #include <thread>
@@ -2142,6 +2143,46 @@ ArmLinkFk compute_link_fk(Robot_Arm &arm, const Eigen::RowVectorXd &q)
     return out;
 }
 
+void queue_reach_hand_photo(int hand, const char *phase, int delay_ms)
+{
+    if (hand != 0 && hand != 1)
+        return;
+    RealSenseMultiCam *cams = RealSenseMultiCam::live();
+    if (cams == nullptr)
+        return;
+    const bool right = hand == 1;
+    const bool left = hand == 0;
+    if (delay_ms <= 0)
+    {
+        cams->save_reach_color_async(right, left, phase);
+        return;
+    }
+    const std::string phase_copy = (phase != nullptr && phase[0] != '\0') ? phase : "途中";
+    std::thread([delay_ms, right, left, phase_copy]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        if (RealSenseMultiCam *live = RealSenseMultiCam::live())
+            live->save_reach_color_async(right, left, phase_copy.c_str());
+    }).detach();
+}
+
+void begin_reach_hand_photo(int hand, int rows)
+{
+    if (rows < 2)
+        return;
+    const int half_ms = std::max(1, static_cast<int>(std::lround(rows * k_arm_traj_dt * 500.0)));
+    queue_reach_hand_photo(hand, "途中", half_ms);
+}
+
+void finish_reach_hand_photo(int hand)
+{
+    if (hand != 0 && hand != 1)
+        return;
+    RealSenseMultiCam *cams = RealSenseMultiCam::live();
+    if (cams == nullptr)
+        return;
+    cams->save_reach_color_settled(hand == 1, hand == 0, "到位");
+}
+
 } // namespace
 
 ArmLinkFk arm_fk_links(Robot_Arm &arm, const Eigen::Ref<const Eigen::RowVectorXd> &q_motor)
@@ -2167,7 +2208,8 @@ void log_arm_link_fk(Robot_Arm &arm, const char *tag)
               << ") mdh_err=" << L.tcp_mdh_err << " m\n";
 }
 
-int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
+int arm_line_move(
+    Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, bool snap_reach)
 {
     if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
         return 0;
@@ -2193,9 +2235,11 @@ int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_
         append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
         return ret;
     }
+    if (snap_reach)
+        begin_reach_hand_photo(hand, static_cast<int>(traj.rows()));
     const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
-    if (exec == 0)
-        record_arm_cartesian_arrival(arm, pos, nullptr);
+    if (exec == 0 && record_arm_cartesian_arrival(arm, pos, nullptr) && snap_reach)
+        finish_reach_hand_photo(hand);
     return exec;
 }
 
@@ -2360,11 +2404,12 @@ ArmLineMoveResult arm_dual_line_move(
     Matrix<double, 1, 6> &pos_r,
     Robot_Arm &arm_l,
     Matrix<double, 1, 6> &pos_l,
-    double cart_linear_velocity)
+    double cart_linear_velocity,
+    bool snap_reach)
 {
     ArmLineMoveResult out;
-    std::thread th_r([&]() { out.ret_r = arm_line_move(arm_r, pos_r, cart_linear_velocity); });
-    std::thread th_l([&]() { out.ret_l = arm_line_move(arm_l, pos_l, cart_linear_velocity); });
+    std::thread th_r([&]() { out.ret_r = arm_line_move(arm_r, pos_r, cart_linear_velocity, snap_reach); });
+    std::thread th_l([&]() { out.ret_l = arm_line_move(arm_l, pos_l, cart_linear_velocity, snap_reach); });
     th_r.join();
     th_l.join();
     return out;
@@ -2377,16 +2422,17 @@ ArmLineMoveResult arm_dual_line_move_selective(
     Robot_Arm &arm_l,
     Matrix<double, 1, 6> &pos_l,
     const bool move_l,
-    const double cart_linear_velocity)
+    const double cart_linear_velocity,
+    const bool snap_reach)
 {
     if (move_r && move_l)
-        return arm_dual_line_move(arm_r, pos_r, arm_l, pos_l, cart_linear_velocity);
+        return arm_dual_line_move(arm_r, pos_r, arm_l, pos_l, cart_linear_velocity, snap_reach);
 
     ArmLineMoveResult out;
     if (move_r)
-        out.ret_r = arm_line_move(arm_r, pos_r, cart_linear_velocity);
+        out.ret_r = arm_line_move(arm_r, pos_r, cart_linear_velocity, snap_reach);
     if (move_l)
-        out.ret_l = arm_line_move(arm_l, pos_l, cart_linear_velocity);
+        out.ret_l = arm_line_move(arm_l, pos_l, cart_linear_velocity, snap_reach);
     return out;
 }
 
@@ -3222,7 +3268,8 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const double vel_second_m_s,
     const std::function<void()> &before_move,
     const bool use_prepared,
-    const char *log_tag)
+    const char *log_tag,
+    const bool snap_reach)
 {
     ArmLineMoveResult out;
     Eigen::MatrixXd traj_r, traj_l;
@@ -3246,21 +3293,31 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     }
     if (before_move)
         before_move();
+    auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
+        const int hand = arm_hand_side(arm);
+        if (snap_reach)
+            begin_reach_hand_photo(hand, static_cast<int>(traj.rows()));
+        ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    };
     if (move_r && move_l)
     {
-        std::thread th_r([&]() { out.ret_r = execute_arm_trajectory(traj_r, arm_hand_side(arm_r), k_arm_traj_dt); });
-        std::thread th_l([&]() { out.ret_l = execute_arm_trajectory(traj_l, arm_hand_side(arm_l), k_arm_traj_dt); });
+        std::thread th_r([&]() { run_one(arm_r, traj_r, out.ret_r); });
+        std::thread th_l([&]() { run_one(arm_l, traj_l, out.ret_l); });
         th_r.join();
         th_l.join();
     }
     else if (move_r)
-        out.ret_r = execute_arm_trajectory(traj_r, arm_hand_side(arm_r), k_arm_traj_dt);
+        run_one(arm_r, traj_r, out.ret_r);
     else if (move_l)
-        out.ret_l = execute_arm_trajectory(traj_l, arm_hand_side(arm_l), k_arm_traj_dt);
-    if (move_r && out.ret_r == 0)
-        record_arm_cartesian_arrival(arm_r, goal_r, "收手终点");
-    if (move_l && out.ret_l == 0)
-        record_arm_cartesian_arrival(arm_l, goal_l, "收手终点");
+        run_one(arm_l, traj_l, out.ret_l);
+    if (move_r && out.ret_r == 0 &&
+        record_arm_cartesian_arrival(arm_r, goal_r, snap_reach ? "伸手到位" : "收手终点") &&
+        snap_reach)
+        finish_reach_hand_photo(arm_hand_side(arm_r));
+    if (move_l && out.ret_l == 0 &&
+        record_arm_cartesian_arrival(arm_l, goal_l, snap_reach ? "伸手到位" : "收手终点") &&
+        snap_reach)
+        finish_reach_hand_photo(arm_hand_side(arm_l));
     return out;
 }
 
@@ -3292,22 +3349,27 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
         return out;
     }
 
+    auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
+        const int hand = arm_hand_side(arm);
+        begin_reach_hand_photo(hand, static_cast<int>(traj.rows()));
+        ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    };
     if (move_r && move_l)
     {
-        std::thread th_r([&]() { out.ret_r = execute_arm_trajectory(traj_r, arm_hand_side(arm_r), k_arm_traj_dt); });
-        std::thread th_l([&]() { out.ret_l = execute_arm_trajectory(traj_l, arm_hand_side(arm_l), k_arm_traj_dt); });
+        std::thread th_r([&]() { run_one(arm_r, traj_r, out.ret_r); });
+        std::thread th_l([&]() { run_one(arm_l, traj_l, out.ret_l); });
         th_r.join();
         th_l.join();
     }
     else if (move_r)
-        out.ret_r = execute_arm_trajectory(traj_r, arm_hand_side(arm_r), k_arm_traj_dt);
+        run_one(arm_r, traj_r, out.ret_r);
     else if (move_l)
-        out.ret_l = execute_arm_trajectory(traj_l, arm_hand_side(arm_l), k_arm_traj_dt);
+        run_one(arm_l, traj_l, out.ret_l);
 
-    if (move_r && out.ret_r == 0)
-        record_arm_cartesian_arrival(arm_r, final_r, "抹角C");
-    if (move_l && out.ret_l == 0)
-        record_arm_cartesian_arrival(arm_l, final_l, "抹角C");
+    if (move_r && out.ret_r == 0 && record_arm_cartesian_arrival(arm_r, final_r, "抹角C"))
+        finish_reach_hand_photo(arm_hand_side(arm_r));
+    if (move_l && out.ret_l == 0 && record_arm_cartesian_arrival(arm_l, final_l, "抹角C"))
+        finish_reach_hand_photo(arm_hand_side(arm_l));
     return out;
 }
 
@@ -3801,7 +3863,7 @@ std::vector<ArmArrivalRecord> arm_arrival_log_copy()
     return g_arm_arrivals;
 }
 
-void record_arm_cartesian_arrival(
+bool record_arm_cartesian_arrival(
     Robot_Arm &arm,
     const Eigen::Matrix<double, 1, 6> &goal,
     const char *stage,
@@ -3809,7 +3871,7 @@ void record_arm_cartesian_arrival(
 {
     const int hand = arm_hand_side(arm);
     if (hand == 1 && right_arm_motors_locked())
-        return;
+        return false;
 
     std::string stage_txt;
     if (stage != nullptr && stage[0] != '\0')
@@ -3856,6 +3918,7 @@ void record_arm_cartesian_arrival(
               << ") |err|=" << rec.err_m << "m"
               << (settled ? " 停稳" : " 未停稳") << "\n";
     std::cout.flush();
+    return settled;
 }
 
 int arm_joint_move(Robot_Arm &arm, Matrix<double, 1, 7> &qd)

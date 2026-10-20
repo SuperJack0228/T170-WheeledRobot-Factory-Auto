@@ -39,6 +39,10 @@ COMMANDS = {
     "belt2_place": {"cmd": "belt2_place"},
     "belt2_grasp_rpy": {"cmd": "belt2_grasp_rpy"},
     "belt2_grasp": {"cmd": "belt2_grasp"},
+    "cap_belt": {"cmd": "cap_belt"},
+    "cap_belt2": {"cmd": "cap_belt2"},
+    "cap_tray": {"cmd": "cap_tray"},
+    "cap_tray2": {"cmd": "cap_tray2"},
     "waist_jog": {"cmd": "waist_jog"},
     "grasp": {"cmd": "vision_grasp"},
     "grasp_once": {"cmd": "vision_grasp_once"},
@@ -112,7 +116,7 @@ def print_tray_table(result: dict) -> None:
         print(
             "看图：品红圈=二维码孔几何；彩色编号圈=1-36；斜十字=YOLO。"
             "圈在真孔上=盘位准；十字落在对应圈内=类别配对准。"
-            "绿 raw=毛坯  黄 semi=半成品  蓝 fin=成品  灰 empty=空孔  白=未匹配。"
+            "绿 up=立件  灰 hole=空孔  红 fall=倒件  白=未匹配。"
             "盘面Z=外参斜面；水平盘Z=假定料盘水平后；盘上高=深度相对二维码平面；水平顶Z=水平盘Z+盘上高。"
         )
     holes = result.get("holes") or []

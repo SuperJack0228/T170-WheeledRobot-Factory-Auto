@@ -16,10 +16,9 @@ from typing import Any, Sequence
 import numpy as np
 
 CLASS_LABEL_ZH = {
-    0: "毛坯",
-    1: "半成品",
-    2: "成品",
-    3: "空孔",
+    0: "立件",
+    1: "空孔",
+    2: "倒件",
 }
 
 
@@ -179,10 +178,10 @@ def _self_test() -> None:
     ]
     dets = [
         {"class_id": 0, "conf": 0.9, "xyz_cam": [0, 0, 1], "xyz_robot": [0.105, 0.2, 0.5]},
-        {"class_id": 3, "conf": 0.8, "xyz_cam": [0, 0, 1], "xyz_robot": [0.195, 0.2, 0.5]},
+        {"class_id": 1, "conf": 0.8, "xyz_cam": [0, 0, 1], "xyz_robot": [0.195, 0.2, 0.5]},
     ]
     assoc = associate_yolo_to_holes(holes, dets, associate_max_m=0.03)
-    assert assoc[0]["class_id"] == 0 and assoc[1]["class_id"] == 3, assoc
+    assert assoc[0]["class_id"] == 0 and assoc[1]["class_id"] == 1, assoc
 
     # 旋转平均：单位阵
     R = np.eye(3)

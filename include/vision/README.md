@@ -10,4 +10,5 @@
 | `pipeline.h` | M5 | `perceive_tray` / `perceive_belt` |
 
 历史入口 `perceive_tray_head` / `perceive_belt_head`（`seg_pose_bridge.h`）已转发到本目录。  
-`SegPoseBridge` 类名保留。目录级搬家（原 E / S7）另做。
+`SegPoseBridge` 类名保留。目录级搬家（原 E / S7）另做。  
+S8：`warmup` 在进程启动跑一次空图；`perceive_tray` 与整图 `perceive_belt` 里 YOLO 和检码并行。

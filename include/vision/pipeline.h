@@ -12,7 +12,7 @@
 namespace vision
 {
 
-/** 料盘：取帧 → DL(tray_parts) → Pose.solve_tray（内含码+孔+关联）。 */
+/** 料盘：取帧 → (DL(tray_parts) ∥ 检码) → Pose.solve_tray（孔+关联）。 */
 HeadTrayPerception perceive_tray(
     ICameraBackend &camera,
     IDlEngine &dl,
@@ -26,11 +26,15 @@ HeadTrayPerception perceive_tray_from_frames(
     std::vector<Frame> frames,
     const PerceiveTrayOptions &opts = {});
 
-/** 传送带：取帧 → Pose.solve_belt（码定位）。DL 门禁由 Skill 另调 belt_presence。 */
+/**
+ * 传送带：取帧 → 码定位。dl 非空时整图 YOLO 与检码并行，结果写入 yolo_ran/yolo。
+ * 抓放门禁在 Skill：框中心转到码系后再判断。
+ */
 HeadBeltPerception perceive_belt(
     ICameraBackend &camera,
     IPoseSolver &pose,
-    const PoseSolveBeltOpts &opts);
+    const PoseSolveBeltOpts &opts,
+    IDlEngine *dl = nullptr);
 
 /**
  * 便利：用 RealSenseMultiCam + SegPoseBridge 组装四模块再感知。
@@ -47,6 +51,7 @@ HeadBeltPerception perceive_belt_head(
     const std::string &prefer_name,
     bool show_visualization = false,
     const double *grasp_offset_left = nullptr,
-    const double *grasp_offset_right = nullptr);
+    const double *grasp_offset_right = nullptr,
+    bool parallel_yolo = false);
 
 } // namespace vision

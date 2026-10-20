@@ -260,32 +260,12 @@ struct ConveyorStationConfig
     double grasp_waist_yaw_deg = 0.0;
     /** 准备姿态夹爪闭合比例，0=全开 1=全合。减小开距，避免下探时磕皮带边。 */
     double grasp_ready_close_ratio = 0.30;
-    /** 传送带：对 ROI 裁切后跑 YOLO，只计有无与数量（不参与定位）。false=不跑。 */
+    /** 传送带：整图 YOLO，框中心转到码系后再做抓放门禁。false=不跑。 */
     bool yolo_roi_enable = false;
-    /** ROI 像素矩形（头相机图坐标系，原点左上）。仅当 yolo_roi_from_marker=false，或码位姿不可用时作回退。 */
-    int yolo_roi_x = 0;
-    int yolo_roi_y = 0;
-    int yolo_roi_w = 0;
-    int yolo_roi_h = 0;
-    /**
-     * true：ROI 是码坐标系矩形（+X 前、+Y 左、Z=0），投影到图像后再裁切。
-     * 边长默认与 board_belt_aruco 的 belt.edge 一致。
-     */
-    bool yolo_roi_from_marker = true;
-    double yolo_roi_front_m = 0.152;
-    double yolo_roi_rear_m = 0.152;
-    double yolo_roi_left_m = 0.167;
-    double yolo_roi_right_m = 0.070;
-    /** 抓取左半 ROI 再切一刀：分界是 Y 轴沿 +X 平移这么多（米）。X 较小的一片在画面下方，归右手；X 较大的一片在画面上方，归左手。 */
-    double yolo_grasp_split_x_m = 0.02;
     /** 计入「零件」的最低置信度。 */
     double yolo_min_conf = 0.25;
-    /** 计入零件的 class_id；空则默认 0/1/2（毛坯/半成品/成品），不含空孔 3。 */
+    /** 计入零件的 class_id；空则默认 0 和 2（立件、倒件），不含空孔 1。 */
     std::vector<int> yolo_part_class_ids;
-    /** 抓取：ROI 内零件数须 ≥ 该值（通常 1）。 */
-    int yolo_grasp_min_count = 1;
-    /** 放置：ROI 内零件数须 ≤ 该值（通常 0=必须空）。 */
-    int yolo_place_max_count = 0;
     /** @deprecated 旧类别门禁；若 yolo_roi_enable=false 且本项 true 则仍走旧逻辑。 */
     bool grasp_yolo_enable = false;
     /** @deprecated 配合 grasp_yolo_enable。 */

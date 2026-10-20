@@ -4,10 +4,12 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <vector>
 
+#include <atomic>
 #include <chrono>
 #include <ctime>
 #include <filesystem>
@@ -16,13 +18,19 @@
 #include <sstream>
 #include <unistd.h>
 
+#include "vision_debug.h"
+
 #include <librealsense2/rs.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <yaml-cpp/yaml.h>
 
 namespace
 {
+
+std::mutex g_hand_grab_mu;
+std::atomic<RealSenseMultiCam *> g_hand_cams{nullptr};
 
 constexpr const char *kSlotKeys[] = {"head", "right_hand", "left_hand"};
 constexpr int kWarmupFrames = 8;
@@ -368,7 +376,6 @@ bool RealSenseMultiCam::init(std::string &err)
         impl_->slots.emplace("head", std::move(dev));
     }
 
-    // 左右手相机当前不用，启动不打开、缺了也不失败。
     for (const char *key : {"right_hand", "left_hand"})
     {
         const YAML::Node node = realsense[key];
@@ -381,7 +388,6 @@ bool RealSenseMultiCam::init(std::string &err)
         if (!dev.serial.empty())
             impl_->slots.emplace(key, std::move(dev));
     }
-    std::cout << "[realsense] 左右手相机不要求打开，本次只启动头部\n";
 
     auto &dev = impl_->slots.at("head");
     std::string cam_err;
@@ -398,7 +404,35 @@ bool RealSenseMultiCam::init(std::string &err)
               << ") SN=" << dev.serial << " " << impl_->width << "x" << impl_->height
               << "@" << impl_->head_fps << "fps\n";
 
+    for (const char *key : {"right_hand", "left_hand"})
+    {
+        auto it = impl_->slots.find(key);
+        if (it == impl_->slots.end())
+        {
+            std::cerr << "[realsense] 未配置 " << key << "，这只手伸手时不拍照\n";
+            continue;
+        }
+        std::string hand_err;
+        if (!start_slot_device(
+                it->second, impl_->width, impl_->height, impl_->hand_fps, hand_err))
+        {
+            std::cerr << "[realsense] 手相机打开失败 [" << key << "] SN=" << it->second.serial
+                      << "，头部继续用，这只手伸手时不拍照: " << hand_err << "\n";
+            log_connected_realsense();
+            continue;
+        }
+        std::cout << "RealSense 已启动: " << it->second.label << " (" << it->second.slot_id
+                  << ") SN=" << it->second.serial << " " << impl_->width << "x" << impl_->height
+                  << "@" << impl_->hand_fps << "fps\n";
+    }
+
+    g_hand_cams.store(this);
     return true;
+}
+
+RealSenseMultiCam *RealSenseMultiCam::live()
+{
+    return g_hand_cams.load();
 }
 
 namespace
@@ -620,8 +654,74 @@ void RealSenseMultiCam::save_grasp_hand_camera_snapshots(bool save_right, bool s
         save_one_hand_grasp_snapshot(*this, CameraSlot::LeftHand, "左手");
 }
 
+namespace
+{
+
+void save_reach_original_color(
+    RealSenseMultiCam &cameras,
+    CameraSlot slot,
+    const char *subdir,
+    const std::string &phase,
+    bool fresh)
+{
+    CameraFrameData frame = fresh ? cameras.grab_fresh(slot) : cameras.grab(slot);
+    if (!frame.ok || frame.color_bgr.empty() || frame.width <= 0 || frame.height <= 0)
+    {
+        std::cerr << "[handcam] " << subdir << " " << phase << " 未拍照: " << frame.message << "\n";
+        return;
+    }
+
+    const char *slot_dir = slot == CameraSlot::RightHand ? "right_hand" : "left_hand";
+    const std::string path = vision_debug_make_path(slot_dir, phase.c_str());
+    const cv::Mat bgr(frame.height, frame.width, CV_8UC3, frame.color_bgr.data());
+    cv::Mat saved = bgr;
+    if (slot == CameraSlot::LeftHand)
+        cv::rotate(bgr, saved, cv::ROTATE_180);
+    if (path.empty() || !cv::imwrite(path, saved))
+    {
+        std::cerr << "[handcam] 保存失败 " << path << "\n";
+        return;
+    }
+    std::cout << "[handcam] " << subdir << " " << phase << " 原图 " << path << "\n";
+}
+
+} // namespace
+
+void RealSenseMultiCam::save_reach_color_async(bool right, bool left, const char *phase)
+{
+    if (!right && !left)
+        return;
+    const std::string phase_s = (phase != nullptr && phase[0] != '\0') ? phase : "拍照";
+    std::thread([this, right, left, phase_s]() {
+        std::lock_guard<std::mutex> lock(g_hand_grab_mu);
+        if (g_hand_cams.load() != this)
+            return;
+        if (right)
+            save_reach_original_color(*this, CameraSlot::RightHand, "右手", phase_s, false);
+        if (left)
+            save_reach_original_color(*this, CameraSlot::LeftHand, "左手", phase_s, false);
+    }).detach();
+}
+
+void RealSenseMultiCam::save_reach_color_settled(bool right, bool left, const char *phase)
+{
+    if (!right && !left)
+        return;
+    const std::string phase_s = (phase != nullptr && phase[0] != '\0') ? phase : "到位";
+    std::lock_guard<std::mutex> lock(g_hand_grab_mu);
+    if (g_hand_cams.load() != this)
+        return;
+    if (right)
+        save_reach_original_color(*this, CameraSlot::RightHand, "右手", phase_s, true);
+    if (left)
+        save_reach_original_color(*this, CameraSlot::LeftHand, "左手", phase_s, true);
+}
+
 void RealSenseMultiCam::stop()
 {
+    if (g_hand_cams.load() == this)
+        g_hand_cams.store(nullptr);
+    std::lock_guard<std::mutex> lock(g_hand_grab_mu);
     for (auto &kv : impl_->slots)
     {
         if (kv.second.started)

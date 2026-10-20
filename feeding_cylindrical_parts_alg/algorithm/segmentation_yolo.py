@@ -118,12 +118,24 @@ class YoloSegmenter:
         imgsz: int | list[int] = 1280,
         retina_masks: bool = True,
     ) -> None:
+        # 权重只在构造时加载一次，后续 predict / warmup 都复用 self._model。
         self._model = YOLO(model_path)
         self.conf = conf
         self.iou = iou
         self.classes = classes
         self.imgsz = imgsz
         self.retina_masks = retina_masks
+        self._warmed = False
+
+    def warmup(self, height: int = 720, width: int = 1280) -> None:
+        """跑一张空图，把首次构图 / 显存分配提前到进程启动。已预热则直接返回。"""
+        if self._warmed:
+            return
+        h = max(32, int(height))
+        w = max(32, int(width))
+        dummy = np.zeros((h, w, 3), dtype=np.uint8)
+        self.predict(dummy)
+        self._warmed = True
 
     def predict(self, bgr: np.ndarray) -> list[SegInstance]:
         infer_sz = resolve_imgsz(bgr, self.imgsz)

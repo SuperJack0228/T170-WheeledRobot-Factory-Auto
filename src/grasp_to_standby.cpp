@@ -152,7 +152,7 @@ GraspToStandbyResult run_grasp_to_standby(
     }
 
     if (tray_hole_task() == TrayHoleTask::PlaceEmpty)
-        log_phase_banner("料盘2空孔放置：头相机识别分配(class3)");
+        log_phase_banner("料盘2空孔放置：头相机识别分配(class1)");
     else if (adaptive_approach_rpy)
         log_phase_banner("抓取流程(自适应姿态)：头相机识别分配(class0)");
     else

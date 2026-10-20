@@ -35,7 +35,7 @@ import yaml
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
 WEB_API_VERSION = 4
-UI_VERSION = "1.1.6"
+UI_VERSION = "1.1.8"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
 CONFIG_FILES = {

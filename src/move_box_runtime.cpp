@@ -2273,7 +2273,7 @@ namespace move_box
         }
         out.ok = true;
         std::cout << "[tray] 工作区 "
-                  << (want_class == kEmptyHoleClassId ? "空孔" : "毛坯")
+                  << (want_class == kEmptyHoleClassId ? "空孔" : "立件")
                   << " 右=" << out.right << " 左=" << out.left
                   << (cols_flipped ? "（列号已对调）\n" : "\n");
         return out;
@@ -3480,7 +3480,7 @@ namespace move_box
             out = arm_dual_line_then_line_nostop(
                 arm_r, hover_r_arm, goal_r_arm, hs.move_r,
                 arm_l, hover_l_arm, goal_l_arm, hs.move_l,
-                kApproachCruiseMps, kApproachCruiseMps, {}, false, "伸手");
+                kApproachCruiseMps, kApproachCruiseMps, {}, false, "伸手", true);
         }
         else if (!g_move_cfg.head_grasp.use_hand_camera &&
                  (tray_grasp_uses_curve() || tray_place_uses_corner()))
@@ -3501,7 +3501,7 @@ namespace move_box
                                                      : "B→C 下压到最终抓取点");
             out = arm_dual_line_move_selective(
                 arm_r, goal_r_arm, hs.move_r, arm_l, goal_l_arm, hs.move_l,
-                g_move_cfg.head_grasp.descend_vel_m_s);
+                g_move_cfg.head_grasp.descend_vel_m_s, true);
         }
         if (hs.move_r && out.ret_r != 0)
         {

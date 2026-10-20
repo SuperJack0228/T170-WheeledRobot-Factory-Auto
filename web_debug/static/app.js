@@ -9,7 +9,7 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
 const WEB_API = 4;
-const UI_VERSION = "1.1.6";
+const UI_VERSION = "1.1.8";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -181,7 +181,7 @@ function applyTile(a) {
   switch (a.state) {
     case "waiting": return tile("申请", "已发出，等待同意", `${a.name} → 等 ${a.grant} · ${what}`, "wait", "pulse");
     case "granted": return tile("申请", "已同意", `${a.name} → 收到 ${a.grant} · ${what}`, "ok");
-    case "denied": return tile("申请", "未同意", `${a.name} 超时没回 ${a.grant} · ${what}`, "bad");
+    case "denied": return tile("申请", "超时", `${a.name} 20s 没有回复 · ${what}`, "bad");
     default: return tile("申请", "无", "这个任务还没发申请", "idle");
   }
 }

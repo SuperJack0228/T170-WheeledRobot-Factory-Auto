@@ -131,7 +131,7 @@ head_grasp:
   hand_detect_invalid_redo_max: 10
 
 # 第二个料盘空孔放置。姿态、XYZ offset 都与 head_grasp 独立，改这里不影响抓取。
-# tray2ready1/2/3/6 只换手腕；tray2 流程：AP9 → 下蹲同 grasp → 认 class3 空孔放置。
+# tray2ready1/2/3/6 只换手腕；tray2 流程：AP9 → 下蹲同 grasp → 认 class1 空孔放置。
 # offset 相对孔位，基座系，左右分开。初值抄当前抓取，之后只调料盘2。
 tray2_place:
   offset:
@@ -281,7 +281,7 @@ conveyor:
     left: [0, 40, -20]
     right: [0, 40, 45]
   grasp_offset:
-    left: { x: 0.08, y: 0.11, z: 0.015 }
+    left: { x: 0.083, y: 0.11, z: 0.015 }
     right: { x: 0.0, y: 0.12, z: -0.001 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
@@ -299,23 +299,15 @@ conveyor:
   grasp_waist_yaw_deg: 0
   # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
   grasp_ready_close_ratio: 0.20
-  # 传送带 YOLO：只计有无与数量，不参与定位（定位仍用码）。
-  # ROI 跟码坐标系投影。沿左右对半：抓取用左半（+Y），放置用右半（−Y）。
-  # 抓取左半再切（仅非调度）：Y 轴沿 +X 平移 yolo_grasp_split_x_m。调度按整片计数：1=右手，≥2=双手，0=不抓并报错。
-  yolo_grasp_split_x_m: 0.02
-  # 调试图：T170_VISION_DEBUG≥1 → picture_debug/head/belt_yolo_roi_*.jpg（黄四边形）。
-  # yolo_roi 像素矩形只在 yolo_roi_from_marker=false 时使用。
+  # 传送带检测门禁。整图 YOLO，框中心转到码系。抓取窗口和放置 ±3cm 都在代码里。
+  # 抓取窗口：码系 x∈[-0.05,0.05]、y∈[0.10,0.13]。0 个不抓，1 个只右手，≥2 双手。手臂仍走 grasp_offset。
+  # 调试图：T170_VISION_DEBUG≥1 → picture_debug/head/belt_yolo_det_*.jpg。
   yolo_roi_enable: true
-  yolo_roi_from_marker: true
-  yolo_roi_marker: { front_m: 0.152, rear_m: 0.152, left_m: 0.167, right_m: 0.070 }
-  yolo_roi: { x: 320, y: 160, width: 640, height: 400 }
   yolo_min_conf: 0.25
-  yolo_part_class_ids: [0, 1, 2]   # 计入零件的类别；不含 3=空孔
-  yolo_grasp_min_count: 1
-  yolo_place_max_count: 0
+  yolo_part_class_ids: [0, 2]   # 立件和倒件都算零件；1=空孔不计入
   # 旧：全图按类别门禁（仅当 yolo_roi_enable=false 时生效）
   grasp_yolo_enable: false
-  grasp_yolo_class_id: 1
+  grasp_yolo_class_id: 0
   # 腰高 waist_z=0.63m 时，手臂基座到传送带（码平面）29cm。基座 Z 向上，传送带在下方，所以是 -0.29。
   # 只替换码原点的 Z。XY、板朝向仍用二维码；放置/抓取 offset 和 hover 仍叠在这个高度上。
   # 第二传送带先保持相机高度，方便和这条固定高度对比。
@@ -346,7 +338,7 @@ conveyor2:
   # 先放的右手 x +2.5cm，后放的左手 x -2.5cm。Y/Z 不动。
   offset:
     right: { x: 0.0, y: 0.008, z: -0.02 }
-    left:  { x: -0.06, y: -0.015, z: -0.022 }
+    left:  { x: -0.06, y: -0.015, z: -0.02 }
   grasp_rpy_deg:
     left: [0, 45, -50]
     right: [0, 45, 50]
@@ -365,16 +357,10 @@ conveyor2:
   grasp_waist_yaw_deg: 0
   grasp_ready_close_ratio: 0.20
   yolo_roi_enable: true
-  yolo_roi_from_marker: true
-  yolo_roi_marker: { front_m: 0.152, rear_m: 0.152, left_m: 0.167, right_m: 0.070 }
-  yolo_grasp_split_x_m: 0.02
-  yolo_roi: { x: 320, y: 160, width: 640, height: 400 }
   yolo_min_conf: 0.25
-  yolo_part_class_ids: [0, 1, 2]
-  yolo_grasp_min_count: 1
-  yolo_place_max_count: 0
+  yolo_part_class_ids: [0, 2]   # 立件和倒件都算零件；1=空孔不计入
   grasp_yolo_enable: false
-  grasp_yolo_class_id: 2
+  grasp_yolo_class_id: 0
   # 先保持相机读出的码平面高度，和第一传送带的固定 -0.29m 对比。
   use_fixed_origin_z: false
   fixed_origin_z_m: -0.29

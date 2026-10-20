@@ -41,16 +41,14 @@ HERE = Path(__file__).resolve().parent
 
 # OpenCV Hershey 字体画不出中文，图上必须用 ASCII。
 CLASS_LABEL_EN = {
-    0: "raw",
-    1: "semi",
-    2: "fin",
-    3: "empty",
+    0: "up",
+    1: "hole",
+    2: "fall",
 }
 CLASS_BGR = {
     0: (0, 220, 0),
-    1: (0, 220, 220),
-    2: (255, 140, 40),
-    3: (150, 150, 150),
+    1: (150, 150, 150),
+    2: (0, 0, 255),
 }
 
 _cfg: AppConfig | None = None
@@ -421,6 +419,40 @@ def _estimate_leveled_T(
     }
 
 
+def locate_markers(
+    bgr: np.ndarray,
+    K: np.ndarray,
+    dist: np.ndarray | None,
+    cam2robot: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """只检 ArUco 并给出扶平位姿。不含孔关联，供和 YOLO 并行。"""
+    cfg, detector = _require()
+    K = _as_K(K)
+    dist = _as_dist(dist)
+    T_rc = _as_T(cam2robot)
+    bgr = np.ascontiguousarray(bgr)
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = detector.detectMarkers(gray)
+    tray = _estimate_active_pose(corners, ids, cfg, K, dist)
+    R_level = None
+    t_level = None
+    tilt_deg = float("nan")
+    yaw_deg = float("nan")
+    if tray is not None and T_rc is not None:
+        _R_ct, _t_ct, R_level, t_level, tilt_deg, yaw_deg = _level_robot_tray(
+            T_rc, tray.rvec, tray.tvec
+        )
+    return {
+        "corners": corners,
+        "ids": ids,
+        "R_level": R_level,
+        "t_level": t_level,
+        "tilt_deg": tilt_deg,
+        "yaw_deg": yaw_deg,
+        "ok": tray is not None,
+    }
+
+
 def detect_and_annotate(
     bgr: np.ndarray,
     depth_m: np.ndarray | None,
@@ -434,14 +466,19 @@ def detect_and_annotate(
     t_level_override: np.ndarray | None = None,
     fuse_ok: int = 0,
     fuse_n: int = 0,
+    located: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cfg, detector = _require()
     K = _as_K(K)
     dist = _as_dist(dist)
     T_rc = _as_T(cam2robot)
     bgr = np.ascontiguousarray(bgr)
-    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-    corners, ids, _ = detector.detectMarkers(gray)
+    if located is not None and located.get("corners") is not None:
+        corners = located.get("corners")
+        ids = located.get("ids")
+    else:
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = detector.detectMarkers(gray)
     tray = _estimate_active_pose(corners, ids, cfg, K, dist)
 
     vis = bgr.copy()
@@ -760,6 +797,7 @@ def fuse_and_annotate(
     detections: list[dict[str, Any]] | None,
     save_path: str | None = None,
     associate_max_m: float = 0.03,
+    located_frames: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """多帧扶平 T_robot_tray：丢掉大偏差帧后旋转 SVD 平均、平移取均值；YOLO/可视化用最后一帧。"""
     if not bgrs:
@@ -778,17 +816,38 @@ def fuse_and_annotate(
     T_rc = _as_T(cam2robot)
     Rs: list[np.ndarray] = []
     ts: list[np.ndarray] = []
-    for raw in bgrs:
-        bgr = np.ascontiguousarray(raw)
-        est = _estimate_leveled_T(bgr, K, dist, T_rc)
-        if est is None:
-            continue
-        Rs.append(est["R_level"])
-        ts.append(np.asarray(est["t_level"], dtype=np.float64).reshape(3))
+    last_located = None
+    if located_frames:
+        last_located = located_frames[-1]
+        for loc in located_frames:
+            if not isinstance(loc, dict):
+                continue
+            R = loc.get("R_level")
+            t = loc.get("t_level")
+            if R is None or t is None:
+                continue
+            Rs.append(np.asarray(R, dtype=np.float64).reshape(3, 3))
+            ts.append(np.asarray(t, dtype=np.float64).reshape(3))
+    else:
+        for raw in bgrs:
+            bgr = np.ascontiguousarray(raw)
+            est = _estimate_leveled_T(bgr, K, dist, T_rc)
+            if est is None:
+                continue
+            Rs.append(est["R_level"])
+            ts.append(np.asarray(est["t_level"], dtype=np.float64).reshape(3))
     last = np.ascontiguousarray(bgrs[-1])
     if not Rs:
         return detect_and_annotate(
-            last, depth_m, K, dist, cam2robot, detections, save_path, associate_max_m
+            last,
+            depth_m,
+            K,
+            dist,
+            cam2robot,
+            detections,
+            save_path,
+            associate_max_m,
+            located=last_located,
         )
     n_ok = len(Rs)
     R_avg, t_avg, n_drop = fuse_leveled_tray_poses(Rs, ts)
@@ -812,6 +871,7 @@ def fuse_and_annotate(
         t_level_override=t_avg,
         fuse_ok=n_fused,
         fuse_n=len(bgrs),
+        located=last_located,
     )
 
 

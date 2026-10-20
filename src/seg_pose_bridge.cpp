@@ -16,7 +16,9 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <mutex>
 #include <pwd.h>
+#include <unordered_map>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -626,6 +628,10 @@ struct SegPoseBridge::Impl
     bool tray_ready = false;
     py::object belt_detect_fn;
     bool belt_ready = false;
+    std::atomic<bool> yolo_warmed{false};
+    std::mutex tray_locate_mu;
+    std::unordered_map<std::uint64_t, py::object> tray_locate;
+    std::uint64_t tray_locate_seq = 0;
 };
 
 SegPoseBridge::SegPoseBridge() : impl_(std::make_unique<Impl>()) {}
@@ -880,6 +886,122 @@ bool SegPoseBridge::belt_engine_ready() const
     return impl_ && impl_->belt_ready;
 }
 
+bool SegPoseBridge::warmup_yolo(int height, int width, std::string &err)
+{
+    err.clear();
+    if (!impl_ || !impl_->interpreter)
+    {
+        err = "引擎未初始化";
+        return false;
+    }
+    if (impl_->yolo_warmed.load())
+        return true;
+    if (!impl_->engine || impl_->engine.is_none())
+    {
+        err = "YOLO 引擎未加载";
+        return false;
+    }
+    if (height <= 0)
+        height = 720;
+    if (width <= 0)
+        width = 1280;
+    try
+    {
+        py::gil_scoped_acquire gil;
+        if (impl_->yolo_warmed.load())
+            return true;
+        const std::string path = py::str(impl_->engine.attr("warmup")(height, width));
+        impl_->yolo_warmed.store(true);
+        std::cout << "[dl] YOLO 预热完成 " << width << "x" << height
+                  << "，权重已驻留，后续拍照不再加载: " << path << "\n";
+        return true;
+    }
+    catch (const std::exception &e)
+    {
+        err = std::string("YOLO 预热失败: ") + e.what();
+        return false;
+    }
+}
+
+void SegPoseBridge::drop_tray_locate(std::uint64_t token)
+{
+    if (token == 0 || !impl_)
+        return;
+    py::gil_scoped_acquire gil;
+    std::lock_guard<std::mutex> lk(impl_->tray_locate_mu);
+    impl_->tray_locate.erase(token);
+}
+
+std::uint64_t SegPoseBridge::locate_tray_markers(
+    const std::vector<CameraFrameData> &frames,
+    bool tray2_markers,
+    std::string &err)
+{
+    err.clear();
+    py::gil_scoped_acquire gil;
+    if (!impl_->tray_ready || !impl_->interpreter)
+    {
+        err = "料盘引擎未初始化";
+        return 0;
+    }
+    struct TrayBoardReset
+    {
+        bool tray2 = false;
+        ~TrayBoardReset()
+        {
+            if (!tray2)
+                return;
+            try
+            {
+                py::module_::import("tray_detect_api").attr("set_active_board")("tray");
+            }
+            catch (...)
+            {
+            }
+        }
+    } board_reset;
+    try
+    {
+        if (tray2_markers)
+        {
+            py::module_::import("tray_detect_api").attr("set_active_board")("tray2");
+            board_reset.tray2 = true;
+        }
+        py::object cam2robot_arg = py::none();
+        std::array<double, 16> cam2robot{};
+        std::string ext_err;
+        if (load_head_cam2robot(cam2robot, ext_err))
+            cam2robot_arg = pose16_to_numpy(cam2robot);
+
+        py::module_ api = py::module_::import("tray_detect_api");
+        py::list located;
+        for (const CameraFrameData &f : frames)
+        {
+            if (!f.ok || f.color_bgr.empty())
+                continue;
+            located.append(api.attr("locate_markers")(
+                bgr_vector_to_numpy(f.height, f.width, f.color_bgr),
+                K_to_numpy(f.K),
+                dist_to_numpy(f.dist),
+                cam2robot_arg));
+        }
+        if (located.empty())
+        {
+            err = "没有料盘识别帧";
+            return 0;
+        }
+        std::lock_guard<std::mutex> lk(impl_->tray_locate_mu);
+        const std::uint64_t token = ++impl_->tray_locate_seq;
+        impl_->tray_locate.emplace(token, std::move(located));
+        return token;
+    }
+    catch (const std::exception &e)
+    {
+        err = std::string("料盘检码失败: ") + e.what();
+        return 0;
+    }
+}
+
 BeltDetectResult SegPoseBridge::run_belt_detect(
     const CameraFrameData &frame,
     const std::string &prefer_name,
@@ -1041,10 +1163,22 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
     const PoseDetectionRecords &yolo,
     bool show_visualization,
     CameraSlot vis_slot,
-    bool tray2_markers)
+    bool tray2_markers,
+    std::uint64_t marker_token)
 {
     orch::TimingSpan span("vision_aruco");
     py::gil_scoped_acquire gil;
+    py::object located = py::none();
+    if (marker_token != 0)
+    {
+        std::lock_guard<std::mutex> lk(impl_->tray_locate_mu);
+        const auto it = impl_->tray_locate.find(marker_token);
+        if (it != impl_->tray_locate.end())
+        {
+            located = std::move(it->second);
+            impl_->tray_locate.erase(it);
+        }
+    }
     TrayDetectResult result;
     if (!impl_->tray_ready || !impl_->tray_detect_fn || impl_->tray_detect_fn.is_none())
     {
@@ -1125,6 +1259,7 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
 
         py::object out;
         const bool use_fuse = frames.size() > 1 && impl_->tray_fuse_fn && !impl_->tray_fuse_fn.is_none();
+        bool used_prefetch = false;
         if (use_fuse)
         {
             py::list bgrs;
@@ -1134,26 +1269,72 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
                     continue;
                 bgrs.append(bgr_vector_to_numpy(f.height, f.width, f.color_bgr));
             }
-            out = impl_->tray_fuse_fn(
-                bgrs,
-                depth_arg,
-                K_to_numpy(frame.K),
-                dist_to_numpy(frame.dist),
-                cam2robot_arg,
-                dets,
-                save_arg);
+            if (!located.is_none() && py::len(located) == bgrs.size())
+            {
+                used_prefetch = true;
+                out = impl_->tray_fuse_fn(
+                    bgrs,
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg,
+                    0.03,
+                    located);
+            }
+            else
+            {
+                out = impl_->tray_fuse_fn(
+                    bgrs,
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg);
+            }
         }
         else
         {
-            out = impl_->tray_detect_fn(
-                bgr_vector_to_numpy(frame.height, frame.width, frame.color_bgr),
-                depth_arg,
-                K_to_numpy(frame.K),
-                dist_to_numpy(frame.dist),
-                cam2robot_arg,
-                dets,
-                save_arg);
+            py::object one = py::none();
+            if (!located.is_none() && py::len(located) >= 1)
+            {
+                py::list lst = located.cast<py::list>();
+                one = lst[lst.size() - 1];
+                used_prefetch = true;
+            }
+            if (used_prefetch)
+            {
+                out = impl_->tray_detect_fn(
+                    bgr_vector_to_numpy(frame.height, frame.width, frame.color_bgr),
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg,
+                    0.03,
+                    py::none(),
+                    py::none(),
+                    0,
+                    0,
+                    one);
+            }
+            else
+            {
+                out = impl_->tray_detect_fn(
+                    bgr_vector_to_numpy(frame.height, frame.width, frame.color_bgr),
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg);
+            }
         }
+        if (used_prefetch)
+            std::cout << "[vision] 料盘使用并行检码结果，不再重复 detectMarkers\n";
 
         result.ok = out.attr("get")("ok").cast<bool>();
         result.message = py::str(out.attr("get")("message"));
@@ -1957,6 +2138,23 @@ bool PosePipeline::init(std::string &err)
         std::cout << "OK\n";
     }
 
+    std::cout << "[6] YOLO 预热（空图，权重留在进程内）... ";
+    std::cout.flush();
+    const auto warm_t0 = std::chrono::steady_clock::now();
+    std::string werr;
+    if (!bridge_->warmup_yolo(g_move_cfg.cameras.height, g_move_cfg.cameras.width, werr))
+    {
+        std::cout << "跳过\n";
+        std::cerr << "[dl] " << werr << "（第一次拍照会支付冷启动）\n";
+    }
+    else
+    {
+        const auto warm_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now() - warm_t0)
+                                 .count();
+        std::cout << "OK " << warm_ms << " ms\n";
+    }
+
     install_app_sigint_handler();
     return true;
 }
@@ -2117,11 +2315,12 @@ HeadBeltPerception perceive_belt_head(
     const std::string &prefer_name,
     bool show_visualization,
     const double *grasp_offset_left,
-    const double *grasp_offset_right)
+    const double *grasp_offset_right,
+    bool parallel_yolo)
 {
     return vision::perceive_belt_head(
         cameras, bridge, prefer_name, show_visualization, grasp_offset_left,
-        grasp_offset_right);
+        grasp_offset_right, parallel_yolo);
 }
 
 PoseDetectionRecords detect_pose_at_slot(

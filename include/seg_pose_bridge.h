@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <cstddef>
 #include <initializer_list>
 #include <limits>
@@ -180,6 +181,19 @@ public:
     bool init_belt_engine(const std::string &config_path, std::string &err);
     bool belt_engine_ready() const;
 
+    /** 空图推理一次。已预热则直接返回，不重新加载权重。 */
+    bool warmup_yolo(int height, int width, std::string &err);
+
+    /**
+     * 只检料盘码并缓存，供紧接着的 run_tray 跳过第二次 detectMarkers。
+     * 返回 0 表示没缓存。与 YOLO 并行调用。
+     */
+    std::uint64_t locate_tray_markers(
+        const std::vector<CameraFrameData> &frames,
+        bool tray2_markers,
+        std::string &err);
+    void drop_tray_locate(std::uint64_t token);
+
     BeltDetectResult run_belt_detect(
         const CameraFrameData &frame,
         const std::string &prefer_name,
@@ -200,7 +214,8 @@ public:
         const PoseDetectionRecords &yolo,
         bool show_visualization = false,
         CameraSlot vis_slot = CameraSlot::Head,
-        bool tray2_markers = false);
+        bool tray2_markers = false,
+        std::uint64_t marker_token = 0);
 
     PoseRunResult run(
         const CameraFrameData &frame,
@@ -227,10 +242,11 @@ public:
         const PoseDetectionRecords &yolo,
         bool show_visualization = false,
         CameraSlot vis_slot = CameraSlot::Head,
-        bool tray2_markers = false)
+        bool tray2_markers = false,
+        std::uint64_t marker_token = 0)
     {
         return run_tray_annotate_multiframe(
-            frames, yolo, show_visualization, vis_slot, tray2_markers);
+            frames, yolo, show_visualization, vis_slot, tray2_markers, marker_token);
     }
 
     BeltDetectResult run_belt(
@@ -255,9 +271,10 @@ private:
 
 void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
 
-/** 当前唯一启用的 YOLO 类别：0=圆柱物料。 */
-constexpr int kGraspDetectClassId = 0; // best1015.pt: original_product
-constexpr int kEmptyHoleClassId = 3;   // feeding_hole / 空孔，料盘2放置用
+/** best1015.pt：0 立件，1 空孔，2 倒件。没有类别 3。 */
+constexpr int kGraspDetectClassId = 0; // workpiece，立着的工件
+constexpr int kEmptyHoleClassId = 1;   // feeding_hole / 空孔，料盘2放置用
+constexpr int kFallenClassId = 2;      // fallen / 倒件
 
 /** 抓取阶段：按 move_box_params.yaml vision_detect 与相机槽返回 algorithm_id（-1/0/1/2） */
 int algorithm_id_for_slot(CameraSlot slot);
@@ -286,7 +303,7 @@ std::vector<CameraFrameData> grab_head_fused_frames(
     RealSenseMultiCam &cameras,
     int fuse_n = 0);
 
-/** 料盘头视感知编排选项（YOLO → tray；并行时只改 helper 内部）。 */
+/** 料盘头视感知编排选项。run_yolo 时 YOLO 与检码并行，再融合。 */
 struct PerceiveTrayOptions
 {
     bool run_yolo = true;
@@ -321,16 +338,20 @@ struct HeadBeltPerception
 {
     CameraFrameData frame;
     BeltDetectResult belt;
+    /** parallel_yolo 时与检码同时跑的整图 YOLO。裁切 ROI 仍要等码位姿，不走这里。 */
+    bool yolo_ran = false;
+    PoseRunResult yolo;
 };
 
-/** 头相机单帧 + run_belt。失败时 frame.ok=false / belt.message 有说明。 */
+/** 头相机单帧 + run_belt。parallel_yolo 时整图 YOLO 与检码并行。 */
 HeadBeltPerception perceive_belt_head(
     RealSenseMultiCam &cameras,
     SegPoseBridge &bridge,
     const std::string &prefer_name,
     bool show_visualization = false,
     const double *grasp_offset_left = nullptr,
-    const double *grasp_offset_right = nullptr);
+    const double *grasp_offset_right = nullptr,
+    bool parallel_yolo = false);
 
 void append_pose_records(
     PoseDetectionRecords &records,
