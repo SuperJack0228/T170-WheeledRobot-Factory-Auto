@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>T170C工厂自动上下料控制器</title>
-  <link rel="stylesheet" href="/styles.css?v=10">
+  <link rel="stylesheet" href="/styles.css?v=11">
 </head>
 <body>
   <header class="nav">
@@ -28,6 +28,20 @@
   </header>
 
   <div id="versionBanner" class="banner" hidden></div>
+
+  <section class="hand-live" aria-label="手相机实时画面">
+    <figure>
+      <figcaption>右手相机</figcaption>
+      <img id="liveRight" alt="右手相机实时画面">
+      <p id="liveRightEmpty" class="live-empty">等待右手画面</p>
+    </figure>
+    <figure>
+      <figcaption>左手相机</figcaption>
+      <img id="liveLeft" alt="左手相机实时画面">
+      <p id="liveLeftEmpty" class="live-empty">等待左手画面</p>
+    </figure>
+    <p class="hand-live-note">服务启动后这里一直是实时画面，换页面也还在。左手已转 180°。运动时直接看这里，不再另存途中和到位的照片。</p>
+  </section>
 
   <main>
     <section id="page-status" class="page active">
@@ -210,6 +224,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=13"></script>
+  <script src="/app.js?v=14"></script>
 </body>
 </html>

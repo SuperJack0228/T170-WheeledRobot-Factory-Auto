@@ -305,7 +305,7 @@ ArmLineMoveResult arm_dual_line_move(
     bool snap_reach = false);
 
 /** move_r/move_l 为 false 的一侧不移动；可只动单臂或双臂。
- *  snap_reach 为真时，运动大约一半和到位后各异步存一张手相机原图。 */
+ *  snap_reach 为真时，到位日志记「伸手到位」。手相机看 picture_debug/live 的实时画面。 */
 ArmLineMoveResult arm_dual_line_move_selective(
     Robot_Arm &arm_r,
     Matrix<double, 1, 6> &pos_r,

@@ -2143,46 +2143,6 @@ ArmLinkFk compute_link_fk(Robot_Arm &arm, const Eigen::RowVectorXd &q)
     return out;
 }
 
-void queue_reach_hand_photo(int hand, const char *phase, int delay_ms)
-{
-    if (hand != 0 && hand != 1)
-        return;
-    RealSenseMultiCam *cams = RealSenseMultiCam::live();
-    if (cams == nullptr)
-        return;
-    const bool right = hand == 1;
-    const bool left = hand == 0;
-    if (delay_ms <= 0)
-    {
-        cams->save_reach_color_async(right, left, phase);
-        return;
-    }
-    const std::string phase_copy = (phase != nullptr && phase[0] != '\0') ? phase : "途中";
-    std::thread([delay_ms, right, left, phase_copy]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
-        if (RealSenseMultiCam *live = RealSenseMultiCam::live())
-            live->save_reach_color_async(right, left, phase_copy.c_str());
-    }).detach();
-}
-
-void begin_reach_hand_photo(int hand, int rows)
-{
-    if (rows < 2)
-        return;
-    const int half_ms = std::max(1, static_cast<int>(std::lround(rows * k_arm_traj_dt * 500.0)));
-    queue_reach_hand_photo(hand, "途中", half_ms);
-}
-
-void finish_reach_hand_photo(int hand)
-{
-    if (hand != 0 && hand != 1)
-        return;
-    RealSenseMultiCam *cams = RealSenseMultiCam::live();
-    if (cams == nullptr)
-        return;
-    cams->save_reach_color_settled(hand == 1, hand == 0, "到位");
-}
-
 } // namespace
 
 ArmLinkFk arm_fk_links(Robot_Arm &arm, const Eigen::Ref<const Eigen::RowVectorXd> &q_motor)
@@ -2235,11 +2195,10 @@ int arm_line_move(
         append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
         return ret;
     }
-    if (snap_reach)
-        begin_reach_hand_photo(hand, static_cast<int>(traj.rows()));
     const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
-    if (exec == 0 && record_arm_cartesian_arrival(arm, pos, nullptr) && snap_reach)
-        finish_reach_hand_photo(hand);
+    if (exec == 0)
+        record_arm_cartesian_arrival(arm, pos, nullptr);
+    (void)snap_reach;
     return exec;
 }
 
@@ -3295,8 +3254,6 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         before_move();
     auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
         const int hand = arm_hand_side(arm);
-        if (snap_reach)
-            begin_reach_hand_photo(hand, static_cast<int>(traj.rows()));
         ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
     };
     if (move_r && move_l)
@@ -3310,14 +3267,10 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         run_one(arm_r, traj_r, out.ret_r);
     else if (move_l)
         run_one(arm_l, traj_l, out.ret_l);
-    if (move_r && out.ret_r == 0 &&
-        record_arm_cartesian_arrival(arm_r, goal_r, snap_reach ? "伸手到位" : "收手终点") &&
-        snap_reach)
-        finish_reach_hand_photo(arm_hand_side(arm_r));
-    if (move_l && out.ret_l == 0 &&
-        record_arm_cartesian_arrival(arm_l, goal_l, snap_reach ? "伸手到位" : "收手终点") &&
-        snap_reach)
-        finish_reach_hand_photo(arm_hand_side(arm_l));
+    if (move_r && out.ret_r == 0)
+        record_arm_cartesian_arrival(arm_r, goal_r, snap_reach ? "伸手到位" : "收手终点");
+    if (move_l && out.ret_l == 0)
+        record_arm_cartesian_arrival(arm_l, goal_l, snap_reach ? "伸手到位" : "收手终点");
     return out;
 }
 
@@ -3351,7 +3304,6 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
 
     auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
         const int hand = arm_hand_side(arm);
-        begin_reach_hand_photo(hand, static_cast<int>(traj.rows()));
         ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
     };
     if (move_r && move_l)
@@ -3366,10 +3318,10 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
     else if (move_l)
         run_one(arm_l, traj_l, out.ret_l);
 
-    if (move_r && out.ret_r == 0 && record_arm_cartesian_arrival(arm_r, final_r, "抹角C"))
-        finish_reach_hand_photo(arm_hand_side(arm_r));
-    if (move_l && out.ret_l == 0 && record_arm_cartesian_arrival(arm_l, final_l, "抹角C"))
-        finish_reach_hand_photo(arm_hand_side(arm_l));
+    if (move_r && out.ret_r == 0)
+        record_arm_cartesian_arrival(arm_r, final_r, "抹角C");
+    if (move_l && out.ret_l == 0)
+        record_arm_cartesian_arrival(arm_l, final_l, "抹角C");
     return out;
 }
 

@@ -295,6 +295,8 @@ struct RealSenseMultiCam::Impl
     int head_fps = 15;
     int hand_fps = 15;
     std::map<std::string, SlotDevice> slots;
+    std::atomic<bool> preview_run{false};
+    std::thread preview_thread;
 };
 
 RealSenseMultiCam::RealSenseMultiCam(
@@ -427,6 +429,7 @@ bool RealSenseMultiCam::init(std::string &err)
     }
 
     g_hand_cams.store(this);
+    start_hand_preview();
     return true;
 }
 
@@ -473,6 +476,9 @@ CameraFrameData grab_frameset_from_pipeline(
 
 void RealSenseMultiCam::flush(CameraSlot slot)
 {
+    std::unique_lock<std::mutex> hand_lock(g_hand_grab_mu, std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
     if (it == impl_->slots.end() || !it->second.started)
@@ -482,6 +488,9 @@ void RealSenseMultiCam::flush(CameraSlot slot)
 
 CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
 {
+    std::unique_lock<std::mutex> hand_lock(g_hand_grab_mu, std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     CameraFrameData out;
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
@@ -506,6 +515,9 @@ CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
 
 CameraFrameData RealSenseMultiCam::grab_wait(CameraSlot slot)
 {
+    std::unique_lock<std::mutex> hand_lock(g_hand_grab_mu, std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     CameraFrameData out;
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
@@ -531,6 +543,9 @@ CameraFrameData RealSenseMultiCam::grab_wait(CameraSlot slot)
 
 CameraFrameData RealSenseMultiCam::grab_fresh(CameraSlot slot)
 {
+    std::unique_lock<std::mutex> hand_lock(g_hand_grab_mu, std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     CameraFrameData out;
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
@@ -657,68 +672,111 @@ void RealSenseMultiCam::save_grasp_hand_camera_snapshots(bool save_right, bool s
 namespace
 {
 
-void save_reach_original_color(
-    RealSenseMultiCam &cameras,
-    CameraSlot slot,
-    const char *subdir,
-    const std::string &phase,
-    bool fresh)
+bool copy_newest_color(SlotDevice &dev, cv::Mat &out)
 {
-    CameraFrameData frame = fresh ? cameras.grab_fresh(slot) : cameras.grab(slot);
-    if (!frame.ok || frame.color_bgr.empty() || frame.width <= 0 || frame.height <= 0)
-    {
-        std::cerr << "[handcam] " << subdir << " " << phase << " 未拍照: " << frame.message << "\n";
-        return;
-    }
+    rs2::frameset frames;
+    rs2::frameset newest;
+    while (dev.pipeline.poll_for_frames(&frames))
+        newest = std::move(frames);
+    if (!newest)
+        return false;
+    const rs2::frame color_f = newest.get_color_frame();
+    if (!color_f)
+        return false;
+    const rs2::video_frame color = color_f.as<rs2::video_frame>();
+    const int h = color.get_height();
+    const int w = color.get_width();
+    if (w <= 0 || h <= 0)
+        return false;
+    const cv::Mat view(h, w, CV_8UC3, const_cast<void *>(color.get_data()));
+    view.copyTo(out);
+    return !out.empty();
+}
 
-    const char *slot_dir = slot == CameraSlot::RightHand ? "right_hand" : "left_hand";
-    const std::string path = vision_debug_make_path(slot_dir, phase.c_str());
-    const cv::Mat bgr(frame.height, frame.width, CV_8UC3, frame.color_bgr.data());
-    cv::Mat saved = bgr;
-    if (slot == CameraSlot::LeftHand)
-        cv::rotate(bgr, saved, cv::ROTATE_180);
-    if (path.empty() || !cv::imwrite(path, saved))
-    {
-        std::cerr << "[handcam] 保存失败 " << path << "\n";
-        return;
-    }
-    std::cout << "[handcam] " << subdir << " " << phase << " 原图 " << path << "\n";
+bool write_jpeg_atomic(const std::filesystem::path &path, const cv::Mat &bgr)
+{
+    const std::filesystem::path tmp =
+        path.parent_path() / (path.stem().string() + ".writing.jpg");
+    if (!cv::imwrite(tmp.string(), bgr, {cv::IMWRITE_JPEG_QUALITY, 70}))
+        return false;
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    if (ec)
+        std::filesystem::remove(tmp, ec);
+    return !ec;
 }
 
 } // namespace
 
-void RealSenseMultiCam::save_reach_color_async(bool right, bool left, const char *phase)
+void RealSenseMultiCam::start_hand_preview()
 {
-    if (!right && !left)
+    stop_hand_preview();
+    const std::filesystem::path dir = std::filesystem::path(vision_debug_root_dir()) / "live";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec)
+    {
+        std::cerr << "[handcam] 实时预览目录创建失败 " << dir.string() << ": " << ec.message() << "\n";
         return;
-    const std::string phase_s = (phase != nullptr && phase[0] != '\0') ? phase : "拍照";
-    std::thread([this, right, left, phase_s]() {
-        std::lock_guard<std::mutex> lock(g_hand_grab_mu);
-        if (g_hand_cams.load() != this)
-            return;
-        if (right)
-            save_reach_original_color(*this, CameraSlot::RightHand, "右手", phase_s, false);
-        if (left)
-            save_reach_original_color(*this, CameraSlot::LeftHand, "左手", phase_s, false);
-    }).detach();
+    }
+    impl_->preview_run.store(true);
+    impl_->preview_thread = std::thread([this, dir]() {
+        bool logged_right = false;
+        bool logged_left = false;
+        while (impl_->preview_run.load())
+        {
+            const auto tick = std::chrono::steady_clock::now();
+            for (const CameraSlot slot : {CameraSlot::RightHand, CameraSlot::LeftHand})
+            {
+                if (!impl_->preview_run.load() || g_hand_cams.load() != this)
+                    break;
+                try
+                {
+                    cv::Mat color;
+                    {
+                        std::lock_guard<std::mutex> lock(g_hand_grab_mu);
+                        if (!impl_->preview_run.load() || g_hand_cams.load() != this)
+                            break;
+                        auto it = impl_->slots.find(slot_key(slot));
+                        if (it == impl_->slots.end() || !it->second.started)
+                            continue;
+                        if (!copy_newest_color(it->second, color))
+                            continue;
+                    }
+                    if (slot == CameraSlot::LeftHand)
+                        cv::rotate(color, color, cv::ROTATE_180);
+                    const char *name = slot == CameraSlot::RightHand ? "right_hand.jpg" : "left_hand.jpg";
+                    if (!write_jpeg_atomic(dir / name, color))
+                        continue;
+                    bool &logged = slot == CameraSlot::RightHand ? logged_right : logged_left;
+                    if (!logged)
+                    {
+                        logged = true;
+                        std::cout << "[handcam] " << (slot == CameraSlot::RightHand ? "右手" : "左手")
+                                  << " 实时预览 " << (dir / name).string() << "\n";
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "[handcam] 预览取帧失败: " << e.what() << "\n";
+                }
+            }
+            std::this_thread::sleep_until(tick + std::chrono::milliseconds(160));
+        }
+    });
+    std::cout << "[handcam] 左右手实时预览已开，约 6 帧/秒，目录 " << dir.string() << "\n";
 }
 
-void RealSenseMultiCam::save_reach_color_settled(bool right, bool left, const char *phase)
+void RealSenseMultiCam::stop_hand_preview()
 {
-    if (!right && !left)
-        return;
-    const std::string phase_s = (phase != nullptr && phase[0] != '\0') ? phase : "到位";
-    std::lock_guard<std::mutex> lock(g_hand_grab_mu);
-    if (g_hand_cams.load() != this)
-        return;
-    if (right)
-        save_reach_original_color(*this, CameraSlot::RightHand, "右手", phase_s, true);
-    if (left)
-        save_reach_original_color(*this, CameraSlot::LeftHand, "左手", phase_s, true);
+    impl_->preview_run.store(false);
+    if (impl_->preview_thread.joinable())
+        impl_->preview_thread.join();
 }
 
 void RealSenseMultiCam::stop()
 {
+    stop_hand_preview();
     if (g_hand_cams.load() == this)
         g_hand_cams.store(nullptr);
     std::lock_guard<std::mutex> lock(g_hand_grab_mu);

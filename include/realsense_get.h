@@ -56,7 +56,7 @@ public:
     static const char *slot_name(CameraSlot slot);
     static CameraSlot slot_from_choice(int choice);
 
-    /** 服务已启动手相机后，伸手拍照用这台对象。未启动时为空。 */
+    /** 服务已打开相机后的那台对象。未启动时为空。 */
     static RealSenseMultiCam *live();
 
     /** 右手相机：RGB/深度旋转 180° 并修正内参；头/左手原样返回 */
@@ -65,12 +65,11 @@ public:
     /** 夹取抬起后保存手相机图：~/左右手夹取/右手|左手/时间戳.jpg（各 1 次） */
     void save_grasp_hand_camera_snapshots(bool save_right, bool save_left);
 
-    /** 异步保存正在伸的那只手的彩色图。途中不阻塞。左手安装朝向与右手相反，保存前转 180°。 */
-    void save_reach_color_async(bool right, bool left, const char *phase);
-    /** 编码器已停稳后调用：丢掉运动中的旧帧，等一帧新图再保存。会等到这张写完。 */
-    void save_reach_color_settled(bool right, bool left, const char *phase);
-
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
+
+    /** 双手彩色预览写到 picture_debug/live/。只取已到达的帧，不和识别抢阻塞等待。 */
+    void start_hand_preview();
+    void stop_hand_preview();
 };

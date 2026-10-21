@@ -9,7 +9,7 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
 const WEB_API = 4;
-const UI_VERSION = "1.1.8";
+const UI_VERSION = "1.1.9";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -426,6 +426,30 @@ $("saveConfig").addEventListener("click", async () => {
 const versionEl = $("uiVersion");
 if (versionEl) versionEl.textContent = `T170C Web Debug  v${UI_VERSION}`;
 
+function refreshHandLive() {
+  const stamp = Date.now();
+  for (const [id, slot] of [["liveRight", "right_hand"], ["liveLeft", "left_hand"]]) {
+    const img = $(id);
+    const empty = $(id + "Empty");
+    if (!img || img.dataset.loading === "1") continue;
+    img.dataset.loading = "1";
+    const next = new Image();
+    next.onload = () => {
+      img.src = next.src;
+      img.classList.add("show");
+      if (empty) empty.hidden = true;
+      img.dataset.loading = "0";
+    };
+    next.onerror = () => {
+      if (!img.classList.contains("show") && empty) empty.hidden = false;
+      img.dataset.loading = "0";
+    };
+    next.src = `/api/image/live?slot=${slot}&token=${encodeURIComponent(token)}&t=${stamp}`;
+  }
+}
+
+setInterval(refreshHandLive, 200);
+refreshHandLive();
 setInterval(refreshStatus, 1000);
 setInterval(() => { if ($("page-dispatch").classList.contains("active")) refreshDispatch(); }, 1000);
 setInterval(() => { if ($("page-logs").classList.contains("active")) loadLogs().catch(() => {}); }, 1500);

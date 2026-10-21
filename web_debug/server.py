@@ -35,7 +35,7 @@ import yaml
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
 WEB_API_VERSION = 4
-UI_VERSION = "1.1.8"
+UI_VERSION = "1.1.9"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
 CONFIG_FILES = {
@@ -683,6 +683,8 @@ class DebugHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:
         # 浏览器首次 URL 和旧图片链接可能带 token；日志中必须脱敏。
         message = fmt % args
+        if "/api/image/live" in message:
+            return
         if "token=" in message:
             prefix, _, tail = message.partition("token=")
             suffix = ""
@@ -846,6 +848,18 @@ class DebugHandler(BaseHTTPRequestHandler):
                             {"name": image.name, "mtime_ms": int(image.stat().st_mtime * 1000)} if image else None
                         )
                 self._json(HTTPStatus.OK, result)
+                return
+            if parsed.path == "/api/image/live":
+                query = parse_qs(parsed.query)
+                slot = query.get("slot", [""])[0]
+                if slot not in {"right_hand", "left_hand"}:
+                    self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "没有这只手相机"})
+                    return
+                image = PICTURE_ROOT / "live" / f"{slot}.jpg"
+                if not image.is_file():
+                    self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "手相机还没有画面"})
+                    return
+                self._send(HTTPStatus.OK, image.read_bytes(), "image/jpeg")
                 return
             if parsed.path == "/api/image/latest":
                 query = parse_qs(parsed.query)
