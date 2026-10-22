@@ -52,6 +52,7 @@ _detector = None
 _active_board = "tray"
 _tray2_print_m: float | None = None
 _tray2_black_m: float | None = None
+_tray2_slot_to_id: dict[str, int] | None = None
 
 
 @dataclass
@@ -65,8 +66,24 @@ class _Hole:
     uv: tuple[float, float]
 
 
+def _load_tray2_ids(tray2: dict) -> dict[str, int] | None:
+    ids = tray2.get("ids")
+    if not ids:
+        return None
+    slot: dict[str, int] = {}
+    for key in ("front_left", "front_right", "rear_left", "rear_right"):
+        if key not in ids:
+            raise ValueError(f"tray2.ids 缺少 {key}")
+        slot[key] = int(ids[key])
+    if "center" in ids and ids["center"] is not None:
+        slot["center"] = int(ids["center"])
+    if len(set(slot.values())) != len(slot):
+        raise ValueError("tray2.ids 的 ID 不能重复")
+    return slot
+
+
 def init(config_path: str | Path | None = None) -> str:
-    global _cfg, _detector, _tray2_print_m, _tray2_black_m, _active_board
+    global _cfg, _detector, _tray2_print_m, _tray2_black_m, _tray2_slot_to_id, _active_board
     path = Path(config_path) if config_path else HERE / "config.yaml"
     _cfg = load_config(path)
     _detector = make_detector(get_aruco_dictionary(_cfg.dictionary))
@@ -75,21 +92,28 @@ def init(config_path: str | Path | None = None) -> str:
     tray2 = raw.get("tray2") or {}
     _tray2_print_m = float(tray2.get("print_size_m", _cfg.print_size_m))
     _tray2_black_m = float(tray2.get("black_side_m", _cfg.black_side_m))
+    _tray2_slot_to_id = _load_tray2_ids(tray2)
+    ids_txt = ""
+    if _tray2_slot_to_id is not None:
+        ids_txt = " tray2_ids=" + ",".join(
+            f"{k}:{v}" for k, v in _tray2_slot_to_id.items()
+        )
     return (
         f"dict={_cfg.dictionary} holes={_cfg.hole_rows}x{_cfg.hole_cols} "
         f"pitch={_cfg.hole_pitch_m:.3f}m black={_cfg.black_side_m * 1000:.2f}mm "
-        f"tray2_black={_tray2_black_m * 1000:.2f}mm"
+        f"tray2_black={_tray2_black_m * 1000:.2f}mm{ids_txt}"
     )
 
 
 def set_active_board(board: str) -> str:
-    """料盘1用 tray 的码尺寸。料盘2只换 tray2 的打印边长和黑框。"""
+    """料盘1用 tray 的码。料盘2换打印边长、黑框，以及 tray2.ids。"""
     global _active_board
     _active_board = "tray2" if str(board) == "tray2" else "tray"
     cfg = _board_cfg()
+    ids = ",".join(f"{k}={v}" for k, v in cfg.slot_to_id.items())
     print(
         f"[tray] 码板={_active_board} 打印={cfg.print_size_m * 1000:.1f}mm "
-        f"黑框={cfg.black_side_m * 1000:.2f}mm"
+        f"黑框={cfg.black_side_m * 1000:.2f}mm ids={ids}"
     )
     return _active_board
 
@@ -99,7 +123,13 @@ def _board_cfg() -> AppConfig:
         raise RuntimeError("tray engine is not initialized")
     if _active_board != "tray2" or _tray2_print_m is None or _tray2_black_m is None:
         return _cfg
-    return replace(_cfg, print_size_m=_tray2_print_m, black_side_m=_tray2_black_m)
+    slot = _tray2_slot_to_id if _tray2_slot_to_id is not None else _cfg.slot_to_id
+    return replace(
+        _cfg,
+        print_size_m=_tray2_print_m,
+        black_side_m=_tray2_black_m,
+        slot_to_id=slot,
+    )
 
 
 def _require() -> tuple[AppConfig, Any]:

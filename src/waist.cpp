@@ -26,10 +26,34 @@ void hold_roll_yaw_zero(LowerBody::Joints5 &q)
     q(LowerBody::WaistYaw) = 0.0;
 }
 
-void unwrap_toward(LowerBody::Joints5 &q, const LowerBody::Joints5 &seed)
+/** 1 号回转电机转不满一圈。先折到离当前最近的一圈；若那一侧出了限位，改走限位里面的另一侧。 */
+void unwrap_toward(
+    LowerBody::Joints5 &q,
+    const LowerBody::Joints5 &seed,
+    const Eigen::Matrix<double, 2, dof_waist> &lim)
 {
+    constexpr double kTwoPi = 2.0 * M_PI;
     for (int i = 0; i < dof_waist; ++i)
-        q(i) = seed(i) + LowerBody::WrapPi(q(i) - seed(i));
+    {
+        double angle = seed(i) + LowerBody::WrapPi(q(i) - seed(i));
+        const bool outside = angle > lim(1, i) + 1e-3 || angle < lim(0, i) - 1e-3;
+        if (outside)
+        {
+            const double other = angle > lim(1, i) ? angle - kTwoPi : angle + kTwoPi;
+            if (other <= lim(1, i) + 1e-3 && other >= lim(0, i) - 1e-3)
+            {
+                if (i == LowerBody::WaistYaw)
+                {
+                    std::cout << std::fixed << std::setprecision(1)
+                              << "[waist] 回转电机 1 不能绕圈，"
+                              << (angle / rad) << "° 出限位，改走 "
+                              << (other / rad) << "°\n";
+                }
+                angle = other;
+            }
+        }
+        q(i) = angle;
+    }
 }
 } // namespace
 
@@ -60,6 +84,21 @@ bool WaistRobot::jointsInLimit(const Joints5 &q) const
             return false;
     }
     return true;
+}
+
+void log_waist_motor_deg(const char *tag, const LowerBody::Joints5 &q_geom)
+{
+    const LowerBody::Joints5 q_mot = apply_motor_direct(q_geom);
+    double by_id[6] = {};
+    for (int i = 0; i < dof_waist; ++i)
+        by_id[kWaistKinCanIds[i]] = q_mot(i) / rad;
+    std::cout << std::fixed << std::setprecision(2)
+              << "[waist] " << tag
+              << " ID1=" << by_id[1]
+              << " ID2=" << by_id[2]
+              << " ID3=" << by_id[3]
+              << " ID4=" << by_id[4]
+              << " ID5=" << by_id[5] << " deg\n";
 }
 
 void WaistRobot::logJoints(const char *tag, const Joints5 &q) const
@@ -129,7 +168,7 @@ int WaistRobot::ik(const Eigen::Matrix4d &T_base_tcp, Joints5 &q)
     Joints5 q_ik = kin_.Inverse_Kinematics(T_base_tcp);
     if (!LowerBody::Reachable(q_ik))
         return -2;
-    unwrap_toward(q_ik, seed);
+    unwrap_toward(q_ik, seed, limit);
     if (!jointsInLimit(q_ik))
         return 1;
     q = q_ik;
@@ -260,7 +299,7 @@ int WaistRobot::moveJToJoint(Joints5 &qd, double vel)
 int WaistRobot::moveJToJoint_Tf(Joints5 &q_end, double Tf)
 {
     Joints5 q_start = readJoints();
-    unwrap_toward(q_end, q_start);
+    unwrap_toward(q_end, q_start, limit);
     double t = 0.0;
     const double dt = 5e-3;
     while (t < Tf)
@@ -352,6 +391,56 @@ int WaistRobot::moveYawAbsDeg(double yaw_deg, double vel)
               << " deg（+Z 向左为正），只动 yaw\n";
     const int rc = moveJToJoint(q, vel);
     logJoints("回转后", readJoints());
+    return rc;
+}
+
+int WaistRobot::moveToYawPitch(
+    double x, double y, double z, double yaw_deg, double pitch_deg, double vel)
+{
+    if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
+        !std::isfinite(yaw_deg) || !std::isfinite(pitch_deg))
+    {
+        std::cerr << "[waist] yaw/pitch 目标无效\n";
+        return -1;
+    }
+    if (hardware_abort_requested())
+        return -3;
+
+    enable_waist_motors();
+    const double yaw = yaw_deg * rad;
+    const double pitch = pitch_deg * rad;
+    Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+    // 先转腰，再在新朝向的横轴上俯仰。Ry 在左会让 pitch 仍绕原来的前方，肩膀会斜。
+    T.block<3, 3>(0, 0) =
+        (Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
+         Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()))
+            .toRotationMatrix();
+    T(0, 3) = x;
+    T(1, 3) = y;
+    T(2, 3) = z;
+
+    Joints5 q = readJoints();
+    const int ret = ik(T, q);
+    if (ret != 0)
+    {
+        std::cerr << std::fixed << std::setprecision(2)
+                  << "[waist] yaw=" << yaw_deg << " pitch=" << pitch_deg
+                  << " deg 在 xyz=(" << std::setprecision(4) << x << "," << y << "," << z
+                  << ") 逆解失败 code=" << ret << "\n";
+        logJoints("逆解失败时", readJoints());
+        return ret;
+    }
+    if (vel < 1e-3)
+        vel = 0.10;
+    std::cout << std::fixed << std::setprecision(2)
+              << "[waist] LowerBody 联动 先 yaw=" << yaw_deg
+              << " deg，再沿新朝向 pitch=" << pitch_deg << " deg，TCP=("
+              << std::setprecision(4) << x << "," << y << "," << z << ")\n";
+    logJoints("联动目标", q);
+    const int rc = moveJToJoint(q, vel);
+    log_waist_motor_deg("联动下发", q);
+    log_waist_motor_deg("联动回读", readJoints());
+    logJoints("联动后", readJoints());
     return rc;
 }
 

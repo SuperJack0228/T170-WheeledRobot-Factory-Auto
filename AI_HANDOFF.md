@@ -19,7 +19,7 @@
 4. **YOLO 只给类别，不参与定位。** 料盘孔位 XY 来自 ArUco。码不够禁止回退 YOLO 抓取。传送带抓取 YOLO 门禁默认关。
 5. **不要把盘心再加进孔位 XY。** `t_avg` 已经在 `xyz_level` 里。
 6. **C++ 改完必须重编并重启。** `cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170c_debug`。yaml 数值可 `reload`。新命令、新分支逻辑不行。**不要擅自启动 `t170c_debug`，除非用户要求。**
-7. **不要 git commit / push，除非用户明确要求。** `origin` 是 jihulab，不要推那里。GitHub 远程若存在，也只在用户点名时推。不要在文档或回复里重复任何 token。
+7. **不要 git commit / push，除非用户明确要求。** 不要在文档或回复里重复任何 token。
 8. 软件 `abort` **不能替代实体急停**，也**杀不掉**正在跑的服务端命令。客户端 Ctrl+C 只断自己。要停进程：`pkill -f build_robot/t170c_debug`，然后再启动才能发下一条。
 9. 头远排俯仰是 **`far_pitch_deg: 47`**。不要写成 65°。标定俯仰约 40°，传送带拍照俯仰 38°。
 10. **抹角失败不要退回两段停车直线。** 收手衔接失败才允许退回「先抬升、停住、再走直线」。
@@ -78,6 +78,8 @@ AP7 抓毛坯（抹角 0.16 m/s）
 
 ### 2.1 料盘抓取（AP7）
 
+- `grasp`（`vision_grasp`）**先不去站点**，在当前位置摆头、手臂、开爪、下腰后直接抓。站点名还没定，开头导航以后再加回。
+- `belt1_waist`：底盘和手臂不动。先到 `conveyor.waist_x/waist_z`（直立），再用 LowerBody 把 TCP 留在该点：先 `same_spot_yaw_deg`，再沿转完的朝向俯仰 `same_spot_pitch_deg`。yaw 向左为正。`belt` / `belt_grasp` 拍照前也会走到这个腰姿态。认码点在当前肩部系；固定码平面沿世界竖直落到标定高度后再写回手臂基座。只转腰时 XY 不变。有俯仰时 XYZ 一起变。`conveyor2` 的这两个角是 0。改角度后 `reload`，但这是 C++ 行为，要重启进程。
 - class 0 毛坯。列 1–3 右、4–6 左。远近用 `from_robot`（1 最远）。远三排腰前伸 `far_row_forward_m: 0.18`，头 47°，按编码器重算外参再拍。
 - `use_hand_camera: false`。`use_bezier_grasp: true` 且 `approach_nostop: false`：**伸手是抹角**，巡航 **0.16 m/s**，B 前约 8 cm 抹到 C，不在 B 停车，失败不退回分段直线。
 - 收手：竖直抬 `lift_after_grasp_z`（0.08 m）后**不停**，直线去 **传送带准备 `conveyor.tcp`**，不是 `home_tcp`。速度 `lift_vel` / `return_vel`，yaml 里都是 **0.16 m/s**。只收回抓到的那只手。
@@ -242,7 +244,7 @@ config/move_box_params.yaml           现场调参。注释可能过时
 tools/debug_client.py
 ```
 
-头相机 SN `261722072173`。头 CAN：30 偏航 / 32 俯仰 / 31 横滚。  
+头相机 SN `261822078807`。头 CAN：30 偏航 / 31 俯仰 / 32 横滚。  
 `load_conveyor_station` 之后有 `cfg.conveyor2 = cfg.conveyor`，第二套要保持不同的项必须在 yaml 里写出来。
 
 调度库头文件：`/opt/ti5-jindi-faactory-robot-client/include/robot_client.hpp`。

@@ -152,10 +152,14 @@ GraspToStandbyResult run_grasp_to_standby(
                       << (far_l ? " 左 from_robot=" + std::to_string(st.row_l) +
                                       " ArUco=" + std::to_string(st.row_aruco_l)
                                 : "")
-                      << "，腰前伸后抓取，本轮抓完不收回\n";
+                      << (tray_hole_task() == TrayHoleTask::PlaceEmpty
+                              ? "，放置腰往负方向，本轮放完不收回\n"
+                              : "，腰前伸后抓取，本轮抓完不收回\n");
             const double actual =
-                waist_layer3_ensure_far_row_forward(waist, posup_down_3_layer);
-            if (actual > 1e-9)
+                tray_hole_task() == TrayHoleTask::PlaceEmpty
+                    ? waist_layer3_ensure_tray2_far_row(waist, posup_down_3_layer)
+                    : waist_layer3_ensure_far_row_forward(waist, posup_down_3_layer);
+            if (std::abs(actual) > 1e-9)
                 waist_adjusted = true;
             if (aborting(should_abort))
             {
@@ -190,7 +194,7 @@ GraspToStandbyResult run_grasp_to_standby(
             }
             else
             {
-                if (actual > 1e-9)
+                if (std::abs(actual) > 1e-9)
                 {
                     apply_grasp_stagger_waist_comp(st, actual);
                     std::cout << std::fixed << std::setprecision(4)
@@ -206,10 +210,10 @@ GraspToStandbyResult run_grasp_to_standby(
     if (tray2_precision_test() && (st.move_r || st.move_l) &&
         !(st.move_r && tray_row_is_far(st.row_r)) &&
         !(st.move_l && tray_row_is_far(st.row_l)) &&
-        posup_down_3_layer(0) > waist_ready_x() + 0.02)
+        posup_down_3_layer(0) < g_move_cfg.tray2_place.waist_x - 0.02)
     {
-        std::cout << "[tray2test] 前三排结束，腰收回 ready（不站到 home），重拍后三排\n";
-        if (!ensure_waist_ready_start(waist, posup_down_3_layer))
+        std::cout << "[tray2test] 前三排结束，腰回到料盘二放置 x（不站到 home），重拍后三排\n";
+        if (!move_waist_tray2_place(waist, posup_down_3_layer, true))
         {
             out.status = aborting(should_abort) ? GraspToStandbyStatus::Aborted
                                                 : GraspToStandbyStatus::CamFail;

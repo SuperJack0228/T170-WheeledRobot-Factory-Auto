@@ -5,12 +5,13 @@
 # 两码沿左右（Y）排列，中心距 109 mm：左码 +Y，右码 −Y。
 #
 #              前 (+X)  边缘 +152 mm
-# 左(+Y)  ID0/2          原点          ID1/3  右(−Y)
+# 左(+Y)  ID0/2/6        原点        ID3/4/7  右(−Y)
 #        边缘 +167 mm                    边缘 −70 mm
 #              后 (−X)  边缘 −152 mm
 #
-# 皮带 0：ID 0（左）、1（右）
-# 皮带 1：ID 2（左）、3（右）
+# 皮带 0：ID 0（左）、3（右）
+# 皮带 1：ID 2（左）、4（右）。左右都是 6×6。
+# 皮带 2：ID 6（左）、7（右）。左右都是 6×6。
 
 aruco:
   dictionary: DICT_6X6_1000
@@ -30,10 +31,13 @@ belt:
   items:
     - name: belt0
       left_id: 0
-      right_id: 1
+      right_id: 3
     - name: belt1
       left_id: 2
-      right_id: 3
+      right_id: 4
+    - name: belt2
+      left_id: 6
+      right_id: 7
 
 pose:
   pnp_flag: SQPNP

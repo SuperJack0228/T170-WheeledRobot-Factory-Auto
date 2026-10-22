@@ -411,6 +411,11 @@ bool motor_enable_id(uint32_t id)
     });
 }
 
+bool motor_disable_id(uint32_t id)
+{
+    return sdk_try(id, "Disable", [id]() { Motor_Disable(id); });
+}
+
 bool motor_set_pos_rad(uint32_t id, double rad)
 {
     return sdk_try(id, "set_Position", [id, rad]() { set_Position(id, rad); });

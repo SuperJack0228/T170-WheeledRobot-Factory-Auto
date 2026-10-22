@@ -146,8 +146,7 @@ void record_arm_cartesian_arrival(
     const Eigen::Matrix<double, 1, 6> &goal,
     const char *stage = nullptr);
 
-/** 读编码器 → Line_Trajectory → 每 5ms set_motor_position。
- * 不锁 J2（不传冗余角），让七轴逆解自己选肘，保证抓取工作空间。 */
+/** 读编码器 → 沿直线每约 3cm 重解一次，肘高保持在起点附近，不再把 J2 一次匀速甩开。 */
 int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);
 
 /** 当前 7 轴电机角 (rad)。 */

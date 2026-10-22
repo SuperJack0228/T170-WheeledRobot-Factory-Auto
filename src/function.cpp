@@ -6,6 +6,7 @@
 #include "function.h"
 
 #include "Ti5_socketcan.h"
+#include "Ti5_Motor.hpp"
 
 #include <chrono>
 #include <thread>
@@ -1133,6 +1134,55 @@ Eigen::MatrixXd make_linear_joint_traj(
     return traj;
 }
 
+/** 电机里另有一套位置窗口。yaml 放宽后，窗口仍可能把 J6 卡在 ±60°。下发前按轨迹撑开。 */
+void widen_arm_motor_window(int hand, const Eigen::MatrixXd &traj)
+{
+    const uint32_t *ids = hand == 1 ? kRightArmCanIds : kLeftArmCanIds;
+    const int dof = static_cast<int>(std::min(traj.cols(), static_cast<Eigen::Index>(7)));
+    constexpr double kMargin = 5.0 * M_PI / 180.0;
+    const char *side = hand == 1 ? "右" : "左";
+    for (int j = 0; j < dof; ++j)
+    {
+        double lo = traj(0, j);
+        double hi = traj(0, j);
+        for (int i = 1; i < traj.rows(); ++i)
+        {
+            lo = std::min(lo, traj(i, j));
+            hi = std::max(hi, traj(i, j));
+        }
+        lo -= kMargin;
+        hi += kMargin;
+        try
+        {
+            const double max_rad = get_Max_Position(ids[j]);
+            const double min_rad = get_Min_Position(ids[j]);
+            if (hi > max_rad - 1e-4)
+            {
+                std::cout << std::fixed << std::setprecision(1)
+                          << "[arm] " << side << " J" << (j + 1)
+                          << " 电机上限 " << (max_rad * 180.0 / M_PI)
+                          << "° 盖不住 " << ((hi - kMargin) * 180.0 / M_PI)
+                          << "°，抬到 " << (hi * 180.0 / M_PI) << "°\n";
+                set_Max_Position(ids[j], hi);
+            }
+            if (lo < min_rad + 1e-4)
+            {
+                std::cout << std::fixed << std::setprecision(1)
+                          << "[arm] " << side << " J" << (j + 1)
+                          << " 电机下限 " << (min_rad * 180.0 / M_PI)
+                          << "° 盖不住 " << ((lo + kMargin) * 180.0 / M_PI)
+                          << "°，放到 " << (lo * 180.0 / M_PI) << "°\n";
+                set_Min_Position(ids[j], lo);
+            }
+        }
+        catch (const std::exception &ex)
+        {
+            std::cerr << "[arm] " << side << " J" << (j + 1)
+                      << " 电机限位处理失败: " << ex.what() << "\n";
+        }
+    }
+}
+
 int execute_arm_trajectory(const MatrixXd &traj, int hand, double dt = k_arm_traj_dt)
 {
     if (hand == 1 && right_arm_motors_locked())
@@ -1142,6 +1192,7 @@ int execute_arm_trajectory(const MatrixXd &traj, int hand, double dt = k_arm_tra
         cout << "[Error] Trajectory is empty, execution aborted." << endl;
         return -1;
     }
+    widen_arm_motor_window(hand, traj);
 
     const int dof = static_cast<int>(std::min(traj.cols(), static_cast<Eigen::Index>(7)));
     for (int i = 0; i < traj.rows(); ++i)
@@ -1457,6 +1508,158 @@ void log_arm_link_fk(Robot_Arm &arm, const char *tag)
               << ") mdh_err=" << L.tcp_mdh_err << " m\n";
 }
 
+/** J6 电机硬限位约 ±60°。规划留 1°。到位判定是 1.2 cm，这里收得更紧。 */
+constexpr double kJ6HardLimitRad = 59.0 * M_PI / 180.0;
+constexpr double kPoseAcceptM = 0.008;
+
+static double wrap_abs_rad(double a)
+{
+    while (a > M_PI)
+        a -= 2.0 * M_PI;
+    while (a < -M_PI)
+        a += 2.0 * M_PI;
+    return std::abs(a);
+}
+
+/** 沿笛卡尔直线走，每一小段都把肘高保持在起点附近，避免 J2 一次甩开把肘画成弧。 */
+int line_trajectory_keep_elbow(
+    Robot_Arm &arm,
+    const Eigen::MatrixXd &q_start,
+    Eigen::Matrix<double, 1, 6> &pos,
+    Eigen::MatrixXd &traj)
+{
+    traj.resize(0, 0);
+    if (q_start.rows() != 1 || q_start.cols() < 7 || !q_start.allFinite())
+        return arm.Line_Trajectory(q_start, pos, traj);
+
+    constexpr double kDeg = M_PI / 180.0;
+    const Eigen::Matrix<double, 1, 6> start_pose =
+        T2PosEulerAngles(arm.Forward_Kinematics(q_start.row(0)));
+    const double elbow_lock = arm_fk_links(arm, q_start.row(0)).elbow.z();
+    int last = -1;
+
+    auto pose_ok = [&](const Eigen::RowVectorXd &q, const Eigen::Matrix<double, 1, 6> &goal,
+                       double &perr, double &elbow_z) -> bool {
+        if (!q.allFinite() || arm.Check_Joint_Limit(q) || std::abs(q(5)) > kJ6HardLimitRad)
+        {
+            last = -3;
+            return false;
+        }
+        const Eigen::Matrix<double, 1, 6> got = T2PosEulerAngles(arm.Forward_Kinematics(q));
+        perr = (got.head<3>() - goal.head<3>()).norm();
+        double rpy = 0;
+        for (int k = 3; k < 6; ++k)
+            rpy = std::max(rpy, wrap_abs_rad(got(k) - goal(k)));
+        if (perr > kPoseAcceptM || rpy > 3.0 * kDeg)
+        {
+            last = -13;
+            return false;
+        }
+        elbow_z = arm_fk_links(arm, q).elbow.z();
+        return true;
+    };
+
+    auto solve_at = [&](const Eigen::Matrix<double, 1, 6> &goal, const Eigen::RowVectorXd &q_prev,
+                        int j2_half_deg, Eigen::RowVectorXd &q_out) -> bool {
+        const double j3_seeds[] = {q_prev(2), 90.0 * kDeg, -90.0 * kDeg};
+        bool have = false;
+        double best_cost = 0;
+        const int j2_0 = static_cast<int>(std::lround(q_prev(1) / kDeg));
+        for (int d = -j2_half_deg; d <= j2_half_deg; d += 1)
+        {
+            const double j2 = (j2_0 + d) * kDeg;
+            for (double j3_seed : j3_seeds)
+            {
+                Eigen::RowVectorXd q = q_prev;
+                q(2) = j3_seed;
+                const int ik = arm.Inverse_Kinematics_Analytic(goal, q, j2);
+                if (ik != 0)
+                {
+                    last = ik;
+                    continue;
+                }
+                double perr = 0;
+                double elbow_z = 0;
+                if (!pose_ok(q, goal, perr, elbow_z))
+                    continue;
+                const double dz = elbow_z - elbow_lock;
+                double cost = 800.0 * dz * dz;
+                for (int i = 0; i < 7; ++i)
+                {
+                    const double dq = q(i) - q_prev(i);
+                    cost += 0.4 * dq * dq;
+                }
+                if (!have || cost < best_cost)
+                {
+                    have = true;
+                    best_cost = cost;
+                    q_out = q;
+                }
+            }
+        }
+        return have;
+    };
+
+    auto interp = [](const Eigen::Matrix<double, 1, 6> &a, const Eigen::Matrix<double, 1, 6> &b,
+                     double u) {
+        Eigen::Matrix<double, 1, 6> p;
+        p.head<3>() = (1.0 - u) * a.head<3>() + u * b.head<3>();
+        for (int k = 3; k < 6; ++k)
+        {
+            double d = b(k) - a(k);
+            while (d > M_PI)
+                d -= 2.0 * M_PI;
+            while (d < -M_PI)
+                d += 2.0 * M_PI;
+            p(k) = a(k) + u * d;
+        }
+        return p;
+    };
+
+    const double dist = (pos.head<3>() - start_pose.head<3>()).norm();
+    const int n_wp = std::max(1, static_cast<int>(std::ceil(dist / 0.03)));
+    std::vector<Eigen::RowVectorXd> qs;
+    qs.push_back(q_start.row(0));
+    Eigen::RowVectorXd q_prev = q_start.row(0);
+    for (int i = 1; i <= n_wp; ++i)
+    {
+        const double u = static_cast<double>(i) / static_cast<double>(n_wp);
+        const Eigen::Matrix<double, 1, 6> goal = interp(start_pose, pos, u);
+        Eigen::RowVectorXd q_hit;
+        if (!solve_at(goal, q_prev, 15, q_hit) && !solve_at(goal, q_prev, 120, q_hit))
+        {
+            std::cerr << "[arm] " << arm_hand_label(arm_hand_side(arm))
+                      << " 按住肘高走不到该直线上的点\n";
+            return last == 0 ? -1 : last;
+        }
+        qs.push_back(q_hit);
+        q_prev = q_hit;
+    }
+
+    const double vel = arm.Cart_Linear_Velocity > 0.02 ? arm.Cart_Linear_Velocity : 0.15;
+    const double total_t = std::max(0.35, dist / vel);
+    const int n = std::max(2, static_cast<int>(std::ceil(total_t / k_arm_traj_dt)));
+    traj.resize(n + 1, 7);
+    for (int i = 0; i <= n; ++i)
+    {
+        const double s = static_cast<double>(i) / static_cast<double>(n);
+        const double e = 0.5 * (1.0 - std::cos(M_PI * s));
+        const double f = e * static_cast<double>(n_wp);
+        const int seg = std::min(n_wp - 1, static_cast<int>(std::floor(f)));
+        const double local = f - static_cast<double>(seg);
+        for (int j = 0; j < 7; ++j)
+            traj(i, j) = qs[static_cast<size_t>(seg)](j) +
+                         local * (qs[static_cast<size_t>(seg + 1)](j) - qs[static_cast<size_t>(seg)](j));
+    }
+    const double elbow_end = arm_fk_links(arm, qs.back()).elbow.z();
+    std::cout << std::fixed << std::setprecision(1)
+              << "[arm] " << arm_hand_label(arm_hand_side(arm))
+              << " 按住肘高 J2 " << (q_start(0, 1) / kDeg) << "°→" << (qs.back()(1) / kDeg)
+              << "° J3 " << (q_start(0, 2) / kDeg) << "°→" << (qs.back()(2) / kDeg)
+              << "° 肘高 " << std::setprecision(3) << elbow_lock << "→" << elbow_end << " m\n";
+    return 0;
+}
+
 int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
 {
     if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
@@ -1472,7 +1675,7 @@ int arm_line_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_
     arm.Cart_Linear_Velocity = cart_linear_velocity;
 
     Eigen::MatrixXd traj;
-    const int ret = arm.Line_Trajectory(q_start, pos, traj);
+    const int ret = line_trajectory_keep_elbow(arm, q_start, pos, traj);
     if (ret != 0)
     {
         const char *stage = nullptr;
@@ -2002,7 +2205,7 @@ int plan_rounded_corner(
     arm.Cart_Linear_Velocity = cruise;
     Eigen::Matrix<double, 1, 6> goal_b = hover;
     Eigen::MatrixXd traj_ab;
-    const int rc_ab = arm.Line_Trajectory(q_start, goal_b, traj_ab);
+    const int rc_ab = line_trajectory_keep_elbow(arm, q_start, goal_b, traj_ab);
     if (rc_ab != 0 || traj_ab.rows() < 2)
     {
         append_line_trajectory_fail_debug(
@@ -2014,7 +2217,7 @@ int plan_rounded_corner(
     q_b.row(0) = traj_ab.row(traj_ab.rows() - 1);
     Eigen::Matrix<double, 1, 6> goal_c = final_pose;
     Eigen::MatrixXd traj_bc;
-    const int rc_bc = arm.Line_Trajectory(q_b, goal_c, traj_bc);
+    const int rc_bc = line_trajectory_keep_elbow(arm, q_b, goal_c, traj_bc);
     if (rc_bc != 0 || traj_bc.rows() < 2 || traj_bc.cols() != traj_ab.cols())
     {
         append_line_trajectory_fail_debug(
@@ -2211,7 +2414,7 @@ int plan_arm_line_from(
         return -10;
     clamp_cart_goal_z(goal, "两段直线");
     arm.Cart_Linear_Velocity = vel_m_s;
-    const int ret = arm.Line_Trajectory(q_start, goal, traj);
+    const int ret = line_trajectory_keep_elbow(arm, q_start, goal, traj);
     if (ret != 0 || traj.rows() < 2)
         return ret != 0 ? ret : -16;
     return 0;
@@ -2352,7 +2555,7 @@ int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, doubl
         return -10;
     Eigen::MatrixXd planned;
     arm.Cart_Linear_Velocity = 0.05;
-    const int ret = arm.Line_Trajectory(q_start, goal, planned);
+    const int ret = line_trajectory_keep_elbow(arm, q_start, goal, planned);
     if (ret != 0 || planned.rows() < 2 || planned.cols() != q_start.cols())
         return ret != 0 ? ret : -16;
     const Eigen::RowVectorXd q_end = planned.row(planned.rows() - 1);

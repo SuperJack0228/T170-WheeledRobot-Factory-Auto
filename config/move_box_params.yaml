@@ -28,7 +28,7 @@ tray:
 
 # 头相机标定关节角。home / grasp / ready 入口使能头部三电机并走到该姿态。
 # 远三排腰前伸后低头到 far_pitch_deg，再用 free_calib 按当前头角重算 cam2robot。
-# 头相机 RealSense SN=261722072173（见 config/realsense_cameras.yaml）；头部电机 CAN ID 30偏航 / 32俯仰 / 31横滚。
+# 头相机 RealSense SN=261822078807（见 config/realsense_cameras.yaml）；头部电机 CAN ID 30偏航 / 31俯仰 / 32横滚。
 head:
   yaw_deg: 0
   pitch_deg: 40
@@ -42,12 +42,12 @@ head_grasp:
   # 左手孔位偏置（基座系）。X 前为正，Y 左为正，Z 上为正。
   grasp_z_offset_m: 0.02
   goal_z_base: -0.30
-  goal_x_offset: 0.015
-  goal_y_offset: -0.015
+  goal_x_offset: -0.01
+  goal_y_offset: -0.03
   # 右手单独孔位偏置（基座系，不取反）。缺省时 x/z 跟左手、y 取左手相反。
-  right_grasp_z_offset_m: 0.02
-  right_goal_x_offset: 0.010
-  right_goal_y_offset: -0.015
+  right_grasp_z_offset_m: 0.01
+  right_goal_x_offset: -0.01
+  right_goal_y_offset: -0.01
   # 仅离机器人最近一排（from_robot=6）。叠在左右手 z_offset 上。向上为正，夹不到改负。
   nearest_row_grasp_z_offset_m: -0.005
   goal_z_extra: 0.26
@@ -104,7 +104,7 @@ head_grasp:
   # 路径前一半转到该行最终姿态，后一半保持。和直线 A→B 转完、B→C 保持一致。
   bezier_orient_finish_ratio: 0.5
   # 到C后按编码器FK复核；超差不合爪，便于XYZ offset只修正真实落点偏差。
-  bezier_endpoint_xyz_tol_m: 0.008
+  bezier_endpoint_xyz_tol_m: 0.012
   bezier_endpoint_rpy_tol_deg: 3.0
   approach_vel_m_s: 0.12
   descend_vel_m_s: 0.05
@@ -115,12 +115,14 @@ head_grasp:
   hand_detect_invalid_redo_max: 10
 
 # 第二个料盘空孔放置。姿态、XYZ offset 都与 head_grasp 独立，改这里不影响抓取。
-# tray2ready1/2/3/6 只换手腕；tray2 流程：AP9 → 下蹲同 grasp → 认 class3 空孔放置。
+# tray2ready1/2/3/6 只换手腕。腰的 x 用下面的 waist_x，往后；z 仍是 waist.ready_z_m。
 # offset 相对孔位，基座系，左右分开。初值抄当前抓取，之后只调料盘2。
 tray2_place:
+  # 底盘系，+X 向前。抓取大约在 +0.03，这里单独往后。改完 reload。
+  waist_x: -0.10
   offset:
-    left:  { x: 0.005, y: -0.01, z: 0.03 }
-    right: { x: -0.005,  y: -0.01, z: 0.03 }
+    left:  { x: 0.005, y: -0.01, z: 0.01 }
+    right: { x: -0.005,  y: -0.01, z: 0.01 }
   nearest_row_z_offset_m: -0.01
   row_place_rpy_deg:
     left:
@@ -211,109 +213,129 @@ cameras:
 # 传送带。料盘仍用 board_yf100 的 5×5；这里只用 board_belt_aruco 的 6×6，互不覆盖。
 # belt_ready：腰/头到观察位，手臂到 tcp（准备姿态，类似 standby）。
 # belt_place：腰/头到观察位，手臂到 place_tcp（放置末端预览，类似 ready1/2/3）。
-# belt：去 AP6 → 准备tcp → 认码 → 左右依次放置后回准备。不预开合爪。不回 home。
-# belt2：去 AP5，同样的放置流程，参数用 conveyor2。
+# belt：单独测试不导航。先转到 same_spot 腰角度（与 belt1_waist 相同）→ 准备tcp → 认码 → 左右依次放置后回准备，底盘原地不动。不预开合爪。不回 home。
+# belt2：不导航。参数用 conveyor2，腰转到约 180° 再向另一侧弯，然后同样的放置流程。
 # 完整放置 XYZ=码原点 + R_识别×offset（识别系 +X前 +Y左 +Z上），RPY 用 place_tcp。
 # 左右手依次放，即使 offset XY 相同也不跳过右手。
 # 传送带不卡中轴：左右手都可以过 Y=0。料盘抓取仍走左右互不干涉，不改。
-# belt_grasp 是独立指令：不改 belt。准备姿态仍用 tcp，抓取只要 grasp_rpy_deg。随时可接在放置之后。
+# belt_grasp 是独立指令：不导航、不再摆腰。人已经在观察位时原地拍照，然后手臂到 tcp 再抓，结束后底盘原地不动。抓取腕角只要 grasp_rpy_deg。
 # belt_grasp_rpy / belt2_grasp_rpy：腰头同准备位，手臂停在 tcp 的 XYZ + grasp_rpy_deg。不拍照、不夹取、不动底盘。
-# 第一传送带站是 AP6；第二传送带站是 AP5，参数在 conveyor2，调试用 belt2_ready / belt2_place / belt2_grasp。
+# 传送带二和料盘二共用 AP7，底盘到了就不动。调试 belt2 / belt2_ready / belt2_place / belt2_grasp 都不导航。
 conveyor:
-  waist_x: 0.15
+  waist_x: -0.16
   waist_z: 0.63
   head_yaw_deg: 0
-  head_pitch_deg: 38
+  head_pitch_deg: 10
   head_roll_deg: 0
   prefer_belt: belt0
   # 准备姿态（belt 之前）。belt_ready 走到这里。基座系，RPY 单位 deg。
   # 左手 Y 必须为正（本侧），不能抄右手的 -0.30，否则左臂逆解失败。
+  # 俯仰 40°–45°、偏航 30° 时，J6 硬限位内只剩 J3 顶在 ±90° 的解，手会差约 1cm，过不了 1.2cm 门槛。
+  # 这组两侧都有 J3 约 ±72°、J6 约 ±52°、正解贴住目标的解。
   tcp:
-    right: [0.40, -0.30, -0.15, 0, 45, 30]
-    left:  [0.40,  0.30, -0.15, 0, 45, -30]
+    right: [0.55, -0.20, 0.05, -10, 30, 30]
+    left:  [0.55,  0.20, 0.05, 10, 30, -30]
   # 放置末端。belt_place 预览整段 6D；完整 belt 只用 RPY，XYZ 改由码+offset。
   place_tcp:
-    right: [0.45, -0.30, -0.25, 0, 45, 60]
-    left:  [0.45,  0.30, -0.25, 0, 45, -60]
+    right: [0.45, -0.30, -0.25, 0, 20, 40]
+    left:  [0.45,  0.30, -0.25, 0, 20, -40]
   # 相对识别板系（米，+X前 +Y左 +Z上）。
   # 先放的右手在原 x 上 +2.5cm，后放的左手在原 x 上 -2.5cm，避免零件还在皮带上时叠放。
   offset:
-    right: { x: -0.015, y: -0.01, z: 0.05 }
-    left:  { x: -0.065, y: 0.00, z: 0.05 }
+    right: { x: -0.13, y: 0.00, z: 0.03 }
+    left:  { x: -0.07, y: 0.01, z: 0.035 }
   # 传送带抓取（半成品）。开始准备仍用上面的 tcp，不改。
   # 抓完回到 grasp_tcp（专用，不再用放置 tcp）。
   # 抓取点 = 码原点 + R_识别 × 该手 grasp_offset。识别系 +X 前 +Y 左 +Z 上，不再乘腰 Rz。
   grasp_rpy_deg:
-    left: [0, 40, -60]
-    right: [0, 40, 45]
+    left: [10, 30, -40]
+    right: [-10, 30, 50]
   grasp_offset:
-    left:  { x: -0.03, y: 0.12, z: 0.025 }
-    right: { x: -0.03, y: 0.12, z: 0.025 }
+    left:  { x: -0.075, y: 0.12, z: 0.03 }
+    right: { x: -0.075, y: 0.11, z: 0.02 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
-  grasp_hover_above_m: 0.08
-  # 放置：先到码+offset 上方这么多，再下降松爪。松爪后只轻抬约 3cm，然后直接回准备。
+  grasp_hover_above_m: 0.06
+  # 放置：抹角经过上方这么多，不停车，放到码+offset 后停 0.5s 再松爪。松爪后抬约 3cm，不停，直接回准备。
   place_hover_above_m: 0.06
   # 站点已更新，传送带抓取不再转腰。0=不转。左右手可以过中轴，不卡料盘中缝。
   grasp_waist_yaw_deg: 0
+  # 底盘不动。先到本段 waist_x/waist_z（直立），
+  # 再用 LowerBody 把腰 TCP 留在该点：先转到 same_spot_yaw_deg，再沿转完的朝向俯仰 same_spot_pitch_deg。
+  # belt1_waist：腰到位前先把头顶到本段 head_yaw/pitch/roll，再双手收到本段 tcp（含 RPY）。没到位不算成功。
+  # belt 拍照前也走这段腰。单独的 belt_grasp 不再摆腰，人已经在观察位就原地拍。yaw 向左为正。pitch 0 表示不弯。
+  # 改数值后 reload。
+  same_spot_yaw_deg: -95
+  same_spot_pitch_deg: 20
   # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
-  grasp_ready_close_ratio: 0.20
+  grasp_ready_close_ratio: 0.35
   # 抓取前 YOLO 只判定类别，不参与定位。false=不跑 YOLO。1=半加工料 2=精加工料。
   grasp_yolo_enable: false
   grasp_yolo_class_id: 1
-  # 腰高 waist_z=0.63m 时，手臂基座到传送带（码平面）29cm。基座 Z 向上，传送带在下方，所以是 -0.29。
-  # 只替换码原点的 Z。XY、板朝向仍用二维码；放置/抓取 offset 和 hover 仍叠在这个高度上。
+  # 腰高 waist_z=0.63m、腰直立时，手臂基座（两肩中心）到传送带 29cm。基座 Z 向上，所以是 -0.29。
+  # 肩比腰 TCP 高，水平面按肩的高度加，不按腰 TCP。认码点已在肩部系。
+  # 腰转动后，沿竖直方向把点落到这个水平面，再写回手臂基座，X/Y/Z 随俯仰一起变。
+  # 板轴和 offset 仍在二维码系。悬停和抬起沿竖直方向。
   # 第二传送带先保持相机高度，方便和这条固定高度对比。
   use_fixed_origin_z: true
   fixed_origin_z_m: -0.29
 
-# 第二条传送带（AP5）。初值抄第一套，可单独改。
-# belt2_ready：去 AP5 → 准备 tcp。
-# belt2 / belt2_place：去 AP5 → 准备 → 放置 → 停准备 tcp。
-# belt2_grasp：去 AP5 → 准备 → 抓取（不转腰）→ 回 grasp_tcp。
+# 第二条传送带，和料盘二共用 AP7。手臂、码偏移、悬停、头和腰的 x/z 照搬 conveyor。
+# 腰：相对一号的 -95°，这里转到约 180°，俯仰改到另一侧。数值可 reload 再调。
+# belt2_ready：不导航，腰/头到位，手臂到 tcp。
+# belt2 / belt2_place：不导航，先摆这段腰，再认码放置。
+# belt2_grasp：不导航、不再摆腰，原地拍照后抓。
 conveyor2:
-  waist_x: 0.15
+  waist_x: 0.14
   waist_z: 0.63
   head_yaw_deg: 0
-  head_pitch_deg: 38
+  head_pitch_deg: 10
   head_roll_deg: 0
-  prefer_belt: belt0
+  same_spot_yaw_deg: 100
+  same_spot_pitch_deg: 20
+  prefer_belt: belt2
   tcp:
-    right: [0.40, -0.30, -0.15, 0, 45, 30]
-    left:  [0.40,  0.30, -0.15, 0, 45, -30]
+    right: [0.55, -0.20, 0.05, -10, 30, 30]
+    left:  [0.55,  0.20, 0.05, 10, 30, -30]
   place_tcp:
-    right: [0.45, -0.30, -0.25, 0, 45, 60]
-    left:  [0.45,  0.30, -0.25, 0, 45, -60]
-  # 先放的右手 x +2.5cm，后放的左手 x -2.5cm。Y/Z 不动。
+    right: [0.45, -0.30, -0.25, -10, 20, 40]
+    left:  [0.45,  0.30, -0.25, 10, 20, -40]
   offset:
-    right: { x: -0.015, y: -0.01, z: 0.06 }
-    left:  { x: -0.065, y: 0.00, z: 0.06 }
+    right: { x: -0.07, y: 0.00, z: 0.04 }
+    left:  { x: -0.13, y: -0.01, z: 0.045 }
   grasp_rpy_deg:
-    left: [0, 40, -60]
-    right: [0, 40, 45]
+    left: [10, 30, -40]
+    right: [-10, 30, 40]
   grasp_offset:
-    left:  { x: -0.03, y: 0.115, z: 0.04 }
-    right: { x: -0.04, y: 0.105, z: 0.05 }
+    left:  { x: -0.08, y: 0.11, z: 0.04 }
+    right: { x: -0.08, y: 0.11, z: 0.03 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
   grasp_hover_above_m: 0.08
   place_hover_above_m: 0.06
   grasp_waist_yaw_deg: 0
-  grasp_ready_close_ratio: 0.20
+  grasp_ready_close_ratio: 0.35
   grasp_yolo_enable: false
-  grasp_yolo_class_id: 2
-  # 先保持相机读出的码平面高度，和第一传送带的固定 -0.29m 对比。
-  use_fixed_origin_z: false
+  grasp_yolo_class_id: 1
+  use_fixed_origin_z: true
   fixed_origin_z_m: -0.29
 
-# cycle：AP7 抓 → home → AP5 放置 → belt_grasp → AP6 放置 → belt2_grasp → AP9 空孔放置 → 回 AP7 再抓，闭环到 abort。
+# cycle1：料盘抓取和一号传送带放置都在这一站。底盘只在双手到防碰姿态之后才导航过来。
+# transit_tcp 是抬腰、转正之后、出发前的双手 6D（米，度）。和 standby、传送带 tcp 无关，自己改。
+cycle1:
+  station: AP6
+  transit_tcp:
+    right: [0.45, -0.30, 0.0, 0, 0, 0]
+    left:  [0.45,  0.30, 0.0, 0, 0, 0]
+
+# cycle：演示整圈，不跟调度要任务。AP6 料盘抓、传送带一放和抓；AP7 传送带二放和抓，再料盘放。
 chassis:
   host: 192.168.192.5
   tray_station: AP7
-  tray2_station: AP9
-  belt_station: AP5
-  out_station: AP6
+  tray2_station: AP7
+  belt_station: AP6
+  out_station: AP7
   nav_timeout_ms: 600000

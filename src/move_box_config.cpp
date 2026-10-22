@@ -132,6 +132,8 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     read_value(node, "grasp_hover_above_m", dst.grasp_hover_above_m);
     read_value(node, "place_hover_above_m", dst.place_hover_above_m);
     read_value(node, "grasp_waist_yaw_deg", dst.grasp_waist_yaw_deg);
+    read_value(node, "same_spot_yaw_deg", dst.same_spot_yaw_deg);
+    read_value(node, "same_spot_pitch_deg", dst.same_spot_pitch_deg);
     read_value(node, "grasp_ready_close_ratio", dst.grasp_ready_close_ratio);
     read_value(node, "grasp_yolo_enable", dst.grasp_yolo_enable);
     read_value(node, "grasp_yolo_class_id", dst.grasp_yolo_class_id);
@@ -169,6 +171,8 @@ void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
               << ") hover=" << c.grasp_hover_above_m
               << "m yaw_left=" << c.grasp_waist_yaw_deg
               << "deg ready_grip=" << c.grasp_ready_close_ratio
+              << " same_spot_yaw=" << c.same_spot_yaw_deg
+              << " same_spot_pitch=" << c.same_spot_pitch_deg
               << " yolo=" << (c.grasp_yolo_enable ? "on" : "off")
               << " class=" << c.grasp_yolo_class_id
               << " fixed_z=" << (c.use_fixed_origin_z ? "on" : "off")
@@ -184,6 +188,9 @@ MoveBoxConfig default_move_box_config()
     cfg.standby.left << 0.45, 0.30, -0.25, 0.0, 45.0 * kDegToRad, -40.0 * kDegToRad;
     cfg.home_tcp.right.setZero();
     cfg.home_tcp.left.setZero();
+    cfg.cycle1_transit.right << 0.45, -0.35, -0.10, 0.0, 0.0, 0.0;
+    cfg.cycle1_transit.left << 0.45, 0.35, -0.10, 0.0, 0.0, 0.0;
+    cfg.cycle1_station = "AP6";
     cfg.waist.layer3_home << 0.0, 0.0, 0.55, 0.0, 0.0, 0.0;
     for (int g = 0; g < 3; ++g)
     {
@@ -245,6 +252,16 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
             if (!read_pose(root["home_tcp"]["right"], cfg.home_tcp.right) ||
                 !read_pose(root["home_tcp"]["left"], cfg.home_tcp.left))
                 throw std::runtime_error("home_tcp.left/right 必须各有 6 个数");
+        }
+        if (root["cycle1"])
+        {
+            read_value(root["cycle1"], "station", cfg.cycle1_station);
+            if (root["cycle1"]["transit_tcp"])
+            {
+                if (!read_pose(root["cycle1"]["transit_tcp"]["right"], cfg.cycle1_transit.right) ||
+                    !read_pose(root["cycle1"]["transit_tcp"]["left"], cfg.cycle1_transit.left))
+                    throw std::runtime_error("cycle1.transit_tcp.left/right 必须各有 6 个数");
+            }
         }
 
         const YAML::Node tray = root["tray"];
@@ -427,6 +444,8 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
                 read_value(off["right"], "z", cfg.tray2_place.right_grasp_z_offset_m);
             }
             read_value(t2, "nearest_row_z_offset_m", cfg.tray2_place.nearest_row_z_offset_m);
+            read_value(t2, "waist_x", cfg.tray2_place.waist_x);
+            read_value(t2, "far_row_waist_x", cfg.tray2_place.far_row_waist_x);
         }
         read_value(hg, "adaptive_pitch_down_deg", cfg.head_grasp.adaptive_pitch_down_deg);
         read_value(hg, "adaptive_yaw_max_deg", cfg.head_grasp.adaptive_yaw_max_deg);
@@ -822,6 +841,9 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << "[cfg] standby left=" << cfg.standby.left << "\n"
               << "[cfg] home_tcp right=" << cfg.home_tcp.right << "\n"
               << "[cfg] home_tcp left=" << cfg.home_tcp.left << "\n"
+              << "[cfg] cycle1 station=" << cfg.cycle1_station
+              << " transit right=" << cfg.cycle1_transit.right
+              << " left=" << cfg.cycle1_transit.left << "\n"
               << "[cfg] 工作包络 grasp_valid x=[" << cfg.grasp_valid.x_min << ','
               << cfg.grasp_valid.x_max << "] z=[" << cfg.grasp_valid.z_min << ','
               << cfg.grasp_valid.z_max << "] y右=[" << cfg.grasp_valid.right_y_min << ','
@@ -944,7 +966,10 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << cfg.tray2_place.right_goal_x_offset << ","
               << cfg.tray2_place.right_goal_y_offset << ","
               << cfg.tray2_place.right_grasp_z_offset_m
-              << ") nearest_row_z=" << cfg.tray2_place.nearest_row_z_offset_m << "\n"
+              << ") nearest_row_z=" << cfg.tray2_place.nearest_row_z_offset_m
+              << " waist_x=" << cfg.tray2_place.waist_x
+              << " far_row_waist_x=" << cfg.tray2_place.far_row_waist_x
+              << "（z 仍用 ready_z=" << cfg.waist.ready_z_m << "）\n"
               << "[cfg] bezier vel_max=" << cfg.head_grasp.bezier_vel_m_s
               << "m/s orient_done=" << cfg.head_grasp.bezier_orient_finish_ratio
               << " endpoint_tol=" << cfg.head_grasp.bezier_endpoint_xyz_tol_m << "m/"

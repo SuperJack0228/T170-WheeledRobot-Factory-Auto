@@ -6,7 +6,7 @@ camera_count: 3
 realsense:
   head:
     label: 头部
-    serial: '261722072173'
+    serial: '261822078807'
     name: Intel RealSense D435I
     usb_type: '3.2'
     # Jetson 原生 USB 2-2（3610000.usb），与手相机 Hub 同控制器相邻口

@@ -350,6 +350,23 @@ Json::Value dispatch(const Json::Value &request)
             out["photo"] = g_session.last_debug_photo;
         return out;
     }
+    if (cmd == "belt1_waist")
+    {
+        const int rc = orch::go_belt1_same_spot_waist();
+        Json::Value out = reply(
+            rc == 0, rc == 0 ? std::string() : ("传送带一转腰弯腰失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        out["waist_photo_x"] = g_move_cfg.conveyor.waist_x;
+        out["waist_photo_z"] = g_move_cfg.conveyor.waist_z;
+        out["same_spot_yaw_deg"] = g_move_cfg.conveyor.same_spot_yaw_deg;
+        out["same_spot_pitch_deg"] = g_move_cfg.conveyor.same_spot_pitch_deg;
+        if (g_session.layer3 != nullptr)
+        {
+            out["waist_x"] = (*g_session.layer3)(0);
+            out["waist_z"] = (*g_session.layer3)(2);
+        }
+        return out;
+    }
     if (cmd == "belt_ready")
     {
         const int rc = orch::go_belt_ready(*g_arm_r, *g_arm_l);
@@ -756,6 +773,7 @@ int main(int argc, char **argv)
         std::cerr << "[t170c_debug] 初始化失败: " << error << "\n";
         return 1;
     }
+    orch::start_scheduler_status_writer();
 
     const int server = ::socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -767,6 +785,7 @@ int main(int argc, char **argv)
     if (bind(server, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0 || listen(server, 8) != 0)
     {
         std::cerr << "[t170c_debug] 无法监听 127.0.0.1:" << port << "\n";
+        orch::stop_scheduler_status_writer();
         return 1;
     }
 
@@ -781,5 +800,6 @@ int main(int argc, char **argv)
             std::thread(handle_client, client).detach();
     }
     ::close(server);
+    orch::stop_scheduler_status_writer();
     return 0;
 }

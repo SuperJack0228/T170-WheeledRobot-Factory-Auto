@@ -1168,7 +1168,8 @@ namespace move_box
         if (ik != 0)
         {
             std::cout << "[home] " << (is_right ? "右" : "左") << " " << stage
-                      << " 混合逆解预览失败 code=" << ik << "，仍下发解锁J2直线\n";
+                      << " 混合逆解预览失败 code=" << ik
+                      << "，仍按当前肘附近的 J2 下发\n";
             return;
         }
         const int n = static_cast<int>(std::min(q.size(), q_ik.size()));
@@ -1266,7 +1267,8 @@ namespace move_box
         Eigen::Matrix<double, 1, 6> standby_r,
         Eigen::Matrix<double, 1, 6> standby_l,
         bool check_zone,
-        const char *pose_name)
+        const char *pose_name,
+        bool align_wrist)
     {
         Eigen::Matrix<double, 1, 6> cur_r = arm_get_tcp_pos(arm_r);
         Eigen::Matrix<double, 1, 6> cur_l = arm_get_tcp_pos(arm_l);
@@ -1304,6 +1306,40 @@ namespace move_box
         };
 
         bool ok = true;
+
+        // 传送带目标自带腕角。先竖直抬到目标高度，再一次走到完整位姿。
+        // 不要先把腕角冻在 0 去平移，那个中间点腕关节超限，真正的目标反而没机会试。
+        if (align_wrist)
+        {
+            cur_r = arm_get_tcp_pos(arm_r);
+            cur_l = arm_get_tcp_pos(arm_l);
+            const bool lift_r = cur_r(2) < standby_r(2) - 0.01;
+            const bool lift_l = cur_l(2) < standby_l(2) - 0.01;
+            if (lift_r || lift_l)
+            {
+                Eigen::Matrix<double, 1, 6> lift_r_g =
+                    hold_rpy_goal(cur_r, cur_r(0), cur_r(1), clear_z_r);
+                Eigen::Matrix<double, 1, 6> lift_l_g =
+                    hold_rpy_goal(cur_l, cur_l(0), cur_l(1), clear_z_l);
+                std::cout << std::fixed << std::setprecision(4)
+                          << "[home] 竖直抬升 右 z " << cur_r(2) << "→" << lift_r_g(2)
+                          << " 左 z " << cur_l(2) << "→" << lift_l_g(2) << "\n";
+                if (!retract_phase_move(
+                        arm_r, arm_l, lift_r_g, lift_r, lift_l_g, lift_l, "home竖直抬升", false))
+                    ok = false;
+                if (hardware_abort_requested())
+                    return false;
+            }
+            std::cout << "[home] 直接走到目标位置和腕角\n";
+            if (!retract_phase_move(
+                    arm_r, arm_l, standby_r, true, standby_l, true, "对准目标位姿", false))
+                ok = false;
+            log_retract_arm_state("完成", true, arm_r);
+            log_retract_arm_state("完成", false, arm_l);
+            if (hardware_abort_requested())
+                return false;
+            return ok;
+        }
 
         // 1) 竖直抬离料盘：XY/RPY 保持当前，避免斜插扫台面、避免无谓转腕。
         {
@@ -1508,7 +1544,8 @@ namespace move_box
         }
         return move_arms_retract_to(
             arm_r, arm_l, standby_r, standby_l, true,
-            tray2_place_rpy ? "yaml standby（料盘2放置准备）" : "yaml standby（抓取准备）");
+            tray2_place_rpy ? "yaml standby（料盘2放置准备）" : "yaml standby（抓取准备）",
+            false);
     }
 
     bool move_arms_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
@@ -1532,7 +1569,25 @@ namespace move_box
             return !hardware_abort_requested();
         }
         return move_arms_retract_to(
-            arm_r, arm_l, home_r, home_l, false, "yaml home_tcp");
+            arm_r, arm_l, home_r, home_l, false, "yaml home_tcp", false);
+    }
+
+    bool move_arms_to_pose(
+        Robot_Arm &arm_r,
+        Robot_Arm &arm_l,
+        const Eigen::Matrix<double, 1, 6> &pose_r,
+        const Eigen::Matrix<double, 1, 6> &pose_l,
+        const char *pose_name)
+    {
+        std::cout << std::fixed << std::setprecision(4)
+                  << "[arm] " << (pose_name ? pose_name : "指定姿态")
+                  << " 右=(" << pose_r(0) << "," << pose_r(1) << "," << pose_r(2)
+                  << ") 左=(" << pose_l(0) << "," << pose_l(1) << "," << pose_l(2)
+                  << ") rpy_deg 右=(" << (pose_r(3) / rad) << "," << (pose_r(4) / rad) << ","
+                  << (pose_r(5) / rad) << ") 左=(" << (pose_l(3) / rad) << ","
+                  << (pose_l(4) / rad) << "," << (pose_l(5) / rad) << ")\n";
+        return move_arms_retract_to(
+            arm_r, arm_l, pose_r, pose_l, false, pose_name ? pose_name : "指定姿态", true);
     }
 
     bool move_arms_to_belt_ready(
@@ -1547,7 +1602,7 @@ namespace move_box
                   << (ready_r(5) / rad) << ") 左=(" << (ready_l(3) / rad) << ","
                   << (ready_l(4) / rad) << "," << (ready_l(5) / rad) << ")\n";
         return move_arms_retract_to(
-            arm_r, arm_l, ready_r, ready_l, false, "yaml conveyor.tcp 准备");
+            arm_r, arm_l, ready_r, ready_l, false, "yaml conveyor.tcp 准备", true);
     }
 
     bool move_arms_to_belt_ready(Robot_Arm &arm_r, Robot_Arm &arm_l)
@@ -1573,7 +1628,7 @@ namespace move_box
                   << "," << c.grasp_rpy_right.rz << ") 左=(" << c.grasp_rpy_left.rx << ","
                   << c.grasp_rpy_left.ry << "," << c.grasp_rpy_left.rz << ")\n";
         return move_arms_retract_to(
-            arm_r, arm_l, pose_r, pose_l, false, "yaml grasp_rpy_deg");
+            arm_r, arm_l, pose_r, pose_l, false, "yaml grasp_rpy_deg", true);
     }
 
     bool move_arms_to_belt_place(
@@ -1589,7 +1644,7 @@ namespace move_box
                   << (place_l(3) / rad) << "," << (place_l(4) / rad) << ","
                   << (place_l(5) / rad) << ")\n";
         return move_arms_retract_to(
-            arm_r, arm_l, place_r, place_l, false, "yaml conveyor.place_tcp 放置");
+            arm_r, arm_l, place_r, place_l, false, "yaml conveyor.place_tcp 放置", true);
     }
 
     bool move_arms_to_belt_place(Robot_Arm &arm_r, Robot_Arm &arm_l)
@@ -3351,7 +3406,13 @@ namespace move_box
             verify_final_c(arm_r, st.goal_last_r, "右", out.ret_r);
         if (hs.move_l)
             verify_final_c(arm_l, st.goal_last_l, "左", out.ret_l);
-        if ((hs.move_r && out.ret_r != 0) || (hs.move_l && out.ret_l != 0))
+        const bool close_r = hs.move_r && out.ret_r == 0;
+        const bool close_l = hs.move_l && out.ret_l == 0;
+        if (hs.move_r && !close_r)
+            std::cerr << "[bezier_C] 右手未到位，本轮不合爪不抬起\n";
+        if (hs.move_l && !close_l)
+            std::cerr << "[bezier_C] 左手未到位，本轮不合爪不抬起\n";
+        if (!close_r && !close_l)
             return out;
 
         if (!tray2_precision_test())
@@ -3373,9 +3434,9 @@ namespace move_box
                 arm_start_line_then_line_plan(
                     arm, mid, goal, hg.lift_vel_m_s, hg.return_vel_m_s);
             };
-            if (hs.move_r && out.ret_r == 0)
+            if (close_r)
                 start_retract_plan(arm_r, true);
-            if (hs.move_l && out.ret_l == 0)
+            if (close_l)
                 start_retract_plan(arm_l, false);
         }
 
@@ -3390,7 +3451,7 @@ namespace move_box
             return out;
         }
 
-        if (hs.move_r)
+        if (close_r)
         {
             if (g_tray_hole_task == TrayHoleTask::PlaceEmpty && tray2_precision_test())
                 std::cout << "[gripper] 精度测试右手到位，不松爪\n";
@@ -3410,7 +3471,7 @@ namespace move_box
                 }
             }
         }
-        if (hs.move_l)
+        if (close_l)
         {
             if (g_tray_hole_task == TrayHoleTask::PlaceEmpty && tray2_precision_test())
                 std::cout << "[gripper] 精度测试左手到位，不松爪\n";
@@ -3520,6 +3581,52 @@ namespace move_box
             static_cast<int>(g_move_cfg.waist.move_settle_sec * 1000.0));
         g_current_waist_layer3_z = posup_down_3_layer(2);
         return posup_down_3_layer(0) - cur_x;
+    }
+
+    double waist_layer3_ensure_tray2_far_row(
+        WaistRobot &waist,
+        Eigen::Matrix<double, 1, 6> &layer3)
+    {
+        if (!sync_waist_layer3_from_encoders(waist, layer3, "料盘二远排腰进前"))
+            return 0.0;
+        const double x_far = g_move_cfg.tray2_place.far_row_waist_x;
+        const double cur_x = layer3(0);
+        if (cur_x <= x_far + 0.01)
+        {
+            std::cout << std::fixed << std::setprecision(3)
+                      << "[tray2] 远排腰已在 x=" << cur_x
+                      << "，不比目标 " << x_far << " 更靠前，跳过\n";
+            return 0.0;
+        }
+        const Eigen::MatrixXd q_now = waist.getJointPos();
+        if (q_now.rows() < 1 || q_now.cols() < 5)
+            return 0.0;
+        WaistRobot::Joints5 q = q_now.row(0).head(5);
+        const Eigen::Matrix3d R = waist.fk(q).block<3, 3>(0, 0);
+        const double yaw_deg = std::atan2(R(1, 0), R(0, 0)) / rad;
+        const double pitch_deg = std::atan2(-R(2, 0), R(2, 2)) / rad;
+        const double y = layer3(1);
+        const double z = layer3(2);
+        std::cout << std::fixed << std::setprecision(3)
+                  << "[tray2] 远排腰往负方向 x " << cur_x << " → " << x_far
+                  << "，z=" << z << " 不变，保持 yaw=" << std::setprecision(1) << yaw_deg
+                  << " pitch=" << pitch_deg << "\n";
+        const int rc = waist.moveToYawPitch(x_far, y, z, yaw_deg, pitch_deg, 0.08);
+        if (rc != 0)
+        {
+            std::cerr << "[tray2] 远排腰进失败 code=" << rc << "\n";
+            sync_waist_layer3_from_encoders(waist, layer3, "料盘二远排腰进失败后");
+            return 0.0;
+        }
+        if (!sync_waist_layer3_from_encoders(waist, layer3, "料盘二远排腰进后"))
+            return 0.0;
+        const double moved = layer3(0) - cur_x;
+        if (moved >= -1e-9)
+        {
+            std::cerr << "[tray2] 远排腰没有往负方向走，当前 x=" << layer3(0) << "\n";
+            return 0.0;
+        }
+        return moved;
     }
 
     double waist_layer3_ensure_far_row_forward(
@@ -3666,6 +3773,58 @@ namespace move_box
         std::cout << std::fixed << std::setprecision(4)
                   << "[waist] ready 起始已到位 x=" << posup_down_3_layer(0)
                   << " z=" << posup_down_3_layer(2) << " m\n";
+        return true;
+    }
+
+    bool move_waist_tray2_place(
+        WaistRobot &waist,
+        Eigen::Matrix<double, 1, 6> &posup_down_3_layer,
+        bool hold_turn,
+        double yaw_deg,
+        double pitch_deg)
+    {
+        if (!sync_waist_layer3_from_encoders(waist, posup_down_3_layer, "料盘二放置降腰前"))
+            return false;
+        const double x = g_move_cfg.tray2_place.waist_x;
+        const double z = waist_ready_z();
+        if (hold_turn)
+        {
+            const Eigen::MatrixXd q_now = waist.getJointPos();
+            if (q_now.rows() < 1 || q_now.cols() < 5)
+                return false;
+            WaistRobot::Joints5 q = q_now.row(0).head(5);
+            const Eigen::Matrix3d R = waist.fk(q).block<3, 3>(0, 0);
+            yaw_deg = std::atan2(R(1, 0), R(0, 0)) / rad;
+            pitch_deg = std::atan2(-R(2, 0), R(2, 2)) / rad;
+        }
+        const double y = posup_down_3_layer(1);
+        std::cout << std::fixed << std::setprecision(3)
+                  << "[tray2] 放置腰 x=" << x
+                  << "（抓取 x=" << waist_ready_x() << "，这次往后）z=" << z
+                  << " 与料盘抓取同高 yaw=" << std::setprecision(1) << yaw_deg
+                  << " pitch=" << pitch_deg << "\n";
+        const int rc = waist.moveToYawPitch(x, y, z, yaw_deg, pitch_deg, 0.08);
+        if (rc != 0)
+        {
+            std::cerr << "[tray2] 放置降腰失败 code=" << rc << "\n";
+            sync_waist_layer3_from_encoders(waist, posup_down_3_layer, "料盘二放置降腰失败后");
+            return false;
+        }
+        if (!sync_waist_layer3_from_encoders(waist, posup_down_3_layer, "料盘二放置降腰后"))
+            return false;
+        const double dx = std::abs(posup_down_3_layer(0) - x);
+        const double dz = std::abs(posup_down_3_layer(2) - z);
+        if (dx > 0.02 || dz > 0.02)
+        {
+            std::cerr << std::fixed << std::setprecision(3)
+                      << "[tray2] 腰未到放置位 当前 x=" << posup_down_3_layer(0)
+                      << " z=" << posup_down_3_layer(2)
+                      << " 目标 x=" << x << " z=" << z << "\n";
+            return false;
+        }
+        std::cout << std::fixed << std::setprecision(3)
+                  << "[tray2] 放置腰已到位 x=" << posup_down_3_layer(0)
+                  << " z=" << posup_down_3_layer(2) << "\n";
         return true;
     }
 

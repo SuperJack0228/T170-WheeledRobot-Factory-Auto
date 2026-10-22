@@ -136,6 +136,13 @@ void set_tray2_precision_test(bool on);
 bool tray2_precision_test();
 /** home 指令：安全抬离后走到 yaml home_tcp（默认 TCP 原点、RPY=0）。不走抓取 standby，也不用料盘左右分区卡 Y。 */
 bool move_arms_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/** 绝对走到给定双手 6D。cycle1 防碰姿态用。 */
+bool move_arms_to_pose(
+    Robot_Arm &arm_r,
+    Robot_Arm &arm_l,
+    const Eigen::Matrix<double, 1, 6> &pose_r,
+    const Eigen::Matrix<double, 1, 6> &pose_l,
+    const char *pose_name);
 /** belt_ready：绝对走到该套 conveyor.tcp（准备姿态）。 */
 bool move_arms_to_belt_ready(
     Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c);
@@ -285,6 +292,10 @@ void lift_grasped_selective(
     bool move_l);
 
 bool restore_waist_layer3_x(WaistRobot &waist, Eigen::Matrix<double, 1, 6> &posup_down_3_layer);
+/** 料盘二放置远三排：腰 x 到 tray2_place.far_row_waist_x（更负），保持当前转角。返回实际位移（负为往后）。 */
+double waist_layer3_ensure_tray2_far_row(
+    WaistRobot &waist,
+    Eigen::Matrix<double, 1, 6> &layer3);
 /** 腰向前伸到 home_x + far_row_forward_m（远三排）；已到位则跳过。返回实际前进量（>0）。抓完不收回。 */
 double waist_layer3_ensure_far_row_forward(
     WaistRobot &waist,
@@ -316,6 +327,13 @@ bool advance_waist_stagger_dual_hands(
 bool ensure_waist_layer3_x_home(WaistRobot &waist, Eigen::Matrix<double, 1, 6> &posup_down_3_layer);
 /** ready/grasp 起始：X 到 home_x+ready_forward_m，Z 到 ready_z_m。编码器复核不到位返回 false。 */
 bool ensure_waist_ready_start(WaistRobot &waist, Eigen::Matrix<double, 1, 6> &posup_down_3_layer);
+/** 料盘二放置：X 用 tray2_place.waist_x，Z 用抓取的 ready_z。hold_turn 时保持当前转角。 */
+bool move_waist_tray2_place(
+    WaistRobot &waist,
+    Eigen::Matrix<double, 1, 6> &posup_down_3_layer,
+    bool hold_turn,
+    double yaw_deg = 0.0,
+    double pitch_deg = 0.0);
 
 enum class GraspToStandbyStatus
 {

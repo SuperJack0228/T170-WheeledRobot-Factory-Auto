@@ -1,6 +1,6 @@
 #pragma once
 
-/** 头部 CAN 30=偏航 32=俯仰 31=横滚（本机 31/32 对调）。 */
+/** 头部 CAN 30=偏航 31=俯仰 32=横滚。 */
 
 /** 读当前头部编码器角（度）。成功返回 true。 */
 bool read_head_rpy_deg(double &yaw_deg, double &pitch_deg, double &roll_deg);

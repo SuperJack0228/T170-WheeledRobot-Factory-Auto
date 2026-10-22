@@ -24,6 +24,7 @@ COMMANDS = {
     "waist1": {"cmd": "waist1"},
     "waist2": {"cmd": "waist2"},
     "belt": {"cmd": "belt"},
+    "belt1_waist": {"cmd": "belt1_waist"},
     "belt_ready": {"cmd": "belt_ready"},
     "belt_place": {"cmd": "belt_place"},
     "belt_grasp_rpy": {"cmd": "belt_grasp_rpy"},

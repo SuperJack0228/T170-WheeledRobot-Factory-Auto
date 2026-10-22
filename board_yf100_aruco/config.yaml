@@ -38,11 +38,22 @@ tray:
     offset_x_m: 0.0               # 相对中心码的网格中心偏移（前）
     offset_y_m: 0.0               # 相对中心码的网格中心偏移（左）
 
-# 料盘2空孔放置专用码。字典、四角间距、孔距仍用上面的 tray。只改打印边长和黑框。
-# 外边含白边 30 mm；OpenCV 测的黑框（5×5 内码）23.4 mm。
+# 料盘2空孔放置专用码。字典仍是上面的 DICT_5X5_1000，分辨率不变。
+# 四角间距、孔距仍用上面的 tray。外边含白边 30 mm；黑框 23.4 mm。
+# 没有中心码。原点仍在四角几何中心：+X 前、+Y 左。
+#        前 (+X)
+#   ID2 左上         ID5 右上
+# 左(+Y)                      右(-Y)
+#   ID6 左下         ID7 右下
+#        后 (-X)
 tray2:
   print_size_m: 0.03
   black_side_m: 0.0234
+  ids:
+    front_left: 2               # 左上
+    front_right: 5              # 右上
+    rear_left: 6                # 左下
+    rear_right: 7               # 右下
 
 pose:
   pnp_flag: SQPNP                 # SQPNP | ITERATIVE

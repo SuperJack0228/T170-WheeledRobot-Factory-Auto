@@ -164,8 +164,8 @@ struct ChassisConfig
     /** 第二个料盘（空孔放置）。调试指令 tray2 / tray2ready*。 */
     std::string tray2_station = "AP9";
     std::string belt_station = "AP6";
-    /** 第二条传送带。cycle 第一次抓完腰回 0 后去这里再放置。 */
-    std::string out_station = "AP5";
+    /** 第二条传送带和成品料盘，现为 AP7。 */
+    std::string out_station = "AP7";
     /** 等站点到位超时（毫秒）。abort 可提前打断。 */
     int nav_timeout_ms = 600000;
 };
@@ -186,6 +186,10 @@ struct Tray2PlaceConfig
     double right_grasp_z_offset_m = 0.04;
     /** 仅 from_robot=6，叠在该手 z 上。 */
     double nearest_row_z_offset_m = -0.01;
+    /** 放置时腰 TCP 的 x（米，底盘系，+X 向前）。与抓取的向前 x 分开，这里往后。z 仍用 ready_z_m。 */
+    double waist_x = -0.10;
+    /** 放置远三排时的腰 x，比 waist_x 更负。z 不变，朝向保持。 */
+    double far_row_waist_x = -0.28;
 };
 
 /** 传送带工位调试姿态。与料盘 waist/head/standby/home_tcp 独立。
@@ -222,6 +226,10 @@ struct ConveyorStationConfig
     double place_base_z_bias_m = 0.0;
     /** 传送带抓取转腰（deg）。0=不转。站点更新后默认不转。 */
     double grasp_waist_yaw_deg = 0.0;
+    /** 到拍照 x/z 之后，LowerBody 联动的腰 yaw（deg，向左为正）。 */
+    double same_spot_yaw_deg = 50.0;
+    /** 同一姿态里的腰 pitch（deg）。0=不弯。与 yaw 一起逆解，不是单轴。 */
+    double same_spot_pitch_deg = 0.0;
     /** 准备姿态夹爪闭合比例，0=全开 1=全合。减小开距，避免下探时磕皮带边。 */
     double grasp_ready_close_ratio = 0.30;
     /** 抓取前是否跑 YOLO 类别门禁。false=不跑 YOLO，只认码。 */
@@ -254,7 +262,7 @@ struct CameraStreamConfig
     int hand_fps = 15;
 };
 
-/** 头相机标定关节角。CAN 30=偏航 32=俯仰 31=横滚。 */
+/** 头相机标定关节角。CAN 30=偏航 31=俯仰 32=横滚。 */
 struct HeadMotorConfig
 {
     double yaw_deg = 0.0;
@@ -269,6 +277,9 @@ struct MoveBoxConfig
 {
     ArmPosePairConfig standby;
     ArmPosePairConfig home_tcp;
+    /** cycle1 导航去站点前的双手防碰姿态。与 standby、home_tcp、传送带 tcp 独立。 */
+    ArmPosePairConfig cycle1_transit;
+    std::string cycle1_station = "AP6";
     TrayHeightConfig tray;
     HeadMotorConfig head;
     HeadGraspConfig head_grasp;
