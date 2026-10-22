@@ -3,6 +3,7 @@
 #include "head_cam2robot.h"
 #include "move_box_config.h"
 #include "function.h"
+#include "hand_shadow.h"
 #include "Ti5_socketcan.h"
 #include "vision_debug.h"
 #include "vision/pipeline.h"
@@ -1444,6 +1445,8 @@ PoseRunResult SegPoseBridge::run(
     int vis_panel,
     SegEngineId engine_id)
 {
+    static std::mutex yolo_mu;
+    std::lock_guard<std::mutex> yolo_lock(yolo_mu);
     py::gil_scoped_acquire gil;
     PoseRunResult result;
     (void)engine_id;
@@ -2081,7 +2084,8 @@ bool PosePipeline::init(std::string &err)
         g_move_cfg.cameras.width,
         g_move_cfg.cameras.height,
         g_move_cfg.cameras.head_fps,
-        g_move_cfg.cameras.hand_fps);
+        g_move_cfg.cameras.hand_fps,
+        g_move_cfg.cameras.hand_live_preview);
     if (!cameras_->init(err))
     {
         std::cout << "失败\n";
@@ -2155,12 +2159,14 @@ bool PosePipeline::init(std::string &err)
         std::cout << "OK " << warm_ms << " ms\n";
     }
 
+    hand_shadow_bind(bridge_.get());
     install_app_sigint_handler();
     return true;
 }
 
 void PosePipeline::shutdown(bool close_visualization)
 {
+    hand_shadow_bind(nullptr);
     if (bridge_)
     {
         if (close_visualization)

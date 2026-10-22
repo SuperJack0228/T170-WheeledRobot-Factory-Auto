@@ -124,6 +124,10 @@ namespace move_box
         return out;
     }
     TrayHoleTask g_tray_hole_task = TrayHoleTask::GraspParts;
+    /** 非负时本轮选孔只用这个类别，不改成料盘二放置。-1 表示按任务。 */
+    int g_assign_class_override = -1;
+    /** 非 0 时只在这一行选孔。from_robot：1 最远，6 最近。 */
+    int g_assign_fixed_from_robot_row = 0;
 
     bool g_tray2_precision_test = false;
     std::unordered_set<int> g_tray2_visited_holes;
@@ -193,6 +197,8 @@ namespace move_box
 
     int tray_assign_class_id()
     {
+        if (g_assign_class_override >= 0)
+            return g_assign_class_override;
         return g_tray_hole_task == TrayHoleTask::PlaceEmpty ? kEmptyHoleClassId
                                                            : kGraspDetectClassId;
     }
@@ -2414,7 +2420,10 @@ namespace move_box
 
         const int want_class = tray_assign_class_id();
         std::cout << "\n--- 料盘孔位分配 (ArUco XY + YOLO class" << want_class
-                  << (want_class == kEmptyHoleClassId ? " 空孔放置" : "") << ") ---\n";
+                  << (want_class == kEmptyHoleClassId
+                          ? (g_tray_hole_task == TrayHoleTask::PlaceEmpty ? " 空孔放置" : " 空孔")
+                          : "")
+                  << ") ---\n";
         std::cout << "[tray] 行列绑定料盘系：+X前=row1  -X后=row6  -Y右=col1  +Y左=col6\n";
         std::cout << std::fixed << std::setprecision(4)
                   << "[tray] 左右分列按 ArUco 列号，不用机器人 Y=0"
@@ -2616,6 +2625,26 @@ namespace move_box
             if (any)
                 std::cout << "[tray_xy] 精度测试本轮 ArUco row=" << best_aruco
                           << " from_robot=" << best_from << "\n";
+        }
+        else if (g_assign_fixed_from_robot_row >= 1)
+        {
+            const int want = g_assign_fixed_from_robot_row;
+            bool any = false;
+            for (const Cand &c : right_zone)
+            {
+                if (!skip_r && c.row == want)
+                    any = true;
+            }
+            for (const Cand &c : left_zone)
+            {
+                if (!skip_l && c.row == want)
+                    any = true;
+            }
+            shared_row = any ? want : 0;
+            std::cout << "[tray_xy] 指定 from_robot=" << want
+                      << (want == 6 ? "（离机器人最近）" : "")
+                      << (want == 5 ? "（离机器人第二近）" : "")
+                      << (any ? "\n" : "，这一排没有孔\n");
         }
         else
         {
@@ -4052,6 +4081,148 @@ namespace move_box
         lift_grasped_selective(
             arm_r, arm_l, cameras, st,
             grasped_r && !lifted_r, grasped_l && !lifted_l);
+    }
+
+    int run_tray_servo_jitter_test(
+        Robot_Arm &arm_r,
+        Robot_Arm &arm_l,
+        RealSenseMultiCam &cameras,
+        SegPoseBridge &bridge,
+        const std::array<double, 16> &cam2robot,
+        const std::function<bool()> &should_abort)
+    {
+        struct AssignGuard
+        {
+            ~AssignGuard()
+            {
+                g_assign_class_override = -1;
+                g_assign_fixed_from_robot_row = 0;
+            }
+        } assign_guard;
+        constexpr int kSecondNearRow = 5;
+        g_assign_class_override = kEmptyHoleClassId;
+        g_assign_fixed_from_robot_row = kSecondNearRow;
+
+        auto aborted = [&]() {
+            return hardware_abort_requested() || (should_abort && should_abort());
+        };
+        std::cout << "[伺服测试] 料盘旁拍空孔，用离机器人第二近的一排（from_robot=5）。"
+                     "停在孔上方，每 100 ms 更新坐标，跟踪 3 秒。不合爪，不进孔，底盘不动\n";
+        if (aborted())
+            return -4;
+
+        const bool lock_r = right_arm_motors_locked();
+        HeadAssignState st = detect_and_assign_head(
+            cameras, bridge, cam2robot, true, SegEngineId::Default, lock_r, false);
+        if (aborted())
+            return -4;
+        if (!st.move_l || st.row_l != kSecondNearRow)
+        {
+            std::cerr << "[伺服测试] 第二近排没有左手孔，不运动\n";
+            return -6;
+        }
+        if (!lock_r && (!st.move_r || st.row_r != kSecondNearRow))
+        {
+            std::cerr << "[伺服测试] 第二近排没有左右成对的孔，不运动\n";
+            return -6;
+        }
+        if (st.move_r && st.move_l && !head_grasp_simultaneous(st))
+        {
+            std::cerr << "[伺服测试] 这两个孔靠得太近，不能双手一起伸，不运动\n";
+            return -7;
+        }
+
+        Eigen::Matrix<double, 1, 6> hover_r = arm_goal_in_real_waist_frame(st.goal_last_r);
+        Eigen::Matrix<double, 1, 6> hover_l = arm_goal_in_real_waist_frame(st.goal_last_l);
+        std::cout << std::fixed << std::setprecision(4)
+                  << "[伺服测试] 悬停目标 右=(" << hover_r(0) << "," << hover_r(1) << ","
+                  << hover_r(2) << ") 左=(" << hover_l(0) << "," << hover_l(1) << ","
+                  << hover_l(2) << ")\n";
+
+        const bool move_r = st.move_r && !lock_r;
+        const bool move_l = st.move_l;
+        const ArmLineMoveResult approached = arm_dual_line_move_selective(
+            arm_r, hover_r, move_r, arm_l, hover_l, move_l,
+            g_move_cfg.head_grasp.approach_vel_m_s, false);
+        if (aborted())
+            return -4;
+        if ((move_r && approached.ret_r != 0) || (move_l && approached.ret_l != 0))
+        {
+            std::cerr << "[伺服测试] 靠近悬停失败 右=" << approached.ret_r
+                      << " 左=" << approached.ret_l << "，抬回准备姿态\n";
+            move_arms_to_standby(arm_r, arm_l);
+            return approached.ret_l != 0 ? approached.ret_l : approached.ret_r;
+        }
+
+        const double hole_rx = hover_r(0);
+        const double hole_ry = hover_r(1);
+        const double hole_lx = hover_l(0);
+        const double hole_ly = hover_l(1);
+        struct Mm
+        {
+            double x;
+            double y;
+        };
+        const Mm walk[10] = {
+            {8, 5}, {12, 8}, {16, 5}, {14, 0}, {10, -4},
+            {6, -2}, {8, 3}, {11, 6}, {8, 4}, {8, 0},
+        };
+        int last_slot = -1;
+        const int tracked = arm_dual_cartesian_track(
+            arm_r, arm_l, hover_r, hover_l, move_r, move_l, 3.0,
+            [&](double t, Eigen::Matrix<double, 1, 6> &goal_r, Eigen::Matrix<double, 1, 6> &goal_l) {
+                const int slot = std::min(29, std::max(0, static_cast<int>(std::floor(t / 0.1))));
+                const bool reject = slot == 20 || slot == 21;
+                double dx_mm = 8.0;
+                double dy_mm = 0.0;
+                const char *phase = "固定 +8 mm";
+                if (slot >= 10 && slot <= 19)
+                {
+                    dx_mm = walk[slot - 10].x;
+                    dy_mm = walk[slot - 10].y;
+                    phase = "小幅走动";
+                }
+                else if (reject)
+                {
+                    phase = "丢弃偏出 80 mm 的点";
+                }
+                else if (slot >= 22)
+                {
+                    phase = "回到 +8 mm";
+                }
+                if (!reject)
+                {
+                    const double dx = dx_mm * 0.001;
+                    const double dy = dy_mm * 0.001;
+                    if (move_r)
+                    {
+                        goal_r(0) = hole_rx + dx;
+                        goal_r(1) = hole_ry + dy;
+                    }
+                    if (move_l)
+                    {
+                        goal_l(0) = hole_lx + dx;
+                        goal_l(1) = hole_ly + dy;
+                    }
+                }
+                if (slot != last_slot)
+                {
+                    last_slot = slot;
+                    std::cout << std::fixed << std::setprecision(1)
+                              << "[伺服测试] t=" << (slot * 0.1)
+                              << " s  " << phase;
+                    if (!reject)
+                        std::cout << "  偏移 (" << dx_mm << "," << dy_mm << ") mm";
+                    std::cout << "\n";
+                }
+            });
+
+        if (!hardware_abort_requested() && !(should_abort && should_abort()))
+        {
+            std::cout << "[伺服测试] 抬回准备姿态\n";
+            move_arms_to_standby(arm_r, arm_l);
+        }
+        return tracked;
     }
 
 } // namespace move_box

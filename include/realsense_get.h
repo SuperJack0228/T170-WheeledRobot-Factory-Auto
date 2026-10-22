@@ -36,7 +36,8 @@ public:
         int width = 1280,
         int height = 720,
         int head_fps = 15,
-        int hand_fps = 15);
+        int hand_fps = 15,
+        bool hand_live_preview = false);
     ~RealSenseMultiCam();
 
     RealSenseMultiCam(const RealSenseMultiCam &) = delete;
@@ -69,7 +70,7 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 
-    /** 双手彩色预览写到 picture_debug/live/。只取已到达的帧，不和识别抢阻塞等待。 */
+    /** 双手彩色视频流写到 /dev/shm。只取已到达的彩色帧，不读头相机，不等待。 */
     void start_hand_preview();
     void stop_hand_preview();
 };

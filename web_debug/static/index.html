@@ -31,16 +31,16 @@
 
   <section class="hand-live" aria-label="手相机实时画面">
     <figure>
-      <figcaption>右手相机</figcaption>
-      <img id="liveRight" alt="右手相机实时画面">
-      <p id="liveRightEmpty" class="live-empty">等待右手画面</p>
-    </figure>
-    <figure>
       <figcaption>左手相机</figcaption>
       <img id="liveLeft" alt="左手相机实时画面">
       <p id="liveLeftEmpty" class="live-empty">等待左手画面</p>
     </figure>
-    <p class="hand-live-note">服务启动后这里一直是实时画面，换页面也还在。左手已转 180°。运动时直接看这里，不再另存途中和到位的照片。</p>
+    <figure>
+      <figcaption>右手相机</figcaption>
+      <img id="liveRight" alt="右手相机实时画面">
+      <p id="liveRightEmpty" class="live-empty">等待右手画面</p>
+    </figure>
+    <p id="handLiveNote" class="hand-live-note">实时预览默认关闭。打开后是左右手彩色视频流，不读头相机，也不进调度的运动循环。要看画面，把 cameras.hand_live_preview 改成 true，再重启服务。</p>
   </section>
 
   <main>
@@ -98,6 +98,7 @@
           <div class="actions">
             <button class="cmd" data-command="vision_grasp_once">抓一次料盘</button>
             <button class="cmd" data-command="vision_grasp">清空料盘（每轮抓完松爪）</button>
+            <button class="cmd" data-command="tray_servo_test">伺服测试 第二近排</button>
             <button class="cmd" data-command="grasp_ready1">准备 近排</button>
             <button class="cmd" data-command="grasp_ready3">准备 远排</button>
             <button class="cmd" data-command="tray2">放到料盘二</button>

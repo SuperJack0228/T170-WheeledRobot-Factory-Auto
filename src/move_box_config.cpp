@@ -620,6 +620,8 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(root["cameras"], "height", cfg.cameras.height);
         read_value(root["cameras"], "head_fps", cfg.cameras.head_fps);
         read_value(root["cameras"], "hand_fps", cfg.cameras.hand_fps);
+        read_value(root["cameras"], "hand_live_preview", cfg.cameras.hand_live_preview);
+        read_value(root["cameras"], "hand_shadow", cfg.cameras.hand_shadow);
 
         int algorithm = cfg.vision_detect.head_grasp;
         read_value(root["vision_detect"], "head_grasp", algorithm);
@@ -1049,5 +1051,7 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << " return=" << cfg.head_grasp.return_vel_m_s
               << " m/s pre_grasp_settle=" << cfg.head_grasp.pre_grasp_settle_sec << "s\n"
               << "[cfg] cameras " << cfg.cameras.width << 'x' << cfg.cameras.height
-              << " head=" << cfg.cameras.head_fps << "fps hand=" << cfg.cameras.hand_fps << "fps\n";
+              << " head=" << cfg.cameras.head_fps << "fps hand=" << cfg.cameras.hand_fps
+              << "fps hand_live_preview=" << (cfg.cameras.hand_live_preview ? "on" : "off")
+              << " hand_shadow=" << (cfg.cameras.hand_shadow ? "on" : "off") << "\n";
 }

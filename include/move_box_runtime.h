@@ -376,6 +376,19 @@ struct GraspToStandbyResult
  * adaptive_approach_rpy=true：用当前 TCP→目标水平朝向定 yaw，再下斜 adaptive_pitch_down_deg（默认 45°）。
  * holding_r/l：该侧已持件，本轮不松爪、不分配、不运动该臂，只给空爪补抓。
  */
+/**
+ * 料盘伺服抖动测试。人已经在料盘旁边。头相机拍空孔，取离机器人第二近的一排，
+ * 左右各一孔，直线停在孔上方，然后每 100 ms 更新一次假坐标，连续跟踪 3 秒。
+ * 不合爪，不下降进孔，不移动底盘。返回 0 完成，负数失败或中止。
+ */
+int run_tray_servo_jitter_test(
+    Robot_Arm &arm_r,
+    Robot_Arm &arm_l,
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const std::array<double, 16> &cam2robot,
+    const std::function<bool()> &should_abort = nullptr);
+
 GraspToStandbyResult run_grasp_to_standby(
     gripper::Gripper &g,
     Robot_Arm &arm_r,

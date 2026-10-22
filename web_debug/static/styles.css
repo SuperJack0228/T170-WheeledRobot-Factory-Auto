@@ -375,7 +375,7 @@ h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -0.02em; }
 .hand-live figure {
   position: relative;
   margin: 0;
-  min-height: 180px;
+  aspect-ratio: 16 / 9;
   background: #111;
   border-radius: 16px;
   overflow: hidden;
@@ -383,7 +383,7 @@ h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -0.02em; }
 .hand-live img {
   display: none;
   width: 100%;
-  height: 240px;
+  height: 100%;
   object-fit: contain;
   background: #111;
 }
@@ -400,8 +400,12 @@ h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -0.02em; }
   font-size: 13px;
 }
 .hand-live .live-empty {
+  position: absolute;
+  inset: 0;
   margin: 0;
-  padding: 78px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   color: #a1a1a6;
   font-size: 14px;
@@ -426,5 +430,4 @@ h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -0.02em; }
   .nav { gap: 10px; padding: 8px 16px; flex-wrap: wrap; height: auto; }
   main, .hand-live { width: min(1080px, calc(100% - 28px)); }
   .hand-live { grid-template-columns: 1fr; }
-  .hand-live img { height: 200px; }
 }

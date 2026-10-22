@@ -81,6 +81,7 @@ add_executable(t170c_debug
     orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
     src/function.cpp
+    src/hand_shadow.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp
@@ -167,6 +168,7 @@ add_executable(arm_plane_repeat
     orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
     src/function.cpp
+    src/hand_shadow.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp

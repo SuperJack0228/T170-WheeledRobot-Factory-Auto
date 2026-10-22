@@ -128,6 +128,8 @@ int vision_tray2_center();
 int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
 /** 料盘一抓一次：去料盘一，双手都持件（或料盘没件）就停，夹爪保持合上，底盘不走。 */
 int vision_grasp_once();
+/** 人已经在料盘旁。先到抓取准备姿态 ready2，再拍空孔，第二近排悬停，100 ms 假坐标跟踪 3 秒，然后抬回。不动底盘。 */
+int tray_servo_jitter_test();
 /** 调度对接：启动与无任务/失败/断线后都先 home，再去待命点。
  *  待命点优先用调度下发的 standby_point，否则用 yaml 的 dispatch_wait_station。 */
 int run_dispatch_mode();

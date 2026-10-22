@@ -313,6 +313,10 @@ struct CameraStreamConfig
     int height = 720;
     int head_fps = 15;
     int hand_fps = 15;
+    /** 为真时后台抽帧写 picture_debug/live，网页才能看实时画面。会和推理抢同一条 pipeline。 */
+    bool hand_live_preview = false;
+    /** 为真时伸手过程取手相机、推理并写日志，不改目标、不下发电机。 */
+    bool hand_shadow = false;
 };
 
 /** 头相机标定关节角。CAN 30=偏航 32=俯仰 31=横滚。 */

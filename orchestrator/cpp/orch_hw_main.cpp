@@ -858,6 +858,13 @@ Json::Value dispatch(const Json::Value &request)
         out["station"] = g_move_cfg.chassis.tray2_station;
         return out;
     }
+    if (cmd == "tray_servo_test")
+    {
+        const int rc = orch::tray_servo_jitter_test();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "伺服抖动测试失败/中止" : "");
+        out["code"] = rc;
+        return out;
+    }
     if (cmd == "vision_grasp_once")
     {
         const int rc = orch::vision_grasp_once();

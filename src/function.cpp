@@ -6,12 +6,14 @@
 #include "function.h"
 
 #include "Ti5_socketcan.h"
+#include "hand_shadow.h"
 #include "realsense_get.h"
 
 #include <chrono>
 #include <thread>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <filesystem>
@@ -1160,8 +1162,13 @@ int execute_arm_trajectory(const MatrixXd &traj, int hand, double dt = k_arm_tra
         const auto cycle_start = chrono::high_resolution_clock::now();
 
         int motor_cmd[7] = {0};
+        double q_rad[7] = {0, 0, 0, 0, 0, 0, 0};
         for (int j = 0; j < dof; ++j)
+        {
+            q_rad[j] = traj(i, j);
             motor_cmd[j] = rad_to_encoder_cnt(traj(i, j));
+        }
+        hand_shadow_note_q(hand, q_rad);
         set_motor_position(motor_cmd, hand);
 
         const double elapsed_ms =
@@ -2195,11 +2202,222 @@ int arm_line_move(
         append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
         return ret;
     }
+    if (snap_reach)
+        hand_shadow_begin(hand, &arm, pos, "直线伸手");
     const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    if (snap_reach)
+        hand_shadow_end(hand);
     if (exec == 0)
         record_arm_cartesian_arrival(arm, pos, nullptr);
-    (void)snap_reach;
     return exec;
+}
+
+namespace
+{
+
+constexpr double kServoDtS = 5e-3;
+constexpr double kServoDeadM = 0.002;
+constexpr double kServoVmaxMps = 0.05;
+constexpr double kServoKp = 2.0;
+constexpr double kServoAmax = 0.40;
+/** 每拍最多走这么多。更大的解按这个比例缩了再发，不再整拍丢掉。 */
+constexpr double kServoMaxJointStepRad = 0.02;
+/** 超过这个值当成换了一组解，这一拍不跟。 */
+constexpr double kServoBranchRad = 0.35;
+
+double servo_apply_pose(Robot_Arm &arm, int hand, const Eigen::Matrix<double, 1, 6> &pose,
+                        Eigen::RowVectorXd &q, int &ik_code, double &max_dq)
+{
+    ik_code = -1;
+    max_dq = 0.0;
+    if (q.size() < 7)
+        return 0.0;
+    Eigen::RowVectorXd q_try = q;
+    ik_code = arm.Inverse_Kinematics_Analytic(pose, q_try, q(1));
+    if (ik_code != 0 || q_try.size() < 7 || !q_try.allFinite() || arm.Check_Joint_Limit(q_try))
+        return 0.0;
+    for (int j = 0; j < 7; ++j)
+        max_dq = std::max(max_dq, std::abs(q_try(j) - q(j)));
+    if (max_dq > kServoBranchRad)
+        return 0.0;
+    double scale = 1.0;
+    if (max_dq > kServoMaxJointStepRad)
+    {
+        scale = kServoMaxJointStepRad / max_dq;
+        q_try = q + scale * (q_try - q);
+    }
+    int motor_cmd[7] = {0};
+    for (int j = 0; j < 7; ++j)
+        motor_cmd[j] = rad_to_encoder_cnt(q_try(j));
+    set_motor_position(motor_cmd, hand);
+    save_arm_last_commanded_position(hand, motor_cmd);
+    q = std::move(q_try);
+    return scale;
+}
+
+struct ServoSide
+{
+    bool on = false;
+    int hand = 0;
+    Eigen::Matrix<double, 1, 6> cmd = Eigen::Matrix<double, 1, 6>::Zero();
+    Eigen::Matrix<double, 1, 6> goal = Eigen::Matrix<double, 1, 6>::Zero();
+    Eigen::Vector2d vel = Eigen::Vector2d::Zero();
+    Eigen::RowVectorXd q;
+    int ik_fail = 0;
+    int clamped = 0;
+    bool logged_fail = false;
+};
+
+void servo_init_side(ServoSide &side, Robot_Arm &arm, bool on,
+                     const Eigen::Matrix<double, 1, 6> &start_pose)
+{
+    side.on = on && !(arm_hand_side(arm) == 1 && right_arm_motors_locked());
+    if (!side.on)
+        return;
+    side.hand = arm_hand_side(arm);
+    side.q.resize(7);
+    if (side.hand >= 0 && side.hand <= 1 && g_arm_last_cmd_valid[side.hand])
+    {
+        for (int j = 0; j < 7; ++j)
+            side.q(j) = encoder_cnt_to_rad(g_arm_last_cmd_cnt[side.hand][j]);
+    }
+    else
+    {
+        side.q = arm_read_motor_joints(side.hand).row(0);
+    }
+    side.cmd = start_pose;
+    if (!side.cmd.allFinite() || side.q.size() < 7)
+    {
+        side.on = false;
+        std::cerr << "[伺服] " << (side.hand == 1 ? "右手" : "左手")
+                  << " 当前位姿无效，这一侧不跟踪\n";
+        return;
+    }
+    side.goal = side.cmd;
+}
+
+void servo_step_side(ServoSide &side, Robot_Arm &arm)
+{
+    if (!side.on)
+        return;
+    const Eigen::Vector2d err(side.goal(0) - side.cmd(0), side.goal(1) - side.cmd(1));
+    const double dist = err.norm();
+    Eigen::Vector2d v_des = Eigen::Vector2d::Zero();
+    if (dist > kServoDeadM)
+    {
+        const double vm = std::min(kServoVmaxMps, dist * kServoKp);
+        v_des = err / dist * vm;
+    }
+    Eigen::Vector2d dv = v_des - side.vel;
+    const double dvn = dv.norm();
+    const double cap = kServoAmax * kServoDtS;
+    if (dvn > cap && dvn > 1e-12)
+        dv *= cap / dvn;
+    const Eigen::Vector2d vel_next = side.vel + dv;
+    Eigen::Matrix<double, 1, 6> next = side.cmd;
+    next(0) += vel_next(0) * kServoDtS;
+    next(1) += vel_next(1) * kServoDtS;
+    int ik_code = 0;
+    double max_dq = 0.0;
+    const double scale = servo_apply_pose(arm, side.hand, next, side.q, ik_code, max_dq);
+    if (scale > 0.0)
+    {
+        side.cmd(0) += (next(0) - side.cmd(0)) * scale;
+        side.cmd(1) += (next(1) - side.cmd(1)) * scale;
+        side.vel = vel_next * scale;
+        if (scale < 0.999)
+            ++side.clamped;
+    }
+    else
+    {
+        side.vel *= 0.5;
+        ++side.ik_fail;
+        if (!side.logged_fail)
+        {
+            side.logged_fail = true;
+            std::cerr << std::fixed << std::setprecision(3)
+                      << "[伺服] " << (side.hand == 1 ? "右手" : "左手")
+                      << " 这一拍没发出去，逆解 code=" << ik_code
+                      << " 关节差 " << (max_dq * 180.0 / M_PI) << "°\n";
+        }
+    }
+}
+
+} // namespace
+
+int arm_dual_cartesian_track(
+    Robot_Arm &arm_r,
+    Robot_Arm &arm_l,
+    const Eigen::Matrix<double, 1, 6> &start_r,
+    const Eigen::Matrix<double, 1, 6> &start_l,
+    bool move_r,
+    bool move_l,
+    double duration_s,
+    const std::function<void(double t_s,
+                             Eigen::Matrix<double, 1, 6> &goal_r,
+                             Eigen::Matrix<double, 1, 6> &goal_l)> &update_goal)
+{
+    if (!(duration_s > 0.0) || !update_goal)
+        return -1;
+    ServoSide right;
+    ServoSide left;
+    servo_init_side(right, arm_r, move_r, start_r);
+    servo_init_side(left, arm_l, move_l, start_l);
+    if ((move_r && !right.on) || (move_l && !left.on))
+        return -1;
+    if (!right.on && !left.on)
+        return 0;
+
+    std::cout << std::fixed << std::setprecision(1)
+              << "[伺服] 连续跟踪 " << duration_s << " s，每 5 ms 一步，"
+              << "速度上限 " << (kServoVmaxMps * 1000.0)
+              << " mm/s，加速度上限 " << kServoAmax
+              << " m/s²，死区 " << (kServoDeadM * 1000.0) << " mm\n";
+
+    const auto t0 = std::chrono::steady_clock::now();
+    int ticks = 0;
+    while (true)
+    {
+        if (hardware_abort_requested())
+            return -4;
+        if (can_io_faulted())
+            return -2;
+        const auto cycle = std::chrono::steady_clock::now();
+        const double t = std::chrono::duration<double>(cycle - t0).count();
+        if (t >= duration_s)
+            break;
+        update_goal(t, right.goal, left.goal);
+        servo_step_side(right, arm_r);
+        servo_step_side(left, arm_l);
+        if (ticks % 20 == 0)
+        {
+            auto report = [](const char *name, const ServoSide &side) {
+                if (!side.on)
+                    return;
+                const double ex = (side.goal(0) - side.cmd(0)) * 1000.0;
+                const double ey = (side.goal(1) - side.cmd(1)) * 1000.0;
+                const double sp = side.vel.norm() * 1000.0;
+                std::cout << std::fixed << std::setprecision(1)
+                          << "  " << name << " 还差 " << std::hypot(ex, ey)
+                          << " mm  速度 " << sp << " mm/s";
+            };
+            std::cout << "[伺服] t=" << std::setprecision(1) << t << "s";
+            report("右", right);
+            report("左", left);
+            std::cout << std::endl;
+        }
+        ++ticks;
+        const double elapsed_ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cycle).count();
+        const double sleep_ms = std::max(0.0, kServoDtS * 1000.0 - elapsed_ms);
+        if (sleep_ms > 1e-6)
+            std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(sleep_ms));
+    }
+    std::cout << "[伺服] 跟踪结束"
+              << " 右逆解失败 " << right.ik_fail << " 拍、限幅 " << right.clamped
+              << " 拍；左逆解失败 " << left.ik_fail << " 拍、限幅 " << left.clamped
+              << " 拍\n";
+    return 0;
 }
 
 int arm_line_move_settle(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms)
@@ -3252,6 +3470,10 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     }
     if (before_move)
         before_move();
+    if (snap_reach && move_r)
+        hand_shadow_begin(arm_hand_side(arm_r), &arm_r, goal_r, "伸手");
+    if (snap_reach && move_l)
+        hand_shadow_begin(arm_hand_side(arm_l), &arm_l, goal_l, "伸手");
     auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
         const int hand = arm_hand_side(arm);
         ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
@@ -3267,6 +3489,10 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         run_one(arm_r, traj_r, out.ret_r);
     else if (move_l)
         run_one(arm_l, traj_l, out.ret_l);
+    if (snap_reach && move_r)
+        hand_shadow_end(arm_hand_side(arm_r));
+    if (snap_reach && move_l)
+        hand_shadow_end(arm_hand_side(arm_l));
     if (move_r && out.ret_r == 0)
         record_arm_cartesian_arrival(arm_r, goal_r, snap_reach ? "伸手到位" : "收手终点");
     if (move_l && out.ret_l == 0)
@@ -3302,6 +3528,10 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
         return out;
     }
 
+    if (move_r)
+        hand_shadow_begin(arm_hand_side(arm_r), &arm_r, final_r, "抹角伸手");
+    if (move_l)
+        hand_shadow_begin(arm_hand_side(arm_l), &arm_l, final_l, "抹角伸手");
     auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
         const int hand = arm_hand_side(arm);
         ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
@@ -3317,6 +3547,10 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
         run_one(arm_r, traj_r, out.ret_r);
     else if (move_l)
         run_one(arm_l, traj_l, out.ret_l);
+    if (move_r)
+        hand_shadow_end(arm_hand_side(arm_r));
+    if (move_l)
+        hand_shadow_end(arm_hand_side(arm_l));
 
     if (move_r && out.ret_r == 0)
         record_arm_cartesian_arrival(arm_r, final_r, "抹角C");
@@ -3905,24 +4139,34 @@ Matrix<double, 1, 6> arm_get_tcp_pos(Robot_Arm &arm)
     return T2PosEulerAngles(arm_fk_tcp_from_encoders(arm));
 }
 
-Matrix<double, 1, 6> arm_get_base_visual_pos(Robot_Arm &arm, Matrix<double, 1, 6> &falan_visualPos)
+Matrix<double, 1, 6> compose_base_visual(
+    Robot_Arm &arm,
+    const Eigen::Matrix4d &T_tcp,
+    Matrix<double, 1, 6> &falan_visualPos)
 {
-    const Eigen::Matrix4d T_tcp = arm_fk_tcp_from_encoders(arm);
     const Matrix<double, 1, 6> flange_tool = arm_flange_tool(arm);
-
-    // cout << "==================================================== " << endl;
-
-    // cout << "T_tcp: " << T_tcp << endl;
-    // cout << "flange_tool: " << flange_tool << endl;
-    // cout << "falan_visualPos: " << falan_visualPos << endl;
-    // cout << "==================================================== " << endl;
-
-    
-
-
-
     const Eigen::Matrix4d T_base_visual = T_tcp * TR(flange_tool).inverse() * TR(falan_visualPos);
     return T2PosEulerAngles(T_base_visual);
+}
+
+Matrix<double, 1, 6> arm_get_base_visual_pos(Robot_Arm &arm, Matrix<double, 1, 6> &falan_visualPos)
+{
+    return compose_base_visual(arm, arm_fk_tcp_from_encoders(arm), falan_visualPos);
+}
+
+Matrix<double, 1, 6> arm_base_visual_from_joints(
+    Robot_Arm &arm,
+    const Eigen::Ref<const Eigen::RowVectorXd> &q_motor,
+    Matrix<double, 1, 6> &falan_visualPos)
+{
+    return compose_base_visual(arm, arm.Forward_Kinematics(q_motor), falan_visualPos);
+}
+
+Matrix<double, 1, 6> arm_tcp_from_joints(
+    Robot_Arm &arm,
+    const Eigen::Ref<const Eigen::RowVectorXd> &q_motor)
+{
+    return T2PosEulerAngles(arm.Forward_Kinematics(q_motor));
 }
 
 int arm_wave_right(Robot_Arm &arm_r, Robot_Arm &arm_l)

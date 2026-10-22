@@ -241,6 +241,10 @@ cameras:
   height: 720
   head_fps: 15
   hand_fps: 15
+  # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。和影子同时开时，影子取帧会变慢。
+  hand_live_preview: true
+  # 伸手时用手相机做影子观测：取帧、推理、写 logs/hand_shadow.csv，不改目标和电机。默认关。
+  hand_shadow: false
 
 # 传送带。料盘仍用 board_yf100 的 5×5；这里只用 board_belt_aruco 的 6×6，互不覆盖。
 # belt_ready：腰/头到观察位，手臂到 tcp（准备姿态，类似 standby）。

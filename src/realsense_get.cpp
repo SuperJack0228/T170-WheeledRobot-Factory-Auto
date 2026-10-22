@@ -14,7 +14,9 @@
 #include <ctime>
 #include <filesystem>
 #include <iomanip>
+#include <pthread.h>
 #include <pwd.h>
+#include <sched.h>
 #include <sstream>
 #include <unistd.h>
 
@@ -294,13 +296,14 @@ struct RealSenseMultiCam::Impl
     int height = 720;
     int head_fps = 15;
     int hand_fps = 15;
+    bool hand_live_preview = false;
     std::map<std::string, SlotDevice> slots;
     std::atomic<bool> preview_run{false};
     std::thread preview_thread;
 };
 
 RealSenseMultiCam::RealSenseMultiCam(
-    std::string yaml_path, int width, int height, int head_fps, int hand_fps)
+    std::string yaml_path, int width, int height, int head_fps, int hand_fps, bool hand_live_preview)
     : impl_(std::make_unique<Impl>())
 {
     impl_->yaml_path = std::move(yaml_path);
@@ -308,6 +311,7 @@ RealSenseMultiCam::RealSenseMultiCam(
     impl_->height = height;
     impl_->head_fps = head_fps;
     impl_->hand_fps = hand_fps;
+    impl_->hand_live_preview = hand_live_preview;
 }
 
 RealSenseMultiCam::~RealSenseMultiCam()
@@ -429,7 +433,10 @@ bool RealSenseMultiCam::init(std::string &err)
     }
 
     g_hand_cams.store(this);
-    start_hand_preview();
+    if (impl_->hand_live_preview)
+        start_hand_preview();
+    else
+        std::cout << "[handcam] 网页实时预览已关（cameras.hand_live_preview=false），不从手相机抽帧\n";
     return true;
 }
 
@@ -672,7 +679,8 @@ void RealSenseMultiCam::save_grasp_hand_camera_snapshots(bool save_right, bool s
 namespace
 {
 
-bool copy_newest_color(SlotDevice &dev, cv::Mat &out)
+/** 只取彩色。不对齐、不拷深度、不等待；缓冲空就返回 false。 */
+bool copy_newest_color(SlotDevice &dev, cv::Mat &out, unsigned long long &frame_number)
 {
     rs2::frameset frames;
     rs2::frameset newest;
@@ -688,6 +696,7 @@ bool copy_newest_color(SlotDevice &dev, cv::Mat &out)
     const int w = color.get_width();
     if (w <= 0 || h <= 0)
         return false;
+    frame_number = color.get_frame_number();
     const cv::Mat view(h, w, CV_8UC3, const_cast<void *>(color.get_data()));
     view.copyTo(out);
     return !out.empty();
@@ -711,7 +720,7 @@ bool write_jpeg_atomic(const std::filesystem::path &path, const cv::Mat &bgr)
 void RealSenseMultiCam::start_hand_preview()
 {
     stop_hand_preview();
-    const std::filesystem::path dir = std::filesystem::path(vision_debug_root_dir()) / "live";
+    const std::filesystem::path dir{"/dev/shm/t170-hand-live"};
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
     if (ec)
@@ -721,11 +730,16 @@ void RealSenseMultiCam::start_hand_preview()
     }
     impl_->preview_run.store(true);
     impl_->preview_thread = std::thread([this, dir]() {
+        sched_param idle{};
+        if (pthread_setschedparam(pthread_self(), SCHED_IDLE, &idle) != 0)
+            std::cerr << "[handcam] 预览线程没降到空闲优先级，编码仍只在这条线程\n";
+        unsigned long long seen_right = ~0ull;
+        unsigned long long seen_left = ~0ull;
         bool logged_right = false;
         bool logged_left = false;
         while (impl_->preview_run.load())
         {
-            const auto tick = std::chrono::steady_clock::now();
+            bool wrote = false;
             for (const CameraSlot slot : {CameraSlot::RightHand, CameraSlot::LeftHand})
             {
                 if (!impl_->preview_run.load() || g_hand_cams.load() != this)
@@ -733,6 +747,7 @@ void RealSenseMultiCam::start_hand_preview()
                 try
                 {
                     cv::Mat color;
+                    unsigned long long frame_number = 0;
                     {
                         std::lock_guard<std::mutex> lock(g_hand_grab_mu);
                         if (!impl_->preview_run.load() || g_hand_cams.load() != this)
@@ -740,20 +755,25 @@ void RealSenseMultiCam::start_hand_preview()
                         auto it = impl_->slots.find(slot_key(slot));
                         if (it == impl_->slots.end() || !it->second.started)
                             continue;
-                        if (!copy_newest_color(it->second, color))
+                        if (!copy_newest_color(it->second, color, frame_number))
                             continue;
                     }
+                    unsigned long long &seen = slot == CameraSlot::RightHand ? seen_right : seen_left;
+                    if (frame_number == seen)
+                        continue;
+                    seen = frame_number;
                     if (slot == CameraSlot::LeftHand)
                         cv::rotate(color, color, cv::ROTATE_180);
                     const char *name = slot == CameraSlot::RightHand ? "right_hand.jpg" : "left_hand.jpg";
                     if (!write_jpeg_atomic(dir / name, color))
                         continue;
+                    wrote = true;
                     bool &logged = slot == CameraSlot::RightHand ? logged_right : logged_left;
                     if (!logged)
                     {
                         logged = true;
                         std::cout << "[handcam] " << (slot == CameraSlot::RightHand ? "右手" : "左手")
-                                  << " 实时预览 " << (dir / name).string() << "\n";
+                                  << " 视频流 " << (dir / name).string() << "\n";
                     }
                 }
                 catch (const std::exception &e)
@@ -761,10 +781,13 @@ void RealSenseMultiCam::start_hand_preview()
                     std::cerr << "[handcam] 预览取帧失败: " << e.what() << "\n";
                 }
             }
-            std::this_thread::sleep_until(tick + std::chrono::milliseconds(160));
+            if (!wrote)
+                std::this_thread::sleep_for(std::chrono::milliseconds(8));
         }
     });
-    std::cout << "[handcam] 左右手实时预览已开，约 6 帧/秒，目录 " << dir.string() << "\n";
+    std::cout << "[handcam] 左右手视频流已开。只取彩色、不读头相机、不进运动线程，"
+                 "线程为空闲优先级。画面在 "
+              << dir.string() << "\n";
 }
 
 void RealSenseMultiCam::stop_hand_preview()

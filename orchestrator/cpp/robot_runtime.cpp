@@ -3452,6 +3452,47 @@ int vision_grasp_once()
     return vision_grasp_with_engine(SegEngineId::Default, false, false, false);
 }
 
+int tray_servo_jitter_test()
+{
+    if (g_hw == nullptr || g_hw->arm_r == nullptr || g_hw->arm_l == nullptr ||
+        g_hw->pipeline == nullptr)
+        return -1;
+    if (g_hw->waist == nullptr || g_hw->layer3 == nullptr)
+    {
+        std::cerr << "[伺服测试] 腰未初始化，不能进抓取准备姿态\n";
+        return -1;
+    }
+    std::cout << "[伺服测试] 不移动底盘。先到抓取准备姿态 ready2（第二近排），再拍照\n";
+    const int ready_rc = go_grasp_ready(*g_hw->arm_r, *g_hw->arm_l, 2);
+    if (ready_rc != 0)
+    {
+        std::cerr << "[伺服测试] 抓取准备姿态失败 code=" << ready_rc << "，不拍照\n";
+        return ready_rc;
+    }
+    if (hardware_abort_requested())
+        return -4;
+
+    std::array<double, 16> cam2robot{};
+    std::string err;
+    if (!load_head_cam2robot(cam2robot, err) &&
+        !load_cam2robot_matrix(default_camera_to_robot_yaml_path(), cam2robot, err))
+    {
+        std::cerr << "[伺服测试] 读头相机外参失败: " << err << "\n";
+        return -3;
+    }
+    auto should_abort = []() {
+        return hardware_abort_requested() ||
+               (g_hw && g_hw->abort && g_hw->abort->load()) || can_io_faulted();
+    };
+    return move_box::run_tray_servo_jitter_test(
+        *g_hw->arm_r,
+        *g_hw->arm_l,
+        g_hw->pipeline->cameras(),
+        g_hw->pipeline->bridge(),
+        cam2robot,
+        should_abort);
+}
+
 int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
 {
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
