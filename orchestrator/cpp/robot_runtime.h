@@ -130,8 +130,13 @@ int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
 int vision_grasp_once();
 /** 人已经在料盘旁。先到抓取准备姿态 ready2，再拍空孔，第二近排悬停，100 ms 假坐标跟踪 3 秒，然后抬回。不动底盘。 */
 int tray_servo_jitter_test();
-/** 调度对接：启动与无任务/失败/断线后都先 home，再去待命点。
- *  待命点优先用调度下发的 standby_point，否则用 yaml 的 dispatch_wait_station。 */
+/** 播放 AUDIO/AUDIO/<name>.mp3，播完再返回。失败时 err 写原因。
+ *  once_if_failure 为真时，同一次进程里的 failure 只播一遍。测试指令传假。 */
+bool play_boot_clip(const std::string &name, std::string &err, bool once_if_failure = false);
+/** 开机报状态。name 是 AUDIO/AUDIO 下的文件名，不含扩展名。
+ *  按顺序播完再返回。failure 同一次进程只播一遍。播放失败只记日志，不打断启动。 */
+void boot_announce(const std::string &name);
+/** 调度对接。开机进入时先原地 home 再待命；任务结束、断线、无任务超时仍回待命点。 */
 int run_dispatch_mode();
 /** 调试：跑完整真实充电（home→AP14→挥手下垂→腰降→失能→充电点），检测到开始充电即成功结束，不停充、不等 95%。 */
 int run_charge_test();

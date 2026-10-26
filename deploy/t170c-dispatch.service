@@ -1,0 +1,18 @@
+[Unit]
+Description=T170C 开机进入调度，原地 home 后待命
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ti5robot
+Group=ti5robot
+WorkingDirectory=/home/ti5robot/T170Clean
+ExecStartPre=/bin/sleep 8
+ExecStart=/home/ti5robot/T170Clean/build_robot/t170c_debug --dispatch
+Restart=no
+KillSignal=SIGTERM
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

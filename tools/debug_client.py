@@ -56,6 +56,11 @@ COMMANDS = {
     "tray": {"cmd": "detect_tray_holes"},
     "abort": {"cmd": "abort"},
     "reload": {"cmd": "reload_config"},
+    "Audio1": {"cmd": "Audio1"},
+    "Audio2": {"cmd": "Audio2"},
+    "Audio3": {"cmd": "Audio3"},
+    "Audio4": {"cmd": "Audio4"},
+    "Audio5": {"cmd": "Audio5"},
 }
 
 

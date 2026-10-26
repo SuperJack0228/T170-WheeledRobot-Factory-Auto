@@ -32,7 +32,11 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <cerrno>
+#include <csignal>
+#include <mutex>
 #include <sys/select.h>
+#include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -44,6 +48,104 @@
 
 namespace orch
 {
+
+namespace
+{
+std::mutex g_announce_mu;
+pid_t g_announce_pid = -1;
+bool g_failure_announced = false;
+
+void stop_announce_locked()
+{
+    if (g_announce_pid <= 0)
+        return;
+    kill(-g_announce_pid, SIGTERM);
+    int status = 0;
+    while (waitpid(g_announce_pid, &status, 0) < 0 && errno == EINTR)
+    {
+    }
+    g_announce_pid = -1;
+}
+} // namespace
+
+bool play_boot_clip(const std::string &name, std::string &err, bool once_if_failure)
+{
+    err.clear();
+    std::lock_guard<std::mutex> lock(g_announce_mu);
+    if (once_if_failure && name == "failure" && g_failure_announced)
+        return true;
+    stop_announce_locked();
+    const std::string path = project_root_dir() + "/AUDIO/AUDIO/" + name + ".mp3";
+    if (!std::filesystem::exists(path))
+    {
+        err = "找不到 " + path;
+        return false;
+    }
+    // 路径在 fork 前拼好。子进程只做 exec，避免别的线程正占着分配锁时在子进程里再分配。
+    const std::string location = "location=" + path;
+    const pid_t pid = fork();
+    if (pid < 0)
+    {
+        err = "无法启动播放";
+        return false;
+    }
+    if (pid == 0)
+    {
+        setpgid(0, 0);
+        execl("/usr/bin/gst-launch-1.0", "gst-launch-1.0", "-q", "filesrc", location.c_str(), "!",
+              "decodebin", "!", "audioconvert", "!", "audioresample", "!", "alsasink",
+              "device=plughw:CARD=Device,DEV=0", static_cast<char *>(nullptr));
+        _exit(127);
+    }
+    setpgid(pid, pid);
+    g_announce_pid = pid;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(45);
+    int status = 0;
+    bool timed_out = false;
+    while (true)
+    {
+        const pid_t got = waitpid(pid, &status, WNOHANG);
+        if (got == pid)
+            break;
+        if (got < 0 && errno != EINTR)
+        {
+            err = "等待播放结束失败";
+            break;
+        }
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+            kill(-pid, SIGKILL);
+            kill(pid, SIGKILL);
+            while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+            {
+            }
+            err = "播放超过 45 秒，已停";
+            timed_out = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    if (g_announce_pid == pid)
+        g_announce_pid = -1;
+    if (timed_out || !err.empty())
+        return false;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+    {
+        err = "播放器退出 code=" + std::to_string(WIFEXITED(status) ? WEXITSTATUS(status) : status);
+        return false;
+    }
+    if (once_if_failure && name == "failure")
+        g_failure_announced = true;
+    std::cout << "[announce] " << name << "\n" << std::flush;
+    return true;
+}
+
+void boot_announce(const std::string &name)
+{
+    std::string err;
+    if (!play_boot_clip(name, err, true) && !err.empty())
+        std::cerr << "[announce] " << name << " 播放失败: " << err << "\n";
+}
 
 // 调度库不再提供状态名，协议字符串由本程序自己发送和比对。
 namespace dispatch_msg
@@ -1618,6 +1720,8 @@ BeltPartList detect_belt_parts_full(
             det, t.pose_4x4[3], t.pose_4x4[7], t.pose_4x4[11], m.x, m.y, m.z);
         if (m.have_marker)
             raw_parts.push_back(m);
+        else
+            log_belt_used_box(name, "夹取", static_cast<int>(raw_parts.size()), m);
         if (!vis.empty() && m.x0 >= 0.f && m.y0 >= 0.f)
         {
             cv::rectangle(
@@ -1659,8 +1763,8 @@ struct MarkerQuery
 };
 
 /** 传送带抓取门禁：不看抓取点。检测框中心在码系里落入该窗口才算有料。手臂仍走到 grasp_offset。 */
-constexpr double kBeltGraspWinXMinM = -0.05;
-constexpr double kBeltGraspWinXMaxM = 0.05;
+constexpr double kBeltGraspWinXMinM = -0.06;
+constexpr double kBeltGraspWinXMaxM = 0.08;
 constexpr double kBeltGraspWinYMinM = 0.10;
 constexpr double kBeltGraspWinYMaxM = 0.13;
 
@@ -1673,13 +1777,22 @@ bool belt_part_in_grasp_window(const BeltPartMark &part)
 void log_belt_used_box(const char *name, const char *role, int index, const BeltPartMark &part)
 {
     const bool in = part.have_marker && belt_part_in_grasp_window(part);
-    std::cout << std::fixed << "[orch] " << name << " " << role << " 框" << index
-              << " 类别=" << part.class_id << " " << belt_yolo_class_zh(part.class_id)
+    const double cx = 0.5 * (static_cast<double>(part.x0) + static_cast<double>(part.x1));
+    const double cy = 0.5 * (static_cast<double>(part.y0) + static_cast<double>(part.y1));
+    std::cout << std::fixed << "[orch] " << name << " " << role << " 检测框" << index
+              << " " << belt_yolo_class_zh(part.class_id)
               << " conf=" << std::setprecision(3) << part.conf
               << " 像素框=(" << std::setprecision(0) << part.x0 << "," << part.y0 << ")-("
-              << part.x1 << "," << part.y1 << ")" << std::setprecision(3) << " 码系=(" << part.x
-              << "," << part.y << "," << part.z << ") "
-              << (in ? "在抓取窗口内" : "在抓取窗口外") << "\n";
+              << part.x1 << "," << part.y1 << ") 像素中心=(" << cx << "," << cy << ")";
+    if (part.have_marker)
+    {
+        std::cout << std::setprecision(1) << " 码系 x=" << (part.x * 100.0)
+                  << "cm y=" << (part.y * 100.0) << "cm z=" << (part.z * 100.0) << "cm "
+                  << (in ? "在抓取窗口内" : "在抓取窗口外");
+    }
+    else
+        std::cout << " 码系转换失败";
+    std::cout << "\n";
 }
 
 struct BeltGraspWindow
@@ -1698,20 +1811,10 @@ BeltGraspWindow classify_belt_grasp_window(
     for (int i = 0; i < static_cast<int>(parts.size()); ++i)
     {
         const BeltPartMark &part = parts[static_cast<size_t>(i)];
-        const bool in = belt_part_in_grasp_window(part);
-        if (!in)
-        {
-            std::cout << std::fixed << std::setprecision(3) << "[orch] " << name << " 零件" << i
-                      << " " << belt_yolo_class_zh(part.class_id) << " 码系=(" << part.x << ","
-                      << part.y << ") 在抓取窗口外\n";
+        log_belt_used_box(name, "夹取", i, part);
+        if (!belt_part_in_grasp_window(part))
             continue;
-        }
         ++out.count;
-        std::cout << std::fixed << std::setprecision(0) << "[orch] " << name
-                  << " 抓取零件" << i << " " << belt_yolo_class_zh(part.class_id)
-                  << " 检测框 x0=" << part.x0 << " y0=" << part.y0
-                  << " x1=" << part.x1 << " y1=" << part.y1
-                  << std::setprecision(3) << " 码系 x=" << part.x << " y=" << part.y << "\n";
     }
     if (out.count == 1)
     {
@@ -2513,16 +2616,17 @@ static int go_belt_grasp_attempt(
         const double reach_mps = c.grasp_approach_vel_m_s;
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
-                  << "m/s 先到上方再下去\n";
-        const ArmLineMoveResult approach = arm_dual_rounded_corner_move_selective(
+                  << "m/s 先到正上方 " << (hover_z * 100.0)
+                  << " cm，再竖直下降，下降时不再横移\n";
+        const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            reach_mps);
+            reach_mps, reach_mps, {}, false, "belt_grasp伸手", true);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
             std::cerr << "[orch] belt_grasp " << hand
-                      << " 伸手抹角失败 code=" << approach_rc << "\n";
+                      << " 伸手失败 code=" << approach_rc << "\n";
             return aborted() ? -4 : -5;
         }
         if (aborted())
@@ -5009,7 +5113,7 @@ int dispatch_pick_one(
     }
 }
 
-/** 放置收手后拍一张。只数这次放过的放置点 ±3cm 内的倒件。立件不算。
+/** 放置收手后拍一张。只数这次放过的放置点 ±6cm 内的倒件。立件不算。
  *  返回倒件个数；视觉失败返回 kVisionQrFail；中止返回 -4。 */
 static int count_fallen_near_place_points(
     const ConveyorStationConfig &c, const char *tag, bool do_right, bool do_left)
@@ -5034,7 +5138,7 @@ static int count_fallen_near_place_points(
     const int settle_ms = static_cast<int>(
         std::lround(std::max(0.0, c.grasp_photo_settle_sec) * 1000.0));
     std::cout << "[orch] " << name << " 放置完成，等 " << settle_ms
-              << " ms 再拍，看放置点 ±3cm 内有没有倒件\n";
+              << " ms 再拍，看放置点 ±6cm 内有没有倒件\n";
     if (settle_ms > 0)
         hardware_abort_sleep_ms(settle_ms);
     if (hardware_abort_requested())
@@ -5076,7 +5180,7 @@ static int count_fallen_near_place_points(
     if (check_left)
         points.push_back(PlacePoint{c.offset_left.x, c.offset_left.y, "左手放置点"});
 
-    constexpr double kPlaceTolM = 0.03;
+    constexpr double kPlaceTolM = 0.06;
     int fallen = 0;
     for (int i = 0; i < static_cast<int>(parts.parts.size()); ++i)
     {
@@ -5101,7 +5205,7 @@ static int count_fallen_near_place_points(
             continue;
         ++fallen;
     }
-    std::cout << "[orch] " << name << " 放置确认：放置点 ±3cm 内倒件 " << fallen << " 个\n";
+    std::cout << "[orch] " << name << " 放置确认：放置点 ±6cm 内倒件 " << fallen << " 个\n";
     return fallen;
 }
 
@@ -5124,7 +5228,7 @@ static int confirm_belt_place_not_fallen(
         }
         if (fallen > 0)
         {
-            std::cout << "[dispatch] " << place_what << " 放置点 ±3cm 内倒件 " << fallen
+            std::cout << "[dispatch] " << place_what << " 放置点 ±6cm 内倒件 " << fallen
                       << " 个，上报 1102\n";
             if (!dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "放置点零件倒了"))
                 return kDispatchHoldStay;
@@ -6263,9 +6367,57 @@ static int run_dispatch_mode_body()
         }
         return 0;
     };
+    // 进入调度：只在原地 home，底盘不导航。任务到来后由各任务自己去目标点。
+    // 任务结束、断线、超时无任务仍走 recover_home_ap14。
+    auto boot_home_here = [&]() -> int {
+        move_box::tray1_far_band_clear();
+        std::string here = chassis_location_station();
+        if (here.empty() && g_hw != nullptr)
+            here = g_hw->last_chassis_station;
+        if (here.empty())
+            here = "当前位置";
+        wait_station = here;
+        std::cout << "[dispatch] 调度启动 → 原地 home，底盘留在 " << wait_station
+                  << "，不去待命点\n";
+        board_activity("调度启动，原地回 home");
+        if (g_body_disabled_for_charge)
+        {
+            if (set_body_motors(true) != 0)
+            {
+                boot_announce("failure");
+                return dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            }
+        }
+        if (!box.running)
+            inbox_start(box, client);
+        dispatch_note_state(dispatch_msg::WORKING);
+        // dispatch.mp3 一句里包含「调度连接成功」和「进入初始姿态」。
+        boot_announce("dispatch");
+        const int home_rc = go_home(*g_hw->arm_r, *g_hw->arm_l);
+        if (home_rc != 0)
+        {
+            if (home_rc != -4 && !hardware_abort_requested())
+                boot_announce("failure");
+            return home_rc;
+        }
+        if (hardware_abort_requested())
+            return -4;
+        if (g_hw != nullptr && !g_hw->last_chassis_station.empty())
+            wait_station = g_hw->last_chassis_station;
+        else
+        {
+            const std::string now = chassis_location_station();
+            if (!now.empty())
+                wait_station = now;
+        }
+        std::cout << "[dispatch] 原地 home 完成，在 " << wait_station << " 待命\n";
+        boot_announce("standby");
+        take_cached_or_standby();
+        return 0;
+    };
     dispatch_note_state(dispatch_msg::STANDBY);
     {
-        const int boot_rc = recover_home_ap14("调度启动");
+        const int boot_rc = boot_home_here();
         if (boot_rc != 0)
             return boot_rc;
     }

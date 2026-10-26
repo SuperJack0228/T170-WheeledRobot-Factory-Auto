@@ -266,8 +266,22 @@ GraspToStandbyResult run_grasp_to_standby(
                 }
                 if (st_far.move_l || st_far.move_r)
                 {
-                    st = st_far;
-                    std::cout << "[head] 低头后已用当前外参重分配目标\n";
+                    const bool far_ok_r = !st_far.move_r || tray_row_is_far(st_far.row_r);
+                    const bool far_ok_l = !st_far.move_l || tray_row_is_far(st_far.row_l);
+                    if (far_ok_r && far_ok_l)
+                    {
+                        st = st_far;
+                        std::cout << "[head] 低头后已用当前外参重分配目标\n";
+                    }
+                    else
+                    {
+                        std::cout << "[head] 低头后重分配离开了远三排，不用这张。"
+                                     "沿用腰进前的远排目标，并按腰进补偿 X\n";
+                        if (actual > 1e-9)
+                            apply_grasp_stagger_waist_comp(st, actual);
+                        if (grasp_parts)
+                            tray1_far_band_set(true);
+                    }
                 }
                 else
                 {

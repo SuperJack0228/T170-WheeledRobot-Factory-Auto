@@ -122,10 +122,10 @@ head_grasp:
   # 到C后按编码器FK复核；超差不合爪，便于XYZ offset只修正真实落点偏差。
   bezier_endpoint_xyz_tol_m: 0.008
   bezier_endpoint_rpy_tol_deg: 3.0
-  approach_vel_m_s: 0.35
+  approach_vel_m_s: 0.40
   descend_vel_m_s: 0.25
   lift_vel_m_s: 0.25
-  return_vel_m_s: 0.35
+  return_vel_m_s: 0.40
   # 下压到位后再等这么久才合爪。
   pre_grasp_settle_sec: 0.15
   hand_detect_invalid_redo_max: 10
@@ -242,7 +242,7 @@ cameras:
   head_fps: 15
   hand_fps: 15
   # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。和影子同时开时，影子取帧会变慢。
-  hand_live_preview: true
+  hand_live_preview: false
   # 伸手时用手相机做影子观测：取帧、推理、写 logs/hand_shadow.csv，不改目标和电机。默认关。
   hand_shadow: false
 
@@ -291,20 +291,21 @@ conveyor:
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
-  grasp_hover_above_m: 0.08
+  # 抓取先到该高度再竖直下降。抬高后横移发生在工件上方，下降时不再斜着扫过旁边的件。
+  grasp_hover_above_m: 0.10
   # 放置：先到码+offset 上方这么多，再下降松爪。松爪后只轻抬约 3cm，然后直接回准备。
   place_hover_above_m: 0.06
   # 传送带手臂线速度（米/秒），允许约 0.02～0.50。
   place_approach_vel_m_s: 0.35
-  place_retract_vel_m_s: 0.35
+  place_retract_vel_m_s: 0.40
   grasp_approach_vel_m_s: 0.35
-  grasp_retract_vel_m_s: 0.35
+  grasp_retract_vel_m_s: 0.40
   # 站点已更新，传送带抓取不再转腰。0=不转。左右手可以过中轴，不卡料盘中缝。
   grasp_waist_yaw_deg: 0
   # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
-  grasp_ready_close_ratio: 0.20
+  grasp_ready_close_ratio: 0.3
   # 传送带检测门禁。整图 YOLO，框中心转到码系。抓取窗口和放置 ±3cm 都在代码里。
-  # 抓取窗口：码系 x∈[-0.05,0.05]、y∈[0.10,0.13]。0 个不抓，1 个只右手，≥2 双手。手臂仍走 grasp_offset。
+  # 抓取窗口：码系 x∈[-0.06,0.08]、y∈[0.10,0.13]。0 个不抓，1 个只右手，≥2 双手。手臂仍走 grasp_offset。
   # 调试图：T170_VISION_DEBUG≥1 → picture_debug/head/belt_yolo_det_*.jpg。
   yolo_roi_enable: true
   yolo_min_conf: 0.25
@@ -352,12 +353,12 @@ conveyor2:
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
-  grasp_hover_above_m: 0.08
+  grasp_hover_above_m: 0.09
   place_hover_above_m: 0.06
   place_approach_vel_m_s: 0.35
-  place_retract_vel_m_s: 0.35
+  place_retract_vel_m_s: 0.40
   grasp_approach_vel_m_s: 0.35
-  grasp_retract_vel_m_s: 0.35
+  grasp_retract_vel_m_s: 0.40
   grasp_waist_yaw_deg: 0
   grasp_ready_close_ratio: 0.20
   yolo_roi_enable: true
