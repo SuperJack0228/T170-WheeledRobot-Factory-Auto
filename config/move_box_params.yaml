@@ -50,6 +50,8 @@ head_grasp:
   right_goal_y_offset: 0.01
   # 仅离机器人最近一排（from_robot=6）。叠在左右手 z_offset 上。向上为正，夹不到改负。
   nearest_row_grasp_z_offset_m: 0.0
+  # true：下面按行的 XYZ 叠在整盘 offset 上。false 时整盘 offset 仍在，逐行数值不加入目标。
+  use_row_offset: false
   # 按离机器人远近。第 1 项=最远一行，第 6 项=最近一行。基座系，叠在上面的整盘 offset 上。
   row_offset:
     right:
@@ -84,24 +86,21 @@ head_grasp:
   # ready1/2/3/6 只换手腕姿态，腰不变。ready6 预览最远行姿态。
   row_grasp_rpy_deg:
     left:
-      - [0, 50, -60]
-      - [5, 45, -50]
-      - [0, 50, -40]
+      - [0, 55, -60]
+      - [5, 55, -50]
+      - [0, 55, -40]
     right:
       # 左手 rz 取反，夹爪相对中缝对称。
-      - [0, 50, 60]
-      - [5, 45, 50]
-      - [0, 50, 40]
+      - [0, 55, 60]
+      - [5, 55, 50]
+      - [0, 55, 40]
   # 最远一行（离机器人最远，正常朝向=ArUco row1）专用末端姿态。右手 rz 取反。
   row1_rpy_deg:
     left: [0, 30, -30]
     right: [0, 30, 30]
 
-  # false：跳过手相机拍照和 XYZ 修正，抓取只用二维码孔位 XY + 盘面参考 Z。
+  # false：不在上方停稳拍照。抓取是两段直线一次走完：先到零件上方，再竖直下降。
   use_hand_camera: false
-  # true：料盘抓取在物体上方 B 前抹开约 6cm，一次走完、不停车。料盘二放置仍走直线。
-  use_bezier_grasp: true
-  # true：伸手改为两段直线（到上方、再下降）中间不停。false：抹角小圆弧。
   approach_nostop: false
   # 手相机候选必须与头相机目标在基座 XY 内匹配，超过即拒绝本次抓取。
   hand_match_xy_max_m: 0.05
@@ -111,19 +110,14 @@ head_grasp:
   hand_grasp:
     right: { offset_x: 0.0, offset_y: 0.0 }
     left:  { offset_x: 0.0, offset_y: 0.0 }
-  # 夹完后的竖直抬升。曲线只替换接近，回程仍是这段抬起。
+  # 夹完后的竖直抬升。
   lift_after_grasp_z: 0.08
-  # 下面两项已不用：B 就是直线流程里的物体上方点。
-  bezier_guide_height_m: 0.12
-  bezier_ab_gap_m: 0.06
-  bezier_vel_m_s: 0.05
-  # 路径前一半转到该行最终姿态，后一半保持。和直线 A→B 转完、B→C 保持一致。
-  bezier_orient_finish_ratio: 0.5
-  # 到C后按编码器FK复核；超差不合爪，便于XYZ offset只修正真实落点偏差。
+  # 直线下降到位后按编码器 FK 复核；超差不合爪。
   bezier_endpoint_xyz_tol_m: 0.008
   bezier_endpoint_rpy_tol_deg: 3.0
   approach_vel_m_s: 0.40
-  descend_vel_m_s: 0.25
+  # 竖直下降。
+  descend_vel_m_s: 0.03
   lift_vel_m_s: 0.25
   return_vel_m_s: 0.40
   # 下压到位后再等这么久才合爪。
@@ -140,6 +134,8 @@ tray2_place:
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
   far_row_forward_m: 0.20
+  # false：下面按行的 XYZ 不加入放置点，数值保留。整盘 offset 和每行姿态仍生效。
+  use_row_offset: false
   # 从料盘一抓取偏置抄来。第 1 项=最远一行，第 6 项=最近一行。
   row_offset:
     right:
@@ -241,10 +237,15 @@ cameras:
   height: 720
   head_fps: 15
   hand_fps: 15
-  # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。和影子同时开时，影子取帧会变慢。
+  # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。
   hand_live_preview: false
-  # 伸手时用手相机做影子观测：取帧、推理、写 logs/hand_shadow.csv，不改目标和电机。默认关。
-  hand_shadow: false
+  # true：竖直下降段锁定工件后，把检测框中心对齐到下面的夹爪像素，只改水平位置。
+  hand_descent_correct: true
+  # 10:30 抓准那一帧的框中心。左手图已转 180°。原点在左上角，x 向右，y 向下。
+  left_gripper_u: 598
+  left_gripper_v: 458
+  right_gripper_u: 702
+  right_gripper_v: 458
 
 # 传送带。料盘仍用 board_yf100 的 5×5；这里只用 board_belt_aruco 的 6×6，互不覆盖。
 # belt_ready：腰/头到观察位，手臂到 tcp（准备姿态，类似 standby）。
@@ -378,7 +379,7 @@ chassis:
   # 调度接入。cycle 仍用下面四个固定站。dispatch 的底盘点改由系统下发。
   robot_type: T170C2.0
   sequence_number: "TH-T170C-0124"
-  tray_station: AP7
+  tray_station: AP1
   # 调度 1.8 若下发 standby_point，无任务去那个点；还没有时才用这里。
   dispatch_wait_station: AP14
   # 调试指令 charge 用的充电点。调度 CHARGE 仍用系统下发的 charge_point。
@@ -387,9 +388,9 @@ chassis:
   charge_wait_station: AP12
   # 调度充电：电量达到该百分比后汇报完成并停止充电（1～100）。
   charge_done_percent: 95
-  tray2_station: AP9
-  belt_station: AP5
-  out_station: AP6
+  tray2_station: AP4
+  belt_station: AP2
+  out_station: AP3
   nav_timeout_ms: 600000
 
 # 空抓检测 / 界面实时持件：夹爪关节角 q（rad，0=全合，约 5.5=全开）。

@@ -9,6 +9,7 @@
 #include "hand_shadow.h"
 #include "realsense_get.h"
 
+#include <atomic>
 #include <chrono>
 #include <thread>
 #include <algorithm>
@@ -1850,6 +1851,16 @@ bool arm_at_last_command(bool is_right)
     return arm_motors_at_commanded_position(is_right ? 1 : 0);
 }
 
+void arm_note_last_commanded(int hand)
+{
+    if (hand < 0 || hand > 1 || !g_arm_last_cmd_valid[hand])
+        return;
+    double q[7] = {};
+    for (int j = 0; j < 7; ++j)
+        q[j] = encoder_cnt_to_rad(g_arm_last_cmd_cnt[hand][j]);
+    hand_shadow_note_q(hand, q);
+}
+
 int arm_creep_unreached_joints(bool move_r, bool move_l)
 {
     if (right_arm_motors_locked())
@@ -2202,15 +2213,13 @@ int arm_line_move(
         append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
         return ret;
     }
-    if (snap_reach)
-        hand_shadow_begin(hand, &arm, pos, "直线伸手");
     const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
-    if (snap_reach)
-        hand_shadow_end(hand);
     if (exec == 0)
         record_arm_cartesian_arrival(arm, pos, nullptr);
     return exec;
 }
+
+static std::mutex g_arm_kin_mu[2];
 
 namespace
 {
@@ -2233,13 +2242,38 @@ double servo_apply_pose(Robot_Arm &arm, int hand, const Eigen::Matrix<double, 1,
     if (q.size() < 7)
         return 0.0;
     Eigen::RowVectorXd q_try = q;
-    ik_code = arm.Inverse_Kinematics_Analytic(pose, q_try, q(1));
-    if (ik_code != 0 || q_try.size() < 7 || !q_try.allFinite() || arm.Check_Joint_Limit(q_try))
-        return 0.0;
-    for (int j = 0; j < 7; ++j)
-        max_dq = std::max(max_dq, std::abs(q_try(j) - q(j)));
-    if (max_dq > kServoBranchRad)
-        return 0.0;
+    auto joint_jump = [&](const Eigen::RowVectorXd &cand) {
+        double jump = 0.0;
+        for (int j = 0; j < 7; ++j)
+            jump = std::max(jump, std::abs(cand(j) - q(j)));
+        return jump;
+    };
+    auto usable = [&](const Eigen::RowVectorXd &cand, double &jump) {
+        if (cand.size() < 7 || !cand.allFinite() || arm.Check_Joint_Limit(cand))
+            return false;
+        jump = joint_jump(cand);
+        return jump <= kServoBranchRad;
+    };
+    {
+        std::lock_guard<std::mutex> kin(g_arm_kin_mu[hand == 1 ? 1 : 0]);
+        ik_code = arm.Inverse_Kinematics_Analytic(pose, q_try, q(1));
+        double jump = 0.0;
+        if (ik_code != 0 || !usable(q_try, jump))
+        {
+            q_try = q;
+            Eigen::Matrix<double, 1, 6> pose_num = pose;
+            const int numeric_rc = arm.Inverse_Kinematics_Numeric(pose_num, q_try);
+            if (numeric_rc != 0 || !usable(q_try, jump))
+            {
+                max_dq = jump;
+                if (ik_code == 0)
+                    ik_code = numeric_rc != 0 ? numeric_rc : -12;
+                return 0.0;
+            }
+            ik_code = 0;
+        }
+        max_dq = jump;
+    }
     double scale = 1.0;
     if (max_dq > kServoMaxJointStepRad)
     {
@@ -2251,6 +2285,10 @@ double servo_apply_pose(Robot_Arm &arm, int hand, const Eigen::Matrix<double, 1,
         motor_cmd[j] = rad_to_encoder_cnt(q_try(j));
     set_motor_position(motor_cmd, hand);
     save_arm_last_commanded_position(hand, motor_cmd);
+    double q_note[7] = {};
+    for (int j = 0; j < 7; ++j)
+        q_note[j] = q_try(j);
+    hand_shadow_note_q(hand, q_note);
     q = std::move(q_try);
     return scale;
 }
@@ -2293,6 +2331,10 @@ void servo_init_side(ServoSide &side, Robot_Arm &arm, bool on,
                   << " 当前位姿无效，这一侧不跟踪\n";
         return;
     }
+    double q_note[7] = {};
+    for (int j = 0; j < 7; ++j)
+        q_note[j] = side.q(j);
+    hand_shadow_note_q(side.hand, q_note);
     side.goal = side.cmd;
 }
 
@@ -2357,7 +2399,8 @@ int arm_dual_cartesian_track(
                              Eigen::Matrix<double, 1, 6> &goal_r,
                              Eigen::Matrix<double, 1, 6> &goal_l)> &update_goal)
 {
-    if (!(duration_s > 0.0) || !update_goal)
+    const bool until_abort = duration_s == 0.0;
+    if ((!until_abort && !(duration_s > 0.0)) || !update_goal)
         return -1;
     ServoSide right;
     ServoSide left;
@@ -2369,7 +2412,12 @@ int arm_dual_cartesian_track(
         return 0;
 
     std::cout << std::fixed << std::setprecision(1)
-              << "[伺服] 连续跟踪 " << duration_s << " s，每 5 ms 一步，"
+              << "[伺服] 连续跟踪 ";
+    if (until_abort)
+        std::cout << "直到 abort";
+    else
+        std::cout << duration_s << " s";
+    std::cout << "，每 5 ms 一步，"
               << "速度上限 " << (kServoVmaxMps * 1000.0)
               << " mm/s，加速度上限 " << kServoAmax
               << " m/s²，死区 " << (kServoDeadM * 1000.0) << " mm\n";
@@ -2384,7 +2432,7 @@ int arm_dual_cartesian_track(
             return -2;
         const auto cycle = std::chrono::steady_clock::now();
         const double t = std::chrono::duration<double>(cycle - t0).count();
-        if (t >= duration_s)
+        if (!until_abort && t >= duration_s)
             break;
         update_goal(t, right.goal, left.goal);
         servo_step_side(right, arm_r);
@@ -2405,6 +2453,31 @@ int arm_dual_cartesian_track(
             report("右", right);
             report("左", left);
             std::cout << std::endl;
+        }
+        if (ticks % 200 == 0)
+        {
+            auto one = [](const char *name, const ServoSide &side) {
+                if (!side.on)
+                    return std::string();
+                const double left_mm = std::hypot((side.goal(0) - side.cmd(0)) * 1000.0,
+                                                  (side.goal(1) - side.cmd(1)) * 1000.0);
+                std::ostringstream text;
+                text << std::fixed << std::setprecision(1) << name << " 还差 " << left_mm
+                     << " mm 失败 " << side.ik_fail << " 拍";
+                return text.str();
+            };
+            const std::string right_text = one("右", right);
+            const std::string left_text = one("左", left);
+            std::string detail;
+            if (!right_text.empty())
+                detail += right_text;
+            if (!left_text.empty())
+            {
+                if (!detail.empty())
+                    detail += "；";
+                detail += left_text;
+            }
+            hand_track_log("伺服", "跟踪", detail);
         }
         ++ticks;
         const double elapsed_ms =
@@ -2613,374 +2686,12 @@ ArmLineMoveResult arm_dual_line_move_selective(
     return out;
 }
 
+int g_planned_descent_row[2] = {-1, -1};
+std::atomic<int> g_descent_fail_hand{-1};
+
 namespace
 {
 
-constexpr int kBezierArcLutSteps = 400;
-constexpr double kBezierMinVelocityMps = 0.01;
-constexpr double kBezierMinDurationS = 0.50;
-constexpr double kBezierKeyDsM = 0.003;
-constexpr double kBezierKeyDsMinM = 0.002;
-constexpr double kBezierKeyDsMaxM = 0.004;
-constexpr int kBezierKeyMax = 200;
-constexpr double kBezierSkipStartIkM = 0.008;
-constexpr double kBezierMaxKeyJointRad = 20.0 * M_PI / 180.0;
-constexpr double kBezierIkFkPositionToleranceM = 0.001;
-constexpr double kBezierIkFkOrientationToleranceRad = 0.5 * M_PI / 180.0;
-constexpr double kBezierKeyFkPositionToleranceM = 0.003;
-constexpr double kBezierKeyFkOrientationToleranceRad = 2.0 * M_PI / 180.0;
-constexpr int kBezierNoReturnTrajectory = -20;
-constexpr int kBezierReturnStartMismatch = -21;
-
-struct PreparedBezierTrajectory
-{
-    int hand = 0;
-    bool skip = false;
-    Eigen::MatrixXd q;
-    Matrix<double, 1, 6> a = Matrix<double, 1, 6>::Zero();
-    Matrix<double, 1, 6> b = Matrix<double, 1, 6>::Zero();
-    Matrix<double, 1, 6> c = Matrix<double, 1, 6>::Zero();
-    double length_m = 0.0;
-    double duration_s = 0.0;
-};
-
-std::mutex g_bezier_cache_mu;
-Eigen::MatrixXd g_last_bezier_q[2];
-bool g_last_bezier_valid[2] = {false, false};
-
-double quintic_s01(double r)
-{
-    r = std::clamp(r, 0.0, 1.0);
-    const double r2 = r * r;
-    return r2 * r * (10.0 - 15.0 * r + 6.0 * r2);
-}
-
-Matrix<double, 1, 3> bezier_rpy_slerp(
-    const Matrix<double, 1, 6> &a,
-    const Matrix<double, 1, 6> &b,
-    double t)
-{
-    t = std::clamp(t, 0.0, 1.0);
-    Matrix<double, 1, 3> ra, rb;
-    ra << a(3), a(4), a(5);
-    rb << b(3), b(4), b(5);
-    const Matrix4d Ta = Rot_zyx(ra);
-    const Matrix4d Tb = Rot_zyx(rb);
-    Eigen::Quaterniond qa(Ta.block<3, 3>(0, 0));
-    Eigen::Quaterniond qb(Tb.block<3, 3>(0, 0));
-    qa.normalize();
-    qb.normalize();
-    if (qa.dot(qb) < 0.0)
-        qb.coeffs() *= -1.0;
-    const Eigen::Quaterniond qm = qa.slerp(t, qb);
-    const Eigen::Vector3d e = Quaterniond2EulerAngles(qm);
-    Matrix<double, 1, 3> out;
-    out << e(0), e(1), e(2);
-    return out;
-}
-
-double wrap_pi_bezier(double a)
-{
-    while (a > M_PI)
-        a -= 2.0 * M_PI;
-    while (a < -M_PI)
-        a += 2.0 * M_PI;
-    return a;
-}
-
-double bezier_angle_abs_diff(double a, double b)
-{
-    return std::abs(wrap_pi_bezier(a - b));
-}
-
-bool bezier_rpy_close(
-    const Matrix<double, 1, 6> &a,
-    const Matrix<double, 1, 6> &b,
-    double tol_rad)
-{
-    return bezier_angle_abs_diff(a(3), b(3)) <= tol_rad &&
-           bezier_angle_abs_diff(a(4), b(4)) <= tol_rad &&
-           bezier_angle_abs_diff(a(5), b(5)) <= tol_rad;
-}
-
-void clear_bezier_cache(int hand)
-{
-    if (hand < 0 || hand > 1)
-        return;
-    std::lock_guard<std::mutex> lock(g_bezier_cache_mu);
-    g_last_bezier_valid[hand] = false;
-    g_last_bezier_q[hand].resize(0, 0);
-}
-
-/** 关键点 IK：先锁当前 J2 解析，失败再数值。不在 5 ms 尺度上卡 0.375°。 */
-int solve_bezier_ik(
-    Robot_Arm &arm,
-    const Matrix<double, 1, 6> &pose,
-    Eigen::RowVectorXd &q,
-    double max_joint_step_rad,
-    double fk_pos_tol_m,
-    double fk_ori_tol_rad)
-{
-    Eigen::RowVectorXd q_try = q;
-    const double j2 = (q.size() >= 2) ? q(1) : 0.0;
-    int rc = arm.Inverse_Kinematics_Analytic(pose, q_try, j2);
-    if (rc != 0)
-    {
-        q_try = q;
-        Matrix<double, 1, 6> pose_for_ik = pose;
-        rc = arm.Inverse_Kinematics(pose_for_ik, q_try);
-    }
-    if (rc != 0)
-        return rc;
-    if (!q_try.allFinite())
-        return -10;
-    if (arm.Check_Joint_Limit(q_try))
-        return -11;
-    if ((q_try - q).cwiseAbs().maxCoeff() > max_joint_step_rad)
-        return -12;
-
-    const Matrix4d fk_t = arm.Forward_Kinematics(q_try);
-    const Matrix<double, 1, 6> fk = T2PosEulerAngles(fk_t);
-    if ((fk.head<3>() - pose.head<3>()).norm() > fk_pos_tol_m)
-        return -13;
-    const Matrix4d goal_t = TR(pose);
-    const Matrix3d r_err = goal_t.block<3, 3>(0, 0).transpose() * fk_t.block<3, 3>(0, 0);
-    const double angle_err = std::acos(std::clamp((r_err.trace() - 1.0) * 0.5, -1.0, 1.0));
-    if (angle_err > fk_ori_tol_rad)
-        return -13;
-
-    q = q_try;
-    return 0;
-}
-
-Eigen::Vector3d quadratic_bezier_xyz(
-    const Eigen::Vector3d &a,
-    const Eigen::Vector3d &b,
-    const Eigen::Vector3d &c,
-    double u)
-{
-    u = std::clamp(u, 0.0, 1.0);
-    const double omu = 1.0 - u;
-    return omu * omu * a + 2.0 * omu * u * b + u * u * c;
-}
-
-int prepare_quadratic_bezier(
-    Robot_Arm &arm,
-    const Matrix<double, 1, 6> &guide,
-    const Matrix<double, 1, 6> &final_goal,
-    double cart_max_velocity,
-    double orient_finish_ratio,
-    PreparedBezierTrajectory &out)
-{
-    out = {};
-    out.hand = arm_hand_side(arm);
-    clear_bezier_cache(out.hand);
-
-    if (out.hand == 1 && right_arm_motors_locked())
-    {
-        out.skip = true;
-        return 0;
-    }
-    if (!guide.allFinite() || !final_goal.allFinite() ||
-        !std::isfinite(cart_max_velocity) || !std::isfinite(orient_finish_ratio))
-        return -10;
-
-    Eigen::MatrixXd q0 = arm_read_motor_joints(out.hand);
-    if (hardware_abort_requested())
-        return -4;
-    if (can_io_faulted())
-        return -2;
-    if (q0.rows() != 1 || q0.cols() < 6 || !q0.allFinite())
-        return -10;
-
-    out.a = T2PosEulerAngles(arm.Forward_Kinematics(q0.row(0)));
-    out.b = guide;
-    out.c = final_goal;
-
-    const Eigen::Vector3d pa = out.a.head<3>().transpose();
-    const Eigen::Vector3d pb = out.b.head<3>().transpose();
-    const Eigen::Vector3d pc = out.c.head<3>().transpose();
-
-    std::vector<double> arc_u(kBezierArcLutSteps + 1, 0.0);
-    std::vector<double> arc_s(kBezierArcLutSteps + 1, 0.0);
-    Eigen::Vector3d prev = pa;
-    for (int i = 1; i <= kBezierArcLutSteps; ++i)
-    {
-        const double u = static_cast<double>(i) / static_cast<double>(kBezierArcLutSteps);
-        const Eigen::Vector3d p = quadratic_bezier_xyz(pa, pb, pc, u);
-        arc_u[i] = u;
-        arc_s[i] = arc_s[i - 1] + (p - prev).norm();
-        prev = p;
-    }
-    out.length_m = arc_s.back();
-    if (out.length_m < 1e-4)
-        return -16;
-
-    const double vmax = std::max(kBezierMinVelocityMps, cart_max_velocity);
-    out.duration_s = std::max(kBezierMinDurationS, 1.875 * out.length_m / vmax);
-    const int n_step = std::max(2, static_cast<int>(std::ceil(out.duration_s / k_arm_traj_dt)));
-
-    int n_seg = std::max(1, static_cast<int>(std::lround(out.length_m / kBezierKeyDsM)));
-    n_seg = std::min(n_seg, kBezierKeyMax);
-    while (n_seg > 1 && out.length_m / static_cast<double>(n_seg) < kBezierKeyDsMinM)
-        --n_seg;
-    while (n_seg < kBezierKeyMax && out.length_m / static_cast<double>(n_seg) > kBezierKeyDsMaxM)
-        ++n_seg;
-    if (n_seg < 100 && out.length_m / 100.0 >= kBezierKeyDsMinM)
-        n_seg = 100;
-    const int n_knots = n_seg + 1;
-    const double key_ds = out.length_m / static_cast<double>(n_seg);
-
-    // 前 orient_done 段转到最终姿态，之后保持。和直线 A→B 转完、B→C 保持一致。
-    const double orient_done = std::clamp(orient_finish_ratio, 0.10, 0.95);
-    const bool hold_rpy = bezier_rpy_close(out.a, out.c, 2.0 * M_PI / 180.0);
-
-    auto u_at_arc_fraction = [&](double f) {
-        const double target = std::clamp(f, 0.0, 1.0) * out.length_m;
-        const auto it = std::lower_bound(arc_s.begin(), arc_s.end(), target);
-        if (it == arc_s.begin())
-            return 0.0;
-        if (it == arc_s.end())
-            return 1.0;
-        const size_t i1 = static_cast<size_t>(it - arc_s.begin());
-        const size_t i0 = i1 - 1;
-        const double den = std::max(1e-12, arc_s[i1] - arc_s[i0]);
-        const double t = (target - arc_s[i0]) / den;
-        return arc_u[i0] + t * (arc_u[i1] - arc_u[i0]);
-    };
-
-    auto pose_at_path_fraction = [&](double path_fraction, bool force_c) {
-        Matrix<double, 1, 6> pose;
-        if (force_c)
-            return out.c;
-        const double u = u_at_arc_fraction(path_fraction);
-        const Eigen::Vector3d p = quadratic_bezier_xyz(pa, pb, pc, u);
-        Matrix<double, 1, 3> rpy;
-        if (hold_rpy || path_fraction >= orient_done)
-            rpy << out.c(3), out.c(4), out.c(5);
-        else
-        {
-            const double t = path_fraction / std::max(1e-6, orient_done);
-            rpy = bezier_rpy_slerp(out.a, out.c, quintic_s01(t));
-        }
-        pose << p.x(), p.y(), p.z(), rpy(0), rpy(1), rpy(2);
-        return pose;
-    };
-
-    std::vector<double> knot_s(static_cast<size_t>(n_knots), 0.0);
-    std::vector<Eigen::RowVectorXd> knot_q(static_cast<size_t>(n_knots), q0.row(0));
-    Eigen::RowVectorXd q = q0.row(0);
-    knot_s[0] = 0.0;
-    knot_q[0] = q;
-
-    for (int k = 1; k < n_knots; ++k)
-    {
-        const bool last = (k + 1 == n_knots);
-        const double s = last ? out.length_m : static_cast<double>(k) * key_ds;
-        knot_s[static_cast<size_t>(k)] = s;
-        if (!last && s < kBezierSkipStartIkM)
-        {
-            knot_q[static_cast<size_t>(k)] = q;
-            continue;
-        }
-
-        const double path_fraction = s / out.length_m;
-        const Matrix<double, 1, 6> pose = pose_at_path_fraction(path_fraction, last);
-        const int rc = solve_bezier_ik(
-            arm,
-            pose,
-            q,
-            kBezierMaxKeyJointRad,
-            last ? kBezierIkFkPositionToleranceM : kBezierKeyFkPositionToleranceM,
-            last ? kBezierIkFkOrientationToleranceRad : kBezierKeyFkOrientationToleranceRad);
-        if (rc != 0)
-        {
-            append_line_trajectory_fail_debug(
-                arm_hand_label(out.hand), rc, pose, "quadratic Bezier A-B-C", vmax);
-            return rc;
-        }
-        knot_q[static_cast<size_t>(k)] = q;
-    }
-
-    out.q.resize(n_step + 1, q0.cols());
-    out.q.row(0) = q0.row(0);
-    for (int i = 1; i <= n_step; ++i)
-    {
-        const double path_fraction =
-            (i == n_step) ? 1.0 : quintic_s01(static_cast<double>(i) / static_cast<double>(n_step));
-        const double s = path_fraction * out.length_m;
-        auto it = std::lower_bound(knot_s.begin(), knot_s.end(), s);
-        size_t k1 = static_cast<size_t>(it - knot_s.begin());
-        if (k1 == 0)
-        {
-            out.q.row(i) = knot_q[0];
-            continue;
-        }
-        if (k1 >= knot_s.size())
-        {
-            out.q.row(i) = knot_q.back();
-            continue;
-        }
-        const size_t k0 = k1 - 1;
-        const double den = std::max(1e-12, knot_s[k1] - knot_s[k0]);
-        const double t = std::clamp((s - knot_s[k0]) / den, 0.0, 1.0);
-        out.q.row(i) = knot_q[k0] + t * (knot_q[k1] - knot_q[k0]);
-    }
-    out.q.row(n_step) = knot_q.back();
-
-    const Matrix<double, 1, 6> end_fk =
-        T2PosEulerAngles(arm.Forward_Kinematics(out.q.row(n_step)));
-    const double end_xyz_error = (end_fk.head<3>() - out.c.head<3>()).norm();
-    if (end_xyz_error > kBezierIkFkPositionToleranceM)
-        return -13;
-
-    std::cout << std::fixed << std::setprecision(4)
-              << "[arm] Bezier " << (out.hand == 1 ? "右" : "左")
-              << " A=(" << out.a(0) << ',' << out.a(1) << ',' << out.a(2) << ')'
-              << " B=(" << out.b(0) << ',' << out.b(1) << ',' << out.b(2) << ')'
-              << " C=(" << out.c(0) << ',' << out.c(1) << ',' << out.c(2) << ')'
-              << " length=" << out.length_m << "m Tf=" << out.duration_s
-              << "s vmax=" << vmax << "m/s keys=" << n_knots
-              << " ds=" << key_ds << "m orient_done=" << orient_done << '\n';
-    return 0;
-}
-
-int execute_prepared_bezier(PreparedBezierTrajectory &plan)
-{
-    if (plan.skip)
-        return 0;
-    const int rc = execute_arm_trajectory(plan.q, plan.hand, k_arm_traj_dt);
-    if (rc != 0)
-        return rc;
-    {
-        std::lock_guard<std::mutex> lock(g_bezier_cache_mu);
-        g_last_bezier_q[plan.hand] = plan.q;
-        g_last_bezier_valid[plan.hand] = true;
-    }
-    return 0;
-}
-
-int load_reversed_bezier(Robot_Arm &arm, Eigen::MatrixXd &reversed)
-{
-    const int hand = arm_hand_side(arm);
-    Eigen::MatrixXd forward;
-    {
-        std::lock_guard<std::mutex> lock(g_bezier_cache_mu);
-        if (!g_last_bezier_valid[hand] || g_last_bezier_q[hand].rows() < 2)
-            return kBezierNoReturnTrajectory;
-        forward = g_last_bezier_q[hand];
-    }
-
-    const Eigen::MatrixXd q_now = arm_read_motor_joints(hand);
-    if (q_now.rows() != 1 || q_now.cols() != forward.cols() ||
-        (q_now.row(0) - forward.row(forward.rows() - 1)).cwiseAbs().maxCoeff() > 0.05)
-        return kBezierReturnStartMismatch;
-
-    reversed.resize(forward.rows(), forward.cols());
-    for (Eigen::Index i = 0; i < forward.rows(); ++i)
-        reversed.row(i) = forward.row(forward.rows() - 1 - i);
-    return 0;
-}
 
 constexpr double kCornerBlendM = 0.06;
 constexpr double kCornerMaxStepRad = 8.0 * M_PI / 180.0;
@@ -3287,6 +2998,8 @@ int plan_line_then_line(
     const int hand = arm_hand_side(arm);
     if (hand == 1 && right_arm_motors_locked())
         return 0;
+    if (hand >= 0 && hand <= 1)
+        g_planned_descent_row[hand] = -1;
     Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
     Eigen::MatrixXd traj_mid;
     const int rc_mid = plan_arm_line_from(arm, mid, vel_first_m_s, q_start, traj_mid);
@@ -3298,14 +3011,24 @@ int plan_line_then_line(
     const int rc_goal = plan_arm_line_from(arm, goal, vel_second_m_s, q_mid, traj_goal);
     if (rc_goal != 0)
         return rc_goal;
+    const int ib = first_cruise_row(traj_goal);
+    const int n_tail = static_cast<int>(traj_goal.rows()) - ib;
     traj_out = stitch_cruise_lines(traj_mid, traj_goal);
     if (traj_out.rows() < 2)
         return -16;
+    int descent = static_cast<int>(traj_out.rows()) - n_tail;
+    if (descent < 1)
+        descent = 1;
+    if (descent >= traj_out.rows())
+        descent = static_cast<int>(traj_out.rows()) - 1;
+    if (hand >= 0 && hand <= 1)
+        g_planned_descent_row[hand] = descent;
     std::cout << "[" << (tag != nullptr ? tag : "line") << "] " << arm_hand_label(hand)
               << " 两段直线中间不停"
               << " 点=" << traj_out.rows()
               << " 第一段=" << traj_mid.rows()
-              << " 第二段=" << traj_goal.rows() << "\n";
+              << " 第二段=" << traj_goal.rows()
+              << " 下降起行=" << descent << "\n";
     return 0;
 }
 
@@ -3432,6 +3155,473 @@ void arm_start_line_then_line_plan(
     });
 }
 
+namespace
+{
+
+struct DescentSlot
+{
+    std::mutex mu;
+    bool active = false;
+    bool in_descent = false;
+    bool ik_failed = false;
+    int cursor = 0;
+    int descent_row = 0;
+    int plan_rows = 0;
+    double applied_x = 0.0;
+    double applied_y = 0.0;
+    bool have_visual_xy = false;
+    double bias_x = 0.0;
+    double bias_y = 0.0;
+    /** 框中心离夹爪的像素。小于 0 表示这一帧没有锁定。 */
+    double align_px = -1.0;
+    Eigen::Matrix<double, 1, 6> goal = Eigen::Matrix<double, 1, 6>::Zero();
+    Robot_Arm *arm = nullptr;
+    Eigen::MatrixXd traj;
+    Eigen::MatrixXd base;
+};
+
+DescentSlot g_desc[2];
+
+const char *descent_hand_name(int hand)
+{
+    return hand == 1 ? "右手" : "左手";
+}
+
+Eigen::Vector3d tcp_translation(Robot_Arm &arm, const Eigen::RowVectorXd &q)
+{
+    return arm.Forward_Kinematics(q).block<3, 1>(0, 3);
+}
+
+/** 在已经走通的关节上，求一个最小的关节增量，只动末端水平位置。阻尼最小二乘，不会另起一条逆解分支。 */
+bool tcp_xy_joint_step(
+    Robot_Arm &arm,
+    const Eigen::RowVectorXd &q_anchor,
+    const Eigen::RowVectorXd &q_last,
+    double dx,
+    double dy,
+    Eigen::RowVectorXd &dq_out)
+{
+    dq_out.resize(0);
+    if (q_anchor.size() < 7 || q_last.size() != q_anchor.size() || !q_anchor.allFinite() ||
+        !q_last.allFinite() || !std::isfinite(dx) || !std::isfinite(dy))
+        return false;
+    const int dof = static_cast<int>(q_anchor.size());
+    const int side = arm_hand_side(arm) == 1 ? 1 : 0;
+    std::lock_guard<std::mutex> kin(g_arm_kin_mu[side]);
+    const Eigen::Vector3d p0 = tcp_translation(arm, q_anchor);
+    if (!p0.allFinite())
+        return false;
+
+    Eigen::Vector3d target(dx, dy, 0.0);
+    Eigen::RowVectorXd q = q_anchor;
+    constexpr double h = 1e-4;
+    constexpr double lambda2 = 1e-4;
+    for (int iter = 0; iter < 4; ++iter)
+    {
+        const Eigen::Vector3d p = tcp_translation(arm, q);
+        if (!p.allFinite())
+            return false;
+        const Eigen::Vector3d err = target - (p - p0);
+        if (err.norm() < 2e-4)
+            break;
+        Eigen::MatrixXd J(3, dof);
+        bool jac_ok = true;
+        for (int j = 0; j < dof; ++j)
+        {
+            Eigen::RowVectorXd qp = q;
+            qp(j) += h;
+            const Eigen::Vector3d pp = tcp_translation(arm, qp);
+            if (!pp.allFinite())
+            {
+                jac_ok = false;
+                break;
+            }
+            J.col(j) = (pp - p) / h;
+        }
+        if (!jac_ok || !J.allFinite())
+            return false;
+        Eigen::Matrix3d A = J * J.transpose();
+        A.diagonal().array() += lambda2;
+        const Eigen::Vector3d y = A.ldlt().solve(err);
+        if (!y.allFinite())
+            return false;
+        Eigen::RowVectorXd step = (J.transpose() * y).transpose();
+        const double max_abs = step.cwiseAbs().maxCoeff();
+        constexpr double kMaxStep = 0.12;
+        if (max_abs > kMaxStep && max_abs > 1e-12)
+            step *= kMaxStep / max_abs;
+
+        Eigen::RowVectorXd q_try = q + step;
+        double scale = 1.0;
+        auto step_fits = [&](double s) {
+            const Eigen::RowVectorXd qn = q + s * step;
+            return qn.allFinite() && !arm.Check_Joint_Limit(qn);
+        };
+        while (scale > 0.02 && !step_fits(scale))
+            scale *= 0.5;
+        if (!step_fits(scale))
+            break;
+        q = q + scale * step;
+    }
+    (void)q_last;
+    dq_out = q - q_anchor;
+    return dq_out.size() == dof && dq_out.allFinite();
+}
+
+bool tcp_xy_of(Robot_Arm &arm, const Eigen::RowVectorXd &q, double &x, double &y)
+{
+    if (q.size() < 7 || !q.allFinite())
+        return false;
+    const int side = arm_hand_side(arm) == 1 ? 1 : 0;
+    std::lock_guard<std::mutex> kin(g_arm_kin_mu[side]);
+    const Eigen::Vector3d p = tcp_translation(arm, q);
+    if (!p.allFinite())
+        return false;
+    x = p.x();
+    y = p.y();
+    return true;
+}
+
+/** 未下发的行改回「当前点沿原下降走，再加上这一帧的水平增量」。旧的未下发修正被盖掉。 */
+double rewrite_unsent_xy(
+    Eigen::MatrixXd &traj,
+    const Eigen::MatrixXd &base,
+    int anchor,
+    int from,
+    const Eigen::RowVectorXd &dq)
+{
+    if (anchor < 0 || from <= anchor || from >= traj.rows() || base.rows() <= anchor ||
+        base.cols() != traj.cols() || dq.size() != traj.cols() || !dq.allFinite())
+        return 0.0;
+    const double max_joint = dq.cwiseAbs().maxCoeff();
+    const double max_step = 25.0 * M_PI / 180.0 * k_arm_traj_dt;
+    int ramp = 1;
+    if (max_step > 1e-9 && max_joint > max_step)
+        ramp = std::min(400, static_cast<int>(std::ceil(max_joint / max_step)));
+    const int remain = static_cast<int>(traj.rows()) - from;
+    if (remain < 1)
+        return 0.0;
+    double fit = 1.0;
+    if (ramp > remain && ramp > 0)
+    {
+        fit = static_cast<double>(remain) / static_cast<double>(ramp);
+        ramp = remain;
+    }
+    if (ramp < 1)
+        ramp = 1;
+    const Eigen::RowVectorXd use = fit * dq;
+    const Eigen::RowVectorXd q_anchor = traj.row(anchor);
+    const Eigen::RowVectorXd base_anchor = base.row(anchor);
+    for (int r = from; r < traj.rows(); ++r)
+    {
+        const int k = r - from;
+        const double u = std::min(1.0, static_cast<double>(k + 1) / static_cast<double>(ramp));
+        Eigen::RowVectorXd hold = q_anchor;
+        if (r < base.rows())
+            hold += base.row(r) - base_anchor;
+        traj.row(r) = hold + u * use;
+    }
+    return fit;
+}
+
+int execute_descent_table(
+    Eigen::MatrixXd traj,
+    int hand,
+    int descent_row,
+    Robot_Arm *arm,
+    const Eigen::Matrix<double, 1, 6> &goal)
+{
+    if (hand == 1 && right_arm_motors_locked())
+        return 0;
+    if (hand < 0 || hand > 1 || arm == nullptr || traj.rows() < 2 || !goal.allFinite())
+        return -10;
+    if (descent_row < 1)
+        descent_row = 1;
+    if (descent_row >= traj.rows())
+        descent_row = static_cast<int>(traj.rows()) - 1;
+
+    {
+        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+        g_desc[hand].active = true;
+        g_desc[hand].in_descent = false;
+        g_desc[hand].ik_failed = false;
+        g_desc[hand].cursor = 0;
+        g_desc[hand].descent_row = descent_row;
+        g_desc[hand].plan_rows = static_cast<int>(traj.rows());
+        g_desc[hand].applied_x = goal(0);
+        g_desc[hand].applied_y = goal(1);
+        g_desc[hand].have_visual_xy = false;
+        g_desc[hand].align_px = -1.0;
+        g_desc[hand].goal = goal;
+        g_desc[hand].arm = arm;
+        g_desc[hand].traj = std::move(traj);
+        g_desc[hand].base = g_desc[hand].traj;
+    }
+    struct Guard
+    {
+        int hand;
+        ~Guard()
+        {
+            std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+            g_desc[hand].active = false;
+            g_desc[hand].in_descent = false;
+            g_desc[hand].arm = nullptr;
+        }
+    } guard{hand};
+
+    const int dof_limit = 7;
+    bool logged_start = false;
+    Eigen::RowVectorXd last_sent;
+    int i = 0;
+    while (true)
+    {
+        if (hardware_abort_requested())
+        {
+            std::cout << "[arm] STOP，停止轨迹\n";
+            return -4;
+        }
+        if (can_io_faulted())
+        {
+            std::cout << "[arm] CAN 收发失败，停止轨迹: " << can_io_fault_message() << std::endl;
+            return -2;
+        }
+
+        Eigen::RowVectorXd row;
+        int nrows = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+            nrows = static_cast<int>(g_desc[hand].traj.rows());
+            if (i < nrows)
+            {
+                row = g_desc[hand].traj.row(i);
+                g_desc[hand].cursor = i;
+                g_desc[hand].in_descent = i >= g_desc[hand].descent_row;
+            }
+        }
+        if (i >= nrows)
+            break;
+
+        if (!logged_start && i >= descent_row)
+        {
+            logged_start = true;
+            std::cout << "[descent] " << descent_hand_name(hand)
+                      << " 下降开始。35% 修正一次，70% 再补一次，之后只监控\n";
+        }
+
+        const auto cycle_start = std::chrono::high_resolution_clock::now();
+        const int dof = static_cast<int>(std::min(row.size(), static_cast<Eigen::Index>(dof_limit)));
+        int motor_cmd[7] = {0};
+        double q_rad[7] = {0, 0, 0, 0, 0, 0, 0};
+        for (int j = 0; j < dof; ++j)
+        {
+            q_rad[j] = row(j);
+            motor_cmd[j] = rad_to_encoder_cnt(row(j));
+        }
+        hand_shadow_note_q(hand, q_rad);
+        set_motor_position(motor_cmd, hand);
+        last_sent = row;
+
+        const double elapsed_ms =
+            std::chrono::duration<double, std::milli>(
+                std::chrono::high_resolution_clock::now() - cycle_start)
+                .count();
+        const double sleep_ms = std::max(0.0, k_arm_traj_dt * 1000.0 - elapsed_ms);
+        if (sleep_ms > 1e-6)
+            std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(sleep_ms));
+        ++i;
+    }
+
+    if (last_sent.size() >= 1)
+    {
+        int last_cmd[7] = {0};
+        const int dof = static_cast<int>(std::min(last_sent.size(), static_cast<Eigen::Index>(dof_limit)));
+        for (int j = 0; j < dof; ++j)
+            last_cmd[j] = rad_to_encoder_cnt(last_sent(j));
+        save_arm_last_commanded_position(hand, last_cmd);
+    }
+    return 0;
+}
+
+} // namespace
+
+bool descent_player_accepting(int hand)
+{
+    if (hand < 0 || hand > 1)
+        return false;
+    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+    return g_desc[hand].active && g_desc[hand].in_descent && !g_desc[hand].ik_failed;
+}
+
+double descent_vertical_progress(int hand)
+{
+    if (hand < 0 || hand > 1)
+        return -1.0;
+    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+    if (!g_desc[hand].active || !g_desc[hand].in_descent)
+        return -1.0;
+    const int span = g_desc[hand].plan_rows - g_desc[hand].descent_row;
+    if (span <= 0)
+        return 1.0;
+    const double progress =
+        static_cast<double>(g_desc[hand].cursor - g_desc[hand].descent_row) /
+        static_cast<double>(span);
+    if (progress < 0.0)
+        return 0.0;
+    if (progress > 1.0)
+        return 1.0;
+    return progress;
+}
+
+void descent_note_align_px(int hand, double px)
+{
+    if (hand < 0 || hand > 1)
+        return;
+    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+    g_desc[hand].align_px = px;
+}
+
+void descent_set_visual_bias(int hand, double x_m, double y_m)
+{
+    if (hand < 0 || hand > 1)
+        return;
+    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+    g_desc[hand].bias_x = std::isfinite(x_m) ? x_m : 0.0;
+    g_desc[hand].bias_y = std::isfinite(y_m) ? y_m : 0.0;
+}
+
+void descent_visual_bias(int hand, double &x_m, double &y_m)
+{
+    x_m = 0.0;
+    y_m = 0.0;
+    if (hand < 0 || hand > 1)
+        return;
+    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+    x_m = g_desc[hand].bias_x;
+    y_m = g_desc[hand].bias_y;
+}
+
+bool descent_nudge_xy(int hand, double dx_m, double dy_m, const char *note)
+{
+    if (hand < 0 || hand > 1 || !std::isfinite(dx_m) || !std::isfinite(dy_m))
+        return false;
+    Robot_Arm *arm = nullptr;
+    Eigen::RowVectorXd q_anchor;
+    {
+        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+        if (!g_desc[hand].active || !g_desc[hand].in_descent || g_desc[hand].arm == nullptr)
+            return false;
+        if (g_desc[hand].traj.rows() < 2)
+            return false;
+        int anchor = g_desc[hand].cursor;
+        if (anchor < 0)
+            anchor = 0;
+        if (anchor >= g_desc[hand].traj.rows())
+            anchor = static_cast<int>(g_desc[hand].traj.rows()) - 1;
+        arm = g_desc[hand].arm;
+        q_anchor = g_desc[hand].traj.row(anchor);
+    }
+    double x = 0.0;
+    double y = 0.0;
+    if (arm == nullptr || !tcp_xy_of(*arm, q_anchor, x, y))
+        return false;
+    return descent_apply_hole_xy(hand, x + dx_m, y + dy_m, note);
+}
+
+bool descent_commanded_xy(int hand, double &x_m, double &y_m)
+{
+    x_m = 0.0;
+    y_m = 0.0;
+    if (hand < 0 || hand > 1)
+        return false;
+    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+    if (!g_desc[hand].have_visual_xy)
+        return false;
+    x_m = g_desc[hand].applied_x;
+    y_m = g_desc[hand].applied_y;
+    return std::isfinite(x_m) && std::isfinite(y_m);
+}
+
+bool descent_apply_hole_xy(int hand, double base_x, double base_y, const char *note)
+{
+    if (hand < 0 || hand > 1 || !std::isfinite(base_x) || !std::isfinite(base_y))
+        return false;
+
+    Robot_Arm *arm = nullptr;
+    Eigen::RowVectorXd q_anchor;
+    Eigen::RowVectorXd q_hold_last;
+    int anchor = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+        DescentSlot &slot = g_desc[hand];
+        if (!slot.active || !slot.in_descent || slot.arm == nullptr)
+            return false;
+        if (slot.traj.rows() < 2 || slot.traj.cols() < 7 || slot.base.rows() != slot.traj.rows() ||
+            slot.base.cols() != slot.traj.cols())
+            return false;
+        anchor = slot.cursor;
+        if (anchor < 0)
+            anchor = 0;
+        if (anchor >= slot.traj.rows() - 1)
+            return true;
+        arm = slot.arm;
+        q_anchor = slot.traj.row(anchor);
+        q_hold_last = q_anchor + (slot.base.row(slot.base.rows() - 1) - slot.base.row(anchor));
+    }
+
+    double cx = 0.0;
+    double cy = 0.0;
+    if (arm == nullptr || !tcp_xy_of(*arm, q_anchor, cx, cy))
+        return false;
+    const double dx = base_x - cx;
+    const double dy = base_y - cy;
+
+    Eigen::RowVectorXd dq = Eigen::RowVectorXd::Zero(q_anchor.size());
+    if (std::hypot(dx, dy) >= 0.0005)
+    {
+        if (!tcp_xy_joint_step(*arm, q_anchor, q_hold_last, dx, dy, dq))
+        {
+            std::cout << "[descent] " << descent_hand_name(hand)
+                      << " 这一帧水平增量没算出来，下降按原表继续\n";
+            return false;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
+        DescentSlot &slot = g_desc[hand];
+        if (!slot.active || slot.traj.rows() < 2 || slot.base.rows() != slot.traj.rows() ||
+            slot.traj.cols() != dq.size())
+            return false;
+        anchor = slot.cursor;
+        if (anchor < 0)
+            anchor = 0;
+        if (anchor >= slot.traj.rows() - 1)
+            return true;
+        int from = anchor + 1;
+        if (from < slot.descent_row)
+            from = slot.descent_row;
+        if (from >= slot.traj.rows())
+            return true;
+        const Eigen::RowVectorXd hold_last =
+            slot.traj.row(anchor) +
+            (slot.base.row(slot.base.rows() - 1) - slot.base.row(anchor));
+        const double pending = (slot.traj.row(slot.traj.rows() - 1) - hold_last).cwiseAbs().maxCoeff();
+        if (std::hypot(dx, dy) < 0.0005 && pending < 1e-3)
+            return true;
+        const double fit = rewrite_unsent_xy(slot.traj, slot.base, anchor, from, dq);
+        slot.applied_x = cx + dx * fit;
+        slot.applied_y = cy + dy * fit;
+        slot.have_visual_xy = true;
+        std::cout << std::fixed << std::setprecision(1)
+                  << "[descent] " << descent_hand_name(hand)
+                  << " 水平 " << (std::hypot(dx, dy) * fit * 1000.0)
+                  << " mm，按这一帧重写未下发下降，从第 " << from << " 行起"
+                  << (note != nullptr && note[0] != '\0' ? "  " : "")
+                  << (note != nullptr ? note : "") << '\n';
+    }
+    return true;
+}
+
 ArmLineMoveResult arm_dual_line_then_line_nostop(
     Robot_Arm &arm_r,
     const Eigen::Matrix<double, 1, 6> &mid_r,
@@ -3446,14 +3636,18 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const std::function<void()> &before_move,
     const bool use_prepared,
     const char *log_tag,
-    const bool snap_reach)
+    const bool snap_reach,
+    const bool correct_descent,
+    const int hand_target_class)
 {
     ArmLineMoveResult out;
     Eigen::MatrixXd traj_r, traj_l;
     const bool prepared_r =
-        use_prepared && move_r && take_prepared_line(arm_hand_side(arm_r), traj_r, out.ret_r);
+        use_prepared && !correct_descent && move_r &&
+        take_prepared_line(arm_hand_side(arm_r), traj_r, out.ret_r);
     const bool prepared_l =
-        use_prepared && move_l && take_prepared_line(arm_hand_side(arm_l), traj_l, out.ret_l);
+        use_prepared && !correct_descent && move_l &&
+        take_prepared_line(arm_hand_side(arm_l), traj_l, out.ret_l);
     if (move_r && !prepared_r)
         out.ret_r = plan_line_then_line(
             arm_r, mid_r, goal_r, vel_first_m_s, vel_second_m_s, traj_r, log_tag);
@@ -3470,33 +3664,46 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     }
     if (before_move)
         before_move();
-    if (snap_reach && move_r)
-        hand_shadow_begin(arm_hand_side(arm_r), &arm_r, goal_r, "伸手");
-    if (snap_reach && move_l)
-        hand_shadow_begin(arm_hand_side(arm_l), &arm_l, goal_l, "伸手");
-    auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
+    if (correct_descent)
+        g_descent_fail_hand.store(-1, std::memory_order_release);
+    const auto watch = [&](Robot_Arm &arm, const Eigen::Matrix<double, 1, 6> &goal) {
         const int hand = arm_hand_side(arm);
-        ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+        if (correct_descent)
+            hand_shadow_ensure(
+                hand, &arm, goal, log_tag != nullptr ? log_tag : "下降", hand_target_class);
+    };
+    if (move_r)
+        watch(arm_r, goal_r);
+    if (move_l)
+        watch(arm_l, goal_l);
+    auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj,
+                       const Eigen::Matrix<double, 1, 6> &goal, int &ret) {
+        const int hand = arm_hand_side(arm);
+        if (correct_descent)
+            ret = execute_descent_table(traj, hand, g_planned_descent_row[hand], &arm, goal);
+        else
+            ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
     };
     if (move_r && move_l)
     {
-        std::thread th_r([&]() { run_one(arm_r, traj_r, out.ret_r); });
-        std::thread th_l([&]() { run_one(arm_l, traj_l, out.ret_l); });
+        std::thread th_r([&]() { run_one(arm_r, traj_r, goal_r, out.ret_r); });
+        std::thread th_l([&]() { run_one(arm_l, traj_l, goal_l, out.ret_l); });
         th_r.join();
         th_l.join();
     }
     else if (move_r)
-        run_one(arm_r, traj_r, out.ret_r);
+        run_one(arm_r, traj_r, goal_r, out.ret_r);
     else if (move_l)
-        run_one(arm_l, traj_l, out.ret_l);
-    if (snap_reach && move_r)
+        run_one(arm_l, traj_l, goal_l, out.ret_l);
+    if (correct_descent && move_r)
         hand_shadow_end(arm_hand_side(arm_r));
-    if (snap_reach && move_l)
+    if (correct_descent && move_l)
         hand_shadow_end(arm_hand_side(arm_l));
+    const char *done = correct_descent ? "下降到位" : (snap_reach ? "伸手到位" : "收手终点");
     if (move_r && out.ret_r == 0)
-        record_arm_cartesian_arrival(arm_r, goal_r, snap_reach ? "伸手到位" : "收手终点");
+        record_arm_cartesian_arrival(arm_r, goal_r, done);
     if (move_l && out.ret_l == 0)
-        record_arm_cartesian_arrival(arm_l, goal_l, snap_reach ? "伸手到位" : "收手终点");
+        record_arm_cartesian_arrival(arm_l, goal_l, done);
     return out;
 }
 
@@ -3528,10 +3735,6 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
         return out;
     }
 
-    if (move_r)
-        hand_shadow_begin(arm_hand_side(arm_r), &arm_r, final_r, "抹角伸手");
-    if (move_l)
-        hand_shadow_begin(arm_hand_side(arm_l), &arm_l, final_l, "抹角伸手");
     auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
         const int hand = arm_hand_side(arm);
         ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
@@ -3547,11 +3750,6 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
         run_one(arm_r, traj_r, out.ret_r);
     else if (move_l)
         run_one(arm_l, traj_l, out.ret_l);
-    if (move_r)
-        hand_shadow_end(arm_hand_side(arm_r));
-    if (move_l)
-        hand_shadow_end(arm_hand_side(arm_l));
-
     if (move_r && out.ret_r == 0)
         record_arm_cartesian_arrival(arm_r, final_r, "抹角C");
     if (move_l && out.ret_l == 0)
@@ -3559,132 +3757,6 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
     return out;
 }
 
-int arm_quadratic_bezier_move(
-    Robot_Arm &arm,
-    const Matrix<double, 1, 6> &guide,
-    const Matrix<double, 1, 6> &final_goal,
-    double cart_max_velocity,
-    double orient_finish_ratio)
-{
-    PreparedBezierTrajectory plan;
-    const int rc = prepare_quadratic_bezier(
-        arm, guide, final_goal, cart_max_velocity, orient_finish_ratio, plan);
-    if (rc != 0)
-        return rc;
-    const int exec = execute_prepared_bezier(plan);
-    if (exec == 0)
-        record_arm_cartesian_arrival(arm, final_goal, "Bezier C");
-    return exec;
-}
-
-ArmLineMoveResult arm_dual_quadratic_bezier_move_selective(
-    Robot_Arm &arm_r,
-    const Matrix<double, 1, 6> &guide_r,
-    const Matrix<double, 1, 6> &final_r,
-    const bool move_r,
-    Robot_Arm &arm_l,
-    const Matrix<double, 1, 6> &guide_l,
-    const Matrix<double, 1, 6> &final_l,
-    const bool move_l,
-    const double cart_max_velocity,
-    const double orient_finish_ratio)
-{
-    ArmLineMoveResult out;
-    PreparedBezierTrajectory plan_r, plan_l;
-    if (move_r)
-        out.ret_r = prepare_quadratic_bezier(
-            arm_r, guide_r, final_r, cart_max_velocity, orient_finish_ratio, plan_r);
-    if (move_l)
-        out.ret_l = prepare_quadratic_bezier(
-            arm_l, guide_l, final_l, cart_max_velocity, orient_finish_ratio, plan_l);
-
-    // 双臂必须全部规划成功后才允许任一侧开始运动。
-    if ((move_r && out.ret_r != 0) || (move_l && out.ret_l != 0))
-    {
-        if (move_r && out.ret_r == 0)
-            out.ret_r = -14;
-        if (move_l && out.ret_l == 0)
-            out.ret_l = -14;
-        return out;
-    }
-
-    if (move_r && move_l)
-    {
-        std::thread th_r([&]() { out.ret_r = execute_prepared_bezier(plan_r); });
-        std::thread th_l([&]() { out.ret_l = execute_prepared_bezier(plan_l); });
-        th_r.join();
-        th_l.join();
-        if (out.ret_r == 0)
-            record_arm_cartesian_arrival(arm_r, final_r, "Bezier C");
-        if (out.ret_l == 0)
-            record_arm_cartesian_arrival(arm_l, final_l, "Bezier C");
-        return out;
-    }
-    if (move_r)
-        out.ret_r = execute_prepared_bezier(plan_r);
-    if (move_l)
-        out.ret_l = execute_prepared_bezier(plan_l);
-    if (move_r && out.ret_r == 0)
-        record_arm_cartesian_arrival(arm_r, final_r, "Bezier C");
-    if (move_l && out.ret_l == 0)
-        record_arm_cartesian_arrival(arm_l, final_l, "Bezier C");
-    return out;
-}
-
-int arm_reverse_last_quadratic_bezier(Robot_Arm &arm)
-{
-    const int hand = arm_hand_side(arm);
-    if (hand == 1 && right_arm_motors_locked())
-        return 0;
-    Eigen::MatrixXd reversed;
-    const int load_rc = load_reversed_bezier(arm, reversed);
-    if (load_rc != 0)
-        return load_rc;
-    const int rc = execute_arm_trajectory(reversed, hand, k_arm_traj_dt);
-    if (rc == 0)
-        clear_bezier_cache(hand);
-    return rc;
-}
-
-ArmLineMoveResult arm_dual_reverse_last_quadratic_bezier_selective(
-    Robot_Arm &arm_r,
-    const bool move_r,
-    Robot_Arm &arm_l,
-    const bool move_l)
-{
-    ArmLineMoveResult out;
-    Eigen::MatrixXd reverse_r, reverse_l;
-    if (move_r)
-        out.ret_r = load_reversed_bezier(arm_r, reverse_r);
-    if (move_l)
-        out.ret_l = load_reversed_bezier(arm_l, reverse_l);
-    if ((move_r && out.ret_r != 0) || (move_l && out.ret_l != 0))
-    {
-        if (move_r && out.ret_r == 0)
-            out.ret_r = -14;
-        if (move_l && out.ret_l == 0)
-            out.ret_l = -14;
-        return out;
-    }
-
-    if (move_r && move_l)
-    {
-        std::thread th_r([&]() { out.ret_r = execute_arm_trajectory(reverse_r, 1, k_arm_traj_dt); });
-        std::thread th_l([&]() { out.ret_l = execute_arm_trajectory(reverse_l, 0, k_arm_traj_dt); });
-        th_r.join();
-        th_l.join();
-    }
-    else if (move_r)
-        out.ret_r = execute_arm_trajectory(reverse_r, 1, k_arm_traj_dt);
-    else if (move_l)
-        out.ret_l = execute_arm_trajectory(reverse_l, 0, k_arm_traj_dt);
-
-    if (move_r && out.ret_r == 0)
-        clear_bezier_cache(1);
-    if (move_l && out.ret_l == 0)
-        clear_bezier_cache(0);
-    return out;
-}
 
 int arm_transfer_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
 {
@@ -4159,6 +4231,7 @@ Matrix<double, 1, 6> arm_base_visual_from_joints(
     const Eigen::Ref<const Eigen::RowVectorXd> &q_motor,
     Matrix<double, 1, 6> &falan_visualPos)
 {
+    std::lock_guard<std::mutex> kin(g_arm_kin_mu[arm_hand_side(arm) == 1 ? 1 : 0]);
     return compose_base_visual(arm, arm.Forward_Kinematics(q_motor), falan_visualPos);
 }
 
@@ -4166,7 +4239,41 @@ Matrix<double, 1, 6> arm_tcp_from_joints(
     Robot_Arm &arm,
     const Eigen::Ref<const Eigen::RowVectorXd> &q_motor)
 {
+    std::lock_guard<std::mutex> kin(g_arm_kin_mu[arm_hand_side(arm) == 1 ? 1 : 0]);
     return T2PosEulerAngles(arm.Forward_Kinematics(q_motor));
+}
+
+bool arm_camera_axes_in_base(
+    Robot_Arm &arm,
+    const Eigen::Ref<const Eigen::RowVectorXd> &q_motor,
+    const std::array<double, 16> &t_flange_cam,
+    Eigen::Vector3d &origin_m,
+    Eigen::Vector3d &axis_x,
+    Eigen::Vector3d &axis_y,
+    Eigen::Vector3d &axis_z)
+{
+    if (q_motor.size() < 7)
+        return false;
+    std::lock_guard<std::mutex> kin(g_arm_kin_mu[arm_hand_side(arm) == 1 ? 1 : 0]);
+    const Eigen::Matrix4d T_tcp = arm.Forward_Kinematics(q_motor);
+    const Eigen::Matrix4d T_flange = T_tcp * TR(arm_flange_tool(arm)).inverse();
+    Eigen::Matrix4d T_fc = Eigen::Matrix4d::Identity();
+    for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c)
+            T_fc(r, c) = t_flange_cam[static_cast<std::size_t>(r * 4 + c)];
+    const Eigen::Matrix4d T_cam = T_flange * T_fc;
+    if (!T_cam.allFinite())
+        return false;
+    origin_m = T_cam.block<3, 1>(0, 3);
+    axis_x = T_cam.block<3, 1>(0, 0);
+    axis_y = T_cam.block<3, 1>(0, 1);
+    axis_z = T_cam.block<3, 1>(0, 2);
+    if (axis_x.norm() < 1e-9 || axis_y.norm() < 1e-9 || axis_z.norm() < 1e-9)
+        return false;
+    axis_x.normalize();
+    axis_y.normalize();
+    axis_z.normalize();
+    return true;
 }
 
 int arm_wave_right(Robot_Arm &arm_r, Robot_Arm &arm_l)

@@ -404,7 +404,21 @@ GraspToStandbyResult run_grasp_to_standby(
     bool adaptive_approach_rpy = false,
     bool holding_r = false,
     bool holding_l = false,
-    const std::function<void(bool did_r, bool did_l)> &on_place_retract = {});
+    const std::function<void(bool did_r, bool did_l)> &on_place_retract = {},
+    bool hover_track = false);
+
+/**
+ * 头相机已经分好孔。直线到工件上方后停住，不下降、不合爪。
+ * 手相机看见工件就把该侧 XY 改到检测点，高度和姿态保持。锁定关闭。
+ * 最多 180 秒，abort 立刻停在当前高度。返回 0 走完，-4 中止，其它为失败。
+ */
+int run_hand_hover_track(
+    Robot_Arm &arm_r,
+    Robot_Arm &arm_l,
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    HeadAssignState &st,
+    const std::function<bool()> &should_abort = nullptr);
 
 void lift_grasped_after_pick(
     Robot_Arm &arm_r,

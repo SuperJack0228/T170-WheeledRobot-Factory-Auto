@@ -28,7 +28,14 @@ void ModelRegistry::register_defaults()
         "detect",
         "models/best1015.pt",
         2,
-        "传送带 ROI 有无+数量；不参与定位",
+        "传送带 ROI 有无+数量；不参与定位。与 pose_params segmentation.model 相同",
+    });
+    upsert(ModelEntry{
+        "hand_parts",
+        "detect",
+        "models/best1027.pt",
+        2,
+        "左右手下降。与 pose_params segmentation.hand_model 相同，类别号与头相机一致",
     });
 }
 
@@ -115,8 +122,13 @@ DlResult BridgeDlEngine::run_full_frame(
         if (const ModelEntry *e = registry_.get(model_key))
             algo = e->default_algorithm;
     }
+    SegEngineId engine_id = opts.engine_id;
+    if (model_key == "hand_parts")
+        engine_id = SegEngineId::Hand;
+    else if (model_key == "tray_parts" || model_key == "belt_presence")
+        engine_id = SegEngineId::Head;
     const PoseRunResult raw = bridge_.run_yolo(
-        frame, algo, opts.show_visualization, opts.vis_slot, -1, opts.engine_id);
+        frame, algo, opts.show_visualization, opts.vis_slot, -1, engine_id);
     return dl_from_pose_run(raw, model_key);
 }
 

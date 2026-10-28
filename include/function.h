@@ -4,6 +4,7 @@
 #include "head.h"
 #include "Ti5_Arm.h"
 
+#include <array>
 #include <functional>
 #include <string>
 #include <vector>
@@ -190,7 +191,8 @@ void arm_start_line_then_line_plan(
 int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, double max_deg_s);
 
 /** 两段直线一次下发：第一段去掉末尾减速到 0，第二段去掉开头从 0 加速，中间不停车。
- *  若该臂已有 arm_start_line_then_line_plan 且关节仍在起点，直接下发不再规划。 */
+ *  若该臂已有 arm_start_line_then_line_plan 且关节仍在起点，直接下发不再规划。
+ *  correct_descent 为真时，第二段下降中手相机只改尚未下发的行。逆解失败则停住。 */
 ArmLineMoveResult arm_dual_line_then_line_nostop(
     Robot_Arm &arm_r,
     const Eigen::Matrix<double, 1, 6> &mid_r,
@@ -205,7 +207,41 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const std::function<void()> &before_move = {},
     bool use_prepared = false,
     const char *log_tag = "收手",
-    bool snap_reach = false);
+    bool snap_reach = false,
+    bool correct_descent = false,
+    int hand_target_class = -1);
+
+/** 下降段正在下发时为真。手相机只在这时锁定孔并给出实测位置。 */
+bool descent_player_accepting(int hand);
+
+/** 竖直下降进度，0 是刚进入下降，1 是计划降到终点。还没进入下降段时为负。 */
+double descent_vertical_progress(int hand);
+
+/** 这一帧框中心离夹爪像素的距离。小于 0 表示这一帧没有锁定。 */
+void descent_note_align_px(int hand, double px);
+
+/** 旧的「视觉点再加头相机偏置」。下降修正已改为直接下发手相机基座 XY，不再读取这里。 */
+void descent_set_visual_bias(int hand, double x_m, double y_m);
+void descent_visual_bias(int hand, double &x_m, double &y_m);
+
+/** 把还没下发的下降改到这个基座 XY。相对正在下发的那一行重写，不叠加旧修正。 */
+bool descent_apply_hole_xy(int hand, double base_x, double base_y, const char *note);
+
+/** 这次下降已经按图像改过水平时，返回最后下发的基座 XY。合爪到位按这个点核对，不按头相机原点。 */
+bool descent_commanded_xy(int hand, double &x_m, double &y_m);
+
+/** 在拍照时那一行的 XY 上加一步，得到绝对目标后再重写未下发段。 */
+bool descent_nudge_xy(int hand, double dx_m, double dy_m, const char *note);
+
+/** 手相机在基座系里的原点和三个轴。t_flange_cam 是相机到法兰，平移为米。 */
+bool arm_camera_axes_in_base(
+    Robot_Arm &arm,
+    const Eigen::Ref<const Eigen::RowVectorXd> &q_motor,
+    const std::array<double, 16> &t_flange_cam,
+    Eigen::Vector3d &origin_m,
+    Eigen::Vector3d &axis_x,
+    Eigen::Vector3d &axis_y,
+    Eigen::Vector3d &axis_z);
 
 ArmLineMoveResult arm_dual_rounded_corner_move_selective(
     Robot_Arm &arm_r,
@@ -217,40 +253,6 @@ ArmLineMoveResult arm_dual_rounded_corner_move_selective(
     const Eigen::Matrix<double, 1, 6> &final_l,
     bool move_l,
     double cruise_mps);
-
-/** 二次 Bezier 抓取轨迹。
- *  A=当前实测 TCP，B=guide（直线流程的物体上方点，只拉弯，不经过、不停），C=final_goal。
- *  每 2–4 mm 一个 IK 关键点，关键点之间关节空间插值到 5 ms。
- *  起点用当前关节；最后一个关键点严格求解 C。全部关键点成功后才下发。
- *  路径前 orient_finish_ratio 从 A 的姿态转到 C，之后保持 C。 */
-int arm_quadratic_bezier_move(
-    Robot_Arm &arm,
-    const Eigen::Matrix<double, 1, 6> &guide,
-    const Eigen::Matrix<double, 1, 6> &final_goal,
-    double cart_max_velocity,
-    double orient_finish_ratio);
-
-ArmLineMoveResult arm_dual_quadratic_bezier_move_selective(
-    Robot_Arm &arm_r,
-    const Eigen::Matrix<double, 1, 6> &guide_r,
-    const Eigen::Matrix<double, 1, 6> &final_r,
-    bool move_r,
-    Robot_Arm &arm_l,
-    const Eigen::Matrix<double, 1, 6> &guide_l,
-    const Eigen::Matrix<double, 1, 6> &final_l,
-    bool move_l,
-    double cart_max_velocity,
-    double orient_finish_ratio);
-
-/** 抓取成功后倒放最近一次 Bezier 关节轨迹，从 C 沿原安全路径返回 A。
- *  返回 -20 表示该侧没有可用的已执行 Bezier 轨迹。 */
-int arm_reverse_last_quadratic_bezier(Robot_Arm &arm);
-
-ArmLineMoveResult arm_dual_reverse_last_quadratic_bezier_selective(
-    Robot_Arm &arm_r,
-    bool move_r,
-    Robot_Arm &arm_l,
-    bool move_l);
 
 /** 与 arm_line_move 相同（笛卡尔直线到目标）。 */
 int arm_transfer_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);
@@ -305,7 +307,7 @@ ArmLineMoveResult arm_dual_line_move(
     bool snap_reach = false);
 
 /** move_r/move_l 为 false 的一侧不移动；可只动单臂或双臂。
- *  snap_reach 为真时，到位日志记「伸手到位」。手相机影子观测在终端和 logs/hand_shadow.csv。 */
+ *  snap_reach 为真时，到位日志记「伸手到位」。 */
 ArmLineMoveResult arm_dual_line_move_selective(
     Robot_Arm &arm_r,
     Matrix<double, 1, 6> &pos_r,
@@ -319,6 +321,7 @@ ArmLineMoveResult arm_dual_line_move_selective(
 /**
  * 到达悬停后的连续跟踪。每 5 ms 朝 update_goal 给出的最新 XY 走一步，
  * 限速、限加速度，Z 和姿态保持进入时的值。update_goal 只改坐标，不写电机。
+ * duration_s > 0 到时结束；duration_s == 0 一直到 abort。
  * 返回 0 走完，-4 中止，-2 CAN 故障。
  */
 int arm_dual_cartesian_track(
@@ -335,6 +338,9 @@ int arm_dual_cartesian_track(
 
 /** 记录最近一次 set_motor_position 下发（供 wait_arms_motors_stopped 编码器校验） */
 void save_arm_last_commanded_position(int hand, const int motor_cmd[7]);
+
+/** 把手上最近一次下发的关节角交给手相机跟随，避免跟随线程再去读编码器。 */
+void arm_note_last_commanded(int hand);
 
 /** hand: 1=右手 0=左手；7 轴中至少 6 轴 speed==0 视为停稳 */
 bool arm_motors_all_stopped(int hand, int speed_threshold = 0);

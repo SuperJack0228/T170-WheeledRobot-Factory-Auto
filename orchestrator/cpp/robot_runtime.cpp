@@ -3,6 +3,7 @@
 #include "dispatch_board.h"
 #include "dispatch_timing.h"
 #include "function.h"
+#include "hand_shadow.h"
 #include "head_cam2robot.h"
 #include "head_control.h"
 #include "move_box_config.h"
@@ -2119,16 +2120,20 @@ int go_belt_station(
         }
         Eigen::Matrix<double, 1, 6> goal = is_right ? goal_r : goal_l;
         const double place_mps = c.place_approach_vel_m_s;
+        double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
+        if (!(kDescentMps > 0.02))
+            kDescentMps = 0.08;
         std::cout << "[orch] belt " << (is_right ? "右手" : "左手")
                   << " " << std::fixed << std::setprecision(2) << place_mps
-                  << "m/s 先到上方再放下\n";
+                  << "m/s 先到上方，再竖直 " << kDescentMps << " m/s 放下\n";
         Eigen::Matrix<double, 1, 6> hover = goal;
         if (c.place_hover_above_m > 1e-9)
             hover(2) += c.place_hover_above_m;
-        const ArmLineMoveResult approach = arm_dual_rounded_corner_move_selective(
+        descent_set_visual_bias(is_right ? 1 : 0, 0.0, 0.0);
+        const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            place_mps);
+            place_mps, kDescentMps, {}, false, "belt放置", false, true, 1);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
@@ -2614,14 +2619,23 @@ static int go_belt_grasp_attempt(
         const double hover_z = c.grasp_hover_above_m > 1e-9 ? c.grasp_hover_above_m : 0.08;
         hover(2) += hover_z;
         const double reach_mps = c.grasp_approach_vel_m_s;
+        double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
+        if (!(kDescentMps > 0.02))
+            kDescentMps = 0.08;
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
                   << "m/s 先到正上方 " << (hover_z * 100.0)
-                  << " cm，再竖直下降，下降时不再横移\n";
+                  << " cm，再竖直 " << kDescentMps
+                  << " m/s 下降。";
+        if (g_move_cfg.cameras.hand_descent_correct)
+            std::cout << "下降段只改还没发出的行\n";
+        else
+            std::cout << "手相机修正已关，照头相机目标走\n";
+        descent_set_visual_bias(is_right ? 1 : 0, 0.0, 0.0);
         const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            reach_mps, reach_mps, {}, false, "belt_grasp伸手", true);
+            reach_mps, kDescentMps, {}, false, "belt_grasp伸手", false, true, 0);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
@@ -3135,8 +3149,24 @@ namespace
 {
 
 int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy = false,
-                            bool depart_after_grasp = true, bool clear_tray_when_stay = true)
+                            bool depart_after_grasp = true, bool clear_tray_when_stay = true,
+                            bool save_descent_raw = false, bool hover_track = false)
 {
+    struct DescentRawGuard
+    {
+        bool on = false;
+        explicit DescentRawGuard(bool enable) : on(enable)
+        {
+            if (on)
+                hand_shadow_set_descent_raw(true);
+        }
+        ~DescentRawGuard()
+        {
+            if (on)
+                hand_shadow_set_descent_raw(false);
+        }
+    } raw_guard{save_descent_raw};
+
     g_load_parts_seen = -1;
     g_grasp_departed = false;
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
@@ -3281,6 +3311,40 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
     hardware_abort_sleep_ms(500);
     if (should_abort())
         return -4;
+
+    if (hover_track)
+    {
+        std::cout << "[跟随] 料盘准备和认码与抓取相同。分好之后只到工件上方，"
+                     "然后手相机跟踪 XY\n";
+        move_box::GraspToStandbyResult r = move_box::run_grasp_to_standby(
+            *g_hw->g,
+            *g_hw->arm_r,
+            *g_hw->arm_l,
+            *g_hw->waist,
+            *g_hw->layer3,
+            g_hw->pipeline->cameras(),
+            g_hw->pipeline->bridge(),
+            cam2robot,
+            err,
+            should_abort,
+            engine_id,
+            false,
+            false,
+            false,
+            {},
+            true);
+        g_hw->last_grasp_status = static_cast<int>(r.status);
+        g_hw->last_grasped_r = false;
+        g_hw->last_grasped_l = false;
+        g_hw->last_grasp_count = 0;
+        if (r.status == move_box::GraspToStandbyStatus::Aborted)
+            return -4;
+        if (r.status == move_box::GraspToStandbyStatus::Ok)
+            return 0;
+        if (r.status == move_box::GraspToStandbyStatus::NoTarget)
+            return 1;
+        return -3;
+    }
 
     g_load_parts_seen = -1;
 
@@ -3493,6 +3557,13 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
                   << static_cast<int>(r.status) << " 连续失败=" << none_streak
                   << " 持件 右=" << (holding_r ? 1 : 0)
                   << " 左=" << (holding_l ? 1 : 0) << "\n";
+        std::cout << "[grasp] 手还在外面，先收回旁边，收回之后才允许下一次头相机拍照\n";
+        if (!move_box::move_arms_to_standby(*g_hw->arm_r, *g_hw->arm_l))
+        {
+            std::cerr << "[grasp] 收回失败，不再拍照\n";
+            last_rc = should_abort() ? -4 : -5;
+            break;
+        }
         if (none_streak >= kMaxNoneStreak)
         {
             std::cerr << "[grasp] 连续 " << none_streak << " 轮未夹到，退出循环\n";
@@ -3554,6 +3625,16 @@ int vision_grasp_existing_pipeline(bool depart_after_grasp)
 int vision_grasp_once()
 {
     return vision_grasp_with_engine(SegEngineId::Default, false, false, false);
+}
+
+int vision_grasp_image()
+{
+    return vision_grasp_with_engine(SegEngineId::Default, false, false, true, true);
+}
+
+int vision_grasp_track()
+{
+    return vision_grasp_with_engine(SegEngineId::Default, false, false, false, false, true);
 }
 
 int tray_servo_jitter_test()

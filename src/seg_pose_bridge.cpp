@@ -619,6 +619,7 @@ struct SegPoseBridge::Impl
 {
     std::unique_ptr<py::scoped_interpreter> interpreter;
     py::object engine;
+    py::object hand_engine;
     py::object algorithm_input_cls;
     py::object engine_cls;
     py::object load_pose_params;
@@ -661,7 +662,8 @@ bool SegPoseBridge::init(const std::string &pose_config_path, const std::string 
         impl_->load_pose_params = config_mod.attr("load_pose_params");
         impl_->engine_cls = engine_mod.attr("CirclePoseEngine");
         py::object params = impl_->load_pose_params(pose_config_path);
-        impl_->engine = impl_->engine_cls(params);
+        impl_->engine = engine_mod.attr("open_engine")(params, py::none());
+        impl_->hand_engine = engine_mod.attr("open_engine")(params, params.attr("hand_model_path"));
         impl_->aruco_detect_fn = py::none();
         impl_->aruco_ready = false;
         impl_->tray_detect_fn = py::none();
@@ -672,13 +674,17 @@ bool SegPoseBridge::init(const std::string &pose_config_path, const std::string 
         impl_->algorithm_input_cls = types_mod.attr("AlgorithmInput");
 
         std::cout << "CirclePoseEngine 已加载 (feeding_cylindrical_parts_alg), 配置: "
-                  << pose_config_path << std::endl;
+                  << pose_config_path << "\n"
+                  << "  头相机/料盘/传送带 " << std::string(py::str(impl_->engine.attr("model_path")))
+                  << "\n  手相机 " << std::string(py::str(impl_->hand_engine.attr("model_path")))
+                  << std::endl;
         return true;
     }
     catch (const std::exception &e)
     {
         err = std::string("SegPoseBridge 初始化失败: ") + e.what();
         impl_->engine = py::none();
+        impl_->hand_engine = py::none();
         impl_->aruco_detect_fn = py::none();
         impl_->aruco_ready = false;
         impl_->tray_detect_fn = py::none();
@@ -897,7 +903,8 @@ bool SegPoseBridge::warmup_yolo(int height, int width, std::string &err)
     }
     if (impl_->yolo_warmed.load())
         return true;
-    if (!impl_->engine || impl_->engine.is_none())
+    if (!impl_->engine || impl_->engine.is_none() || !impl_->hand_engine ||
+        impl_->hand_engine.is_none())
     {
         err = "YOLO 引擎未加载";
         return false;
@@ -911,10 +918,13 @@ bool SegPoseBridge::warmup_yolo(int height, int width, std::string &err)
         py::gil_scoped_acquire gil;
         if (impl_->yolo_warmed.load())
             return true;
-        const std::string path = py::str(impl_->engine.attr("warmup")(height, width));
+        const std::string head_path = py::str(impl_->engine.attr("warmup")(height, width));
+        const std::string hand_path = py::str(impl_->hand_engine.attr("warmup")(height, width));
         impl_->yolo_warmed.store(true);
         std::cout << "[dl] YOLO 预热完成 " << width << "x" << height
-                  << "，权重已驻留，后续拍照不再加载: " << path << "\n";
+                  << "，两套权重已驻留\n"
+                  << "  头相机 " << head_path << "\n"
+                  << "  手相机 " << hand_path << "\n";
         return true;
     }
     catch (const std::exception &e)
@@ -1445,13 +1455,17 @@ PoseRunResult SegPoseBridge::run(
     int vis_panel,
     SegEngineId engine_id)
 {
+    // 两套权重共用这一把锁。头相机和手相机不会同时跑推理，也不会再套第二把锁。
     static std::mutex yolo_mu;
     std::lock_guard<std::mutex> yolo_lock(yolo_mu);
     py::gil_scoped_acquire gil;
     PoseRunResult result;
-    (void)engine_id;
-    py::object engine = impl_->engine;
-    const char *missing = "引擎未初始化";
+    const bool hand_slot =
+        vis_slot == CameraSlot::LeftHand || vis_slot == CameraSlot::RightHand;
+    const bool use_hand = engine_id == SegEngineId::Hand ||
+                          (engine_id == SegEngineId::Default && hand_slot);
+    py::object engine = use_hand ? impl_->hand_engine : impl_->engine;
+    const char *missing = use_hand ? "手相机引擎未初始化" : "引擎未初始化";
     if (!engine || engine.is_none())
     {
         result.message = missing;
@@ -1465,14 +1479,14 @@ PoseRunResult SegPoseBridge::run(
 
     try
     {
-        // 1=mask 重心，2=检测框中心；均需深度。detect 权重在 Python 侧强制走 2。
-        const bool need_depth = (algorithm_id == 1 || algorithm_id == 2);
+        // 1=mask 重心，必须有深度。2=检测框中心，没有深度时仍返回框。
+        const bool need_depth = (algorithm_id == 1);
         py::object depth_arg;
         if (need_depth)
         {
             if (frame.depth_m.empty())
             {
-                result.message = "算法 1/2 需要深度图";
+                result.message = "算法 1 需要深度图";
                 return result;
             }
             depth_arg = depth_vector_to_numpy(frame.height, frame.width, frame.depth_m);

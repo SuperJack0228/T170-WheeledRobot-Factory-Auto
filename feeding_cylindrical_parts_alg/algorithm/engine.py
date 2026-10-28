@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import copy
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,19 @@ from algorithm.types import (
 )
 
 DEFAULT_RADIUS_M = 0.025
+
+
+def open_engine(params: PoseParams, model_path: str | Path | None = None) -> "CirclePoseEngine":
+    """用同一套类别和阈值再开一个引擎。model_path 为空时用 params 里的头相机权重。"""
+    if model_path is None or str(model_path).strip() == "":
+        return CirclePoseEngine(params)
+    from paths import resolve_model_path
+
+    cloned = copy(params)
+    seg = copy(params.segmentation)
+    seg.model_path = resolve_model_path(model_path)
+    cloned.segmentation = seg
+    return CirclePoseEngine(cloned)
 
 
 class CirclePoseEngine:
@@ -64,6 +78,10 @@ class CirclePoseEngine:
             retina_masks=p.segmentation.retina_masks,
         )
         self._model_path = str(model_file)
+
+    @property
+    def model_path(self) -> str:
+        return self._model_path
 
     def warmup(self, height: int = 720, width: int = 1280) -> str:
         """空图推理一次。模型对象保持在 self._segmenter，拍照时不再 YOLO()。"""

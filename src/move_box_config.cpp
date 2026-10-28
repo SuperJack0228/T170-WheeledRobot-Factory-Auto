@@ -336,7 +336,6 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(hg, "left_rx_deg", cfg.head_grasp.left_rx_deg);
         read_value(hg, "left_ry_deg", cfg.head_grasp.left_ry_deg);
         read_value(hg, "left_rz_deg", cfg.head_grasp.left_rz_deg);
-        read_value(hg, "use_bezier_grasp", cfg.head_grasp.use_bezier_grasp);
         read_value(hg, "approach_nostop", cfg.head_grasp.approach_nostop);
         for (int g = 0; g < 3; ++g)
         {
@@ -489,6 +488,7 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
             }
             read_value(t2, "nearest_row_z_offset_m", cfg.tray2_place.nearest_row_z_offset_m);
             read_value(t2, "far_row_forward_m", cfg.tray2_place.far_row_forward_m);
+            read_value(t2, "use_row_offset", cfg.tray2_place.use_row_offset);
             if (t2["row_offset"])
             {
                 read_row_xyz_list(t2["row_offset"]["left"], cfg.tray2_place.left_row_offset);
@@ -510,6 +510,7 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(hg, "right_goal_y_offset", cfg.head_grasp.right_goal_y_offset);
         read_value(hg, "right_grasp_z_offset_m", cfg.head_grasp.right_grasp_z_offset_m);
         read_value(hg, "nearest_row_grasp_z_offset_m", cfg.head_grasp.nearest_row_grasp_z_offset_m);
+        read_value(hg, "use_row_offset", cfg.head_grasp.use_row_offset);
         if (hg["row_offset"])
         {
             read_row_xyz_list(hg["row_offset"]["left"], cfg.head_grasp.left_row_offset);
@@ -519,10 +520,6 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(hg, "hand_match_xy_max_m", cfg.head_grasp.hand_match_xy_max_m);
         read_value(hg, "hand_xy_refine_max_m", cfg.head_grasp.hand_xy_refine_max_m);
         read_value(hg, "lift_after_grasp_z", cfg.head_grasp.lift_after_grasp_z);
-        read_value(hg, "bezier_guide_height_m", cfg.head_grasp.bezier_guide_height_m);
-        read_value(hg, "bezier_ab_gap_m", cfg.head_grasp.bezier_ab_gap_m);
-        read_value(hg, "bezier_vel_m_s", cfg.head_grasp.bezier_vel_m_s);
-        read_value(hg, "bezier_orient_finish_ratio", cfg.head_grasp.bezier_orient_finish_ratio);
         read_value(hg, "bezier_endpoint_xyz_tol_m", cfg.head_grasp.bezier_endpoint_xyz_tol_m);
         read_value(hg, "bezier_endpoint_rpy_tol_deg", cfg.head_grasp.bezier_endpoint_rpy_tol_deg);
         read_value(hg, "approach_vel_m_s", cfg.head_grasp.approach_vel_m_s);
@@ -621,7 +618,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(root["cameras"], "head_fps", cfg.cameras.head_fps);
         read_value(root["cameras"], "hand_fps", cfg.cameras.hand_fps);
         read_value(root["cameras"], "hand_live_preview", cfg.cameras.hand_live_preview);
-        read_value(root["cameras"], "hand_shadow", cfg.cameras.hand_shadow);
+        read_value(root["cameras"], "hand_descent_correct", cfg.cameras.hand_descent_correct);
+        read_value(root["cameras"], "left_gripper_u", cfg.cameras.left_gripper_u);
+        read_value(root["cameras"], "left_gripper_v", cfg.cameras.left_gripper_v);
+        read_value(root["cameras"], "right_gripper_u", cfg.cameras.right_gripper_u);
+        read_value(root["cameras"], "right_gripper_v", cfg.cameras.right_gripper_v);
 
         int algorithm = cfg.vision_detect.head_grasp;
         read_value(root["vision_detect"], "head_grasp", algorithm);
@@ -970,8 +971,9 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << "m z_offset=" << cfg.head_grasp.grasp_z_offset_m
               << "m nearest_row_z=" << cfg.head_grasp.nearest_row_grasp_z_offset_m
               << "m use_hand_camera=" << (cfg.head_grasp.use_hand_camera ? "on" : "off")
-              << " approach_nostop=" << (cfg.head_grasp.approach_nostop ? "on" : "off")
-              << " use_bezier=" << (cfg.head_grasp.use_bezier_grasp ? "on" : "off") << "\n"
+              << " grasp_row_offset=" << (cfg.head_grasp.use_row_offset ? "on" : "off")
+              << " place_row_offset=" << (cfg.tray2_place.use_row_offset ? "on" : "off")
+              << "\n"
               << "[cfg] grasp offset left xyz=(" << cfg.head_grasp.goal_x_offset
               << "," << cfg.head_grasp.goal_y_offset << ","
               << cfg.head_grasp.grasp_z_offset_m << ") right xyz=("
@@ -1041,9 +1043,7 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << cfg.tray2_place.right_goal_y_offset << ","
               << cfg.tray2_place.right_grasp_z_offset_m
               << ") nearest_row_z=" << cfg.tray2_place.nearest_row_z_offset_m << "\n"
-              << "[cfg] bezier vel_max=" << cfg.head_grasp.bezier_vel_m_s
-              << "m/s orient_done=" << cfg.head_grasp.bezier_orient_finish_ratio
-              << " endpoint_tol=" << cfg.head_grasp.bezier_endpoint_xyz_tol_m << "m/"
+              << "[cfg] endpoint_tol=" << cfg.head_grasp.bezier_endpoint_xyz_tol_m << "m/"
               << cfg.head_grasp.bezier_endpoint_rpy_tol_deg << "deg\n"
               << "[cfg] arm vel approach=" << cfg.head_grasp.approach_vel_m_s
               << " descend=" << cfg.head_grasp.descend_vel_m_s
@@ -1053,5 +1053,10 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << "[cfg] cameras " << cfg.cameras.width << 'x' << cfg.cameras.height
               << " head=" << cfg.cameras.head_fps << "fps hand=" << cfg.cameras.hand_fps
               << "fps hand_live_preview=" << (cfg.cameras.hand_live_preview ? "on" : "off")
-              << " hand_shadow=" << (cfg.cameras.hand_shadow ? "on" : "off") << "\n";
+              << " hand_descent_correct="
+              << (cfg.cameras.hand_descent_correct ? "on" : "off")
+              << " gripper_px L=(" << cfg.cameras.left_gripper_u << ","
+              << cfg.cameras.left_gripper_v << ") R=("
+              << cfg.cameras.right_gripper_u << ","
+              << cfg.cameras.right_gripper_v << ")\n";
 }

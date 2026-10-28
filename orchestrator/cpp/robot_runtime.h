@@ -128,6 +128,10 @@ int vision_tray2_center();
 int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
 /** 料盘一抓一次：去料盘一，双手都持件（或料盘没件）就停，夹爪保持合上，底盘不走。 */
 int vision_grasp_once();
+/** 与 depart_after_grasp=false 的抓取相同，另外在竖直下降段保存手相机原图。 */
+int vision_grasp_image();
+/** 料盘准备、认码、分配与抓取相同。手臂只到工件上方，悬停跟踪手相机 XY，不下降。 */
+int vision_grasp_track();
 /** 人已经在料盘旁。先到抓取准备姿态 ready2，再拍空孔，第二近排悬停，100 ms 假坐标跟踪 3 秒，然后抬回。不动底盘。 */
 int tray_servo_jitter_test();
 /** 播放 AUDIO/AUDIO/<name>.mp3，播完再返回。失败时 err 写原因。

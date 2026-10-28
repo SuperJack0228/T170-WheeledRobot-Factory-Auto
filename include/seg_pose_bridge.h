@@ -54,7 +54,12 @@ using PoseDetectionRecords = std::vector<PoseDetectionRecord>;
 
 enum class SegEngineId
 {
+    /** 按相机槽：手相机用手部权重，头相机用头相机权重。 */
     Default = 0,
+    /** 料盘、传送带。对应 model_key tray_parts / belt_presence。 */
+    Head = 1,
+    /** 左右手相机。对应 model_key hand_parts。 */
+    Hand = 2,
 };
 
 /** 单码 ArUco（online_pose）：相机系 4×4，t 单位 m */
@@ -271,7 +276,7 @@ private:
 
 void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
 
-/** best1015.pt：0 立件，1 空孔，2 倒件。没有类别 3。 */
+/** 头相机 best1015.pt 与手相机 best1027.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
 constexpr int kGraspDetectClassId = 0; // workpiece，立着的工件
 constexpr int kEmptyHoleClassId = 1;   // feeding_hole / 空孔，料盘2放置用
 constexpr int kFallenClassId = 2;      // fallen / 倒件

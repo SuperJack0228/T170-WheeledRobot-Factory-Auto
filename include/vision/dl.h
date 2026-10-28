@@ -2,7 +2,8 @@
 
 /**
  * M2 DL：模型注册表 + 统一 DlResult（有无/数量/框）。
- * 实现经 SegPoseBridge::run_yolo。传送带用 model_key=belt_presence，整图检测框。
+ * 实现经 SegPoseBridge::run_yolo。
+ * tray_parts / belt_presence 用头相机权重，hand_parts 用手相机权重。
  */
 #include <string>
 #include <unordered_map>
@@ -61,7 +62,7 @@ class ModelRegistry
 public:
     void clear();
     void upsert(ModelEntry entry);
-    /** 内置：tray_parts / belt_presence（权重路径相对 feeding 包）。 */
+    /** 内置：tray_parts / belt_presence / hand_parts。路径须与 pose_params.yaml 一致。 */
     void register_defaults();
     bool has(const std::string &key) const;
     const ModelEntry *get(const std::string &key) const;

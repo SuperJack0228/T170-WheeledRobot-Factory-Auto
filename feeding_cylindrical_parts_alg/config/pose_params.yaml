@@ -22,7 +22,9 @@ algorithm:
 # ---------- YOLO 模型 ----------
 segmentation:
   # detect 权重：只出框+类别，不再造伪 mask。分割权重仍可走 0/1。
+  # model 给头相机、料盘、传送带。hand_model 给左右手相机。类别号相同，不能混用。
   model: models/best1015.pt
+  hand_model: models/best1027.pt
   conf: 0.25
   iou: 0.5  # 过滤大于该值的框
   imgsz: 1280        # 推理长边；1280×720 勿用默认 640，0=自动 max(H,W)

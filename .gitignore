@@ -58,6 +58,7 @@ config.txt
 # --- debug images / captures (large, machine-local) ---
 picture_debug/
 **/picture_debug/
+hand_descent_raw/
 左右手夹取/
 *.jpg
 *.jpeg

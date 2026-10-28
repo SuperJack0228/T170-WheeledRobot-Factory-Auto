@@ -14,7 +14,7 @@ enum class CameraSlot
     LeftHand,
 };
 
-/** 单帧：1280×720 BGR + 对齐深度 (m) + 内参/畸变 */
+/** 单帧：彩色 BGR + 内参。头相机另有对齐深度 (m)；手相机 depth 为空。 */
 struct CameraFrameData
 {
     int width = 0;

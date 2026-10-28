@@ -63,6 +63,7 @@ class PoseParams:
     config_path: Path
     default_algorithm_id: int
     segmentation: SegmentationParams
+    hand_model_path: Path
     defaults_radius_m: float
     defaults_enabled: bool
     defaults_algorithm_id: int
@@ -200,6 +201,13 @@ def load_pose_params(config_path: str | Path | None = None) -> PoseParams:
 
     model_raw = seg_node.get("model", "models/best1015.pt")
     model_path = resolve_model_path(model_raw)
+    hand_raw = seg_node.get("hand_model", "models/best1027.pt")
+    hand_model_path = resolve_model_path(hand_raw)
+    if not hand_model_path.is_file():
+        raise FileNotFoundError(
+            f"手相机 YOLO 不存在: {hand_model_path}\n"
+            f"请检查 segmentation.hand_model 或放置到 models/best1027.pt"
+        )
 
     class_ids = seg_node.get("class_ids")
     if class_ids is not None:
@@ -264,6 +272,7 @@ def load_pose_params(config_path: str | Path | None = None) -> PoseParams:
         config_path=path,
         default_algorithm_id=default_algorithm_id,
         segmentation=segmentation,
+        hand_model_path=hand_model_path,
         defaults_radius_m=defaults_radius_m,
         defaults_enabled=defaults_enabled,
         defaults_algorithm_id=defaults_algorithm_id,

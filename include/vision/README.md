@@ -4,7 +4,7 @@
 |--------|------|------|
 | `types.h` | — | `Frame` = `CameraFrameData` |
 | `camera.h` | M1 | `ICameraBackend` / `RealSenseCameraBackend` |
-| `dl.h` | M2 | `ModelRegistry` / `DlResult` / `BridgeDlEngine` |
+| `dl.h` | M2 | `ModelRegistry`（`tray_parts` / `belt_presence` = best1015，`hand_parts` = best1027）/ `DlResult` / `BridgeDlEngine` |
 | `marker.h` | M3 | `BridgeMarkerEngine`（单码 ArUco） |
 | `pose.h` | M4 | `BridgePoseSolver`（`solve_tray` / `solve_belt`） |
 | `pipeline.h` | M5 | `perceive_tray` / `perceive_belt` |

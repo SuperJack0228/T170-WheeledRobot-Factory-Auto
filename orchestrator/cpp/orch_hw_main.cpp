@@ -889,6 +889,23 @@ Json::Value dispatch(const Json::Value &request)
         out["grasped_count"] = g_session.last_grasp_count;
         return out;
     }
+    if (cmd == "vision_grasp_track")
+    {
+        const int rc = orch::vision_grasp_track();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "悬停跟随失败/中止" : "");
+        out["code"] = rc;
+        return out;
+    }
+    if (cmd == "vision_grasp_image")
+    {
+        const int rc = orch::vision_grasp_image();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "采图抓取失败/中止" : "");
+        out["code"] = rc;
+        out["grasped_right"] = g_session.last_grasped_r;
+        out["grasped_left"] = g_session.last_grasped_l;
+        out["grasped_count"] = g_session.last_grasp_count;
+        return out;
+    }
     if (cmd == "vision_grasp")
     {
         const int rc = orch::vision_grasp_existing_pipeline(false);
