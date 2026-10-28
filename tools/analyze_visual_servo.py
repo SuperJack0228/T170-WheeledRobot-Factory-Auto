@@ -59,8 +59,19 @@ def summarize(path):
             "duration_s": number(final, "steady_s") - start,
             "first_commit_elapsed_s": number(commits[0], "steady_s") - start if commits else None,
             "accepted_frames": len(accepted), "observation_rejections": dict(rejected),
+            "relaxed_grasp": final["reason"] == "ready_grasp_tolerance",
+            "min_reference_height_mm": min((1000*(number(r,"reference_z_m")-number(r,"actual_z_m")+
+                number(r,"height_m")) for r in controls), default=None),
+            "min_actual_height_mm": min((1000*number(r,"height_m") for r in controls), default=None),
+            "done_command_speed_mm_s": 1000*math.sqrt(sum(number(final,key)**2 for key in
+                ("command_vx_m_s","command_vy_m_s","command_vz_m_s"))) if ends else None,
+            "timeline": [{"event":r["event"], "reason":r["reason"],
+                "elapsed_s":number(r,"steady_s")-start} for r in rows if r["event"] in
+                {"handoff","joint_policy","both_ready","gripper_gate","gripper_start","gripper_end"}],
             "vision_events": dict(vision_events),
             "pair_invalidated_before_gripper": bool(vision_events.get("peer_failed_before_gripper")),
+            "gripper_gate_rejections": [r["reason"] for r in rows
+                if r["event"] == "gripper_gate" and r["reason"] != "ready"],
             "accepted_image_to_use_p95_ms": percentile([
                 1000 * (number(r, "steady_s") - number(r, "capture_s")) for r in accepted], .95),
             "infer_p95_ms": percentile([number(r, "infer_ms") for r in accepted], .95),
@@ -106,6 +117,8 @@ def main():
               f"dt_p95_ms={s['control_dt_p95_ms']} solve_p95_ms={s['solve_p95_ms']}")
         if s["observation_rejections"] or s["vision_events"]:
             print("  observations:", s["observation_rejections"], "vision:", s["vision_events"])
+        if s["timeline"]:
+            print("  timeline:", s["timeline"])
         if s["gripper_checks"]:
             print("  gripper:", s["gripper_checks"])
     return 0

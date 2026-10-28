@@ -26,7 +26,7 @@ def main():
         errors.append("旧 use_hand_camera 必须关闭，新伺服通过 hand_descent_correct 开启")
     if config.get("head_grasp", {}).get("descend_vel_m_s", 0) <= 0:
         errors.append("下降速度必须为正数")
-    resources = [root / "lib/Ti5_Arm_2204.so", root / "config/left_hand_to_base_result.yaml",
+    resources = [root / "config/Robot_Arm_Model.yaml", root / "lib/Ti5_Arm_2204.so", root / "config/left_hand_to_base_result.yaml",
                  root / "config/right_hand_to_base_result.yaml", root / "config/move_box_params.yaml",
                  root / "config/realsense_cameras.yaml", vision_root / "config/pose_params.yaml"]
     for key in ("model", "hand_model"):
@@ -39,6 +39,9 @@ def main():
     for path in resources:
         if not path.is_file():
             errors.append(f"缺少资源：{path}")
+            continue
+        if path.stat().st_size == 0:
+            errors.append(f"资源是空占位文件，需使用机器人已有的真实文件：{path}")
             continue
         digest = hashlib.sha256()
         with path.open("rb") as stream:
@@ -58,6 +61,12 @@ def main():
               f"reference_px={reference} "
               f"reference_height_m={profile.get('reference_height_m', 0)} "
               f"feature_z_offset_m={profile.get('feature_z_offset_m', 0)}")
+    servo = config.get("visual_servo", {})
+    print("SERVO one-sided Z: C +", servo.get("grasp_height_margin_m", .002),
+          "m; precise XY:", servo.get("xy_tolerance_m", .002),
+          "m; grasp allowance:", servo.get("grasp_xy_accept_m", .006), "m")
+    print("SDK joint limits enforced:", servo.get("enforce_sdk_joint_limits", False),
+          "; local joint excursion:", servo.get("max_joint_excursion_rad", .70), "rad")
     print("geometry 是初始几何估计，不等于已经实测标定；本工具不验证实际精度或设备连接。")
     for error in errors:
         print("ERROR:", error, file=sys.stderr)

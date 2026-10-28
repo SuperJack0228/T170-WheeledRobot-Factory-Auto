@@ -40,6 +40,9 @@ void observe(int hand) {
     wrist_servo::ObservationContext context;
     if(!wrist_servo::observation_context(hand,context) || !context.vision_required || !context.descending)
         return;
+    // No inference during traversal or before the fixed grasp orientation is established.
+    if(Eigen::AngleAxisd(context.desired_rotation*context.latest.rotation.transpose()).angle()>
+       context.config.max_orientation_error_rad) return;
     std::uint64_t generation;
     { std::lock_guard<std::mutex> lock(watch_mutex);
       if(!watches[hand].active) return;

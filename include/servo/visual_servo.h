@@ -48,11 +48,21 @@ struct Config {
     double xy_tolerance_m = 0.002;
     double settle_speed_m_s = 0.003;
     double z_tolerance_m = 0.001;
-    double slow_xy_error_m = 0.004;
-    double stop_xy_error_m = 0.012;
     double commit_height_m = 0.008;
+    double freeze_height_m = 0.030;
     double commit_speed_m_s = 0.010;
-    double commit_timeout_s = 2.5;
+    double commit_timeout_s = 5.0;
+    // Positive base Z points UP: keep the reference above nominal C, not below it.
+    double grasp_height_margin_m = 0.002;
+    double grasp_z_accept_above_m = 0.006;
+    double grasp_xy_accept_m = 0.006;
+    double grasp_relax_after_s = 0.35;
+    double finish_speed_m_s = 0.008;
+    double finish_stable_s = 0.10;
+    double alignment_time_margin_s = 0.12;
+    double acquire_descent_m = 0.020;
+    double handoff_distance_m = 0.015;
+    double handoff_speed_m_s = 0.030;
     double max_correction_m = 0.035;
     double innovation_gate_m = 0.012;
     double goal_filter_alpha = 0.65;
@@ -63,7 +73,13 @@ struct Config {
     double task_timeout_s = 18.0;
     double max_tick_gap_s = 0.15;
     double max_state_gap_s = 0.06;
-    double max_reference_lead_m = 0.004;
+    double max_reference_lead_m = 0.012; // soft governor, not instantaneous abort
+    double hard_reference_lead_m = 0.025;
+    double following_timeout_s = 0.50;
+    // Existing field branch bypassed SDK limits. Make that choice explicit and
+    // still bound every local solution relative to the SDK approach endpoint.
+    bool enforce_sdk_joint_limits = false;
+    double max_joint_excursion_rad = 0.70;
     double max_joint_lead_rad = 0.08;
     double max_joint_speed_rad_s = 0.45;
     double max_joint_accel_rad_s2 = 2.0;
@@ -134,7 +150,7 @@ Mapping map_observation(const ImageProfile &profile, const PixelObservation &obs
                         const State &capture, double final_z,
                         const Vec3 &camera_origin, const Eigen::Matrix3d &camera_rotation);
 
-enum class Phase { Acquiring, Aligning, Descending, Hold, Commit, Done, Failed };
+enum class Phase { Acquiring, Aligning, Descending, Hold, Commit, Settling, Done, Failed };
 const char *phase_name(Phase phase);
 
 struct Output {
@@ -147,16 +163,26 @@ struct Output {
     double brake_speed = 0.0;
     double descent_scale = 0.0;
     int confirmations = 0;
+    Vec3 reference = Vec3::Zero();
+    double alignment_time_s = 0, available_time_s = 0;
+    double reference_floor_z = 0, finish_xy_tolerance_m = 0;
+    bool relaxed_grasp = false;
 };
 
 class Controller {
 public:
-    void reset(const Config &config, const State &start, double final_z, double descent_speed);
+    void reset(const Config &config, const State &start, double final_z, double descent_speed,
+               const Vec2 &nominal_xy, bool grasp);
+    void reset(const Config &config, const State &start, double final_z, double descent_speed) {
+        reset(config,start,final_z,descent_speed,start.position.head<2>(),true);
+    }
     bool observe(const PixelObservation &obs, const State &capture, const Mapping &map,
                  double now, std::string &reason);
     Output tick(const State &state, double dt);
     void fail(const std::string &reason);
-    void feedback_applied_velocity(const Vec2 &xy, double z) { velocity_=xy; vz_=z; }
+    void feedback_reference(const Vec3 &reference, const Vec3 &velocity) {
+        reference_=reference; velocity_=velocity.head<2>(); vz_=velocity.z();
+    }
     Vec2 goal_xy() const { return goal_xy_; }
     bool has_goal() const { return have_goal_; }
     Phase phase() const { return phase_; }
@@ -164,12 +190,16 @@ private:
     Config cfg_;
     Vec2 initial_xy_ = Vec2::Zero(), goal_xy_ = Vec2::Zero();
     Vec2 velocity_ = Vec2::Zero();
+    Vec3 reference_ = Vec3::Zero();
+    double acquire_floor_z_ = 0, precision_floor_since_ = -1, finish_since_ = -1;
+    bool grasp_ = true, relaxed_grasp_ = false;
     double vz_ = 0.0, start_time_ = 0.0, final_z_ = 0.0, descent_speed_ = 0.0;
     double last_capture_ = -1.0, last_clock_uncertainty_ = 0.0;
     double commit_start_ = -1.0;
     std::uint64_t last_frame_ = 0;
     bool have_goal_ = false;
     int confirmations_ = 0;
+    int close_confirmations_ = 0;
     Phase phase_ = Phase::Acquiring;
     std::string failure_;
 };

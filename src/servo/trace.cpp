@@ -41,6 +41,7 @@ bool TraceWriter::start(const std::string &dir) {
              "actual_rotation_error_rad,reference_lead_m,joint_lead_rad";
     for(int j=0;j<7;++j) file_ << ",actual_q" << j;
     for(int j=0;j<7;++j) file_ << ",command_q" << j;
+    file_ << ",reference_floor_z_m,alignment_time_s,available_time_s,finish_xy_tolerance_m,relaxed_grasp,nominal_final_z_m";
     file_ << '\n'; file_.flush();
     if(!file_) return false;
     healthy_.store(true);
@@ -92,6 +93,8 @@ void TraceWriter::run() {
         file_ << ',' << r.actual_rotation_error_rad << ',' << r.reference_lead_m << ',' << r.joint_lead_rad;
         for(int j=0;j<7;++j) file_ << ',' << s.joints(j);
         for(int j=0;j<7;++j) file_ << ',' << r.commanded(j);
+        file_ << ',' << c.reference_floor_z << ',' << c.alignment_time_s << ',' << c.available_time_s
+              << ',' << c.finish_xy_tolerance_m << ',' << c.relaxed_grasp << ',' << r.final_z;
         file_ << '\n';
         if(++since_flush>=20 || r.event=="end" || r.event=="reject") { file_.flush(); since_flush=0; }
         if(!file_ && healthy_.exchange(false)) std::cerr << "[servo] 调试日志写入失败 " << path_ << '\n';

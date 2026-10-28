@@ -21,6 +21,7 @@ struct Plant {
 };
 Plant plants[2];
 std::atomic<bool> abort_test{false};
+std::atomic<bool> unsafe_reference{false};
 }
 Robot_Arm::Robot_Arm(const std::string &,const std::string &,const std::string &side,const std::string &) {
     can_id_list={side=="left"?23:16};
@@ -47,10 +48,12 @@ Eigen::Matrix4d tool_transform(const Robot_Arm &) { return Eigen::Matrix4d::Iden
 bool read_joint_feedback(int hand,Joints &q) {
     auto &p=plants[hand]; std::lock_guard<std::mutex> lock(p.mutex);
     const double now=monotonic_seconds(),dt=p.time>0?now-p.time:0;
-    p.actual+=(1-std::exp(-dt/.025))*(p.command-p.actual); p.time=now; q=p.actual; return true;
+    p.actual+=(1-std::exp(-dt/.30))*(p.command-p.actual); p.time=now; q=p.actual; return true;
 }
 void send_joint_reference(int hand,const Joints &q) {
-    auto &p=plants[hand]; std::lock_guard<std::mutex> lock(p.mutex); p.command=q;
+    auto &p=plants[hand]; std::lock_guard<std::mutex> lock(p.mutex);
+    if(q(2)<0) unsafe_reference.store(true);
+    p.command=q;
 }
 bool solve_local_pose(Robot_Arm &,const Joints &seed,const Vec3 &position,const Eigen::Matrix3d &,
                       const Config &,Joints &out,double &xyz,double &rotation) {
@@ -123,6 +126,21 @@ int main() {
             std::cerr << "runtime FAIL hand=" << h << " code=" << result[h] << " residual=" << residual << '\n'; return 1;
         }
     }
+    if(unsafe_reference.load()) { std::cerr << "runtime FAIL: reference crossed C\n"; return 1; }
+    if(!ready_for_gripper(left) || !ready_for_gripper(right)) {
+        std::cerr << "runtime FAIL: stable dual result not available at gripper gate\n"; return 1;
+    }
+    // A subsequently changed pose must not inherit the earlier permission to close.
+    Joints saved;
+    { std::lock_guard<std::mutex> lock(plants[0].mutex);
+      saved=plants[0].actual; plants[0].actual(2)=-.001; plants[0].command=plants[0].actual;
+    }
+    if(ready_for_gripper(left) || !group_is_failed()) {
+        std::cerr << "runtime FAIL: gripper gate accepted a pose below C\n"; return 1;
+    }
+    { std::lock_guard<std::mutex> lock(plants[0].mutex);
+      plants[0].actual=saved; plants[0].command=saved;
+    }
     // A new session with no observations must fail and must not expose the previous success.
     prepare_group();
     goals[0](2)=-.03;
@@ -133,6 +151,9 @@ int main() {
     if(result[0]==0 || completed_xy(0,x,y)) {
         std::cerr << "runtime FAIL: missing vision reused a previous success\n"; return 1;
     }
-    std::cout << "visual_servo_runtime: dual delayed execution and missing-vision failure passed (synthetic adapters)\n";
+    if(last_failure(0)!="no_valid_observation_timeout") {
+        std::cerr << "runtime FAIL: initiating fault not exposed\n"; return 1;
+    }
+    std::cout << "visual_servo_runtime: dual delayed vision + 300ms position following, bounded Z and missing-vision failure passed (synthetic adapters)\n";
     return 0;
 }

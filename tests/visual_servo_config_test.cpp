@@ -21,7 +21,11 @@ int main(int argc,char **argv) {
         require(wrist_servo::write_config_snapshot(c,snapshot,error),"snapshot written");
         wrist_servo::Config replay;
         wrist_servo::load_config(YAML::LoadFile(snapshot)["visual_servo"],replay);
-        require(replay.kp==c.kp && replay.kd==c.kd && replay.commit_height_m==c.commit_height_m,"snapshot roundtrip");
+        require(replay.kp==c.kp && replay.kd==c.kd && replay.commit_height_m==c.commit_height_m &&
+            replay.grasp_xy_accept_m==c.grasp_xy_accept_m && replay.grasp_height_margin_m==c.grasp_height_margin_m &&
+            replay.hard_reference_lead_m==c.hard_reference_lead_m &&
+            replay.enforce_sdk_joint_limits==c.enforce_sdk_joint_limits &&
+            replay.max_joint_excursion_rad==c.max_joint_excursion_rad,"snapshot roundtrip");
         std::filesystem::remove(snapshot);
         bool rejected=false;
         try { auto bad=YAML::Load("kp: .nan"); wrist_servo::load_config(bad,c); }

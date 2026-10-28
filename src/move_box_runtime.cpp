@@ -3504,81 +3504,96 @@ namespace move_box
             return out;
         }
 
-        if (!wait_arms_motors_stopped(hs.move_r, hs.move_l, 5.0, 6, "最终C到位"))
-        {
-            std::cerr << "[grasp] 最终C电机到位等待超时，禁止合爪\n";
-            if (hs.move_r)
-                out.ret_r = -8;
-            if (hs.move_l)
-                out.ret_l = -8;
-            return out;
-        }
+        // The servo owns stable completion. Keep the legacy checks only for open-loop/place.
+        const bool servo_grasp=straight_descent && g_move_cfg.cameras.hand_descent_correct &&
+            g_tray_hole_task!=TrayHoleTask::PlaceEmpty;
+        if(servo_grasp) {
+            if(hs.move_r) wrist_servo::task_event(1,"both_ready","checking_before_gripper");
+            if(hs.move_l) wrist_servo::task_event(0,"both_ready","checking_before_gripper");
+            const bool right_ready=!hs.move_r || wrist_servo::ready_for_gripper(arm_r);
+            const bool left_ready=!hs.move_l || wrist_servo::ready_for_gripper(arm_l);
+            if(!right_ready || !left_ready) {
+                std::cerr << "[servo] 合爪前位置复核失败，详见 gripper_gate 日志\n";
+                return {hs.move_r?-36:0,hs.move_l?-36:0};
+            }
+        } else {
+            if (!wait_arms_motors_stopped(hs.move_r, hs.move_l, 5.0, 6, "最终C到位"))
+            {
+                std::cerr << "[grasp] 最终C电机到位等待超时，禁止合爪\n";
+                if (hs.move_r)
+                    out.ret_r = -8;
+                if (hs.move_l)
+                    out.ret_l = -8;
+                return out;
+            }
 
-        // 位置偏差以最终抓取点为基准。
-        auto verify_final_c = [&](Robot_Arm &arm,
-                                  const Eigen::Matrix<double, 1, 6> &goal,
-                                  int hand_id,
-                                  const char *hand,
-                                  int &ret_io) {
-            const auto &hg = g_move_cfg.head_grasp;
-            Eigen::Matrix<double, 1, 6> expect = goal;
-            double vis_x = 0.0;
-            double vis_y = 0.0;
-            const bool visual_xy = descent_commanded_xy(hand_id, vis_x, vis_y);
-            if (visual_xy)
-            {
-                expect(0) = vis_x;
-                expect(1) = vis_y;
-            }
-            Eigen::Matrix<double, 1, 6> cur = arm_get_tcp_pos(arm);
-            double xyz_err = 0.0;
-            double rpy_err = 0.0;
-            const double xyz_tol = std::max(0.001, hg.bezier_endpoint_xyz_tol_m);
-            const double rpy_tol = std::max(0.5, hg.bezier_endpoint_rpy_tol_deg) * rad;
-            bool ok = false;
-            int stable_samples = 0;
-            // 编码器停稳后复核 1 次即可；超差最多再看 0.3s。
-            for (int sample = 0; sample < 6; ++sample)
-            {
-                cur = arm_get_tcp_pos(arm);
-                xyz_err = (cur.head<3>() - expect.head<3>()).norm();
-                rpy_err = 0.0;
-                for (int axis = 3; axis < 6; ++axis)
+            // 位置偏差以最终抓取点为基准。
+            auto verify_final_c = [&](Robot_Arm &arm,
+                                      const Eigen::Matrix<double, 1, 6> &goal,
+                                      int hand_id,
+                                      const char *hand,
+                                      int &ret_io) {
+                const auto &hg = g_move_cfg.head_grasp;
+                Eigen::Matrix<double, 1, 6> expect = goal;
+                double vis_x = 0.0;
+                double vis_y = 0.0;
+                const bool visual_xy = descent_commanded_xy(hand_id, vis_x, vis_y);
+                if (visual_xy)
                 {
-                    const double d = std::atan2(
-                        std::sin(cur(axis) - expect(axis)),
-                        std::cos(cur(axis) - expect(axis)));
-                    rpy_err = std::max(rpy_err, std::abs(d));
+                    expect(0) = vis_x;
+                    expect(1) = vis_y;
                 }
-                const bool sample_ok = xyz_err <= xyz_tol && rpy_err <= rpy_tol;
-                stable_samples = sample_ok ? stable_samples + 1 : 0;
-                if (stable_samples >= 1)
+                Eigen::Matrix<double, 1, 6> cur = arm_get_tcp_pos(arm);
+                double xyz_err = 0.0;
+                double rpy_err = 0.0;
+                const double xyz_tol = std::max(0.001, hg.bezier_endpoint_xyz_tol_m);
+                const double rpy_tol = std::max(0.5, hg.bezier_endpoint_rpy_tol_deg) * rad;
+                bool ok = false;
+                int stable_samples = 0;
+                // 编码器停稳后复核 1 次即可；超差最多再看 0.3s。
+                for (int sample = 0; sample < 6; ++sample)
                 {
-                    ok = true;
-                    break;
+                    cur = arm_get_tcp_pos(arm);
+                    xyz_err = (cur.head<3>() - expect.head<3>()).norm();
+                    rpy_err = 0.0;
+                    for (int axis = 3; axis < 6; ++axis)
+                    {
+                        const double d = std::atan2(
+                            std::sin(cur(axis) - expect(axis)),
+                            std::cos(cur(axis) - expect(axis)));
+                        rpy_err = std::max(rpy_err, std::abs(d));
+                    }
+                    const bool sample_ok = xyz_err <= xyz_tol && rpy_err <= rpy_tol;
+                    stable_samples = sample_ok ? stable_samples + 1 : 0;
+                    if (stable_samples >= 1)
+                    {
+                        ok = true;
+                        break;
+                    }
+                    if (hardware_abort_requested())
+                        break;
+                    hardware_abort_sleep_ms(50);
                 }
-                if (hardware_abort_requested())
-                    break;
-                hardware_abort_sleep_ms(50);
-            }
-            std::cout << std::fixed << std::setprecision(4)
-                      << "[到位] " << hand
-                      << (visual_xy ? " 按图像修正点" : " 按头相机目标")
-                      << " target=(" << expect(0) << ',' << expect(1) << ',' << expect(2) << ')'
-                      << " actual=(" << cur(0) << ',' << cur(1) << ',' << cur(2) << ')'
-                      << " xyz_err=" << xyz_err << "m rpy_err=" << (rpy_err / rad) << "deg\n";
-            if (!ok)
-            {
-                std::cerr << "[到位] " << hand << " 最终点超差，禁止"
-                          << (g_tray_hole_task == TrayHoleTask::PlaceEmpty ? "张爪" : "合爪")
-                          << "；请勿把轨迹误差混入视觉offset\n";
-                ret_io = -7;
-            }
-        };
-        if (hs.move_r)
-            verify_final_c(arm_r, goal_r_arm, 1, "右", out.ret_r);
-        if (hs.move_l)
-            verify_final_c(arm_l, goal_l_arm, 0, "左", out.ret_l);
+                std::cout << std::fixed << std::setprecision(4)
+                          << "[到位] " << hand
+                          << (visual_xy ? " 按图像修正点" : " 按头相机目标")
+                          << " target=(" << expect(0) << ',' << expect(1) << ',' << expect(2) << ')'
+                          << " actual=(" << cur(0) << ',' << cur(1) << ',' << cur(2) << ')'
+                          << " xyz_err=" << xyz_err << "m rpy_err=" << (rpy_err / rad) << "deg\n";
+                if (!ok)
+                {
+                    std::cerr << "[到位] " << hand << " 最终点超差，禁止"
+                              << (g_tray_hole_task == TrayHoleTask::PlaceEmpty ? "张爪" : "合爪")
+                              << "；请勿把轨迹误差混入视觉offset\n";
+                    ret_io = -7;
+                }
+            };
+            if (hs.move_r)
+                verify_final_c(arm_r, goal_r_arm, 1, "右", out.ret_r);
+            if (hs.move_l)
+                verify_final_c(arm_l, goal_l_arm, 0, "左", out.ret_l);
+
+        }
 
         if (!tray2_precision_test())
         {
@@ -3608,7 +3623,7 @@ namespace move_box
 
         const int settle_ms = static_cast<int>(
             std::max(0.0, g_move_cfg.head_grasp.pre_grasp_settle_sec) * 1000.0);
-        if (settle_ms > 0)
+        if (!servo_grasp && settle_ms > 0)
             hardware_abort_sleep_ms(settle_ms);
         if (hardware_abort_requested())
         {
@@ -3628,7 +3643,9 @@ namespace move_box
             }
             else
             {
+                if(servo_grasp) wrist_servo::task_event(1,"gripper_start","close");
                 const auto grasp_r = g.graspAndWait(gripper::Side::Right);
+                if(servo_grasp) wrist_servo::task_event(1,"gripper_end","feedback_received");
                 st.empty_grasp_r = gripper_grasp_empty(g, gripper::Side::Right, grasp_r, "料盘抓取");
             }
         }
@@ -3643,7 +3660,9 @@ namespace move_box
             }
             else
             {
+                if(servo_grasp) wrist_servo::task_event(0,"gripper_start","close");
                 const auto grasp_l = g.graspAndWait(gripper::Side::Left);
+                if(servo_grasp) wrist_servo::task_event(0,"gripper_end","feedback_received");
                 st.empty_grasp_l = gripper_grasp_empty(g, gripper::Side::Left, grasp_l, "料盘抓取");
             }
         }

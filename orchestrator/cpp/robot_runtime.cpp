@@ -4,6 +4,7 @@
 #include "dispatch_timing.h"
 #include "function.h"
 #include "hand_shadow.h"
+#include "servo/runtime.h"
 #include "head_cam2robot.h"
 #include "head_control.h"
 #include "move_box_config.h"
@@ -3317,6 +3318,7 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
     {
         std::cout << "[跟随] 料盘准备和认码与抓取相同。分好之后只到工件上方，"
                      "然后手相机跟踪 XY\n";
+        if(g_move_cfg.visual_servo.require_dual) wrist_servo::prepare_group();
         move_box::GraspToStandbyResult r = move_box::run_grasp_to_standby(
             *g_hw->g,
             *g_hw->arm_r,
@@ -3477,7 +3479,10 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             // One simultaneous attempt only: do not turn a dual-hand validation into serial retries.
             last_rc=r.grasped_r && r.grasped_l && r.status==move_box::GraspToStandbyStatus::Ok ? 0 : -34;
             std::cout << "[servo] 双手单次验证结束：右=" << r.grasped_r << " 左=" << r.grasped_l
-                      << " code=" << last_rc << "，不自动补抓\n";
+                      << " code=" << last_rc
+                      << " root_right=" << wrist_servo::last_failure(1)
+                      << " root_left=" << wrist_servo::last_failure(0)
+                      << "，不自动补抓\n";
             break;
         }
 

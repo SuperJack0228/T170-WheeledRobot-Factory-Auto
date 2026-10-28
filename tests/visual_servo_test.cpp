@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <tuple>
 
 using namespace wrist_servo;
 void check(bool value,const char *message) { if(!value) throw std::runtime_error(message); }
@@ -121,14 +122,14 @@ void test_braking_and_loss() {
     Config cfg; Controller c;
     State s=state_at(1,Vec3(0,0,.02)); c.reset(cfg,s,0,.03);
     auto out=c.tick(s,.01);
-    near(out.velocity_z,0,1e-12,"no vision no descent");
+    check(out.reference.z()>=.008 && out.velocity_z>=-.03,"pre-vision descent remains above acquisition guard");
     s.time_s=3;
     check(c.tick(s,.01).phase==Phase::Failed,"no observation times out");
     c.reset(cfg,state_at(1,Vec3(0,0,.02)),0,.03);
     auto obs=observation_at(1,1); Mapping m; m.valid=true; m.remaining_m << .02,0;
     std::string reason; check(c.observe(obs,state_at(1,Vec3(0,0,.02)),m,1.1,reason),"large error accepted in envelope");
     s=state_at(1.1,Vec3(0,0,.02)); out=c.tick(s,.01);
-    near(out.descent_scale,0,1e-12,"large XY error pauses descent");
+    check(out.descent_scale<1,"remaining alignment time slows descent for large XY error");
     s.time_s=1.6; out=c.tick(s,.01);
     check(out.phase==Phase::Hold,"expired vision holds");
     s.time_s=3; check(c.tick(s,.01).phase==Phase::Failed,"lost vision fails rather than blind grasp");
@@ -209,7 +210,7 @@ void test_delayed_dual_arm_simulation() {
         const auto &a=arms[h];
         check(a.done,"both delayed arms reach final state");
         check((a.target-a.state.position.head<2>()).norm()<.0025,"final XY within configured model tolerance");
-        check(std::abs(a.state.position.z())<=cfg.z_tolerance_m,"final Z within tolerance");
+        check(a.state.position.z()>=0 && a.state.position.z()<=cfg.grasp_z_accept_above_m,"final Z is one-sided above C");
         check(a.accepted>2,"continuous correction exceeds old two-shot limit");
         std::cout << "sim hand=" << h << " accepted=" << a.accepted
                   << " residual_mm=" << (a.target-a.state.position.head<2>()).norm()*1000 << '\n';
@@ -233,11 +234,46 @@ void test_trace_and_config() {
     std::filesystem::remove(file);
 }
 
+// Position-command plant (not a velocity plant): reproduces the field's ~9mm
+// following lead at 30mm/s with a 300ms response. XY can be intentionally blocked.
+void test_position_following_and_grasp_tolerance() {
+    for(const auto &[residual,grasp,should_finish]:
+        std::vector<std::tuple<double,bool,bool>>{{.004,true,true},{.009,true,false},{.004,false,false}}) {
+        Config cfg; Controller c; State s=state_at(1,Vec3(0,0,.13));
+        c.reset(cfg,s,0,.03,Vec2::Zero(),grasp);
+        bool done=false; std::uint64_t frame=0; double next_frame=1;
+        for(int tick=0;tick<1900;++tick) {
+            s.time_s=1+tick*.01;
+            if(s.time_s>=next_frame && c.phase()!=Phase::Failed) {
+                auto o=observation_at(s.time_s,++frame); Mapping m; m.valid=true;
+                m.remaining_m=Vec2(residual,0); std::string reason;
+                c.observe(o,s,m,s.time_s,reason); next_frame+=.13;
+            }
+            const auto out=c.tick(s,.01);
+            check(out.reference.z()>=(grasp?cfg.grasp_height_margin_m:0.0)-1e-10,"reference never crosses one-sided clearance");
+            check(out.reference.x()<=residual+1e-8,"XY reference cannot wind up beyond the static target");
+            if(out.phase==Phase::Done) {
+                check(out.velocity_xy.norm()==0 && out.velocity_z==0,"done carries zero motion command");
+                check(s.position.z()>=0,"measured completion is not below C");
+                check(out.relaxed_grasp,"4mm residual uses explicit grasp tolerance");
+                done=true; break;
+            }
+            if(out.phase==Phase::Failed) break;
+            const Vec3 previous=s.position;
+            s.position.z()+=(1-std::exp(-.01/.30))*(out.reference.z()-s.position.z());
+            // Fixed 4/9mm residual represents an uncorrectable small model/mechanical offset.
+            s.velocity=(s.position-previous)/.01;
+        }
+        check(done==should_finish,"grasp may accept 4mm, but 9mm and strict place must not blind-close");
+    }
+}
+
 int main() {
     try {
         test_mapping(); test_tilted_geometry(); test_history_and_delay(); test_braking_and_loss();
         test_commit_evidence(); test_local_pose_solver();
         test_delayed_dual_arm_simulation(); test_trace_and_config();
+        test_position_following_and_grasp_tolerance();
         std::cout << "visual_servo: all regression checks passed (model tests, not robot validation)\n";
         return 0;
     } catch(const std::exception &ex) { std::cerr << "FAIL: " << ex.what() << '\n'; return 1; }

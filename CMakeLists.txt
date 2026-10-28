@@ -18,13 +18,29 @@ if(T170_SERVO_TESTS_ONLY)
     target_include_directories(visual_servo_runtime_test PRIVATE include eigen3)
     target_link_libraries(visual_servo_runtime_test PRIVATE Threads::Threads)
     add_test(NAME visual_servo_runtime_test COMMAND visual_servo_runtime_test)
+    find_package(yaml-cpp QUIET)
+    if(yaml-cpp_FOUND)
+        add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp
+            src/servo/config.cpp src/servo/visual_servo.cpp)
+        target_include_directories(visual_servo_config_test PRIVATE include eigen3)
+        if(TARGET yaml-cpp::yaml-cpp)
+            target_link_libraries(visual_servo_config_test PRIVATE yaml-cpp::yaml-cpp)
+        else()
+            target_link_libraries(visual_servo_config_test PRIVATE yaml-cpp)
+        endif()
+        add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
+            ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml)
+    endif()
     return()
 endif()
 
 add_compile_definitions(MARKET_SIMPLE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-    OUTPUT_VARIABLE T170_SERVO_REVISION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-add_compile_definitions(T170_SERVO_REVISION="${T170_SERVO_REVISION}")
+add_custom_target(servo_build_identity
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+        -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/servo_build_identity.h
+        -P ${PROJECT_SOURCE_DIR}/cmake/servo_build_identity.cmake
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/servo_build_identity.h
+    VERBATIM)
 
 
 set(HUMAN_INTERACTION_ENV_ROOT "/home/ti5robot/anaconda3/envs/human_interaction_env" CACHE PATH
@@ -125,6 +141,8 @@ add_executable(t170c_debug
     src/head_cam2robot.cpp
     src/head_control.cpp
 )
+add_dependencies(t170c_debug servo_build_identity)
+target_include_directories(t170c_debug PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_include_directories(t170c_debug PRIVATE
     ${PROJECT_SOURCE_DIR}
@@ -217,6 +235,8 @@ add_executable(arm_plane_repeat
     src/head_cam2robot.cpp
     src/head_control.cpp
 )
+add_dependencies(arm_plane_repeat servo_build_identity)
+target_include_directories(arm_plane_repeat PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(arm_plane_repeat PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include

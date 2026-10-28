@@ -2,6 +2,9 @@
 #include <yaml-cpp/yaml.h>
 #include <stdexcept>
 #include <fstream>
+#if __has_include("servo_build_identity.h")
+#include "servo_build_identity.h"
+#endif
 
 namespace wrist_servo {
 namespace {
@@ -41,9 +44,14 @@ void load_config(const YAML::Node &n, Config &c) {
     SERVO_READ(period_s); SERVO_READ(kp); SERVO_READ(kd);
     SERVO_READ(max_xy_speed_m_s); SERVO_READ(max_xy_accel_m_s2); SERVO_READ(max_z_accel_m_s2);
     SERVO_READ(brake_delay_s); SERVO_READ(model_uncertainty_m); SERVO_READ(xy_tolerance_m);
-    SERVO_READ(settle_speed_m_s); SERVO_READ(z_tolerance_m); SERVO_READ(slow_xy_error_m);
-    SERVO_READ(stop_xy_error_m); SERVO_READ(commit_height_m); SERVO_READ(commit_speed_m_s);
+    SERVO_READ(settle_speed_m_s); SERVO_READ(z_tolerance_m);
+    SERVO_READ(commit_height_m); SERVO_READ(commit_speed_m_s);
     SERVO_READ(commit_timeout_s);
+    SERVO_READ(freeze_height_m); SERVO_READ(grasp_height_margin_m); SERVO_READ(grasp_z_accept_above_m);
+    SERVO_READ(grasp_xy_accept_m); SERVO_READ(grasp_relax_after_s); SERVO_READ(finish_speed_m_s);
+    SERVO_READ(finish_stable_s); SERVO_READ(alignment_time_margin_s); SERVO_READ(acquire_descent_m);
+    SERVO_READ(handoff_distance_m); SERVO_READ(handoff_speed_m_s);
+    SERVO_READ(hard_reference_lead_m); SERVO_READ(following_timeout_s);
     SERVO_READ(max_correction_m); SERVO_READ(innovation_gate_m); SERVO_READ(goal_filter_alpha);
     SERVO_READ(max_observation_age_s); SERVO_READ(max_clock_uncertainty_s); SERVO_READ(loss_timeout_s);
     SERVO_READ(feedback_age_budget_s);
@@ -54,6 +62,7 @@ void load_config(const YAML::Node &n, Config &c) {
     SERVO_READ(max_solver_failures); SERVO_READ(stable_frames); SERVO_READ(min_confidence);
     SERVO_READ(acquire_radius_px); SERVO_READ(track_radius_px); SERVO_READ(pair_clearance_m);
     SERVO_READ(log_period_s);
+    SERVO_READ(enforce_sdk_joint_limits); SERVO_READ(max_joint_excursion_rad);
 #undef SERVO_READ
     const char *names[] = {"left_grasp","right_grasp","left_place","right_place"};
     for (int i=0;i<4;++i) profile(n ? n[names[i]] : YAML::Node(), c.profiles[i]);
@@ -65,9 +74,12 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
     try {
         YAML::Emitter out;
         out.SetDoublePrecision(17);
-        out << YAML::BeginMap << YAML::Key << "schema_version" << YAML::Value << 1;
-#ifdef T170_SERVO_REVISION
-        out << YAML::Key << "build_revision" << YAML::Value << T170_SERVO_REVISION;
+        out << YAML::BeginMap << YAML::Key << "schema_version" << YAML::Value << 2;
+#ifdef T170_SERVO_FULL_REVISION
+        out << YAML::Key << "build_revision" << YAML::Value << T170_SERVO_FULL_REVISION;
+        out << YAML::Key << "build_dirty" << YAML::Value << T170_SERVO_BUILD_DIRTY;
+        out << YAML::Key << "build_diff_sha256" << YAML::Value << T170_SERVO_DIFF_SHA256;
+        out << YAML::Key << "build_source_config_sha256" << YAML::Value << T170_SERVO_SOURCE_SHA256;
 #else
         out << YAML::Key << "build_revision" << YAML::Value << "unknown";
 #endif
@@ -86,8 +98,6 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         out << YAML::Key << "xy_tolerance_m" << YAML::Value << c.xy_tolerance_m;
         out << YAML::Key << "settle_speed_m_s" << YAML::Value << c.settle_speed_m_s;
         out << YAML::Key << "z_tolerance_m" << YAML::Value << c.z_tolerance_m;
-        out << YAML::Key << "slow_xy_error_m" << YAML::Value << c.slow_xy_error_m;
-        out << YAML::Key << "stop_xy_error_m" << YAML::Value << c.stop_xy_error_m;
         out << YAML::Key << "commit_height_m" << YAML::Value << c.commit_height_m;
         out << YAML::Key << "commit_speed_m_s" << YAML::Value << c.commit_speed_m_s;
         out << YAML::Key << "commit_timeout_s" << YAML::Value << c.commit_timeout_s;
@@ -115,6 +125,21 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         out << YAML::Key << "track_radius_px" << YAML::Value << c.track_radius_px;
         out << YAML::Key << "pair_clearance_m" << YAML::Value << c.pair_clearance_m;
         out << YAML::Key << "log_period_s" << YAML::Value << c.log_period_s;
+        out << YAML::Key << "freeze_height_m" << YAML::Value << c.freeze_height_m;
+        out << YAML::Key << "grasp_height_margin_m" << YAML::Value << c.grasp_height_margin_m;
+        out << YAML::Key << "grasp_z_accept_above_m" << YAML::Value << c.grasp_z_accept_above_m;
+        out << YAML::Key << "grasp_xy_accept_m" << YAML::Value << c.grasp_xy_accept_m;
+        out << YAML::Key << "grasp_relax_after_s" << YAML::Value << c.grasp_relax_after_s;
+        out << YAML::Key << "finish_speed_m_s" << YAML::Value << c.finish_speed_m_s;
+        out << YAML::Key << "finish_stable_s" << YAML::Value << c.finish_stable_s;
+        out << YAML::Key << "alignment_time_margin_s" << YAML::Value << c.alignment_time_margin_s;
+        out << YAML::Key << "acquire_descent_m" << YAML::Value << c.acquire_descent_m;
+        out << YAML::Key << "handoff_distance_m" << YAML::Value << c.handoff_distance_m;
+        out << YAML::Key << "handoff_speed_m_s" << YAML::Value << c.handoff_speed_m_s;
+        out << YAML::Key << "hard_reference_lead_m" << YAML::Value << c.hard_reference_lead_m;
+        out << YAML::Key << "following_timeout_s" << YAML::Value << c.following_timeout_s;
+        out << YAML::Key << "enforce_sdk_joint_limits" << YAML::Value << c.enforce_sdk_joint_limits;
+        out << YAML::Key << "max_joint_excursion_rad" << YAML::Value << c.max_joint_excursion_rad;
         const char *names[]={"left_grasp","right_grasp","left_place","right_place"};
         for(int i=0;i<4;++i) {
             const auto &p=c.profiles[i];

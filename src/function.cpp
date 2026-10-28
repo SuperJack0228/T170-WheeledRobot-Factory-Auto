@@ -3137,6 +3137,7 @@ void arm_start_line_then_line_plan(
 
 namespace
 {
+wrist_servo::Joints g_servo_joint_origin[2];
 int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row,
                           Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal,
                           double descent_speed, int target_class,const char *tag)
@@ -3163,9 +3164,30 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
         previous=command; command=traj.row(i);
         wrist_servo::send_joint_reference(hand,command);
         std::this_thread::sleep_until(cycle+std::chrono::microseconds(5000));
+        // B is a guide, not an exact stop. Transfer during the SDK deceleration
+        // when the remaining guide distance and joint/Cartesian speed are bounded.
+        if(i>=2 && i+1<descent_row) {
+            const auto &cfg=g_move_cfg.visual_servo;
+            const auto pose=arm_tcp_from_joints(arm,command);
+            const auto prior=arm_tcp_from_joints(arm,previous);
+            const auto guide=arm_tcp_from_joints(arm,wrist_servo::Joints(traj.row(descent_row-1)));
+            const double v=(pose.head<3>()-prior.head<3>()).norm()/0.005;
+            const double qv=((command-previous)/0.005).cwiseAbs().maxCoeff();
+            const double angle=Eigen::AngleAxisd(TR(goal).block<3,3>(0,0)*
+                TR(pose).block<3,3>(0,0).transpose()).angle();
+            if((pose.head<3>()-guide.head<3>()).norm()<=cfg.handoff_distance_m &&
+               v<=cfg.handoff_speed_m_s &&
+               qv<=std::min(cfg.max_joint_speed_rad_s,0.5*cfg.max_joint_accel_rad_s2*cfg.period_s) && angle<=0.002 &&
+               pose(2)>goal(2)+cfg.freeze_height_m) {
+                wrist_servo::handoff_event(arm,command,previous,"blended_before_B");
+                break;
+            }
+        }
+        if(i+1==descent_row) wrist_servo::handoff_event(arm,command,previous,"SDK_endpoint_fallback");
     }
-    const int settled=wrist_servo::wait_approach_settled(arm,goal,command);
-    if(settled!=0) return settled;
+    g_servo_joint_origin[hand]=command;
+    wrist_servo::task_event(hand,"joint_policy",g_move_cfg.visual_servo.enforce_sdk_joint_limits?
+        "SDK_and_relative_envelope":"relative_envelope_SDK_bypass");
     const int result=wrist_servo::run_descent(arm,goal,command,previous,descent_speed);
     guard.success=result==0;
     return result;
@@ -3200,8 +3222,11 @@ bool solve_local_pose(Robot_Arm &arm,const Joints &seed,const Vec3 &target,
 {
     std::lock_guard<std::mutex> lock(g_arm_kin_mu[arm_hand_side(arm)]);
     const ForwardModel forward=[&](const Joints &q) { return arm.Forward_Kinematics(Eigen::RowVectorXd(q)); };
-    // 下降局部求解暂不套用 SDK 关节限位。直线规划已经能走到的姿态，这里不再拒。
-    const JointLimitCheck limits=[](const Joints &) { return false; };
+    const Joints origin=g_servo_joint_origin[arm_hand_side(arm)];
+    const JointLimitCheck limits=[&](const Joints &q) {
+        return (q-origin).cwiseAbs().maxCoeff()>cfg.max_joint_excursion_rad ||
+            (cfg.enforce_sdk_joint_limits && arm.Check_Joint_Limit(Eigen::RowVectorXd(q)));
+    };
     return solve_pose_with_fk(seed,target,rotation,cfg,forward,limits,solution,xyz_residual,rotation_residual);
 }
 } // namespace wrist_servo
@@ -3251,8 +3276,8 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         if(!wrist_servo::read_joint_feedback(arm_hand_side(arm),q)) return -32;
         const int code=plan_arm_line_from(arm,mid,vel_first_m_s,Eigen::MatrixXd(q),trajectory);
         if(code==0) g_planned_descent_row[arm_hand_side(arm)]=static_cast<int>(trajectory.rows());
-        // Play the SDK line through its deceleration at B. Descent and the hand camera
-        // start only after the measured arm has caught up; there is no fixed photo wait.
+        // Execute the SDK approach up to its bounded handoff region; the local
+        // reference controller rounds the guide and owns all subsequent motion.
         return code;
     };
     if (move_r && !prepared_r) out.ret_r=plan(arm_r,approach_r,goal_r,traj_r);

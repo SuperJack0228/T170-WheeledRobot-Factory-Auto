@@ -21,6 +21,7 @@ venv/
 env/
 # 本地编译产物放在 build/ 与 build_robot/；lib/ 中的机器人预编译库需要保留
 build_robot/
+build_servo_tests/
 build/**/*.a
 build/**/*.so
 build/**/*.so.*

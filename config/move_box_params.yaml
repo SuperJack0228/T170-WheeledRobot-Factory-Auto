@@ -420,12 +420,25 @@ visual_servo:
   xy_tolerance_m: 0.002
   settle_speed_m_s: 0.003
   z_tolerance_m: 0.001
-  slow_xy_error_m: 0.004
-  stop_xy_error_m: 0.012
-  # 最后可见区对准后，最多约8mm短行程保持已确认XY；需按现场遮挡位置验证。
+  # 未对齐时参考停在 C 上方8mm；正常提前对齐则在30mm内直接连续进入末段。
   commit_height_m: 0.008
+  freeze_height_m: 0.030
   commit_speed_m_s: 0.010
-  commit_timeout_s: 2.5
+  commit_timeout_s: 5.0
+  # 基座Z向上为正：参考停在原C上方2mm，视觉特征平面仍按原C计算。
+  grasp_height_margin_m: 0.002
+  grasp_z_accept_above_m: 0.006
+  # 2mm用于优先精对齐；抓取末段允许6mm，放置仍沿用严格xy_tolerance_m。
+  grasp_xy_accept_m: 0.006
+  grasp_relax_after_s: 0.35
+  finish_speed_m_s: 0.008
+  finish_stable_s: 0.10
+  alignment_time_margin_s: 0.12
+  # 第一帧未就绪前仅允许最多20mm有界下降，不允许盲抓。
+  acquire_descent_m: 0.020
+  # B只作引导；SDK减速末段满足条件即可连续交接，异常仍可减速/保持。
+  handoff_distance_m: 0.015
+  handoff_speed_m_s: 0.030
   max_correction_m: 0.035
   innovation_gate_m: 0.012
   goal_filter_alpha: 0.65
@@ -436,7 +449,14 @@ visual_servo:
   task_timeout_s: 18.0
   max_tick_gap_s: 0.15
   max_state_gap_s: 0.06
-  max_reference_lead_m: 0.004
+  # 12mm开始逐渐减速，25mm限制参考继续前推；持续异常0.5s才失败。
+  max_reference_lead_m: 0.012
+  hard_reference_lead_m: 0.025
+  following_timeout_s: 0.50
+  # 延续现场分支SDK限位旁路；核对模型/真实限位后改true。不是已验证的物理安全边界。
+  enforce_sdk_joint_limits: false
+  # 局部求解仍限制相对SDK交接关节角的总偏离，防止冗余关节持续漂移。
+  max_joint_excursion_rad: 0.70
   max_joint_lead_rad: 0.08
   max_joint_speed_rad_s: 0.45
   max_joint_accel_rad_s2: 2.0

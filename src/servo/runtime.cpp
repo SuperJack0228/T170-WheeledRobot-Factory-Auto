@@ -26,6 +26,7 @@ struct Runtime {
     Eigen::Matrix4d tcp_to_camera = Eigen::Matrix4d::Identity();
     bool succeeded = false;
     Vec2 completed_goal = Vec2::Zero();
+    std::string failure_reason;
 };
 Runtime slots[2];
 std::atomic<std::uint64_t> next_session{1};
@@ -74,8 +75,18 @@ void send(int hand, const Joints &q) {
 }
 }
 
-void prepare_group() { group_failed.store(false); }
+void prepare_group() {
+    group_failed.store(false);
+    for(auto &slot:slots) {
+        std::lock_guard<std::mutex> lock(slot.mutex); slot.failure_reason.clear();
+    }
+}
 bool group_is_failed() { return group_failed.load(); }
+std::string last_failure(int hand) {
+    if(hand<0 || hand>1) return "invalid_hand";
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    return slots[hand].failure_reason;
+}
 
 bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,const char *tag) {
     const int hand=hand_index(arm);
@@ -96,7 +107,9 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     {
         std::lock_guard<std::mutex> lock(slot.mutex);
         slot.context={}; slot.history.clear(); slot.pending.reset(); slot.succeeded=false;
+        slot.failure_reason.clear();
         slot.context.active=true; slot.context.session=next_session.fetch_add(1);
+        slot.context.desired_rotation=TR(goal).block<3,3>(0,0);
         slot.context.final_z=goal(2); slot.context.target_class=cls; slot.context.profile=profile;
         slot.context.task_tag=tag?tag:"descent";
         slot.context.nominal_xy=goal.head<2>().transpose();
@@ -107,8 +120,15 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     std::uint64_t session;
     { std::lock_guard<std::mutex> lock(slot.mutex); session=slot.context.session; }
     std::string snapshot_error;
-    if(!write_config_snapshot(cfg,trace_writer().path()+".session_"+std::to_string(session)+".params.yaml",snapshot_error))
+    const std::string prefix=trace_writer().path()+".session_"+std::to_string(session);
+    if(!write_config_snapshot(cfg,prefix+".params.yaml",snapshot_error))
         throw std::runtime_error("servo_config_snapshot_failed: "+snapshot_error);
+    // Preserve on-disk model for diagnosis. It is explicitly not proof of the SDK's
+    // in-memory model if someone edits the YAML after process startup.
+    std::error_code copy_error;
+    std::filesystem::copy_file(std::filesystem::path(project_root_dir())/"config"/"Robot_Arm_Model.yaml",
+        prefix+".arm_model_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
+    if(copy_error) std::cerr << "[servo] 模型文件备份失败: " << copy_error.message() << '\n';
     double read_ms=0; const auto state=measured(arm,slot,read_ms);
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand; row.event="begin";
     { std::lock_guard<std::mutex> lock(slot.mutex); row.session=slot.context.session; }
@@ -131,6 +151,7 @@ void end_session(int hand, bool success) {
     std::lock_guard<std::mutex> lock(slot.mutex);
     slot.context.active=false; slot.context.descending=false; slot.pending.reset();
     slot.succeeded=success;
+    if(!success && slot.failure_reason.empty()) slot.failure_reason="approach_or_execution_failed";
     if(!success) group_failed.store(true);
 }
 
@@ -173,6 +194,61 @@ void invalidate_result(int hand) {
     std::lock_guard<std::mutex> lock(slots[hand].mutex); slots[hand].succeeded=false;
 }
 
+bool ready_for_gripper(Robot_Arm &arm) {
+    const int hand=hand_index(arm); auto &slot=slots[hand];
+    Vec2 goal; Config cfg; double final_z; bool succeeded; Eigen::Matrix3d rotation;
+    { std::lock_guard<std::mutex> lock(slot.mutex);
+      succeeded=slot.succeeded; goal=slot.completed_goal;
+      cfg=slot.context.config; final_z=slot.context.final_z;
+      rotation=slot.context.desired_rotation;
+    }
+    if(!succeeded || hardware_abort_requested() || can_io_faulted() || group_failed.load()) return false;
+    double read_ms=0; const auto state=measured(arm,slot,read_ms);
+    const bool ready=(state.position.head<2>()-goal).norm()<=cfg.grasp_xy_accept_m &&
+        state.position.z()>=final_z && state.position.z()<=final_z+cfg.grasp_z_accept_above_m &&
+        Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle()<=cfg.max_orientation_error_rad;
+    TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand;
+    { std::lock_guard<std::mutex> lock(slot.mutex);
+      row.session=slot.context.session; row.task_tag=slot.context.task_tag; row.target_class=slot.context.target_class;
+    }
+    row.event="gripper_gate"; row.reason=ready?"ready":"pose_changed_after_done";
+    row.measured=state; row.final_z=final_z; row.goal=goal;
+    row.control.remaining_m=goal-state.position.head<2>(); trace_writer().push(std::move(row));
+    if(!ready) {
+        { std::lock_guard<std::mutex> lock(slot.mutex); slot.failure_reason="gripper_gate_pose_changed"; }
+        invalidate_result(hand); group_failed.store(true);
+    }
+    return ready;
+}
+
+void handoff_event(Robot_Arm &arm,const Joints &command,const Joints &previous,const char *reason) {
+    const int hand=hand_index(arm); double read_ms=0;
+    const auto state=measured(arm,slots[hand],read_ms);
+    const Vec3 reference=arm_tcp_from_joints(arm,command).head<3>().transpose();
+    TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand;
+    { std::lock_guard<std::mutex> lock(slots[hand].mutex);
+      row.session=slots[hand].context.session; row.final_z=slots[hand].context.final_z;
+      row.task_tag=slots[hand].context.task_tag; row.target_class=slots[hand].context.target_class;
+    }
+    row.event="handoff"; row.reason=reason; row.measured=state; row.commanded=command; row.reference=reference;
+    row.requested_velocity=(reference-arm_tcp_from_joints(arm,previous).head<3>().transpose())/.005;
+    row.reference_lead_m=(reference-state.position).norm();
+    row.joint_lead_rad=(command-state.joints).cwiseAbs().maxCoeff(); row.read_ms=read_ms;
+    trace_writer().push(std::move(row));
+}
+
+void task_event(int hand,const char *event,const char *reason) {
+    if(hand<0 || hand>1) return;
+    auto &slot=slots[hand]; TraceRow row;
+    { std::lock_guard<std::mutex> lock(slot.mutex);
+      row.session=slot.context.session; row.measured=slot.context.latest;
+      row.final_z=slot.context.final_z; row.task_tag=slot.context.task_tag;
+      row.target_class=slot.context.target_class; row.profile_mode=slot.context.profile.mode;
+    }
+    row.time_s=monotonic_seconds(); row.hand=hand; row.event=event; row.reason=reason;
+    trace_writer().push(std::move(row));
+}
+
 void record_gripper_check(int hand,double position,double torque,const char *outcome) {
     if(hand<0 || hand>1) return;
     TraceRow row;
@@ -187,66 +263,6 @@ void record_gripper_check(int hand,double position,double torque,const char *out
     trace_writer().push(std::move(row));
 }
 
-int wait_approach_settled(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, const Joints &hold) {
-    const int hand=hand_index(arm);
-    if(hand<0 || hand>1) return -30;
-    Runtime &slot=slots[hand];
-    Config cfg; std::uint64_t session=0; std::string task, mode; int cls=-1; double final_z=0;
-    {
-        std::lock_guard<std::mutex> lock(slot.mutex);
-        if(!slot.context.active || slot.context.descending) return -30;
-        cfg=slot.context.config; session=slot.context.session; task=slot.context.task_tag;
-        cls=slot.context.target_class; mode=slot.context.profile.mode; final_z=slot.context.final_z;
-    }
-    const auto hold_pose=arm_tcp_from_joints(arm, hold);
-    if(!hold_pose.allFinite()) return -32;
-    const Vec3 hold_xyz=hold_pose.head<3>().transpose();
-    const Eigen::Matrix3d goal_rotation=TR(goal).block<3,3>(0,0);
-    const double t0=monotonic_seconds();
-    constexpr double kTimeoutS=2.5;
-    while(true) {
-        const auto cycle=std::chrono::steady_clock::now();
-        if(hardware_abort_requested()) return -4;
-        if(can_io_faulted()) return -2;
-        if(group_failed.load()) return -31;
-        double read_ms=0;
-        const State state=measured(arm,slot,read_ms);
-        const double rotation_error=Eigen::AngleAxisd(goal_rotation*state.rotation.transpose()).angle();
-        const double position_lead=(hold_xyz-state.position).norm();
-        const double joint_lead=(hold-state.joints).cwiseAbs().maxCoeff();
-        const double speed=state.velocity.norm();
-        const bool settled=rotation_error<=cfg.max_orientation_error_rad &&
-                           position_lead<=cfg.max_reference_lead_m &&
-                           joint_lead<=cfg.max_joint_lead_rad &&
-                           speed<=cfg.settle_speed_m_s;
-        TraceRow row; row.time_s=monotonic_seconds(); row.session=session; row.hand=hand;
-        row.profile_mode=mode; row.target_class=cls; row.task_tag=task; row.measured=state;
-        row.final_z=final_z; row.reference=hold_xyz; row.commanded=hold;
-        row.actual_rotation_error_rad=rotation_error; row.reference_lead_m=position_lead;
-        row.joint_lead_rad=joint_lead; row.read_ms=read_ms;
-        if(settled) {
-            row.event="approach"; row.reason="settled";
-            trace_writer().push(std::move(row));
-            std::cout << "[servo] hand=" << hand << " session=" << session
-                      << " 接近到位，开始竖直下降\n";
-            return 0;
-        }
-        if(monotonic_seconds()-t0>kTimeoutS) {
-            row.event="end"; row.reason="approach_not_settled";
-            trace_writer().push(std::move(row));
-            std::cerr << "[servo] hand=" << hand << " session=" << session
-                      << " 接近未到位，停在 B 点上方，不进入下降"
-                      << " rot_deg=" << (rotation_error*180.0/M_PI)
-                      << " lead_mm=" << (position_lead*1000.0)
-                      << " joint_deg=" << (joint_lead*180.0/M_PI)
-                      << " v_mm_s=" << (speed*1000.0) << "\n";
-            return -31;
-        }
-        send(hand, hold);
-        std::this_thread::sleep_until(cycle+std::chrono::milliseconds(5));
-    }
-}
-
 int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 const Joints &last_command,const Joints &previous_command,double speed) {
     const int hand=hand_index(arm); Runtime &slot=slots[hand];
@@ -256,11 +272,13 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     const Eigen::Matrix3d rotation=TR(goal).block<3,3>(0,0);
     double read_ms=0;
     State state=measured(arm,slot,read_ms);
-    Controller controller; controller.reset(cfg,state,goal(2),speed);
+    Controller controller; controller.reset(cfg,state,goal(2),speed,goal.head<2>().transpose(),context.target_class==0);
     Joints command=last_command, joint_velocity=(last_command-previous_command)/0.005;
     Vec3 reference=arm_tcp_from_joints(arm,command).head<3>().transpose();
+    const Vec3 incoming_velocity=(reference-arm_tcp_from_joints(arm,previous_command).head<3>().transpose())/0.005;
+    controller.feedback_reference(reference,incoming_velocity);
     { std::lock_guard<std::mutex> lock(slot.mutex); slot.context.descending=true; }
-    double previous_time=state.time_s, last_log=0;
+    double previous_time=state.time_s, last_log=0, fault_since=-1;
     int failures=0; Phase previous_phase=Phase::Acquiring;
     PixelObservation last_observation; Mapping last_map;
     int result=-31;
@@ -272,8 +290,15 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         const double dt=state.time_s-previous_time; previous_time=state.time_s;
         if(dt<=0) continue;
         const double rotation_error=Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle();
-        if(rotation_error>cfg.max_orientation_error_rad) controller.fail("orientation_outside_envelope");
-        // 跟随误差只记录，不中止。4 mm 门限会在刚离开 B 点时把还在跟上的手臂判失败。
+        const double lead=(reference-state.position).norm();
+        const double joint_lead=(command-state.joints).cwiseAbs().maxCoeff();
+        const bool outside=lead>cfg.hard_reference_lead_m || joint_lead>cfg.max_joint_lead_rad ||
+                           rotation_error>cfg.max_orientation_error_rad;
+        if(outside) { if(fault_since<0) fault_since=state.time_s; }
+        else fault_since=-1;
+        if(fault_since>=0 && state.time_s-fault_since>cfg.following_timeout_s)
+            controller.fail(rotation_error>cfg.max_orientation_error_rad?
+                "persistent_orientation_error":"persistent_following_error");
         if(group_failed.load()) controller.fail("peer_arm_failed");
         if(!trace_writer().healthy()) controller.fail("trace_write_failed");
         std::optional<PixelObservation> observation;
@@ -305,37 +330,53 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(controller.has_goal() && pair_too_close(hand,state,controller.goal_xy(),cfg.pair_clearance_m))
             controller.fail("dual_arm_clearance");
         Output output=controller.tick(state,dt);
-        if(output.phase==Phase::Commit || output.phase==Phase::Done || output.phase==Phase::Failed) {
+        if(output.phase==Phase::Commit || output.phase==Phase::Settling || output.phase==Phase::Done || output.phase==Phase::Failed) {
             std::lock_guard<std::mutex> lock(slot.mutex); slot.context.vision_required=false;
         }
         if(output.phase==Phase::Failed) group_failed.store(true);
         const double step_dt=std::min(dt,cfg.max_tick_gap_s);
         const Vec3 requested_velocity(output.velocity_xy.x(),output.velocity_xy.y(),output.velocity_z);
-        Vec3 increment(output.velocity_xy.x()*step_dt,output.velocity_xy.y()*step_dt,output.velocity_z*step_dt);
+        Vec3 increment=output.reference-reference;
         Vec3 next_reference=reference+increment;
         double xyz=0, rot=0; Joints candidate=command;
         const double solve_start=monotonic_seconds();
         bool solved=false; double applied_scale=0; std::string solver_reason="local_pose_residual_or_limit";
-        for(int attempt=0;attempt<5;++attempt) {
+        // Finish orientation continuously during handoff; avoid a one-tick pose jump.
+        const auto command_pose=arm_tcp_from_joints(arm,command);
+        const Eigen::Matrix3d command_rotation=TR(command_pose).block<3,3>(0,0);
+        const double angle=Eigen::AngleAxisd(rotation*command_rotation.transpose()).angle();
+        const double rotation_fraction=angle>1e-8?std::min(1.0,0.20*step_dt/angle):1.0;
+        // DONE is an exact hold of the last legal joint reference, not another IK step.
+        if(output.phase==Phase::Done) {
+            solved=true; next_reference=reference; joint_velocity.setZero();
+            solver_reason="hold_final_reference";
+        }
+        for(int attempt=0;attempt<8 && !solved;++attempt) {
             const double fraction=std::ldexp(1.0,-attempt);
             const Vec3 trial=reference+fraction*increment;
-            if(!solve_local_pose(arm,command,trial,rotation,cfg,candidate,xyz,rot)) continue;
+            const Eigen::Matrix3d trial_rotation=Eigen::Quaterniond(command_rotation).slerp(
+                rotation_fraction*fraction,Eigen::Quaterniond(rotation)).toRotationMatrix();
+            if(!solve_local_pose(arm,command,trial,trial_rotation,cfg,candidate,xyz,rot)) continue;
             const Joints velocity=(candidate-command)/step_dt;
             if(velocity.cwiseAbs().maxCoeff()>cfg.max_joint_speed_rad_s) { solver_reason="joint_speed_limit"; continue; }
             if(((velocity-joint_velocity)/step_dt).cwiseAbs().maxCoeff()>cfg.max_joint_accel_rad_s2) {
                 solver_reason="joint_acceleration_limit"; continue;
             }
-            next_reference=trial; joint_velocity=velocity; solved=true; applied_scale=fraction;
+            const Vec3 achieved=arm_tcp_from_joints(arm,candidate).head<3>().transpose();
+            if(achieved.z()<goal(2)+(context.target_class==0?cfg.grasp_height_margin_m:0.0)-cfg.solver_position_tolerance_m) {
+                solver_reason="reference_below_safe_Z"; continue;
+            }
+            next_reference=achieved; joint_velocity=velocity; solved=true; applied_scale=fraction;
             solver_reason=attempt==0?"accepted":"scaled_"+solver_reason; break;
         }
         const double solve_ms=(monotonic_seconds()-solve_start)*1000;
         if(solved) {
             const Vec3 applied_velocity=(next_reference-reference)/step_dt;
-            controller.feedback_applied_velocity(applied_velocity.head<2>(),applied_velocity.z());
+            controller.feedback_reference(next_reference,applied_velocity);
             output.velocity_xy=applied_velocity.head<2>(); output.velocity_z=applied_velocity.z();
             failures=0; command=candidate; reference=next_reference; send(hand,command);
         } else {
-            controller.feedback_applied_velocity(Vec2::Zero(),0);
+            controller.feedback_reference(reference,Vec3::Zero());
             output.velocity_xy.setZero(); output.velocity_z=0;
             ++failures; joint_velocity.setZero();
             if(failures>=cfg.max_solver_failures) {
@@ -343,6 +384,11 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 output.phase=Phase::Failed; output.reason="local_solver_or_joint_limits";
                 group_failed.store(true);
             }
+        }
+        if(output.phase==Phase::Done && (!solved || rotation_error>cfg.max_orientation_error_rad)) {
+            controller.fail("final_reference_or_orientation_not_ready");
+            output.phase=Phase::Failed; output.reason="final_reference_or_orientation_not_ready";
+            group_failed.store(true);
         }
         if(output.phase!=previous_phase) {
             std::cout << "[servo] hand=" << hand << " session=" << context.session
@@ -369,6 +415,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         previous_phase=output.phase;
         if(terminal) {
             result=output.phase==Phase::Done && solved ? 0 : -31;
+            if(result!=0) { std::lock_guard<std::mutex> lock(slot.mutex); slot.failure_reason=output.reason; }
             if(result==0) { std::lock_guard<std::mutex> lock(slot.mutex); slot.completed_goal=controller.goal_xy(); }
             break;
         }
@@ -378,6 +425,10 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     // Hold the last accepted nearby reference; never send the old, uncorrected final waypoint.
     if(!hardware_abort_requested() && !can_io_faulted()) send(hand,command);
     if(result!=0) {
+        { std::lock_guard<std::mutex> lock(slot.mutex);
+          if(slot.failure_reason.empty()) slot.failure_reason=result==-4?"hardware_abort":
+              (result==-2?"CAN_fault":"execution_failed");
+        }
         group_failed.store(true);
         observation_event(hand,context.session,"motion_failed",last_observation);
     }
