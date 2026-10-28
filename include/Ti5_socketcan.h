@@ -12,8 +12,10 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#ifdef __linux__
 #include <linux/can.h>
 #include <linux/can/raw.h>
+#endif
 #include <string>
 #include <vector>  // 添加 vector 头文件
 #include <thread>  

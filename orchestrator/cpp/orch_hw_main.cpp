@@ -879,9 +879,9 @@ Json::Value dispatch(const Json::Value &request)
         out["code"] = rc;
         return out;
     }
-    if (cmd == "vision_grasp_once")
+    if (cmd == "vision_grasp_once" || cmd == "vision_servo_dual_once")
     {
-        const int rc = orch::vision_grasp_once();
+        const int rc = cmd == "vision_servo_dual_once" ? orch::vision_servo_dual_once() : orch::vision_grasp_once();
         Json::Value out = reply(rc >= 0, rc < 0 ? "抓一次料盘失败/中止" : "");
         out["code"] = rc;
         out["grasped_right"] = g_session.last_grasped_r;

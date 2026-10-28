@@ -239,7 +239,7 @@ cameras:
   hand_fps: 15
   # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。
   hand_live_preview: false
-  # true：竖直下降段锁定工件后，把检测框中心对齐到下面的夹爪像素，只改水平位置。
+  # true：双轴视觉闭环；失败禁止合/松爪。参数见 visual_servo。
   hand_descent_correct: true
   # 10:30 抓准那一帧的框中心。左手图已转 180°。原点在左上角，x 向右，y 向下。
   left_gripper_u: 598
@@ -401,3 +401,70 @@ gripper_check:
   empty_q_rad: 0.5
   hold_q_max_rad: 3.0
   max_empty_retry: 2
+
+
+# V1 双手视觉伺服。单位 m / s / rad；像素坐标均为原图（左图转180度后）。
+# geometry 是基于现有手眼/平面的估计，不是实测标定。先记录双手日志，再填写 table。
+visual_servo:
+  # 传送带放置尚无已确认的空孔/特征；默认保留既有开环放置，不冒充视觉闭环。
+  # 确认有可跟踪目标且配置好放置profile后才可启用。
+  belt_place_enabled: false
+  period_s: 0.01
+  kp: 1.5
+  kd: 0.2
+  max_xy_speed_m_s: 0.020
+  max_xy_accel_m_s2: 0.10
+  max_z_accel_m_s2: 0.10
+  brake_delay_s: 0.08
+  model_uncertainty_m: 0.0005
+  xy_tolerance_m: 0.002
+  settle_speed_m_s: 0.003
+  z_tolerance_m: 0.001
+  slow_xy_error_m: 0.004
+  stop_xy_error_m: 0.012
+  # 最后可见区对准后，最多约8mm短行程保持已确认XY；需按现场遮挡位置验证。
+  commit_height_m: 0.008
+  commit_speed_m_s: 0.010
+  commit_timeout_s: 2.5
+  max_correction_m: 0.035
+  innovation_gate_m: 0.012
+  goal_filter_alpha: 0.65
+  max_observation_age_s: 0.35
+  max_clock_uncertainty_s: 0.12
+  feedback_age_budget_s: 0.02
+  loss_timeout_s: 1.5
+  task_timeout_s: 18.0
+  max_tick_gap_s: 0.15
+  max_state_gap_s: 0.06
+  max_reference_lead_m: 0.004
+  max_joint_lead_rad: 0.08
+  max_joint_speed_rad_s: 0.45
+  max_joint_accel_rad_s2: 2.0
+  max_orientation_error_rad: 0.05235987756
+  solver_position_tolerance_m: 0.0006
+  solver_rotation_tolerance_rad: 0.00872664626
+  max_solver_failures: 5
+  stable_frames: 2
+  min_confidence: 0.45
+  acquire_radius_px: 180
+  track_radius_px: 100
+  pair_clearance_m: 0.10
+  log_period_s: 0.05
+  # reference_height_m=0：以下像素来自最终抓准位置；feature_z_offset_m
+  # 是可见顶面/孔口相对最终TCP Z，不是相机深度。未知时0只是初始假设。
+  # 未单独填写reference_px时继承cameras里的左右夹取像素，避免两处修改互相覆盖。
+  # 要区分抓/放参考时在对应profile显式添加reference_px: [u, v]。
+  left_grasp:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
+  right_grasp: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
+  left_place:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
+  right_place: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
+  # 实测表的格式（不可把示例矩阵当作真实标定）：
+  # left_grasp:
+  #   mode: table
+  #   knots:
+  #     - height_m: 0.0
+  #       reference_px: [u0, v0]
+  #       jacobian_px_per_m: [[a00, a01], [a10, a11]]
+  #     - height_m: 0.14
+  #       reference_px: [u1, v1]
+  #       jacobian_px_per_m: [[b00, b01], [b10, b11]]

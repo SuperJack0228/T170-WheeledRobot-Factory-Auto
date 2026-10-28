@@ -47,6 +47,7 @@ COMMANDS = {
     "grasp": {"cmd": "vision_grasp"},
     "grasp_image": {"cmd": "vision_grasp_image"},
     "grasp_once": {"cmd": "vision_grasp_once"},
+    "servo_dual_once": {"cmd": "vision_servo_dual_once"},
     "grasp_track": {"cmd": "vision_grasp_track"},
     "dispatch_status": {"cmd": "dispatch_status"},
     "grasp_belt": {"cmd": "grasp_belt"},

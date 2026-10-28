@@ -50,6 +50,7 @@ environment.pickle
 *.bak
 *.cache
 vision_time.log
+logs/visual_servo/
 piancha.txt
 piancha copy.txt
 1.TXT

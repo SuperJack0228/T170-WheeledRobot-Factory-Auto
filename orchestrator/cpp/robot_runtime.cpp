@@ -2121,19 +2121,21 @@ int go_belt_station(
         Eigen::Matrix<double, 1, 6> goal = is_right ? goal_r : goal_l;
         const double place_mps = c.place_approach_vel_m_s;
         double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
-        if (!(kDescentMps > 0.02))
-            kDescentMps = 0.08;
+        if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
+            return -30;
         std::cout << "[orch] belt " << (is_right ? "右手" : "左手")
                   << " " << std::fixed << std::setprecision(2) << place_mps
                   << "m/s 先到上方，再竖直 " << kDescentMps << " m/s 放下\n";
         Eigen::Matrix<double, 1, 6> hover = goal;
         if (c.place_hover_above_m > 1e-9)
             hover(2) += c.place_hover_above_m;
-        descent_set_visual_bias(is_right ? 1 : 0, 0.0, 0.0);
+        if(!g_move_cfg.visual_servo.belt_place_enabled)
+            std::cout << "[servo] 传送带放置使用既有开环目标；未定义可观测特征，不计入视觉闭环验收\n";
         const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            place_mps, kDescentMps, {}, false, "belt放置", false, true, 1);
+            place_mps, kDescentMps, {}, false, "belt放置", false,
+            g_move_cfg.visual_servo.belt_place_enabled, 1);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
@@ -2620,18 +2622,17 @@ static int go_belt_grasp_attempt(
         hover(2) += hover_z;
         const double reach_mps = c.grasp_approach_vel_m_s;
         double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
-        if (!(kDescentMps > 0.02))
-            kDescentMps = 0.08;
+        if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
+            return -30;
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
                   << "m/s 先到正上方 " << (hover_z * 100.0)
                   << " cm，再竖直 " << kDescentMps
                   << " m/s 下降。";
         if (g_move_cfg.cameras.hand_descent_correct)
-            std::cout << "下降段只改还没发出的行\n";
+            std::cout << "下降段使用双轴闭环、延迟补偿与预测制动\n";
         else
             std::cout << "手相机修正已关，照头相机目标走\n";
-        descent_set_visual_bias(is_right ? 1 : 0, 0.0, 0.0);
         const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
@@ -3472,6 +3473,14 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             return -4;
         }
 
+        if(g_move_cfg.visual_servo.require_dual) {
+            // One simultaneous attempt only: do not turn a dual-hand validation into serial retries.
+            last_rc=r.grasped_r && r.grasped_l && r.status==move_box::GraspToStandbyStatus::Ok ? 0 : -34;
+            std::cout << "[servo] 双手单次验证结束：右=" << r.grasped_r << " 左=" << r.grasped_l
+                      << " code=" << last_rc << "，不自动补抓\n";
+            break;
+        }
+
         if (r.empty_r || r.empty_l)
             board_note("warn", std::string("料盘一空抓") + (r.empty_r ? " 右手" : "") +
                                    (r.empty_l ? " 左手" : "") + "，不计数，原地重拍重抓");
@@ -3627,6 +3636,20 @@ int vision_grasp_once()
     return vision_grasp_with_engine(SegEngineId::Default, false, false, false);
 }
 
+int vision_servo_dual_once()
+{
+    if(!g_move_cfg.cameras.hand_descent_correct) {
+        std::cerr << "[servo] 双手验证要求 cameras.hand_descent_correct=true\n";
+        return -30;
+    }
+    struct Restore {
+        bool saved=g_move_cfg.visual_servo.require_dual;
+        ~Restore() { g_move_cfg.visual_servo.require_dual=saved; }
+    } restore;
+    g_move_cfg.visual_servo.require_dual=true;
+    return vision_grasp_with_engine(SegEngineId::Default,false,false,false);
+}
+
 int vision_grasp_image()
 {
     return vision_grasp_with_engine(SegEngineId::Default, false, false, true, true);
@@ -3634,7 +3657,8 @@ int vision_grasp_image()
 
 int vision_grasp_track()
 {
-    return vision_grasp_with_engine(SegEngineId::Default, false, false, false, false, true);
+    std::cerr << "[servo] 旧悬停跟随使用占位深度，已禁用；请使用 vision_grasp_once 验证双手新闭环\n";
+    return -30;
 }
 
 int tray_servo_jitter_test()

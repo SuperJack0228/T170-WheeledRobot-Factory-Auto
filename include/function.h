@@ -192,7 +192,7 @@ int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, doubl
 
 /** 两段直线一次下发：第一段去掉末尾减速到 0，第二段去掉开头从 0 加速，中间不停车。
  *  若该臂已有 arm_start_line_then_line_plan 且关节仍在起点，直接下发不再规划。
- *  correct_descent 为真时，第二段下降中手相机只改尚未下发的行。逆解失败则停住。 */
+ *  correct_descent 且手相机修正打开时，第二段由独立二维闭环接管。失败禁止继续夹爪操作。 */
 ArmLineMoveResult arm_dual_line_then_line_nostop(
     Robot_Arm &arm_r,
     const Eigen::Matrix<double, 1, 6> &mid_r,
@@ -211,27 +211,8 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     bool correct_descent = false,
     int hand_target_class = -1);
 
-/** 下降段正在下发时为真。手相机只在这时锁定孔并给出实测位置。 */
-bool descent_player_accepting(int hand);
-
-/** 竖直下降进度，0 是刚进入下降，1 是计划降到终点。还没进入下降段时为负。 */
-double descent_vertical_progress(int hand);
-
-/** 这一帧框中心离夹爪像素的距离。小于 0 表示这一帧没有锁定。 */
-void descent_note_align_px(int hand, double px);
-
-/** 旧的「视觉点再加头相机偏置」。下降修正已改为直接下发手相机基座 XY，不再读取这里。 */
-void descent_set_visual_bias(int hand, double x_m, double y_m);
-void descent_visual_bias(int hand, double &x_m, double &y_m);
-
-/** 把还没下发的下降改到这个基座 XY。相对正在下发的那一行重写，不叠加旧修正。 */
-bool descent_apply_hole_xy(int hand, double base_x, double base_y, const char *note);
-
-/** 这次下降已经按图像改过水平时，返回最后下发的基座 XY。合爪到位按这个点核对，不按头相机原点。 */
+/** 成功完成视觉下降后，返回通过验收的基座 XY。失败或未运行时返回 false。 */
 bool descent_commanded_xy(int hand, double &x_m, double &y_m);
-
-/** 在拍照时那一行的 XY 上加一步，得到绝对目标后再重写未下发段。 */
-bool descent_nudge_xy(int hand, double dx_m, double dy_m, const char *note);
 
 /** 手相机在基座系里的原点和三个轴。t_flange_cam 是相机到法兰，平移为米。 */
 bool arm_camera_axes_in_base(
@@ -338,9 +319,6 @@ int arm_dual_cartesian_track(
 
 /** 记录最近一次 set_motor_position 下发（供 wait_arms_motors_stopped 编码器校验） */
 void save_arm_last_commanded_position(int hand, const int motor_cmd[7]);
-
-/** 把手上最近一次下发的关节角交给手相机跟随，避免跟随线程再去读编码器。 */
-void arm_note_last_commanded(int hand);
 
 /** hand: 1=右手 0=左手；7 轴中至少 6 轴 speed==0 视为停稳 */
 bool arm_motors_all_stopped(int hand, int speed_threshold = 0);

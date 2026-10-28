@@ -3,7 +3,29 @@ project(t170c_cylinder_debug LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Hardware-independent regression tests: no Linux SDK, cameras, Python or CAN required.
+option(T170_SERVO_TESTS_ONLY "Build only wrist-servo controller tests" OFF)
+if(T170_SERVO_TESTS_ONLY)
+    find_package(Threads REQUIRED)
+    enable_testing()
+    add_executable(visual_servo_test tests/visual_servo_test.cpp src/servo/visual_servo.cpp src/servo/kinematics.cpp src/servo/trace.cpp)
+    target_include_directories(visual_servo_test PRIVATE include eigen3)
+    target_link_libraries(visual_servo_test PRIVATE Threads::Threads)
+    add_test(NAME visual_servo_test COMMAND visual_servo_test)
+    add_executable(visual_servo_runtime_test tests/visual_servo_runtime_test.cpp
+        src/servo/visual_servo.cpp src/servo/trace.cpp src/servo/runtime.cpp)
+    target_include_directories(visual_servo_runtime_test PRIVATE include eigen3)
+    target_link_libraries(visual_servo_runtime_test PRIVATE Threads::Threads)
+    add_test(NAME visual_servo_runtime_test COMMAND visual_servo_runtime_test)
+    return()
+endif()
+
 add_compile_definitions(MARKET_SIMPLE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    OUTPUT_VARIABLE T170_SERVO_REVISION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+add_compile_definitions(T170_SERVO_REVISION="${T170_SERVO_REVISION}")
+
 
 set(HUMAN_INTERACTION_ENV_ROOT "/home/ti5robot/anaconda3/envs/human_interaction_env" CACHE PATH
     "Conda environment containing ultralytics, OpenCV and pybind11")
@@ -82,6 +104,11 @@ add_executable(t170c_debug
     src/grasp_to_standby.cpp
     src/function.cpp
     src/hand_shadow.cpp
+    src/servo/visual_servo.cpp
+    src/servo/kinematics.cpp
+    src/servo/config.cpp
+    src/servo/runtime.cpp
+    src/servo/trace.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp
@@ -169,6 +196,11 @@ add_executable(arm_plane_repeat
     src/grasp_to_standby.cpp
     src/function.cpp
     src/hand_shadow.cpp
+    src/servo/visual_servo.cpp
+    src/servo/kinematics.cpp
+    src/servo/config.cpp
+    src/servo/runtime.cpp
+    src/servo/trace.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp

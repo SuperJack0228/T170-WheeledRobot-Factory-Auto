@@ -385,6 +385,7 @@ ALLOWED_COMMANDS = {
     "vision_grasp",
     "vision_grasp_image",
     "vision_grasp_once",
+    "vision_servo_dual_once",
     "vision_grasp_track",
     "tray_servo_test",
     "grasp_belt",

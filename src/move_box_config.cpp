@@ -623,6 +623,15 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(root["cameras"], "left_gripper_v", cfg.cameras.left_gripper_v);
         read_value(root["cameras"], "right_gripper_u", cfg.cameras.right_gripper_u);
         read_value(root["cameras"], "right_gripper_v", cfg.cameras.right_gripper_v);
+        cfg.visual_servo.profiles[0].reference_px << cfg.cameras.left_gripper_u, cfg.cameras.left_gripper_v;
+        cfg.visual_servo.profiles[1].reference_px << cfg.cameras.right_gripper_u, cfg.cameras.right_gripper_v;
+        cfg.visual_servo.profiles[2].reference_px = cfg.visual_servo.profiles[0].reference_px;
+        cfg.visual_servo.profiles[3].reference_px = cfg.visual_servo.profiles[1].reference_px;
+        wrist_servo::load_config(root["visual_servo"], cfg.visual_servo);
+        if(cfg.cameras.hand_descent_correct && cfg.head_grasp.use_hand_camera)
+            throw std::runtime_error("新 visual_servo 与旧 use_hand_camera 不可同时启用；新流程应设 use_hand_camera=false");
+        if (!std::isfinite(cfg.head_grasp.descend_vel_m_s) || cfg.head_grasp.descend_vel_m_s <= 0)
+            throw std::runtime_error("head_grasp.descend_vel_m_s 必须为有限正数，禁止静默提速");
 
         int algorithm = cfg.vision_detect.head_grasp;
         read_value(root["vision_detect"], "head_grasp", algorithm);

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <limits>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
@@ -21,6 +22,7 @@
 #include <unistd.h>
 
 #include "vision_debug.h"
+#include "move_box_config.h"
 
 #include <librealsense2/rs.hpp>
 #include <opencv2/core.hpp>
@@ -59,7 +61,12 @@ struct SlotDevice
     std::array<double, 5> dist{};
     bool started = false;
     bool color_only = false;
+    double frame_period_s = 1.0/15.0;
+    double hardware_to_steady_s = std::numeric_limits<double>::infinity();
+    double last_device_s = -1.0;
 };
+
+void stamp_color_frame(SlotDevice &dev,const rs2::frame &color,CameraFrameData &out);
 
 void try_set_frames_queue_size_one(const rs2::device &device)
 {
@@ -67,6 +74,12 @@ void try_set_frames_queue_size_one(const rs2::device &device)
     {
         if (sensor.supports(RS2_OPTION_FRAMES_QUEUE_SIZE))
             sensor.set_option(RS2_OPTION_FRAMES_QUEUE_SIZE, 1.f);
+        try {
+            if(sensor.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+                sensor.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED,1.f);
+        } catch(const std::exception &e) {
+            std::cerr << "[realsense] global time unavailable; bounded hardware-clock fallback: " << e.what() << '\n';
+        }
     }
 }
 
@@ -228,6 +241,9 @@ bool start_slot_device(SlotDevice &dev, int width, int height, int fps, bool wit
 
             const rs2::device device = profile.get_device();
             dev.color_only = !with_depth;
+            dev.frame_period_s=1.0/fps;
+            dev.hardware_to_steady_s=std::numeric_limits<double>::infinity();
+            dev.last_device_s=-1;
             if (with_depth)
             {
                 const rs2::depth_sensor depth_sensor = device.first<rs2::depth_sensor>();
@@ -237,8 +253,12 @@ bool start_slot_device(SlotDevice &dev, int width, int height, int fps, bool wit
 
             // 首帧用长超时；USB 同口三台时经常要等 >5s
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            for (int i = 0; i < kWarmupFrames; ++i)
-                grab_newest_frameset(dev.pipeline, kStartWaitTimeoutMs);
+            for (int i = 0; i < kWarmupFrames; ++i) {
+                const auto frames=grab_newest_frameset(dev.pipeline,kStartWaitTimeoutMs);
+                const auto color=frames.get_color_frame();
+                CameraFrameData timing;
+                if(color) stamp_color_frame(dev,color,timing);
+            }
 
             dev.started = true;
             if (attempt > 1)
@@ -333,7 +353,12 @@ RealSenseMultiCam::~RealSenseMultiCam()
 
 const char *RealSenseMultiCam::slot_name(CameraSlot slot)
 {
-    return slot_key(slot).c_str();
+    switch(slot) {
+        case CameraSlot::Head: return "head";
+        case CameraSlot::RightHand: return "right_hand";
+        case CameraSlot::LeftHand: return "left_hand";
+    }
+    return "unknown";
 }
 
 CameraSlot RealSenseMultiCam::slot_from_choice(int choice)
@@ -445,7 +470,7 @@ bool RealSenseMultiCam::init(std::string &err)
     }
 
     g_hand_cams.store(this);
-    if (impl_->hand_live_preview)
+    if (impl_->hand_live_preview && !g_move_cfg.cameras.hand_descent_correct)
         start_hand_preview();
     else
         std::cout << "[handcam] 网页实时预览已关（cameras.hand_live_preview=false），不从手相机抽帧\n";
@@ -460,11 +485,38 @@ RealSenseMultiCam *RealSenseMultiCam::live()
 namespace
 {
 
+void stamp_color_frame(SlotDevice &dev,const rs2::frame &color,CameraFrameData &out)
+{
+    const double steady=std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double epoch=std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+    const double device=color.get_timestamp()/1000.0;
+    out.frame_number=color.get_frame_number(); out.device_timestamp_ms=color.get_timestamp();
+    const auto domain=color.get_frame_timestamp_domain();
+    if(domain==RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME || domain==RS2_TIMESTAMP_DOMAIN_GLOBAL_TIME) {
+        const double age=epoch-device;
+        if(!std::isfinite(age) || age < -0.02 || age > 5.0) return;
+        out.capture_steady_s=steady-age;
+        out.timestamp_uncertainty_s=0.005+0.5*dev.frame_period_s;
+        out.timestamp_source=domain==RS2_TIMESTAMP_DOMAIN_GLOBAL_TIME?2:1;
+    } else {
+        if(!std::isfinite(device) || device<0) return;
+        if(device<dev.last_device_s) dev.hardware_to_steady_s=std::numeric_limits<double>::infinity();
+        dev.last_device_s=device;
+        dev.hardware_to_steady_s=std::min(dev.hardware_to_steady_s,steady-device);
+        out.capture_steady_s=device+dev.hardware_to_steady_s;
+        // Arrival-based offset is not an exact exposure clock: include a frame-period budget.
+        out.timestamp_uncertainty_s=dev.frame_period_s+0.005;
+        out.timestamp_source=3;
+    }
+}
+
 CameraFrameData grab_frameset_from_pipeline(
     SlotDevice &dev,
     const rs2::frameset &frames,
     CameraFrameData &out)
 {
+    const rs2::frame timestamp_frame=frames.get_color_frame();
+    if(timestamp_frame) stamp_color_frame(dev,timestamp_frame,out);
     if (dev.color_only)
     {
         const rs2::frame color_f = frames.get_color_frame();
@@ -540,7 +592,7 @@ void RealSenseMultiCam::flush(CameraSlot slot)
     flush_pipeline(it->second.pipeline);
 }
 
-CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
+CameraFrameData RealSenseMultiCam::grab(CameraSlot slot, unsigned timeout_ms)
 {
     std::unique_lock<std::mutex> hand_lock(grab_mu_for(slot), std::defer_lock);
     if (slot != CameraSlot::Head)
@@ -557,7 +609,7 @@ CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
     auto &dev = it->second;
     try
     {
-        const rs2::frameset frames = grab_newest_frameset(dev.pipeline);
+        const rs2::frameset frames = grab_newest_frameset(dev.pipeline,timeout_ms);
         grab_frameset_from_pipeline(dev, frames, out);
     }
     catch (const std::exception &e)
@@ -780,9 +832,11 @@ void RealSenseMultiCam::start_hand_preview()
     }
     impl_->preview_run.store(true);
     impl_->preview_thread = std::thread([this, dir]() {
+#ifdef __linux__
         sched_param idle{};
         if (pthread_setschedparam(pthread_self(), SCHED_IDLE, &idle) != 0)
             std::cerr << "[handcam] 预览线程没降到空闲优先级，编码仍只在这条线程\n";
+#endif
         unsigned long long seen_right = ~0ull;
         unsigned long long seen_left = ~0ull;
         bool logged_right = false;

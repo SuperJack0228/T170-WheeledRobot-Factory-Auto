@@ -3,6 +3,7 @@
 #include <Eigen/Dense>
 #include <string>
 #include <vector>
+#include "servo/visual_servo.h"
 
 struct ArmPosePairConfig
 {
@@ -348,6 +349,7 @@ struct MoveBoxConfig
     StaggerConfig stagger;
     VisionDetectConfig vision_detect;
     CameraStreamConfig cameras;
+    wrist_servo::Config visual_servo;
     GripperCheckConfig gripper_check;
 };
 

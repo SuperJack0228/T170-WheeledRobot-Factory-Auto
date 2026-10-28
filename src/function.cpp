@@ -7,6 +7,7 @@
 
 #include "Ti5_socketcan.h"
 #include "hand_shadow.h"
+#include "servo/runtime.h"
 #include "realsense_get.h"
 
 #include <atomic>
@@ -20,6 +21,7 @@
 #include <filesystem>
 #include <mutex>
 #include <vector>
+#include <stdexcept>
 
 #include "move_box_config.h"
 #include "seg_pose_bridge.h"
@@ -1163,13 +1165,10 @@ int execute_arm_trajectory(const MatrixXd &traj, int hand, double dt = k_arm_tra
         const auto cycle_start = chrono::high_resolution_clock::now();
 
         int motor_cmd[7] = {0};
-        double q_rad[7] = {0, 0, 0, 0, 0, 0, 0};
         for (int j = 0; j < dof; ++j)
         {
-            q_rad[j] = traj(i, j);
             motor_cmd[j] = rad_to_encoder_cnt(traj(i, j));
         }
-        hand_shadow_note_q(hand, q_rad);
         set_motor_position(motor_cmd, hand);
 
         const double elapsed_ms =
@@ -1851,16 +1850,6 @@ bool arm_at_last_command(bool is_right)
     return arm_motors_at_commanded_position(is_right ? 1 : 0);
 }
 
-void arm_note_last_commanded(int hand)
-{
-    if (hand < 0 || hand > 1 || !g_arm_last_cmd_valid[hand])
-        return;
-    double q[7] = {};
-    for (int j = 0; j < 7; ++j)
-        q[j] = encoder_cnt_to_rad(g_arm_last_cmd_cnt[hand][j]);
-    hand_shadow_note_q(hand, q);
-}
-
 int arm_creep_unreached_joints(bool move_r, bool move_l)
 {
     if (right_arm_motors_locked())
@@ -2285,10 +2274,6 @@ double servo_apply_pose(Robot_Arm &arm, int hand, const Eigen::Matrix<double, 1,
         motor_cmd[j] = rad_to_encoder_cnt(q_try(j));
     set_motor_position(motor_cmd, hand);
     save_arm_last_commanded_position(hand, motor_cmd);
-    double q_note[7] = {};
-    for (int j = 0; j < 7; ++j)
-        q_note[j] = q_try(j);
-    hand_shadow_note_q(hand, q_note);
     q = std::move(q_try);
     return scale;
 }
@@ -2331,10 +2316,6 @@ void servo_init_side(ServoSide &side, Robot_Arm &arm, bool on,
                   << " 当前位姿无效，这一侧不跟踪\n";
         return;
     }
-    double q_note[7] = {};
-    for (int j = 0; j < 7; ++j)
-        q_note[j] = side.q(j);
-    hand_shadow_note_q(side.hand, q_note);
     side.goal = side.cmd;
 }
 
@@ -2687,7 +2668,6 @@ ArmLineMoveResult arm_dual_line_move_selective(
 }
 
 int g_planned_descent_row[2] = {-1, -1};
-std::atomic<int> g_descent_fail_hand{-1};
 
 namespace
 {
@@ -3157,469 +3137,74 @@ void arm_start_line_then_line_plan(
 
 namespace
 {
-
-struct DescentSlot
+int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row,
+                          Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal,
+                          double descent_speed, int target_class,const char *tag)
 {
-    std::mutex mu;
-    bool active = false;
-    bool in_descent = false;
-    bool ik_failed = false;
-    int cursor = 0;
-    int descent_row = 0;
-    int plan_rows = 0;
-    double applied_x = 0.0;
-    double applied_y = 0.0;
-    bool have_visual_xy = false;
-    double bias_x = 0.0;
-    double bias_y = 0.0;
-    /** 框中心离夹爪的像素。小于 0 表示这一帧没有锁定。 */
-    double align_px = -1.0;
-    Eigen::Matrix<double, 1, 6> goal = Eigen::Matrix<double, 1, 6>::Zero();
-    Robot_Arm *arm = nullptr;
-    Eigen::MatrixXd traj;
-    Eigen::MatrixXd base;
-};
-
-DescentSlot g_desc[2];
-
-const char *descent_hand_name(int hand)
-{
-    return hand == 1 ? "右手" : "左手";
-}
-
-Eigen::Vector3d tcp_translation(Robot_Arm &arm, const Eigen::RowVectorXd &q)
-{
-    return arm.Forward_Kinematics(q).block<3, 1>(0, 3);
-}
-
-/** 在已经走通的关节上，求一个最小的关节增量，只动末端水平位置。阻尼最小二乘，不会另起一条逆解分支。 */
-bool tcp_xy_joint_step(
-    Robot_Arm &arm,
-    const Eigen::RowVectorXd &q_anchor,
-    const Eigen::RowVectorXd &q_last,
-    double dx,
-    double dy,
-    Eigen::RowVectorXd &dq_out)
-{
-    dq_out.resize(0);
-    if (q_anchor.size() < 7 || q_last.size() != q_anchor.size() || !q_anchor.allFinite() ||
-        !q_last.allFinite() || !std::isfinite(dx) || !std::isfinite(dy))
-        return false;
-    const int dof = static_cast<int>(q_anchor.size());
-    const int side = arm_hand_side(arm) == 1 ? 1 : 0;
-    std::lock_guard<std::mutex> kin(g_arm_kin_mu[side]);
-    const Eigen::Vector3d p0 = tcp_translation(arm, q_anchor);
-    if (!p0.allFinite())
-        return false;
-
-    Eigen::Vector3d target(dx, dy, 0.0);
-    Eigen::RowVectorXd q = q_anchor;
-    constexpr double h = 1e-4;
-    constexpr double lambda2 = 1e-4;
-    for (int iter = 0; iter < 4; ++iter)
-    {
-        const Eigen::Vector3d p = tcp_translation(arm, q);
-        if (!p.allFinite())
-            return false;
-        const Eigen::Vector3d err = target - (p - p0);
-        if (err.norm() < 2e-4)
-            break;
-        Eigen::MatrixXd J(3, dof);
-        bool jac_ok = true;
-        for (int j = 0; j < dof; ++j)
-        {
-            Eigen::RowVectorXd qp = q;
-            qp(j) += h;
-            const Eigen::Vector3d pp = tcp_translation(arm, qp);
-            if (!pp.allFinite())
-            {
-                jac_ok = false;
-                break;
-            }
-            J.col(j) = (pp - p) / h;
-        }
-        if (!jac_ok || !J.allFinite())
-            return false;
-        Eigen::Matrix3d A = J * J.transpose();
-        A.diagonal().array() += lambda2;
-        const Eigen::Vector3d y = A.ldlt().solve(err);
-        if (!y.allFinite())
-            return false;
-        Eigen::RowVectorXd step = (J.transpose() * y).transpose();
-        const double max_abs = step.cwiseAbs().maxCoeff();
-        constexpr double kMaxStep = 0.12;
-        if (max_abs > kMaxStep && max_abs > 1e-12)
-            step *= kMaxStep / max_abs;
-
-        Eigen::RowVectorXd q_try = q + step;
-        double scale = 1.0;
-        auto step_fits = [&](double s) {
-            const Eigen::RowVectorXd qn = q + s * step;
-            return qn.allFinite() && !arm.Check_Joint_Limit(qn);
-        };
-        while (scale > 0.02 && !step_fits(scale))
-            scale *= 0.5;
-        if (!step_fits(scale))
-            break;
-        q = q + scale * step;
+    if (traj.rows()<2 || traj.cols()!=7 || descent_row<1 || descent_row>traj.rows()) return -30;
+    if (!wrist_servo::begin_session(arm,goal,target_class,tag)) {
+        wrist_servo::end_session(hand,false); return -30;
     }
-    (void)q_last;
-    dq_out = q - q_anchor;
-    return dq_out.size() == dof && dq_out.allFinite();
-}
-
-bool tcp_xy_of(Robot_Arm &arm, const Eigen::RowVectorXd &q, double &x, double &y)
-{
-    if (q.size() < 7 || !q.allFinite())
-        return false;
-    const int side = arm_hand_side(arm) == 1 ? 1 : 0;
-    std::lock_guard<std::mutex> kin(g_arm_kin_mu[side]);
-    const Eigen::Vector3d p = tcp_translation(arm, q);
-    if (!p.allFinite())
-        return false;
-    x = p.x();
-    y = p.y();
-    return true;
-}
-
-/** 未下发的行改回「当前点沿原下降走，再加上这一帧的水平增量」。旧的未下发修正被盖掉。 */
-double rewrite_unsent_xy(
-    Eigen::MatrixXd &traj,
-    const Eigen::MatrixXd &base,
-    int anchor,
-    int from,
-    const Eigen::RowVectorXd &dq)
-{
-    if (anchor < 0 || from <= anchor || from >= traj.rows() || base.rows() <= anchor ||
-        base.cols() != traj.cols() || dq.size() != traj.cols() || !dq.allFinite())
-        return 0.0;
-    const double max_joint = dq.cwiseAbs().maxCoeff();
-    const double max_step = 25.0 * M_PI / 180.0 * k_arm_traj_dt;
-    int ramp = 1;
-    if (max_step > 1e-9 && max_joint > max_step)
-        ramp = std::min(400, static_cast<int>(std::ceil(max_joint / max_step)));
-    const int remain = static_cast<int>(traj.rows()) - from;
-    if (remain < 1)
-        return 0.0;
-    double fit = 1.0;
-    if (ramp > remain && ramp > 0)
-    {
-        fit = static_cast<double>(remain) / static_cast<double>(ramp);
-        ramp = remain;
-    }
-    if (ramp < 1)
-        ramp = 1;
-    const Eigen::RowVectorXd use = fit * dq;
-    const Eigen::RowVectorXd q_anchor = traj.row(anchor);
-    const Eigen::RowVectorXd base_anchor = base.row(anchor);
-    for (int r = from; r < traj.rows(); ++r)
-    {
-        const int k = r - from;
-        const double u = std::min(1.0, static_cast<double>(k + 1) / static_cast<double>(ramp));
-        Eigen::RowVectorXd hold = q_anchor;
-        if (r < base.rows())
-            hold += base.row(r) - base_anchor;
-        traj.row(r) = hold + u * use;
-    }
-    return fit;
-}
-
-int execute_descent_table(
-    Eigen::MatrixXd traj,
-    int hand,
-    int descent_row,
-    Robot_Arm *arm,
-    const Eigen::Matrix<double, 1, 6> &goal)
-{
-    if (hand == 1 && right_arm_motors_locked())
-        return 0;
-    if (hand < 0 || hand > 1 || arm == nullptr || traj.rows() < 2 || !goal.allFinite())
-        return -10;
-    if (descent_row < 1)
-        descent_row = 1;
-    if (descent_row >= traj.rows())
-        descent_row = static_cast<int>(traj.rows()) - 1;
-
-    {
-        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-        g_desc[hand].active = true;
-        g_desc[hand].in_descent = false;
-        g_desc[hand].ik_failed = false;
-        g_desc[hand].cursor = 0;
-        g_desc[hand].descent_row = descent_row;
-        g_desc[hand].plan_rows = static_cast<int>(traj.rows());
-        g_desc[hand].applied_x = goal(0);
-        g_desc[hand].applied_y = goal(1);
-        g_desc[hand].have_visual_xy = false;
-        g_desc[hand].align_px = -1.0;
-        g_desc[hand].goal = goal;
-        g_desc[hand].arm = arm;
-        g_desc[hand].traj = std::move(traj);
-        g_desc[hand].base = g_desc[hand].traj;
-    }
-    struct Guard
-    {
-        int hand;
-        ~Guard()
-        {
-            std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-            g_desc[hand].active = false;
-            g_desc[hand].in_descent = false;
-            g_desc[hand].arm = nullptr;
-        }
+    struct Guard {
+        int hand; bool success=false;
+        ~Guard() { wrist_servo::end_session(hand,success); }
     } guard{hand};
-
-    const int dof_limit = 7;
-    bool logged_start = false;
-    Eigen::RowVectorXd last_sent;
-    int i = 0;
-    while (true)
-    {
-        if (hardware_abort_requested())
-        {
-            std::cout << "[arm] STOP，停止轨迹\n";
-            return -4;
+    wrist_servo::Joints previous=traj.row(0), command=previous;
+    double last_sample=0;
+    for(int i=0;i<descent_row;++i) {
+        const auto cycle=std::chrono::steady_clock::now();
+        if(hardware_abort_requested()) return -4;
+        if(can_io_faulted()) return -2;
+        if(wrist_servo::group_is_failed()) return -31;
+        if(wrist_servo::monotonic_seconds()-last_sample>=0.02) {
+            wrist_servo::sample_approach_state(arm);
+            last_sample=wrist_servo::monotonic_seconds();
         }
-        if (can_io_faulted())
-        {
-            std::cout << "[arm] CAN 收发失败，停止轨迹: " << can_io_fault_message() << std::endl;
-            return -2;
-        }
-
-        Eigen::RowVectorXd row;
-        int nrows = 0;
-        {
-            std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-            nrows = static_cast<int>(g_desc[hand].traj.rows());
-            if (i < nrows)
-            {
-                row = g_desc[hand].traj.row(i);
-                g_desc[hand].cursor = i;
-                g_desc[hand].in_descent = i >= g_desc[hand].descent_row;
-            }
-        }
-        if (i >= nrows)
-            break;
-
-        if (!logged_start && i >= descent_row)
-        {
-            logged_start = true;
-            std::cout << "[descent] " << descent_hand_name(hand)
-                      << " 下降开始。35% 修正一次，70% 再补一次，之后只监控\n";
-        }
-
-        const auto cycle_start = std::chrono::high_resolution_clock::now();
-        const int dof = static_cast<int>(std::min(row.size(), static_cast<Eigen::Index>(dof_limit)));
-        int motor_cmd[7] = {0};
-        double q_rad[7] = {0, 0, 0, 0, 0, 0, 0};
-        for (int j = 0; j < dof; ++j)
-        {
-            q_rad[j] = row(j);
-            motor_cmd[j] = rad_to_encoder_cnt(row(j));
-        }
-        hand_shadow_note_q(hand, q_rad);
-        set_motor_position(motor_cmd, hand);
-        last_sent = row;
-
-        const double elapsed_ms =
-            std::chrono::duration<double, std::milli>(
-                std::chrono::high_resolution_clock::now() - cycle_start)
-                .count();
-        const double sleep_ms = std::max(0.0, k_arm_traj_dt * 1000.0 - elapsed_ms);
-        if (sleep_ms > 1e-6)
-            std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(sleep_ms));
-        ++i;
+        previous=command; command=traj.row(i);
+        wrist_servo::send_joint_reference(hand,command);
+        std::this_thread::sleep_until(cycle+std::chrono::microseconds(5000));
     }
-
-    if (last_sent.size() >= 1)
-    {
-        int last_cmd[7] = {0};
-        const int dof = static_cast<int>(std::min(last_sent.size(), static_cast<Eigen::Index>(dof_limit)));
-        for (int j = 0; j < dof; ++j)
-            last_cmd[j] = rad_to_encoder_cnt(last_sent(j));
-        save_arm_last_commanded_position(hand, last_cmd);
-    }
-    return 0;
+    const int result=wrist_servo::run_descent(arm,goal,command,previous,descent_speed);
+    guard.success=result==0;
+    return result;
 }
-
 } // namespace
 
-bool descent_player_accepting(int hand)
-{
-    if (hand < 0 || hand > 1)
-        return false;
-    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-    return g_desc[hand].active && g_desc[hand].in_descent && !g_desc[hand].ik_failed;
+namespace wrist_servo {
+int hand_index(const Robot_Arm &arm) { return arm_hand_side(arm); }
+Eigen::Matrix4d tool_transform(const Robot_Arm &arm) { return TR(arm_flange_tool(arm)); }
+void send_joint_reference(int hand,const Joints &q) {
+    if((hand!=0 && hand!=1) || !q.allFinite()) throw std::runtime_error("invalid_joint_reference");
+    int counts[7];
+    for(int j=0;j<7;++j) counts[j]=rad_to_encoder_cnt(q(j));
+    uint32_t ids[7];
+    const auto *source=hand==1?kRightArmCanIds:kLeftArmCanIds;
+    std::copy(source,source+7,ids);
+    if(socketcan_sendcommand(0,7,ids,30,counts)!=1) throw std::runtime_error("joint_command_write_failed");
+    save_arm_last_commanded_position(hand,counts);
+}
+bool read_joint_feedback(int hand,Joints &q) {
+    uint32_t ids[7]; int counts[7]{};
+    const auto *source=hand==1?kRightArmCanIds:kLeftArmCanIds;
+    std::copy(source,source+7,ids);
+    if(socketcan_sendsimplecommand(0,7,ids,8,counts)!=1) return false;
+    for(int j=0;j<7;++j) q(j)=encoder_cnt_to_rad(counts[j]);
+    return q.allFinite();
 }
 
-double descent_vertical_progress(int hand)
+bool solve_local_pose(Robot_Arm &arm,const Joints &seed,const Vec3 &target,
+                      const Eigen::Matrix3d &rotation,const Config &cfg,
+                      Joints &solution,double &xyz_residual,double &rotation_residual)
 {
-    if (hand < 0 || hand > 1)
-        return -1.0;
-    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-    if (!g_desc[hand].active || !g_desc[hand].in_descent)
-        return -1.0;
-    const int span = g_desc[hand].plan_rows - g_desc[hand].descent_row;
-    if (span <= 0)
-        return 1.0;
-    const double progress =
-        static_cast<double>(g_desc[hand].cursor - g_desc[hand].descent_row) /
-        static_cast<double>(span);
-    if (progress < 0.0)
-        return 0.0;
-    if (progress > 1.0)
-        return 1.0;
-    return progress;
+    std::lock_guard<std::mutex> lock(g_arm_kin_mu[arm_hand_side(arm)]);
+    const ForwardModel forward=[&](const Joints &q) { return arm.Forward_Kinematics(Eigen::RowVectorXd(q)); };
+    const JointLimitCheck limits=[&](const Joints &q) { return arm.Check_Joint_Limit(Eigen::RowVectorXd(q)); };
+    return solve_pose_with_fk(seed,target,rotation,cfg,forward,limits,solution,xyz_residual,rotation_residual);
 }
+} // namespace wrist_servo
 
-void descent_note_align_px(int hand, double px)
-{
-    if (hand < 0 || hand > 1)
-        return;
-    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-    g_desc[hand].align_px = px;
-}
-
-void descent_set_visual_bias(int hand, double x_m, double y_m)
-{
-    if (hand < 0 || hand > 1)
-        return;
-    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-    g_desc[hand].bias_x = std::isfinite(x_m) ? x_m : 0.0;
-    g_desc[hand].bias_y = std::isfinite(y_m) ? y_m : 0.0;
-}
-
-void descent_visual_bias(int hand, double &x_m, double &y_m)
-{
-    x_m = 0.0;
-    y_m = 0.0;
-    if (hand < 0 || hand > 1)
-        return;
-    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-    x_m = g_desc[hand].bias_x;
-    y_m = g_desc[hand].bias_y;
-}
-
-bool descent_nudge_xy(int hand, double dx_m, double dy_m, const char *note)
-{
-    if (hand < 0 || hand > 1 || !std::isfinite(dx_m) || !std::isfinite(dy_m))
-        return false;
-    Robot_Arm *arm = nullptr;
-    Eigen::RowVectorXd q_anchor;
-    {
-        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-        if (!g_desc[hand].active || !g_desc[hand].in_descent || g_desc[hand].arm == nullptr)
-            return false;
-        if (g_desc[hand].traj.rows() < 2)
-            return false;
-        int anchor = g_desc[hand].cursor;
-        if (anchor < 0)
-            anchor = 0;
-        if (anchor >= g_desc[hand].traj.rows())
-            anchor = static_cast<int>(g_desc[hand].traj.rows()) - 1;
-        arm = g_desc[hand].arm;
-        q_anchor = g_desc[hand].traj.row(anchor);
-    }
-    double x = 0.0;
-    double y = 0.0;
-    if (arm == nullptr || !tcp_xy_of(*arm, q_anchor, x, y))
-        return false;
-    return descent_apply_hole_xy(hand, x + dx_m, y + dy_m, note);
-}
-
-bool descent_commanded_xy(int hand, double &x_m, double &y_m)
-{
-    x_m = 0.0;
-    y_m = 0.0;
-    if (hand < 0 || hand > 1)
-        return false;
-    std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-    if (!g_desc[hand].have_visual_xy)
-        return false;
-    x_m = g_desc[hand].applied_x;
-    y_m = g_desc[hand].applied_y;
-    return std::isfinite(x_m) && std::isfinite(y_m);
-}
-
-bool descent_apply_hole_xy(int hand, double base_x, double base_y, const char *note)
-{
-    if (hand < 0 || hand > 1 || !std::isfinite(base_x) || !std::isfinite(base_y))
-        return false;
-
-    Robot_Arm *arm = nullptr;
-    Eigen::RowVectorXd q_anchor;
-    Eigen::RowVectorXd q_hold_last;
-    int anchor = 0;
-    {
-        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-        DescentSlot &slot = g_desc[hand];
-        if (!slot.active || !slot.in_descent || slot.arm == nullptr)
-            return false;
-        if (slot.traj.rows() < 2 || slot.traj.cols() < 7 || slot.base.rows() != slot.traj.rows() ||
-            slot.base.cols() != slot.traj.cols())
-            return false;
-        anchor = slot.cursor;
-        if (anchor < 0)
-            anchor = 0;
-        if (anchor >= slot.traj.rows() - 1)
-            return true;
-        arm = slot.arm;
-        q_anchor = slot.traj.row(anchor);
-        q_hold_last = q_anchor + (slot.base.row(slot.base.rows() - 1) - slot.base.row(anchor));
-    }
-
-    double cx = 0.0;
-    double cy = 0.0;
-    if (arm == nullptr || !tcp_xy_of(*arm, q_anchor, cx, cy))
-        return false;
-    const double dx = base_x - cx;
-    const double dy = base_y - cy;
-
-    Eigen::RowVectorXd dq = Eigen::RowVectorXd::Zero(q_anchor.size());
-    if (std::hypot(dx, dy) >= 0.0005)
-    {
-        if (!tcp_xy_joint_step(*arm, q_anchor, q_hold_last, dx, dy, dq))
-        {
-            std::cout << "[descent] " << descent_hand_name(hand)
-                      << " 这一帧水平增量没算出来，下降按原表继续\n";
-            return false;
-        }
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(g_desc[hand].mu);
-        DescentSlot &slot = g_desc[hand];
-        if (!slot.active || slot.traj.rows() < 2 || slot.base.rows() != slot.traj.rows() ||
-            slot.traj.cols() != dq.size())
-            return false;
-        anchor = slot.cursor;
-        if (anchor < 0)
-            anchor = 0;
-        if (anchor >= slot.traj.rows() - 1)
-            return true;
-        int from = anchor + 1;
-        if (from < slot.descent_row)
-            from = slot.descent_row;
-        if (from >= slot.traj.rows())
-            return true;
-        const Eigen::RowVectorXd hold_last =
-            slot.traj.row(anchor) +
-            (slot.base.row(slot.base.rows() - 1) - slot.base.row(anchor));
-        const double pending = (slot.traj.row(slot.traj.rows() - 1) - hold_last).cwiseAbs().maxCoeff();
-        if (std::hypot(dx, dy) < 0.0005 && pending < 1e-3)
-            return true;
-        const double fit = rewrite_unsent_xy(slot.traj, slot.base, anchor, from, dq);
-        slot.applied_x = cx + dx * fit;
-        slot.applied_y = cy + dy * fit;
-        slot.have_visual_xy = true;
-        std::cout << std::fixed << std::setprecision(1)
-                  << "[descent] " << descent_hand_name(hand)
-                  << " 水平 " << (std::hypot(dx, dy) * fit * 1000.0)
-                  << " mm，按这一帧重写未下发下降，从第 " << from << " 行起"
-                  << (note != nullptr && note[0] != '\0' ? "  " : "")
-                  << (note != nullptr ? note : "") << '\n';
-    }
-    return true;
+bool descent_commanded_xy(int hand,double &x,double &y) {
+    return wrist_servo::completed_xy(hand,x,y);
 }
 
 ArmLineMoveResult arm_dual_line_then_line_nostop(
@@ -3640,6 +3225,14 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const bool correct_descent,
     const int hand_target_class)
 {
+    const bool visual = correct_descent && g_move_cfg.cameras.hand_descent_correct;
+    if(move_r) wrist_servo::invalidate_result(1);
+    if(move_l) wrist_servo::invalidate_result(0);
+    Eigen::Matrix<double,1,6> approach_r=mid_r, approach_l=mid_l;
+    if(visual) {
+        approach_r.tail<3>()=goal_r.tail<3>();
+        approach_l.tail<3>()=goal_l.tail<3>();
+    }
     ArmLineMoveResult out;
     Eigen::MatrixXd traj_r, traj_l;
     const bool prepared_r =
@@ -3648,12 +3241,19 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const bool prepared_l =
         use_prepared && !correct_descent && move_l &&
         take_prepared_line(arm_hand_side(arm_l), traj_l, out.ret_l);
-    if (move_r && !prepared_r)
-        out.ret_r = plan_line_then_line(
-            arm_r, mid_r, goal_r, vel_first_m_s, vel_second_m_s, traj_r, log_tag);
-    if (move_l && !prepared_l)
-        out.ret_l = plan_line_then_line(
-            arm_l, mid_l, goal_l, vel_first_m_s, vel_second_m_s, traj_l, log_tag);
+    auto plan=[&](Robot_Arm &arm,Eigen::Matrix<double,1,6> mid,
+                  const Eigen::Matrix<double,1,6> &goal,Eigen::MatrixXd &trajectory) {
+        if(!visual) return plan_line_then_line(arm,mid,goal,vel_first_m_s,vel_second_m_s,trajectory,log_tag);
+        wrist_servo::Joints q;
+        if(!wrist_servo::read_joint_feedback(arm_hand_side(arm),q)) return -32;
+        const int code=plan_arm_line_from(arm,mid,vel_first_m_s,Eigen::MatrixXd(q),trajectory);
+        if(code==0) g_planned_descent_row[arm_hand_side(arm)]=static_cast<int>(trajectory.rows());
+        // Preserve the SDK's deceleration at B. No fixed photo wait is inserted;
+        // the local controller owns the descent and starts from this continuous reference state.
+        return code;
+    };
+    if (move_r && !prepared_r) out.ret_r=plan(arm_r,approach_r,goal_r,traj_r);
+    if (move_l && !prepared_l) out.ret_l=plan(arm_l,approach_l,goal_l,traj_l);
     if ((move_r && out.ret_r != 0) || (move_l && out.ret_l != 0))
     {
         if (move_r && out.ret_r == 0)
@@ -3664,11 +3264,11 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     }
     if (before_move)
         before_move();
-    if (correct_descent)
-        g_descent_fail_hand.store(-1, std::memory_order_release);
+    if (visual)
+        wrist_servo::prepare_group();
     const auto watch = [&](Robot_Arm &arm, const Eigen::Matrix<double, 1, 6> &goal) {
         const int hand = arm_hand_side(arm);
-        if (correct_descent)
+        if (visual)
             hand_shadow_ensure(
                 hand, &arm, goal, log_tag != nullptr ? log_tag : "下降", hand_target_class);
     };
@@ -3679,10 +3279,21 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj,
                        const Eigen::Matrix<double, 1, 6> &goal, int &ret) {
         const int hand = arm_hand_side(arm);
-        if (correct_descent)
-            ret = execute_descent_table(traj, hand, g_planned_descent_row[hand], &arm, goal);
-        else
-            ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+        try {
+            if (visual)
+                ret = execute_descent_table(traj, hand, g_planned_descent_row[hand], arm, goal,
+                                            vel_second_m_s, hand_target_class,log_tag);
+            else
+                ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+        } catch(const std::exception &ex) {
+            std::cerr << "[servo] hand=" << hand << " execution exception: " << ex.what() << std::endl;
+            wrist_servo::ObservationContext context;
+            if(visual && wrist_servo::observation_context(hand,context)) {
+                wrist_servo::observation_event(hand,context.session,ex.what());
+                wrist_servo::end_session(hand,false);
+            }
+            ret=-32;
+        }
     };
     if (move_r && move_l)
     {
@@ -3695,15 +3306,30 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         run_one(arm_r, traj_r, goal_r, out.ret_r);
     else if (move_l)
         run_one(arm_l, traj_l, goal_l, out.ret_l);
+    if(visual && move_r && move_l && (out.ret_r!=0 || out.ret_l!=0)) {
+        // No gripper command has been issued yet. A locally finished peer is not a successful grasp.
+        for(int hand=0;hand<2;++hand) {
+            wrist_servo::ObservationContext context;
+            wrist_servo::observation_context(hand,context);
+            wrist_servo::observation_event(hand,context.session,"peer_failed_before_gripper");
+            wrist_servo::invalidate_result(hand);
+        }
+        if(out.ret_r==0) out.ret_r=-35;
+        if(out.ret_l==0) out.ret_l=-35;
+    }
     if (correct_descent && move_r)
         hand_shadow_end(arm_hand_side(arm_r));
     if (correct_descent && move_l)
         hand_shadow_end(arm_hand_side(arm_l));
     const char *done = correct_descent ? "下降到位" : (snap_reach ? "伸手到位" : "收手终点");
-    if (move_r && out.ret_r == 0)
-        record_arm_cartesian_arrival(arm_r, goal_r, done);
-    if (move_l && out.ret_l == 0)
-        record_arm_cartesian_arrival(arm_l, goal_l, done);
+    auto arrival=[&](Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal) {
+        Eigen::Matrix<double,1,6> corrected=goal;
+        double x=0,y=0;
+        if(visual && descent_commanded_xy(arm_hand_side(arm),x,y)) { corrected(0)=x; corrected(1)=y; }
+        record_arm_cartesian_arrival(arm,corrected,done);
+    };
+    if (move_r && out.ret_r == 0) arrival(arm_r,goal_r);
+    if (move_l && out.ret_l == 0) arrival(arm_l,goal_l);
     return out;
 }
 
