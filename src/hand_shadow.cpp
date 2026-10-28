@@ -38,7 +38,8 @@ void rotate_left(CameraFrameData &f,int hand) {
 
 void observe(int hand) {
     wrist_servo::ObservationContext context;
-    if(!wrist_servo::observation_context(hand,context) || !context.vision_required) return;
+    if(!wrist_servo::observation_context(hand,context) || !context.vision_required || !context.descending)
+        return;
     std::uint64_t generation;
     { std::lock_guard<std::mutex> lock(watch_mutex);
       if(!watches[hand].active) return;

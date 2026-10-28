@@ -27,6 +27,9 @@ bool read_joint_feedback(int hand, Joints &q);
 bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int target_class,
                    const char *task_tag = "descent");
 void sample_approach_state(Robot_Arm &arm);
+// Hold the last approach command until the measured arm is inside the descent gates.
+// 0 = at B and settled. -31 = approach_not_settled. Does not enable vision.
+int wait_approach_settled(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, const Joints &hold);
 void end_session(int hand, bool success);
 bool observation_context(int hand, ObservationContext &context);
 bool submit_observation(int hand, const PixelObservation &observation);

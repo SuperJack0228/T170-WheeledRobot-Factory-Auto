@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <mutex>
@@ -142,7 +143,8 @@ bool observation_context(int hand, ObservationContext &context) {
 bool submit_observation(int hand, const PixelObservation &o) {
     if(hand<0 || hand>1) return false;
     auto &slot=slots[hand]; std::lock_guard<std::mutex> lock(slot.mutex);
-    if(!slot.context.active || !slot.context.vision_required || o.session!=slot.context.session) return false;
+    if(!slot.context.active || !slot.context.descending || !slot.context.vision_required ||
+       o.session!=slot.context.session) return false;
     if(slot.pending && o.capture_s<=slot.pending->capture_s) return false;
     slot.pending=o; return true;
 }
@@ -185,6 +187,66 @@ void record_gripper_check(int hand,double position,double torque,const char *out
     trace_writer().push(std::move(row));
 }
 
+int wait_approach_settled(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, const Joints &hold) {
+    const int hand=hand_index(arm);
+    if(hand<0 || hand>1) return -30;
+    Runtime &slot=slots[hand];
+    Config cfg; std::uint64_t session=0; std::string task, mode; int cls=-1; double final_z=0;
+    {
+        std::lock_guard<std::mutex> lock(slot.mutex);
+        if(!slot.context.active || slot.context.descending) return -30;
+        cfg=slot.context.config; session=slot.context.session; task=slot.context.task_tag;
+        cls=slot.context.target_class; mode=slot.context.profile.mode; final_z=slot.context.final_z;
+    }
+    const auto hold_pose=arm_tcp_from_joints(arm, hold);
+    if(!hold_pose.allFinite()) return -32;
+    const Vec3 hold_xyz=hold_pose.head<3>().transpose();
+    const Eigen::Matrix3d goal_rotation=TR(goal).block<3,3>(0,0);
+    const double t0=monotonic_seconds();
+    constexpr double kTimeoutS=2.5;
+    while(true) {
+        const auto cycle=std::chrono::steady_clock::now();
+        if(hardware_abort_requested()) return -4;
+        if(can_io_faulted()) return -2;
+        if(group_failed.load()) return -31;
+        double read_ms=0;
+        const State state=measured(arm,slot,read_ms);
+        const double rotation_error=Eigen::AngleAxisd(goal_rotation*state.rotation.transpose()).angle();
+        const double position_lead=(hold_xyz-state.position).norm();
+        const double joint_lead=(hold-state.joints).cwiseAbs().maxCoeff();
+        const double speed=state.velocity.norm();
+        const bool settled=rotation_error<=cfg.max_orientation_error_rad &&
+                           position_lead<=cfg.max_reference_lead_m &&
+                           joint_lead<=cfg.max_joint_lead_rad &&
+                           speed<=cfg.settle_speed_m_s;
+        TraceRow row; row.time_s=monotonic_seconds(); row.session=session; row.hand=hand;
+        row.profile_mode=mode; row.target_class=cls; row.task_tag=task; row.measured=state;
+        row.final_z=final_z; row.reference=hold_xyz; row.commanded=hold;
+        row.actual_rotation_error_rad=rotation_error; row.reference_lead_m=position_lead;
+        row.joint_lead_rad=joint_lead; row.read_ms=read_ms;
+        if(settled) {
+            row.event="approach"; row.reason="settled";
+            trace_writer().push(std::move(row));
+            std::cout << "[servo] hand=" << hand << " session=" << session
+                      << " 接近到位，开始竖直下降\n";
+            return 0;
+        }
+        if(monotonic_seconds()-t0>kTimeoutS) {
+            row.event="end"; row.reason="approach_not_settled";
+            trace_writer().push(std::move(row));
+            std::cerr << "[servo] hand=" << hand << " session=" << session
+                      << " 接近未到位，停在 B 点上方，不进入下降"
+                      << " rot_deg=" << (rotation_error*180.0/M_PI)
+                      << " lead_mm=" << (position_lead*1000.0)
+                      << " joint_deg=" << (joint_lead*180.0/M_PI)
+                      << " v_mm_s=" << (speed*1000.0) << "\n";
+            return -31;
+        }
+        send(hand, hold);
+        std::this_thread::sleep_until(cycle+std::chrono::milliseconds(5));
+    }
+}
+
 int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 const Joints &last_command,const Joints &previous_command,double speed) {
     const int hand=hand_index(arm); Runtime &slot=slots[hand];
@@ -211,9 +273,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(dt<=0) continue;
         const double rotation_error=Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle();
         if(rotation_error>cfg.max_orientation_error_rad) controller.fail("orientation_outside_envelope");
-        if((command-state.joints).cwiseAbs().maxCoeff()>cfg.max_joint_lead_rad ||
-           (reference-state.position).norm()>cfg.max_reference_lead_m)
-            controller.fail("following_error");
+        // 跟随误差只记录，不中止。4 mm 门限会在刚离开 B 点时把还在跟上的手臂判失败。
         if(group_failed.load()) controller.fail("peer_arm_failed");
         if(!trace_writer().healthy()) controller.fail("trace_write_failed");
         std::optional<PixelObservation> observation;

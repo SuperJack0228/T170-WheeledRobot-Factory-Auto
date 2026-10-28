@@ -3164,6 +3164,8 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
         wrist_servo::send_joint_reference(hand,command);
         std::this_thread::sleep_until(cycle+std::chrono::microseconds(5000));
     }
+    const int settled=wrist_servo::wait_approach_settled(arm,goal,command);
+    if(settled!=0) return settled;
     const int result=wrist_servo::run_descent(arm,goal,command,previous,descent_speed);
     guard.success=result==0;
     return result;
@@ -3198,7 +3200,8 @@ bool solve_local_pose(Robot_Arm &arm,const Joints &seed,const Vec3 &target,
 {
     std::lock_guard<std::mutex> lock(g_arm_kin_mu[arm_hand_side(arm)]);
     const ForwardModel forward=[&](const Joints &q) { return arm.Forward_Kinematics(Eigen::RowVectorXd(q)); };
-    const JointLimitCheck limits=[&](const Joints &q) { return arm.Check_Joint_Limit(Eigen::RowVectorXd(q)); };
+    // 下降局部求解暂不套用 SDK 关节限位。直线规划已经能走到的姿态，这里不再拒。
+    const JointLimitCheck limits=[](const Joints &) { return false; };
     return solve_pose_with_fk(seed,target,rotation,cfg,forward,limits,solution,xyz_residual,rotation_residual);
 }
 } // namespace wrist_servo
@@ -3248,8 +3251,8 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         if(!wrist_servo::read_joint_feedback(arm_hand_side(arm),q)) return -32;
         const int code=plan_arm_line_from(arm,mid,vel_first_m_s,Eigen::MatrixXd(q),trajectory);
         if(code==0) g_planned_descent_row[arm_hand_side(arm)]=static_cast<int>(trajectory.rows());
-        // Preserve the SDK's deceleration at B. No fixed photo wait is inserted;
-        // the local controller owns the descent and starts from this continuous reference state.
+        // Play the SDK line through its deceleration at B. Descent and the hand camera
+        // start only after the measured arm has caught up; there is no fixed photo wait.
         return code;
     };
     if (move_r && !prepared_r) out.ret_r=plan(arm_r,approach_r,goal_r,traj_r);
