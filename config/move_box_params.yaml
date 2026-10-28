@@ -51,7 +51,7 @@ head_grasp:
   # 仅离机器人最近一排（from_robot=6）。叠在左右手 z_offset 上。向上为正，夹不到改负。
   nearest_row_grasp_z_offset_m: 0.0
   # true：下面按行的 XYZ 叠在整盘 offset 上。false 时整盘 offset 仍在，逐行数值不加入目标。
-  use_row_offset: false
+  use_row_offset: true
   # 按离机器人远近。第 1 项=最远一行，第 6 项=最近一行。基座系，叠在上面的整盘 offset 上。
   row_offset:
     right:
@@ -134,8 +134,8 @@ tray2_place:
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
   far_row_forward_m: 0.20
-  # false：下面按行的 XYZ 不加入放置点，数值保留。整盘 offset 和每行姿态仍生效。
-  use_row_offset: false
+  # true：下面按行的 XYZ 叠在整盘 offset 上。false 时整盘 offset 和每行姿态仍在，逐行数值不加入放置点。
+  use_row_offset: true
   # 从料盘一抓取偏置抄来。第 1 项=最远一行，第 6 项=最近一行。
   row_offset:
     right:
@@ -240,7 +240,8 @@ cameras:
   # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。
   hand_live_preview: false
   # true：竖直下降段锁定工件后，把检测框中心对齐到下面的夹爪像素，只改水平位置。
-  hand_descent_correct: true
+  # false：下降不取手相机、不改轨迹。抓取和放置只走头相机目标加逐行偏置。
+  hand_descent_correct: false
   # 10:30 抓准那一帧的框中心。左手图已转 180°。原点在左上角，x 向右，y 向下。
   left_gripper_u: 598
   left_gripper_v: 458
@@ -381,7 +382,7 @@ chassis:
   sequence_number: "TH-T170C-0124"
   tray_station: AP1
   # 调度 1.8 若下发 standby_point，无任务去那个点；还没有时才用这里。
-  dispatch_wait_station: AP14
+  dispatch_wait_station: AP5
   # 调试指令 charge 用的充电点。调度 CHARGE 仍用系统下发的 charge_point。
   charge_station: CP11
   # 充完电后待命点（手臂回 home_tcp、腰高不变，底盘来这里）。与 AP14 分开。

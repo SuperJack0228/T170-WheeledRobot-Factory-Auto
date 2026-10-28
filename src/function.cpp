@@ -3666,9 +3666,10 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         before_move();
     if (correct_descent)
         g_descent_fail_hand.store(-1, std::memory_order_release);
+    const bool watch_hands = correct_descent && g_move_cfg.cameras.hand_descent_correct;
     const auto watch = [&](Robot_Arm &arm, const Eigen::Matrix<double, 1, 6> &goal) {
         const int hand = arm_hand_side(arm);
-        if (correct_descent)
+        if (watch_hands)
             hand_shadow_ensure(
                 hand, &arm, goal, log_tag != nullptr ? log_tag : "下降", hand_target_class);
     };
@@ -3695,9 +3696,9 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         run_one(arm_r, traj_r, goal_r, out.ret_r);
     else if (move_l)
         run_one(arm_l, traj_l, goal_l, out.ret_l);
-    if (correct_descent && move_r)
+    if (watch_hands && move_r)
         hand_shadow_end(arm_hand_side(arm_r));
-    if (correct_descent && move_l)
+    if (watch_hands && move_l)
         hand_shadow_end(arm_hand_side(arm_l));
     const char *done = correct_descent ? "下降到位" : (snap_reach ? "伸手到位" : "收手终点");
     if (move_r && out.ret_r == 0)

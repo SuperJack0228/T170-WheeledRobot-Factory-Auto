@@ -3464,7 +3464,7 @@ namespace move_box
             if (g_move_cfg.cameras.hand_descent_correct)
                 std::cout << "下降段只改还没发出的行\n";
             else
-                std::cout << "手相机修正已关，照头相机目标走，记录 logs/hand_eye_bias.csv\n";
+                std::cout << "不取手相机，照头相机目标和逐行偏置走\n";
             auto set_bias = [&](bool is_right, int row) {
                 const XyzOffsetM row_off = active_row_offset(is_right, row);
                 descent_set_visual_bias(

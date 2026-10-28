@@ -2630,7 +2630,7 @@ static int go_belt_grasp_attempt(
         if (g_move_cfg.cameras.hand_descent_correct)
             std::cout << "下降段只改还没发出的行\n";
         else
-            std::cout << "手相机修正已关，照头相机目标走\n";
+            std::cout << "不取手相机，照头相机目标走\n";
         descent_set_visual_bias(is_right ? 1 : 0, 0.0, 0.0);
         const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
