@@ -1,6 +1,8 @@
 #include "move_box_runtime.h"
+#include "servo/runtime.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cerrno>
@@ -11,6 +13,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <mutex>
 #include <numeric>
 #include <optional>
 #include <random>
@@ -21,6 +24,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "hand_shadow.h"
 #include "head.h"
 #include "head_cam2robot.h"
 #include "Ti5_socketcan.h"
@@ -124,6 +128,10 @@ namespace move_box
         return out;
     }
     TrayHoleTask g_tray_hole_task = TrayHoleTask::GraspParts;
+    /** 非负时本轮选孔只用这个类别，不改成料盘二放置。-1 表示按任务。 */
+    int g_assign_class_override = -1;
+    /** 非 0 时只在这一行选孔。from_robot：1 最远，6 最近。 */
+    int g_assign_fixed_from_robot_row = 0;
 
     bool g_tray2_precision_test = false;
     std::unordered_set<int> g_tray2_visited_holes;
@@ -193,6 +201,8 @@ namespace move_box
 
     int tray_assign_class_id()
     {
+        if (g_assign_class_override >= 0)
+            return g_assign_class_override;
         return g_tray_hole_task == TrayHoleTask::PlaceEmpty ? kEmptyHoleClassId
                                                            : kGraspDetectClassId;
     }
@@ -227,10 +237,17 @@ namespace move_box
         XyzOffsetM none;
         if (from_robot_row < 1 || from_robot_row > 6)
             return none;
-        const int i = from_robot_row - 1;
         if (tray2_place_active())
+        {
+            if (!g_move_cfg.tray2_place.use_row_offset)
+                return none;
+            const int i = from_robot_row - 1;
             return is_right ? g_move_cfg.tray2_place.right_row_offset[i]
                             : g_move_cfg.tray2_place.left_row_offset[i];
+        }
+        if (!g_move_cfg.head_grasp.use_row_offset)
+            return none;
+        const int i = from_robot_row - 1;
         return is_right ? g_move_cfg.head_grasp.right_row_offset[i]
                         : g_move_cfg.head_grasp.left_row_offset[i];
     }
@@ -980,6 +997,9 @@ namespace move_box
         const bool known = g.hasSide(side) && g.feedback(side).have_feedback;
         // 夹零件时 q 约 ≥0.5；空爪/松到 ~0.3 不能算持件 → q < empty_q_rad 空抓。
         const bool empty = gc.enable && known && fb.position_rad < gc.empty_q_rad;
+        const char *servo_outcome=!known || !gc.enable || fb.result==gripper::GraspResult::Timeout
+            ? "unknown_gripper_feedback" : (empty?"empty_grasp":"holding_candidate");
+        wrist_servo::record_gripper_check(side==gripper::Side::Right?1:0,fb.position_rad,fb.torque,servo_outcome);
         std::cout << std::fixed << std::setprecision(3)
                   << "[gripper] " << tag << ' ' << hand << " 合爪结束 q=" << fb.position_rad
                   << " rad 力矩=" << fb.torque << " N·m（" << result << "）";
@@ -2273,7 +2293,7 @@ namespace move_box
         }
         out.ok = true;
         std::cout << "[tray] 工作区 "
-                  << (want_class == kEmptyHoleClassId ? "空孔" : "毛坯")
+                  << (want_class == kEmptyHoleClassId ? "空孔" : "立件")
                   << " 右=" << out.right << " 左=" << out.left
                   << (cols_flipped ? "（列号已对调）\n" : "\n");
         return out;
@@ -2295,38 +2315,12 @@ namespace move_box
             out.message = "料盘引擎未就绪";
             return out;
         }
-
-        std::array<double, 16> T = cam2robot;
-        std::string ext_err;
-        if (!load_head_cam2robot(T, ext_err))
-            T = cam2robot;
-
-        const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
-        cameras.flush(CameraSlot::Head);
-        std::vector<CameraFrameData> frames;
-        frames.reserve(static_cast<size_t>(fuse_n));
-        for (int i = 0; i < fuse_n; ++i)
-        {
-            CameraFrameData one = cameras.grab_wait(CameraSlot::Head);
-            one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
-            if (!one.ok)
-                continue;
-            frames.push_back(std::move(one));
-        }
-        if (frames.empty())
-        {
-            out.message = "取帧失败";
-            return out;
-        }
-        const CameraFrameData &frame = frames.back();
-        const int algorithm_id = algorithm_id_for_slot(CameraSlot::Head);
-        const PoseRunResult yolo = bridge.run(
-            frame, algorithm_id, false, CameraSlot::Head, -1, SegEngineId::Default);
-        const PoseDetectionRecords yolo_all =
-            pose_records_from_run(yolo, CameraSlot::Head, frame, -1, false);
-        const TrayDetectResult tray = bridge.run_tray_annotate_multiframe(
-            frames, yolo_all, false, CameraSlot::Head, tray2_place_active());
-        return count_zone_from_tray(tray);
+        (void)cam2robot;
+        PerceiveTrayOptions opts;
+        opts.run_yolo = true;
+        opts.tray2_markers = tray2_place_active();
+        const HeadTrayPerception perc = perceive_tray_head(cameras, bridge, opts);
+        return count_zone_from_tray(perc.tray);
     }
 
     bool assign_from_tray_holes(
@@ -2440,7 +2434,10 @@ namespace move_box
 
         const int want_class = tray_assign_class_id();
         std::cout << "\n--- 料盘孔位分配 (ArUco XY + YOLO class" << want_class
-                  << (want_class == kEmptyHoleClassId ? " 空孔放置" : "") << ") ---\n";
+                  << (want_class == kEmptyHoleClassId
+                          ? (g_tray_hole_task == TrayHoleTask::PlaceEmpty ? " 空孔放置" : " 空孔")
+                          : "")
+                  << ") ---\n";
         std::cout << "[tray] 行列绑定料盘系：+X前=row1  -X后=row6  -Y右=col1  +Y左=col6\n";
         std::cout << std::fixed << std::setprecision(4)
                   << "[tray] 左右分列按 ArUco 列号，不用机器人 Y=0"
@@ -2643,6 +2640,26 @@ namespace move_box
                 std::cout << "[tray_xy] 精度测试本轮 ArUco row=" << best_aruco
                           << " from_robot=" << best_from << "\n";
         }
+        else if (g_assign_fixed_from_robot_row >= 1)
+        {
+            const int want = g_assign_fixed_from_robot_row;
+            bool any = false;
+            for (const Cand &c : right_zone)
+            {
+                if (!skip_r && c.row == want)
+                    any = true;
+            }
+            for (const Cand &c : left_zone)
+            {
+                if (!skip_l && c.row == want)
+                    any = true;
+            }
+            shared_row = any ? want : 0;
+            std::cout << "[tray_xy] 指定 from_robot=" << want
+                      << (want == 6 ? "（离机器人最近）" : "")
+                      << (want == 5 ? "（离机器人第二近）" : "")
+                      << (any ? "\n" : "，这一排没有孔\n");
+        }
         else
         {
             for (const Cand &c : right_zone)
@@ -2783,50 +2800,30 @@ namespace move_box
             std::cerr << "[head_ext] 现算失败: " << ext_err << "，用传入外参\n";
             T = cam2robot;
         }
+        (void)T;
 
-        const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
-        cameras.flush(CameraSlot::Head);
-        std::vector<CameraFrameData> frames;
-        frames.reserve(static_cast<size_t>(fuse_n));
-        for (int i = 0; i < fuse_n; ++i)
-        {
-            CameraFrameData one = cameras.grab_wait(CameraSlot::Head);
-            one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
-            if (!one.ok)
-            {
-                std::cerr << "[head] 取帧失败[" << i << "]: " << one.message << std::endl;
-                continue;
-            }
-            frames.push_back(std::move(one));
-        }
-        if (frames.empty())
+        const bool tray_ready = bridge.tray_engine_ready();
+        PerceiveTrayOptions opts;
+        opts.run_yolo = true;
+        opts.tray2_markers = tray2_place_active();
+        opts.show_tray_visualization = kDebugVisualize;
+        opts.show_yolo_visualization = !tray_ready && kDebugVisualize;
+        opts.engine_id = engine_id;
+        const HeadTrayPerception perc = perceive_tray_head(cameras, bridge, opts);
+        if (perc.frames.empty())
         {
             std::cerr << "[head] 取帧失败: 多帧融合没有有效帧\n";
             return;
         }
-        const CameraFrameData &frame = frames.back();
+        if (opts.run_yolo && !perc.yolo.ok)
+            std::cerr << "[head] YOLO 失败: " << perc.yolo.message << std::endl;
 
-        const int algorithm_id = algorithm_id_for_slot(CameraSlot::Head);
-        const bool tray_ready = bridge.tray_engine_ready();
-        const PoseRunResult yolo = bridge.run(
-            frame, algorithm_id, !tray_ready && kDebugVisualize, CameraSlot::Head, -1, engine_id);
-        if (!yolo.ok)
-            std::cerr << "[head] YOLO 失败: " << yolo.message << std::endl;
-
-        const PoseDetectionRecords yolo_all =
-            pose_records_from_run(yolo, CameraSlot::Head, frame, -1, false);
-
-        TrayDetectResult tray;
-        if (tray_ready)
-        {
-            tray = bridge.run_tray_annotate_multiframe(
-                frames, yolo_all, kDebugVisualize, CameraSlot::Head, tray2_place_active());
-            if (!tray.ok)
-                std::cerr << "[tray_xy] 料盘解算失败: " << tray.message
-                          << "，不回退 YOLO，本轮不抓\n";
-        }
-        else
+        const TrayDetectResult &tray = perc.tray;
+        if (!tray_ready)
             std::cerr << "[tray_xy] 料盘引擎未就绪，不回退 YOLO，本轮不抓\n";
+        else if (!tray.ok)
+            std::cerr << "[tray_xy] 料盘解算失败: " << tray.message
+                      << "，不回退 YOLO，本轮不抓\n";
 
         if (!assign_from_tray_holes(tray, st, skip_right, skip_left))
         {
@@ -2932,27 +2929,9 @@ namespace move_box
         return xyz_err_m <= xyz_tol_m && rpy_err_rad <= rpy_tol_rad;
     }
 
-    /** 料盘抓取走抹角。料盘二放置单独走抹角，不跟 approach_nostop。 */
-    bool tray_grasp_uses_curve()
-    {
-        return g_move_cfg.head_grasp.use_bezier_grasp &&
-               g_tray_hole_task != TrayHoleTask::PlaceEmpty;
-    }
-
-    bool tray_place_uses_corner()
-    {
-        return g_tray_hole_task == TrayHoleTask::PlaceEmpty &&
-               !g_move_cfg.head_grasp.use_hand_camera;
-    }
-
     /**
-     * 手相机启用时的旧 hover 接近流程。无手相机曲线模式在此不移动，
-     * 由 run_hand_approach_and_grasp 一次执行完整曲线。
-     * 自适应接近（安全优先）：
-     * 1) 先在当前 xyz 转到目标姿态（避免用待机腕角直线接近）
-     * 2) 再带着正确姿态直线到 hover
-     * 3) 实测 TCP 超差则本臂失败，不继续转/下压
-     * 固定姿态：一条直线到上方，同时转到 yaml 抓取 RPY（左 0/45/−10）。
+     * 不用手相机在上方停稳拍照时，这里不移动。
+     * 走到上方和竖直下降在下一段接成一次直线。
      */
     ArmLineMoveResult run_head_approach_selective(
         Robot_Arm &arm_r,
@@ -2964,48 +2943,13 @@ namespace move_box
         ArmLineMoveResult out;
         drop_if_y_split_blocks(st, move_r, move_l, "hover下发前");
 
-        // 无手相机 + 曲线：本段不移动。B 仍是物体上方点，和最终 C 一起在下一段一次走完。
-        // 无手相机 + 直线：A→B 到物体上方，同时转到该行姿态。
+        // 不用手相机停稳拍照：本段不移动。上方和竖直下降在下一段一次走完。
         if (!g_move_cfg.head_grasp.use_hand_camera)
         {
-            if (g_move_cfg.head_grasp.approach_nostop &&
-                g_tray_hole_task != TrayHoleTask::PlaceEmpty)
-            {
-                log_phase_banner("抓取流程：两段直线一次到最终点，本阶段不单独停在物体上方");
-                std::cout << "[approach] 到上方和下压接成一次，这里不移动\n";
-                return out;
-            }
-            if (tray_grasp_uses_curve() || tray_place_uses_corner())
-            {
-                log_phase_banner(tray_place_uses_corner()
-                                     ? "料盘2放置：抹角一次到孔位，本阶段不单独停在孔上方"
-                                     : "抓取流程：抹角一次到最终点，本阶段不单独停在物体上方");
-                std::cout << "[corner] B 是上方点，拐角稍后和最终点一起走，这里不移动\n";
-                return out;
-            }
-            log_phase_banner("抓取流程：直线 A→B 到物体上方并转该行姿态");
-            Eigen::Matrix<double, 1, 6> goal_r = arm_goal_in_real_waist_frame(st.goal_last_r);
-            Eigen::Matrix<double, 1, 6> goal_l = arm_goal_in_real_waist_frame(st.goal_last_l);
-            {
-                ArmLineMoveDebugStage stage("A→B 到物体上方同时转抓取姿态");
-                out = arm_dual_line_move_selective(
-                    arm_r, goal_r, move_r, arm_l, goal_l, move_l,
-                    g_move_cfg.head_grasp.approach_vel_m_s);
-            }
-            if (move_r && out.ret_r != 0)
-                log_arm_traj_plan_fail("右手(A→B)", out.ret_r);
-            if (move_l && out.ret_l != 0)
-                log_arm_traj_plan_fail("左手(A→B)", out.ret_l);
-            if (move_l && out.ret_l == 0)
-            {
-                const Eigen::Matrix<double, 1, 6> tcp = arm_get_tcp_pos(arm_l);
-                std::cout << std::fixed << std::setprecision(1)
-                          << "[arm] A→B 后左实际 rpy_deg=(" << (tcp(3) / rad) << ","
-                          << (tcp(4) / rad) << "," << (tcp(5) / rad)
-                          << ") 目标=(" << (goal_l(3) / rad) << ","
-                          << (goal_l(4) / rad) << "," << (goal_l(5) / rad)
-                          << ")\n";
-            }
+            log_phase_banner(g_tray_hole_task == TrayHoleTask::PlaceEmpty
+                                 ? "料盘2放置：先到孔上方再下降，本阶段不单独停车"
+                                 : "抓取流程：先到孔上方再下降，本阶段不单独停车");
+            std::cout << "[descent] 上方和下降接成一次直线，这里不移动\n";
             return out;
         }
 
@@ -3465,19 +3409,12 @@ namespace move_box
         HeadAssignState &st,
         HandMoveState &hs)
     {
-        const bool approach_nostop =
-            g_move_cfg.head_grasp.approach_nostop &&
-            !g_move_cfg.head_grasp.use_hand_camera &&
-            g_tray_hole_task != TrayHoleTask::PlaceEmpty;
-        log_phase_banner(g_move_cfg.head_grasp.use_hand_camera
-                             ? "抓取流程：从上方下压夹取"
-                             : (approach_nostop
-                                    ? "抓取流程：到上方后不停，直接下到抓取点"
-                                    : (tray_place_uses_corner()
-                                           ? "料盘2放置：A→B→C 抹角一次下发，不在孔上方停车"
-                                           : (tray_grasp_uses_curve()
-                                                  ? "抓取流程：A→B→C 抹角一次下发，不在 B 停车"
-                                                  : "抓取流程：直线 B→C 下压到最终抓取点"))));
+        const bool straight_descent = !g_move_cfg.head_grasp.use_hand_camera;
+        if(hs.move_r) wrist_servo::invalidate_result(1);
+        if(hs.move_l) wrist_servo::invalidate_result(0);
+        log_phase_banner(straight_descent
+                             ? "抓取流程：直线到孔正上方，再竖直下降"
+                             : "抓取流程：从上方下压夹取");
         drop_if_y_split_blocks(st, hs, "hover/final下发前");
         if (hs.move_r && hs.move_l && dual_grasp_targets_too_close(st))
         {
@@ -3508,7 +3445,7 @@ namespace move_box
         if (!hs.move_r && !hs.move_l)
             return {};
 
-        // 自适应姿态也必须在完整曲线规划前确定，曲线执行中不再改写 C。
+        // 自适应姿态在直线规划前确定，下降过程中不再改写终点。
         if (!g_move_cfg.head_grasp.use_hand_camera)
             apply_adaptive_grasp_rpy_selective(arm_r, arm_l, st, hs.move_r, hs.move_l);
 
@@ -3517,37 +3454,44 @@ namespace move_box
         Eigen::Matrix<double, 1, 6> goal_r_arm = arm_goal_in_real_waist_frame(st.goal_last_r);
         Eigen::Matrix<double, 1, 6> goal_l_arm = arm_goal_in_real_waist_frame(st.goal_last_l);
 
+        if(g_move_cfg.visual_servo.require_dual &&
+           (!hs.move_r || !hs.move_l || !head_grasp_simultaneous(st))) {
+            std::cerr << "[servo] 双手验证需要两侧有效目标且满足原有列间距/避让约束；本次不降级为单手\n";
+            return {-34,-34};
+        }
         ArmLineMoveResult out;
-        if (approach_nostop)
+        if (straight_descent)
         {
-            ArmLineMoveDebugStage stage("A→B→C 两段直线不停");
-            constexpr double kApproachCruiseMps = 0.25;
-            std::cout << "[approach] 直线 0.25m/s 到物体上方，不停，再下到抓取点\n";
+            ArmLineMoveDebugStage stage("A→B→C 直线下降");
+            const double approach_mps = g_move_cfg.head_grasp.approach_vel_m_s;
+            double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
+            if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
+                return {hs.move_r ? -30 : 0, hs.move_l ? -30 : 0};
+            const int hand_class = g_tray_hole_task == TrayHoleTask::PlaceEmpty ? 1 : 0;
+            std::cout << std::fixed << std::setprecision(2)
+                      << "[descent] 直线 " << approach_mps
+                      << " m/s 接近孔正上方，随后闭环竖直 " << kDescentMps
+                      << " m/s 下降。";
+            if (g_move_cfg.cameras.hand_descent_correct)
+                std::cout << "下降段使用双轴闭环、延迟补偿与预测制动\n";
+            else
+                std::cout << "手相机修正已关，照头相机目标走，记录 logs/hand_eye_bias.csv\n";
             out = arm_dual_line_then_line_nostop(
                 arm_r, hover_r_arm, goal_r_arm, hs.move_r,
                 arm_l, hover_l_arm, goal_l_arm, hs.move_l,
-                kApproachCruiseMps, kApproachCruiseMps, {}, false, "伸手");
-        }
-        else if (!g_move_cfg.head_grasp.use_hand_camera &&
-                 (tray_grasp_uses_curve() || tray_place_uses_corner()))
-        {
-            ArmLineMoveDebugStage stage("A→B→C 抹角一次下发");
-            const double corner_mps = 0.25;
-            std::cout << "[corner] 直线 " << std::fixed << std::setprecision(2) << corner_mps
-                      << "m/s 原样走到 B 前 6cm，末段抹角收到 C，失败不回退分段直线\n";
-            out = arm_dual_rounded_corner_move_selective(
-                arm_r, hover_r_arm, goal_r_arm, hs.move_r,
-                arm_l, hover_l_arm, goal_l_arm, hs.move_l,
-                corner_mps);
+                approach_mps, kDescentMps, {}, false, "下降", false, true, hand_class);
         }
         else
         {
             ArmLineMoveDebugStage stage(
                 g_move_cfg.head_grasp.use_hand_camera ? "物体上方下压"
                                                      : "B→C 下压到最终抓取点");
+            double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
+            if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
+                return {hs.move_r ? -30 : 0, hs.move_l ? -30 : 0};
             out = arm_dual_line_move_selective(
                 arm_r, goal_r_arm, hs.move_r, arm_l, goal_l_arm, hs.move_l,
-                g_move_cfg.head_grasp.descend_vel_m_s);
+                kDescentMps, true);
         }
         if (hs.move_r && out.ret_r != 0)
         {
@@ -3560,70 +3504,96 @@ namespace move_box
             return out;
         }
 
-        if (!wait_arms_motors_stopped(hs.move_r, hs.move_l, 5.0, 6, "最终C到位"))
-        {
-            std::cerr << "[grasp] 最终C电机到位等待超时，禁止合爪\n";
-            if (hs.move_r)
-                out.ret_r = -8;
-            if (hs.move_l)
-                out.ret_l = -8;
-            return out;
-        }
+        // The servo owns stable completion. Keep the legacy checks only for open-loop/place.
+        const bool servo_grasp=straight_descent && g_move_cfg.cameras.hand_descent_correct &&
+            g_tray_hole_task!=TrayHoleTask::PlaceEmpty;
+        if(servo_grasp) {
+            if(hs.move_r) wrist_servo::task_event(1,"both_ready","checking_before_gripper");
+            if(hs.move_l) wrist_servo::task_event(0,"both_ready","checking_before_gripper");
+            const bool right_ready=!hs.move_r || wrist_servo::ready_for_gripper(arm_r);
+            const bool left_ready=!hs.move_l || wrist_servo::ready_for_gripper(arm_l);
+            if(!right_ready || !left_ready) {
+                std::cerr << "[servo] 合爪前位置复核失败，详见 gripper_gate 日志\n";
+                return {hs.move_r?-36:0,hs.move_l?-36:0};
+            }
+        } else {
+            if (!wait_arms_motors_stopped(hs.move_r, hs.move_l, 5.0, 6, "最终C到位"))
+            {
+                std::cerr << "[grasp] 最终C电机到位等待超时，禁止合爪\n";
+                if (hs.move_r)
+                    out.ret_r = -8;
+                if (hs.move_l)
+                    out.ret_l = -8;
+                return out;
+            }
 
-        // 位置偏差必须以最终 C 为基准报告；曲线控制点 B 不参与 offset 标定。
-        auto verify_final_c = [&](Robot_Arm &arm,
-                                  const Eigen::Matrix<double, 1, 6> &goal,
-                                  const char *hand,
-                                  int &ret_io) {
-            const auto &hg = g_move_cfg.head_grasp;
-            Eigen::Matrix<double, 1, 6> cur = arm_get_tcp_pos(arm);
-            double xyz_err = 0.0;
-            double rpy_err = 0.0;
-            const double xyz_tol = std::max(0.001, hg.bezier_endpoint_xyz_tol_m);
-            const double rpy_tol = std::max(0.5, hg.bezier_endpoint_rpy_tol_deg) * rad;
-            bool ok = false;
-            int stable_samples = 0;
-            // 编码器停稳后复核 1 次即可；超差最多再看 0.3s。
-            for (int sample = 0; sample < 6; ++sample)
-            {
-                cur = arm_get_tcp_pos(arm);
-                xyz_err = (cur.head<3>() - goal.head<3>()).norm();
-                rpy_err = 0.0;
-                for (int axis = 3; axis < 6; ++axis)
+            // 位置偏差以最终抓取点为基准。
+            auto verify_final_c = [&](Robot_Arm &arm,
+                                      const Eigen::Matrix<double, 1, 6> &goal,
+                                      int hand_id,
+                                      const char *hand,
+                                      int &ret_io) {
+                const auto &hg = g_move_cfg.head_grasp;
+                Eigen::Matrix<double, 1, 6> expect = goal;
+                double vis_x = 0.0;
+                double vis_y = 0.0;
+                const bool visual_xy = descent_commanded_xy(hand_id, vis_x, vis_y);
+                if (visual_xy)
                 {
-                    const double d = std::atan2(
-                        std::sin(cur(axis) - goal(axis)),
-                        std::cos(cur(axis) - goal(axis)));
-                    rpy_err = std::max(rpy_err, std::abs(d));
+                    expect(0) = vis_x;
+                    expect(1) = vis_y;
                 }
-                const bool sample_ok = xyz_err <= xyz_tol && rpy_err <= rpy_tol;
-                stable_samples = sample_ok ? stable_samples + 1 : 0;
-                if (stable_samples >= 1)
+                Eigen::Matrix<double, 1, 6> cur = arm_get_tcp_pos(arm);
+                double xyz_err = 0.0;
+                double rpy_err = 0.0;
+                const double xyz_tol = std::max(0.001, hg.bezier_endpoint_xyz_tol_m);
+                const double rpy_tol = std::max(0.5, hg.bezier_endpoint_rpy_tol_deg) * rad;
+                bool ok = false;
+                int stable_samples = 0;
+                // 编码器停稳后复核 1 次即可；超差最多再看 0.3s。
+                for (int sample = 0; sample < 6; ++sample)
                 {
-                    ok = true;
-                    break;
+                    cur = arm_get_tcp_pos(arm);
+                    xyz_err = (cur.head<3>() - expect.head<3>()).norm();
+                    rpy_err = 0.0;
+                    for (int axis = 3; axis < 6; ++axis)
+                    {
+                        const double d = std::atan2(
+                            std::sin(cur(axis) - expect(axis)),
+                            std::cos(cur(axis) - expect(axis)));
+                        rpy_err = std::max(rpy_err, std::abs(d));
+                    }
+                    const bool sample_ok = xyz_err <= xyz_tol && rpy_err <= rpy_tol;
+                    stable_samples = sample_ok ? stable_samples + 1 : 0;
+                    if (stable_samples >= 1)
+                    {
+                        ok = true;
+                        break;
+                    }
+                    if (hardware_abort_requested())
+                        break;
+                    hardware_abort_sleep_ms(50);
                 }
-                if (hardware_abort_requested())
-                    break;
-                hardware_abort_sleep_ms(50);
-            }
-            std::cout << std::fixed << std::setprecision(4)
-                      << "[bezier_C] " << hand
-                      << " target=(" << goal(0) << ',' << goal(1) << ',' << goal(2) << ')'
-                      << " actual=(" << cur(0) << ',' << cur(1) << ',' << cur(2) << ')'
-                      << " xyz_err=" << xyz_err << "m rpy_err=" << (rpy_err / rad) << "deg\n";
-            if (!ok)
-            {
-                std::cerr << "[bezier_C] " << hand << " 最终C超差，禁止"
-                          << (g_tray_hole_task == TrayHoleTask::PlaceEmpty ? "张爪" : "合爪")
-                          << "；请勿把轨迹误差混入视觉offset\n";
-                ret_io = -7;
-            }
-        };
-        if (hs.move_r)
-            verify_final_c(arm_r, goal_r_arm, "右", out.ret_r);
-        if (hs.move_l)
-            verify_final_c(arm_l, goal_l_arm, "左", out.ret_l);
+                std::cout << std::fixed << std::setprecision(4)
+                          << "[到位] " << hand
+                          << (visual_xy ? " 按图像修正点" : " 按头相机目标")
+                          << " target=(" << expect(0) << ',' << expect(1) << ',' << expect(2) << ')'
+                          << " actual=(" << cur(0) << ',' << cur(1) << ',' << cur(2) << ')'
+                          << " xyz_err=" << xyz_err << "m rpy_err=" << (rpy_err / rad) << "deg\n";
+                if (!ok)
+                {
+                    std::cerr << "[到位] " << hand << " 最终点超差，禁止"
+                              << (g_tray_hole_task == TrayHoleTask::PlaceEmpty ? "张爪" : "合爪")
+                              << "；请勿把轨迹误差混入视觉offset\n";
+                    ret_io = -7;
+                }
+            };
+            if (hs.move_r)
+                verify_final_c(arm_r, goal_r_arm, 1, "右", out.ret_r);
+            if (hs.move_l)
+                verify_final_c(arm_l, goal_l_arm, 0, "左", out.ret_l);
+
+        }
 
         if (!tray2_precision_test())
         {
@@ -3653,7 +3623,7 @@ namespace move_box
 
         const int settle_ms = static_cast<int>(
             std::max(0.0, g_move_cfg.head_grasp.pre_grasp_settle_sec) * 1000.0);
-        if (settle_ms > 0)
+        if (!servo_grasp && settle_ms > 0)
             hardware_abort_sleep_ms(settle_ms);
         if (hardware_abort_requested())
         {
@@ -3673,7 +3643,9 @@ namespace move_box
             }
             else
             {
+                if(servo_grasp) wrist_servo::task_event(1,"gripper_start","close");
                 const auto grasp_r = g.graspAndWait(gripper::Side::Right);
+                if(servo_grasp) wrist_servo::task_event(1,"gripper_end","feedback_received");
                 st.empty_grasp_r = gripper_grasp_empty(g, gripper::Side::Right, grasp_r, "料盘抓取");
             }
         }
@@ -3688,7 +3660,9 @@ namespace move_box
             }
             else
             {
+                if(servo_grasp) wrist_servo::task_event(0,"gripper_start","close");
                 const auto grasp_l = g.graspAndWait(gripper::Side::Left);
+                if(servo_grasp) wrist_servo::task_event(0,"gripper_end","feedback_received");
                 st.empty_grasp_l = gripper_grasp_empty(g, gripper::Side::Left, grasp_l, "料盘抓取");
             }
         }
@@ -3719,7 +3693,7 @@ namespace move_box
                 miss_pose(arm_r, true, mid_r, goal_r);
             if (miss_l)
                 miss_pose(arm_l, false, mid_l, goal_l);
-            std::cout << "[bezier_C] 未到位的手不合爪、不计数，抬起收回准备位"
+            std::cout << "[到位] 未到位的手不合爪、不计数，抬起收回准备位"
                       << (miss_r ? " 右" : "") << (miss_l ? " 左" : "") << "\n";
             arm_dual_line_then_line_nostop(
                 arm_r, mid_r, goal_r, miss_r,
@@ -4098,6 +4072,155 @@ namespace move_box
         lift_grasped_selective(
             arm_r, arm_l, cameras, st,
             grasped_r && !lifted_r, grasped_l && !lifted_l);
+    }
+
+    int run_hand_hover_track(Robot_Arm &, Robot_Arm &, RealSenseMultiCam &,
+                            SegPoseBridge &, HeadAssignState &, const std::function<bool()> &)
+    {
+        std::cerr << "[servo] 旧RGB占位深度跟随已移除，请使用双手新视觉闭环\n";
+        return -30;
+    }
+
+    int run_tray_servo_jitter_test(
+        Robot_Arm &arm_r,
+        Robot_Arm &arm_l,
+        RealSenseMultiCam &cameras,
+        SegPoseBridge &bridge,
+        const std::array<double, 16> &cam2robot,
+        const std::function<bool()> &should_abort)
+    {
+        struct AssignGuard
+        {
+            ~AssignGuard()
+            {
+                g_assign_class_override = -1;
+                g_assign_fixed_from_robot_row = 0;
+            }
+        } assign_guard;
+        constexpr int kSecondNearRow = 5;
+        g_assign_class_override = kEmptyHoleClassId;
+        g_assign_fixed_from_robot_row = kSecondNearRow;
+
+        auto aborted = [&]() {
+            return hardware_abort_requested() || (should_abort && should_abort());
+        };
+        std::cout << "[伺服测试] 料盘旁拍空孔，用离机器人第二近的一排（from_robot=5）。"
+                     "停在孔上方，每 100 ms 更新坐标，跟踪 3 秒。不合爪，不进孔，底盘不动\n";
+        if (aborted())
+            return -4;
+
+        const bool lock_r = right_arm_motors_locked();
+        HeadAssignState st = detect_and_assign_head(
+            cameras, bridge, cam2robot, true, SegEngineId::Default, lock_r, false);
+        if (aborted())
+            return -4;
+        if (!st.move_l || st.row_l != kSecondNearRow)
+        {
+            std::cerr << "[伺服测试] 第二近排没有左手孔，不运动\n";
+            return -6;
+        }
+        if (!lock_r && (!st.move_r || st.row_r != kSecondNearRow))
+        {
+            std::cerr << "[伺服测试] 第二近排没有左右成对的孔，不运动\n";
+            return -6;
+        }
+        if (st.move_r && st.move_l && !head_grasp_simultaneous(st))
+        {
+            std::cerr << "[伺服测试] 这两个孔靠得太近，不能双手一起伸，不运动\n";
+            return -7;
+        }
+
+        Eigen::Matrix<double, 1, 6> hover_r = arm_goal_in_real_waist_frame(st.goal_last_r);
+        Eigen::Matrix<double, 1, 6> hover_l = arm_goal_in_real_waist_frame(st.goal_last_l);
+        std::cout << std::fixed << std::setprecision(4)
+                  << "[伺服测试] 悬停目标 右=(" << hover_r(0) << "," << hover_r(1) << ","
+                  << hover_r(2) << ") 左=(" << hover_l(0) << "," << hover_l(1) << ","
+                  << hover_l(2) << ")\n";
+
+        const bool move_r = st.move_r && !lock_r;
+        const bool move_l = st.move_l;
+        const ArmLineMoveResult approached = arm_dual_line_move_selective(
+            arm_r, hover_r, move_r, arm_l, hover_l, move_l,
+            g_move_cfg.head_grasp.approach_vel_m_s, false);
+        if (aborted())
+            return -4;
+        if ((move_r && approached.ret_r != 0) || (move_l && approached.ret_l != 0))
+        {
+            std::cerr << "[伺服测试] 靠近悬停失败 右=" << approached.ret_r
+                      << " 左=" << approached.ret_l << "，抬回准备姿态\n";
+            move_arms_to_standby(arm_r, arm_l);
+            return approached.ret_l != 0 ? approached.ret_l : approached.ret_r;
+        }
+
+        const double hole_rx = hover_r(0);
+        const double hole_ry = hover_r(1);
+        const double hole_lx = hover_l(0);
+        const double hole_ly = hover_l(1);
+        struct Mm
+        {
+            double x;
+            double y;
+        };
+        const Mm walk[10] = {
+            {8, 5}, {12, 8}, {16, 5}, {14, 0}, {10, -4},
+            {6, -2}, {8, 3}, {11, 6}, {8, 4}, {8, 0},
+        };
+        int last_slot = -1;
+        const int tracked = arm_dual_cartesian_track(
+            arm_r, arm_l, hover_r, hover_l, move_r, move_l, 3.0,
+            [&](double t, Eigen::Matrix<double, 1, 6> &goal_r, Eigen::Matrix<double, 1, 6> &goal_l) {
+                const int slot = std::min(29, std::max(0, static_cast<int>(std::floor(t / 0.1))));
+                const bool reject = slot == 20 || slot == 21;
+                double dx_mm = 8.0;
+                double dy_mm = 0.0;
+                const char *phase = "固定 +8 mm";
+                if (slot >= 10 && slot <= 19)
+                {
+                    dx_mm = walk[slot - 10].x;
+                    dy_mm = walk[slot - 10].y;
+                    phase = "小幅走动";
+                }
+                else if (reject)
+                {
+                    phase = "丢弃偏出 80 mm 的点";
+                }
+                else if (slot >= 22)
+                {
+                    phase = "回到 +8 mm";
+                }
+                if (!reject)
+                {
+                    const double dx = dx_mm * 0.001;
+                    const double dy = dy_mm * 0.001;
+                    if (move_r)
+                    {
+                        goal_r(0) = hole_rx + dx;
+                        goal_r(1) = hole_ry + dy;
+                    }
+                    if (move_l)
+                    {
+                        goal_l(0) = hole_lx + dx;
+                        goal_l(1) = hole_ly + dy;
+                    }
+                }
+                if (slot != last_slot)
+                {
+                    last_slot = slot;
+                    std::cout << std::fixed << std::setprecision(1)
+                              << "[伺服测试] t=" << (slot * 0.1)
+                              << " s  " << phase;
+                    if (!reject)
+                        std::cout << "  偏移 (" << dx_mm << "," << dy_mm << ") mm";
+                    std::cout << "\n";
+                }
+            });
+
+        if (!hardware_abort_requested() && !(should_abort && should_abort()))
+        {
+            std::cout << "[伺服测试] 抬回准备姿态\n";
+            move_arms_to_standby(arm_r, arm_l);
+        }
+        return tracked;
     }
 
 } // namespace move_box

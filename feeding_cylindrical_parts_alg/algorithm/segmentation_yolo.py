@@ -1,7 +1,7 @@
-"""YOLO 实例分割，输出 mask / 轮廓及类别、置信度。
+"""YOLO 检测 /（可选）实例分割前端。
 
-关键处理：720p 用 1280 推理；保留原图分辨率 mask；用
-``ops.scale_masks`` 还原 letterbox，并从二值 mask 提取轮廓。
+主路径（detect 权重如 best1015）：只出框 + 类别，不再生成伪 mask。
+若权重带 masks，仍填充 mask/contour 供旧算法 0/1 使用。
 """
 
 from __future__ import annotations
@@ -17,19 +17,19 @@ from ultralytics.utils import ops
 
 @dataclass
 class SegInstance:
-    mask: np.ndarray
-    """(H, W) uint8, 0/1。"""
-    contour: np.ndarray | None
-    """轮廓多边形 (N, 2) float32，点数不足时为 None。"""
     class_id: int
     confidence: float
+    xyxy: np.ndarray
+    """(4,) float32：x1,y1,x2,y2 原图像素。"""
+    mask: np.ndarray | None = None
+    """(H, W) uint8 0/1；仅分割权重有。"""
+    contour: np.ndarray | None = None
+    """轮廓多边形 (N, 2)；仅分割权重有。"""
+    from_detect: bool = True
+    """True：检测模型（无原生 mask），引擎走算法 2 框中心。"""
 
 
 def resolve_imgsz(bgr: np.ndarray, imgsz: int | list[int] | tuple[int, ...]) -> int | list[int]:
-    """
-    imgsz<=0 / 'auto' → use max(H,W) so 1280×720 runs at ~1280 instead of default 640.
-    At imgsz=640 a 1280×720 frame is letterboxed to ~640×360, then masks are upscaled → jagged edges.
-    """
     if isinstance(imgsz, (list, tuple)):
         return list(imgsz)
     if imgsz <= 0:
@@ -39,12 +39,6 @@ def resolve_imgsz(bgr: np.ndarray, imgsz: int | list[int] | tuple[int, ...]) -> 
 
 
 def masks_to_orig_binary(masks, orig_shape: tuple[int, int]) -> np.ndarray:
-    """
-    Letterbox / native mask tensor → original image (N,H,W) binary mask.
-
-    Uses ops.scale_masks (bilinear + crop padding).
-    With retina_masks=True, masks.data is often already (N, H0, W0) — skip rescale.
-    """
     m = masks.float() if isinstance(masks, torch.Tensor) else torch.from_numpy(np.asarray(masks)).float()
     oh, ow = int(orig_shape[0]), int(orig_shape[1])
     if m.ndim == 2:
@@ -55,7 +49,6 @@ def masks_to_orig_binary(masks, orig_shape: tuple[int, int]) -> np.ndarray:
 
 
 def contour_from_mask(mask: np.ndarray, min_points: int = 5) -> np.ndarray | None:
-    """Largest external contour from a (H,W) 0/1 mask in original image coords."""
     mask_u8 = (mask > 0).astype(np.uint8)
     contours, _ = cv2.findContours(mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     if not contours:
@@ -66,54 +59,52 @@ def contour_from_mask(mask: np.ndarray, min_points: int = 5) -> np.ndarray | Non
     return cnt.reshape(-1, 2).astype(np.float32)
 
 
-def _masks_from_boxes(yolo_result) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
-    """检测权重无 mask 时，用框生成矩形伪 mask，保证 class_id 仍能进后续流程。"""
+def _instances_from_yolo_result(yolo_result) -> list[SegInstance]:
     if yolo_result.boxes is None or len(yolo_result.boxes) == 0:
-        return None
-    oh, ow = int(yolo_result.orig_shape[0]), int(yolo_result.orig_shape[1])
-    xyxy = yolo_result.boxes.xyxy.cpu().numpy()
+        return []
+
+    xyxy = yolo_result.boxes.xyxy.cpu().numpy().astype(np.float32)
     cls = yolo_result.boxes.cls.cpu().numpy().astype(int)
-    conf = yolo_result.boxes.conf.cpu().numpy()
-    masks = np.zeros((len(xyxy), oh, ow), dtype=np.uint8)
-    for i, box in enumerate(xyxy):
-        x1 = max(0, int(np.floor(box[0])))
-        y1 = max(0, int(np.floor(box[1])))
-        x2 = min(ow, int(np.ceil(box[2])))
-        y2 = min(oh, int(np.ceil(box[3])))
-        if x2 > x1 and y2 > y1:
-            masks[i, y1:y2, x1:x2] = 1
-    return masks, cls, conf
+    conf = yolo_result.boxes.conf.cpu().numpy().astype(np.float32)
+    n = len(xyxy)
 
+    has_masks = (
+        yolo_result.masks is not None
+        and yolo_result.masks.data is not None
+        and len(yolo_result.masks.data) > 0
+    )
+    bin_masks = None
+    if has_masks:
+        bin_masks = masks_to_orig_binary(yolo_result.masks.data, yolo_result.orig_shape)
 
-def _instances_from_yolo_result(
-    yolo_result,
-) -> list[tuple[np.ndarray, np.ndarray | None, int, float]]:
-    """(mask, contour, class_id, confidence) in original image coordinates."""
-    orig_shape = yolo_result.orig_shape
-    if yolo_result.masks is not None and yolo_result.masks.data is not None:
-        bin_masks = masks_to_orig_binary(yolo_result.masks.data, orig_shape)
-        n = len(bin_masks)
-        if yolo_result.boxes is not None:
-            cls = yolo_result.boxes.cls.cpu().numpy().astype(int)
-            conf = yolo_result.boxes.conf.cpu().numpy()
-        else:
-            cls = np.zeros(n, dtype=int)
-            conf = np.ones(n, dtype=np.float32)
-    else:
-        # best1015 等 detect 权重：无分割 mask，用框兜底，类别仍用 boxes.cls。
-        boxed = _masks_from_boxes(yolo_result)
-        if boxed is None:
-            return []
-        bin_masks, cls, conf = boxed
-        n = len(bin_masks)
-
-    out: list[tuple[np.ndarray, np.ndarray | None, int, float]] = []
+    out: list[SegInstance] = []
     for i in range(n):
-        mask = bin_masks[i]
-        contour = contour_from_mask(mask)
         cid = int(cls[i]) if i < len(cls) else 0
         score = float(conf[i]) if i < len(conf) else 0.0
-        out.append((mask, contour, cid, score))
+        box = xyxy[i]
+        if has_masks and bin_masks is not None and i < len(bin_masks):
+            mask = bin_masks[i]
+            out.append(
+                SegInstance(
+                    class_id=cid,
+                    confidence=score,
+                    xyxy=box,
+                    mask=mask,
+                    contour=contour_from_mask(mask),
+                    from_detect=False,
+                )
+            )
+        else:
+            out.append(
+                SegInstance(
+                    class_id=cid,
+                    confidence=score,
+                    xyxy=box,
+                    mask=None,
+                    contour=None,
+                    from_detect=True,
+                )
+            )
     return out
 
 
@@ -127,12 +118,24 @@ class YoloSegmenter:
         imgsz: int | list[int] = 1280,
         retina_masks: bool = True,
     ) -> None:
+        # 权重只在构造时加载一次，后续 predict / warmup 都复用 self._model。
         self._model = YOLO(model_path)
         self.conf = conf
         self.iou = iou
         self.classes = classes
         self.imgsz = imgsz
         self.retina_masks = retina_masks
+        self._warmed = False
+
+    def warmup(self, height: int = 720, width: int = 1280) -> None:
+        """跑一张空图，把首次构图 / 显存分配提前到进程启动。已预热则直接返回。"""
+        if self._warmed:
+            return
+        h = max(32, int(height))
+        w = max(32, int(width))
+        dummy = np.zeros((h, w, 3), dtype=np.uint8)
+        self.predict(dummy)
+        self._warmed = True
 
     def predict(self, bgr: np.ndarray) -> list[SegInstance]:
         infer_sz = resolve_imgsz(bgr, self.imgsz)
@@ -145,15 +148,4 @@ class YoloSegmenter:
             retina_masks=self.retina_masks,
             verbose=False,
         )[0]
-
-        instances: list[SegInstance] = []
-        for mask, contour, class_id, confidence in _instances_from_yolo_result(y):
-            instances.append(
-                SegInstance(
-                    mask=mask,
-                    contour=contour,
-                    class_id=class_id,
-                    confidence=confidence,
-                )
-            )
-        return instances
+        return _instances_from_yolo_result(y)

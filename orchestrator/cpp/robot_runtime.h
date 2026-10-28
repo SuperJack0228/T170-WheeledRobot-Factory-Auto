@@ -84,6 +84,12 @@ int go_belt_ready(Robot_Arm &arm_r, Robot_Arm &arm_l);
 int go_belt_place(Robot_Arm &arm_r, Robot_Arm &arm_l);
 /** 第一传送带抓取手腕预览：腰/头同 belt_ready，手臂用 tcp 的 XYZ + grasp_rpy_deg。不拍照、不夹取、不动底盘。 */
 int go_belt_grasp_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l);
+/**
+ * 采集头相机原图。scene 为 cap_belt / cap_belt2 / cap_tray / cap_tray2。
+ * 先去对应站点，再把腰和头摆到该站拍照姿态，手臂不动。停稳后在本进程终端按回车拍一张，
+ * quit 回车结束。成功返回张数（≥0），失败返回负的 code。目录写入 dir_out。
+ */
+int capture_head_dataset(const std::string &scene, std::string &dir_out);
 /** 第一传送带放置：去 AP6 → 准备 → 认码 → 左右依次放置 → 停准备 tcp。不回 home。 */
 int go_belt();
 /** 仅放置流程（底盘已到位）。cycle 用。 */
@@ -122,8 +128,20 @@ int vision_tray2_center();
 int vision_grasp_existing_pipeline(bool depart_after_grasp = true);
 /** 料盘一抓一次：去料盘一，双手都持件（或料盘没件）就停，夹爪保持合上，底盘不走。 */
 int vision_grasp_once();
-/** 调度对接：启动与无任务/失败/断线后都先 home，再去待命点。
- *  待命点优先用调度下发的 standby_point，否则用 yaml 的 dispatch_wait_station。 */
+int vision_servo_dual_once();
+/** 与 depart_after_grasp=false 的抓取相同，另外在竖直下降段保存手相机原图。 */
+int vision_grasp_image();
+/** 料盘准备、认码、分配与抓取相同。手臂只到工件上方，悬停跟踪手相机 XY，不下降。 */
+int vision_grasp_track();
+/** 人已经在料盘旁。先到抓取准备姿态 ready2，再拍空孔，第二近排悬停，100 ms 假坐标跟踪 3 秒，然后抬回。不动底盘。 */
+int tray_servo_jitter_test();
+/** 播放 AUDIO/AUDIO/<name>.mp3，播完再返回。失败时 err 写原因。
+ *  once_if_failure 为真时，同一次进程里的 failure 只播一遍。测试指令传假。 */
+bool play_boot_clip(const std::string &name, std::string &err, bool once_if_failure = false);
+/** 开机报状态。name 是 AUDIO/AUDIO 下的文件名，不含扩展名。
+ *  按顺序播完再返回。failure 同一次进程只播一遍。播放失败只记日志，不打断启动。 */
+void boot_announce(const std::string &name);
+/** 调度对接。开机进入时先原地 home 再待命；任务结束、断线、无任务超时仍回待命点。 */
 int run_dispatch_mode();
 /** 调试：跑完整真实充电（home→AP14→挥手下垂→腰降→失能→充电点），检测到开始充电即成功结束，不停充、不等 95%。 */
 int run_charge_test();

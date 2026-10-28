@@ -85,7 +85,8 @@ GraspToStandbyResult run_grasp_to_standby(
     bool adaptive_approach_rpy,
     bool holding_r,
     bool holding_l,
-    const std::function<void(bool did_r, bool did_l)> &on_place_retract)
+    const std::function<void(bool did_r, bool did_l)> &on_place_retract,
+    bool hover_track)
 {
     GraspToStandbyResult out;
     g_grasp_adaptive_rpy = adaptive_approach_rpy;
@@ -152,7 +153,7 @@ GraspToStandbyResult run_grasp_to_standby(
     }
 
     if (tray_hole_task() == TrayHoleTask::PlaceEmpty)
-        log_phase_banner("料盘2空孔放置：头相机识别分配(class3)");
+        log_phase_banner("料盘2空孔放置：头相机识别分配(class1)");
     else if (adaptive_approach_rpy)
         log_phase_banner("抓取流程(自适应姿态)：头相机识别分配(class0)");
     else
@@ -266,8 +267,22 @@ GraspToStandbyResult run_grasp_to_standby(
                 }
                 if (st_far.move_l || st_far.move_r)
                 {
-                    st = st_far;
-                    std::cout << "[head] 低头后已用当前外参重分配目标\n";
+                    const bool far_ok_r = !st_far.move_r || tray_row_is_far(st_far.row_r);
+                    const bool far_ok_l = !st_far.move_l || tray_row_is_far(st_far.row_l);
+                    if (far_ok_r && far_ok_l)
+                    {
+                        st = st_far;
+                        std::cout << "[head] 低头后已用当前外参重分配目标\n";
+                    }
+                    else
+                    {
+                        std::cout << "[head] 低头后重分配离开了远三排，不用这张。"
+                                     "沿用腰进前的远排目标，并按腰进补偿 X\n";
+                        if (actual > 1e-9)
+                            apply_grasp_stagger_waist_comp(st, actual);
+                        if (grasp_parts)
+                            tray1_far_band_set(true);
+                    }
                 }
                 else
                 {
@@ -496,6 +511,36 @@ GraspToStandbyResult run_grasp_to_standby(
         std::cerr << "[grasp] STOP：退出整段抓取，停在原地\n";
         return true;
     };
+
+    if (hover_track)
+    {
+        if (stagger_r || stagger_l)
+        {
+            std::cout << "[跟随] 目标偏远，先把腰进到够得着上方，不抓\n";
+            waist_adjusted = true;
+            const bool ok = (stagger_r && stagger_l)
+                                ? advance_waist_stagger_dual_hands(
+                                      waist, posup_down_3_layer, st, grasp_stagger)
+                                : advance_waist_stagger_side(
+                                      waist, posup_down_3_layer, stagger_r, st, grasp_stagger);
+            if (aborted_now())
+                return out;
+            if (!ok)
+            {
+                std::cerr << "[跟随] 腰进后仍到不了上方，不悬停\n";
+                out.status = GraspToStandbyStatus::GraspNone;
+                out.waist_adjusted = waist_adjusted;
+                return out;
+            }
+        }
+        const int rc = run_hand_hover_track(
+            arm_r, arm_l, cameras, bridge, st, should_abort);
+        out.waist_adjusted = waist_adjusted;
+        out.status = rc == 0 ? GraspToStandbyStatus::Ok
+                             : (rc == -4 ? GraspToStandbyStatus::Aborted
+                                         : GraspToStandbyStatus::CamFail);
+        return out;
+    }
 
     if (stagger_r && !stagger_l && st.move_l)
     {

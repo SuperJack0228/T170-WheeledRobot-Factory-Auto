@@ -2,6 +2,8 @@
 
 #include <Eigen/Dense>
 #include <string>
+#include <vector>
+#include "servo/visual_servo.h"
 
 struct ArmPosePairConfig
 {
@@ -64,9 +66,7 @@ struct HeadGraspConfig
     /** 最远一行（ArUco row1）专用末端姿态。yaml: row1_rpy_deg。 */
     GraspRpyDeg left_row6_rpy_deg;
     GraspRpyDeg right_row6_rpy_deg;
-    /** true=料盘抓取走抹角（B 前约 6cm 收到 C）。料盘二放置仍走直线。 */
-    bool use_bezier_grasp = false;
-    /** true=料盘抓取伸手改两段直线（到上方、再下降）中间不停。抹角代码仍保留，此项优先。 */
+    /** 保留读取，运动不再分支。不用手相机停稳拍照时，抓取就是两段直线一次走完。 */
     bool approach_nostop = false;
     double adaptive_pitch_down_deg = 45.0;
     double adaptive_yaw_max_deg = 55.0;
@@ -79,7 +79,9 @@ struct HeadGraspConfig
     double grasp_z_offset_m = 0.02;
     /** 仅 from_robot=6（离机器人最近一排）额外 Z，叠在左右手 z_offset 上。向上为正。 */
     double nearest_row_grasp_z_offset_m = 0.0;
-    /** 按 from_robot 1..6（1=最远）。叠在整盘 goal_*_offset 上。 */
+    /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
+    bool use_row_offset = false;
+    /** 按 from_robot 1..6（1=最远）。叠在整盘 goal_*_offset 上。use_row_offset 为 false 时不加入目标。 */
     XyzOffsetM left_row_offset[6]{};
     XyzOffsetM right_row_offset[6]{};
     /** false：跳过手相机，XY/Z 都用孔位+盘面参考。 */
@@ -90,14 +92,7 @@ struct HeadGraspConfig
     HandXyOffsetConfig hand_right;
     HandXyOffsetConfig hand_left;
     double lift_after_grasp_z = 0.08;
-    /** 旧参数，曲线已改用直线流程的物体上方点作 B，不再读取这两项。 */
-    double bezier_guide_height_m = 0.12;
-    double bezier_ab_gap_m = 0.06;
-    /** Bezier 路径最大 TCP 速度；时间缩放会保证峰值不超过该值。 */
-    double bezier_vel_m_s = 0.05;
-    /** 走到该路径比例时姿态已是最终抓取 RPY，之后保持。0.5=前半段转完，对应直线的 A→B。 */
-    double bezier_orient_finish_ratio = 0.5;
-    /** 到 C 后 FK 实测位置/姿态超过阈值则禁止合爪。 */
+    /** 直线下降到位后，FK 实测位置/姿态超过阈值则禁止合爪。 */
     double bezier_endpoint_xyz_tol_m = 0.003;
     double bezier_endpoint_rpy_tol_deg = 3.0;
     /** 到上方 / 下压 / 抬起 / 收回 的笛卡尔线速度（m/s）。 */
@@ -208,7 +203,9 @@ struct Tray2PlaceConfig
     double right_grasp_z_offset_m = 0.04;
     /** 仅 from_robot=6，叠在该手 z 上。 */
     double nearest_row_z_offset_m = -0.01;
-    /** 按 from_robot 1..6（1=最远）。与 head_grasp 的行偏置互不影响。 */
+    /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
+    bool use_row_offset = false;
+    /** 按 from_robot 1..6（1=最远）。与 head_grasp 的行偏置互不影响。use_row_offset 为 false 时不加入目标。 */
     XyzOffsetM left_row_offset[6]{};
     XyzOffsetM right_row_offset[6]{};
     /** 远三排腰前伸，相对 layer3_home.x。不使用 waist.far_row_forward_m。 */
@@ -259,9 +256,15 @@ struct ConveyorStationConfig
     double grasp_waist_yaw_deg = 0.0;
     /** 准备姿态夹爪闭合比例，0=全开 1=全合。减小开距，避免下探时磕皮带边。 */
     double grasp_ready_close_ratio = 0.30;
-    /** 抓取前是否跑 YOLO 类别门禁。false=不跑 YOLO，只认码。 */
+    /** 传送带：整图 YOLO，框中心转到码系后再做抓放门禁。false=不跑。 */
+    bool yolo_roi_enable = false;
+    /** 计入「零件」的最低置信度。 */
+    double yolo_min_conf = 0.25;
+    /** 计入零件的 class_id；空则默认 0 和 2（立件、倒件），不含空孔 1。 */
+    std::vector<int> yolo_part_class_ids;
+    /** @deprecated 旧类别门禁；若 yolo_roi_enable=false 且本项 true 则仍走旧逻辑。 */
     bool grasp_yolo_enable = false;
-    /** 抓取前 YOLO 必须看到的类别。仅判定，不参与定位。1=半加工料 2=精加工料；<0 不检查。 */
+    /** @deprecated 配合 grasp_yolo_enable。 */
     int grasp_yolo_class_id = -1;
     /** true：码原点 Z 不用相机，改用 fixed_origin_z_m。XY 和板姿态仍用二维码。 */
     bool use_fixed_origin_z = false;
@@ -306,6 +309,15 @@ struct CameraStreamConfig
     int height = 720;
     int head_fps = 15;
     int hand_fps = 15;
+    /** 为真时后台抽帧写 picture_debug/live，网页才能看实时画面。会和推理抢同一条 pipeline。 */
+    bool hand_live_preview = false;
+    /** 为真时，竖直下降段把锁定工件的检测框中心对齐到夹爪像素，只改尚未发出的水平位置。 */
+    bool hand_descent_correct = false;
+    /** 夹爪中点在手相机画面里的像素。左手是转过 180° 之后的图。原点在左上角。 */
+    float left_gripper_u = 602.f;
+    float left_gripper_v = 452.f;
+    float right_gripper_u = 633.f;
+    float right_gripper_v = 482.f;
 };
 
 /** 头相机标定关节角。CAN 30=偏航 32=俯仰 31=横滚。 */
@@ -337,6 +349,7 @@ struct MoveBoxConfig
     StaggerConfig stagger;
     VisionDetectConfig vision_detect;
     CameraStreamConfig cameras;
+    wrist_servo::Config visual_servo;
     GripperCheckConfig gripper_check;
 };
 

@@ -1,0 +1,8 @@
+# RealSense D435I 型号 profile（头相机）。本机 SN 仍在 realsense_cameras.yaml。
+# 运行时分辨率/FPS 目前由 move_box_params.yaml → cameras: 传入 RealSenseMultiCam ctor。
+name: d435i
+device: Intel RealSense D435I
+color_width: 1280
+color_height: 720
+depth_aligned: true
+default_fps: 15

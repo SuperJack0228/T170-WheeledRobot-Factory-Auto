@@ -3,11 +3,15 @@
 #include "dispatch_board.h"
 #include "dispatch_timing.h"
 #include "function.h"
+#include "hand_shadow.h"
+#include "servo/runtime.h"
 #include "head_cam2robot.h"
 #include "head_control.h"
 #include "move_box_config.h"
 #include "move_box_runtime.h"
 #include "seg_pose_bridge.h"
+#include "vision/dl.h"
+#include "vision_debug.h"
 #include "Ti5_socketcan.h"
 #include "Ti5_Seer.hpp"
 #include "robot_client.hpp"
@@ -20,6 +24,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <functional>
@@ -29,16 +34,120 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <cerrno>
+#include <csignal>
+#include <mutex>
 #include <sys/select.h>
+#include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
 
+#include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace orch
 {
+
+namespace
+{
+std::mutex g_announce_mu;
+pid_t g_announce_pid = -1;
+bool g_failure_announced = false;
+
+void stop_announce_locked()
+{
+    if (g_announce_pid <= 0)
+        return;
+    kill(-g_announce_pid, SIGTERM);
+    int status = 0;
+    while (waitpid(g_announce_pid, &status, 0) < 0 && errno == EINTR)
+    {
+    }
+    g_announce_pid = -1;
+}
+} // namespace
+
+bool play_boot_clip(const std::string &name, std::string &err, bool once_if_failure)
+{
+    err.clear();
+    std::lock_guard<std::mutex> lock(g_announce_mu);
+    if (once_if_failure && name == "failure" && g_failure_announced)
+        return true;
+    stop_announce_locked();
+    const std::string path = project_root_dir() + "/AUDIO/AUDIO/" + name + ".mp3";
+    if (!std::filesystem::exists(path))
+    {
+        err = "找不到 " + path;
+        return false;
+    }
+    // 路径在 fork 前拼好。子进程只做 exec，避免别的线程正占着分配锁时在子进程里再分配。
+    const std::string location = "location=" + path;
+    const pid_t pid = fork();
+    if (pid < 0)
+    {
+        err = "无法启动播放";
+        return false;
+    }
+    if (pid == 0)
+    {
+        setpgid(0, 0);
+        execl("/usr/bin/gst-launch-1.0", "gst-launch-1.0", "-q", "filesrc", location.c_str(), "!",
+              "decodebin", "!", "audioconvert", "!", "audioresample", "!", "alsasink",
+              "device=plughw:CARD=Device,DEV=0", static_cast<char *>(nullptr));
+        _exit(127);
+    }
+    setpgid(pid, pid);
+    g_announce_pid = pid;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(45);
+    int status = 0;
+    bool timed_out = false;
+    while (true)
+    {
+        const pid_t got = waitpid(pid, &status, WNOHANG);
+        if (got == pid)
+            break;
+        if (got < 0 && errno != EINTR)
+        {
+            err = "等待播放结束失败";
+            break;
+        }
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+            kill(-pid, SIGKILL);
+            kill(pid, SIGKILL);
+            while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+            {
+            }
+            err = "播放超过 45 秒，已停";
+            timed_out = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    if (g_announce_pid == pid)
+        g_announce_pid = -1;
+    if (timed_out || !err.empty())
+        return false;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+    {
+        err = "播放器退出 code=" + std::to_string(WIFEXITED(status) ? WEXITSTATUS(status) : status);
+        return false;
+    }
+    if (once_if_failure && name == "failure")
+        g_failure_announced = true;
+    std::cout << "[announce] " << name << "\n" << std::flush;
+    return true;
+}
+
+void boot_announce(const std::string &name)
+{
+    std::string err;
+    if (!play_boot_clip(name, err, true) && !err.empty())
+        std::cerr << "[announce] " << name << " 播放失败: " << err << "\n";
+}
 
 // 调度库不再提供状态名，协议字符串由本程序自己发送和比对。
 namespace dispatch_msg
@@ -75,10 +184,10 @@ constexpr int kDefaultPort = 8080;
 } // namespace dispatch_msg
 
 HwSession *g_hw = nullptr;
-/** 料盘/传送带二维码解算失败（记下本机异常后重新申请并重试）。 */
+/** 视觉识别失败。传送带含取帧、二维码、检测；调度上报 1201，等网页回复。 */
 constexpr int kVisionQrFail = 10;
-/** 二维码解算失败后，最多再申请并重试几次（不含第一次）。 */
-constexpr int kDispatchQrRetry = 3;
+/** 放置点 ±3cm 内有零件。调度报 1101。 */
+constexpr int kBeltPlaceOccupied = 16;
 /** 本次上料开抓前，工作区里的毛坯数。-1 表示没数清。 */
 int g_load_parts_seen = -1;
 /** 抓取最后一次收手已经同时把腰站起、底盘开到传送带。调用方不必再排队走。 */
@@ -219,14 +328,12 @@ const char *belt_yolo_class_zh(int class_id)
 {
     switch (class_id)
     {
-    case 0:
-        return "毛坯";
-    case 1:
-        return "半加工料";
-    case 2:
-        return "精加工料";
-    case 3:
+    case kGraspDetectClassId:
+        return "立件";
+    case kEmptyHoleClassId:
         return "空孔";
+    case kFallenClassId:
+        return "倒件";
     default:
         return "未知";
     }
@@ -242,7 +349,7 @@ bool belt_grasp_yolo_class_ok(
     if (require_id < 0)
         return true;
     TimingSpan span("vision_yolo");
-    const PoseRunResult yolo = bridge.run(frame, -1, false, CameraSlot::Head, -1);
+    const PoseRunResult yolo = bridge.run_yolo(frame, -1, false, CameraSlot::Head, -1);
     if (!yolo.ok)
     {
         err = "YOLO失败: " + yolo.message;
@@ -611,14 +718,15 @@ std::thread g_tray2_waist_th;
 std::atomic<int> g_tray2_waist_rc{0};
 bool g_tray2_waist_started = false;
 
-void start_belt_depart_after_right(const std::string &station)
+void start_belt_depart_after_right(const std::string &station, const char *hand_zh = "右手")
 {
     if (station.empty() || g_belt_depart_started)
         return;
     g_belt_depart_started = true;
     g_belt_depart_rc = 0;
-    g_belt_depart_th = std::thread([station]() {
-        std::cout << "[orch] 右手已抓到，2s 后底盘去 " << station
+    const std::string who = (hand_zh && hand_zh[0]) ? hand_zh : "手";
+    g_belt_depart_th = std::thread([station, who]() {
+        std::cout << "[orch] " << who << "已合爪，2s 后底盘去 " << station
                   << "，不等收手到位\n"
                   << std::flush;
         hardware_abort_sleep_ms(2000);
@@ -627,7 +735,7 @@ void start_belt_depart_after_right(const std::string &station)
             g_belt_depart_rc = -4;
             return;
         }
-        std::cout << "[orch] 右手抓到已 2s，底盘出发去 " << station << "\n" << std::flush;
+        std::cout << "[orch] " << who << "合爪已 2s，底盘出发去 " << station << "\n" << std::flush;
         try
         {
             g_belt_depart_rc = chassis_goto_station(station);
@@ -1184,6 +1292,629 @@ int go_belt_grasp_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return go_belt_grasp_rpy(arm_r, arm_l, g_move_cfg.conveyor, "belt");
 }
 
+namespace
+{
+
+enum class CaptureKey
+{
+    Shoot,
+    Quit,
+    Abort,
+};
+
+CaptureKey wait_capture_enter()
+{
+    if (!isatty(STDIN_FILENO))
+    {
+        std::cerr << "[cap] 标准输入不是终端，无法逐张按回车采集\n";
+        return CaptureKey::Abort;
+    }
+    std::string line;
+    while (!hardware_abort_requested() &&
+           !(g_hw != nullptr && g_hw->abort != nullptr && g_hw->abort->load()))
+    {
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(STDIN_FILENO, &fds);
+        timeval tv{};
+        tv.tv_sec = 0;
+        tv.tv_usec = 200000;
+        const int sel = select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+        if (sel <= 0)
+            continue;
+        char ch = 0;
+        if (read(STDIN_FILENO, &ch, 1) <= 0)
+            continue;
+        if (ch == '\n' || ch == '\r')
+        {
+            if (line == "quit")
+                return CaptureKey::Quit;
+            if (!line.empty())
+            {
+                std::cout << "[cap] 未识别「" << line
+                          << "」。回车拍一张，输入 quit 后回车结束\n"
+                          << std::flush;
+                line.clear();
+                continue;
+            }
+            return CaptureKey::Shoot;
+        }
+        if (ch == 127 || ch == '\b')
+        {
+            if (!line.empty())
+                line.pop_back();
+            continue;
+        }
+        line.push_back(ch);
+    }
+    return CaptureKey::Abort;
+}
+
+bool save_raw_head_frame(RealSenseMultiCam &cameras, const std::filesystem::path &dir, int index,
+                         std::string &saved)
+{
+    CameraFrameData frame = cameras.grab_fresh(CameraSlot::Head);
+    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), CameraSlot::Head);
+    if (!frame.ok || frame.color_bgr.empty() || frame.width <= 0 || frame.height <= 0)
+    {
+        std::cerr << "[cap] 头相机取图失败: " << frame.message << "\n";
+        return false;
+    }
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t tt = std::chrono::system_clock::to_time_t(now);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    std::tm tm{};
+    localtime_r(&tt, &tm);
+    std::ostringstream name;
+    name << std::setw(4) << std::setfill('0') << index << '_' << std::put_time(&tm, "%Y%m%d_%H%M%S")
+         << '_' << std::setw(3) << std::setfill('0') << ms.count() << ".jpg";
+    const std::filesystem::path path = dir / name.str();
+    const cv::Mat bgr(frame.height, frame.width, CV_8UC3, frame.color_bgr.data());
+    if (!cv::imwrite(path.string(), bgr))
+    {
+        std::cerr << "[cap] 保存失败 " << path.string() << "\n";
+        return false;
+    }
+    saved = path.string();
+    return true;
+}
+
+} // namespace
+
+int capture_head_dataset(const std::string &scene, std::string &dir_out)
+{
+    dir_out.clear();
+    if (g_hw == nullptr || g_hw->pipeline == nullptr)
+        return -1;
+    if (g_hw->waist == nullptr || g_hw->layer3 == nullptr)
+        return -1;
+
+    std::string station;
+    std::string folder;
+    std::string label;
+    double settle_sec = 0.5;
+    const bool belt = scene == "cap_belt" || scene == "cap_belt2";
+    if (scene == "cap_belt")
+    {
+        station = g_move_cfg.chassis.belt_station;
+        folder = "belt1";
+        label = "传送带一";
+        settle_sec = std::max(0.0, g_move_cfg.conveyor.photo_after_arrival_sec);
+    }
+    else if (scene == "cap_belt2")
+    {
+        station = g_move_cfg.chassis.out_station;
+        folder = "belt2";
+        label = "传送带二";
+        settle_sec = std::max(0.0, g_move_cfg.conveyor2.photo_after_arrival_sec);
+    }
+    else if (scene == "cap_tray")
+    {
+        station = g_move_cfg.chassis.tray_station;
+        folder = "tray1";
+        label = "料盘一";
+    }
+    else if (scene == "cap_tray2")
+    {
+        station = g_move_cfg.chassis.tray2_station;
+        folder = "tray2";
+        label = "料盘二";
+    }
+    else
+    {
+        std::cerr << "[cap] 未知场景 " << scene << "\n";
+        return -1;
+    }
+    if (station.empty())
+    {
+        std::cerr << "[cap] " << label << " 站点名为空\n";
+        return -1;
+    }
+
+    const std::filesystem::path dir =
+        std::filesystem::path(project_root_dir()) / "dataset_raw" / folder;
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec)
+    {
+        std::cerr << "[cap] 创建目录失败 " << dir.string() << ": " << ec.message() << "\n";
+        return -2;
+    }
+    dir_out = dir.string();
+
+    std::cout << "[cap] " << label << "：先去 " << station
+              << "，到站后再摆腰和头，手臂不动\n";
+    const int travel_rc = chassis_goto_station(station);
+    if (travel_rc != 0)
+        return travel_rc;
+    if (hardware_abort_requested())
+        return -4;
+
+    int pose_rc = 0;
+    if (belt)
+    {
+        const ConveyorStationConfig &c =
+            scene == "cap_belt2" ? g_move_cfg.conveyor2 : g_move_cfg.conveyor;
+        pose_rc = conveyor_waist_and_head(c, scene.c_str());
+    }
+    else
+    {
+        std::cout << "[cap] " << label << " 腰到料盘拍照 ready，头到标定俯仰 "
+                  << g_move_cfg.head.pitch_deg << "°\n";
+        if (!move_box::ensure_waist_ready_start(*g_hw->waist, *g_hw->layer3))
+            pose_rc = hardware_abort_requested() ? -4 : -5;
+        else
+        {
+            move_box::waist_layer3_set_synced(true);
+            pose_rc = enable_head_calib_pose();
+        }
+    }
+    if (pose_rc != 0)
+        return pose_rc;
+    if (hardware_abort_requested())
+        return -4;
+
+    std::cout << std::fixed << std::setprecision(1) << "[cap] " << label << " 腰/头已到位，停稳 "
+              << settle_sec << " s 后开始等回车。手臂没有动\n";
+    hardware_abort_sleep_ms(static_cast<int>(settle_sec * 1000.0));
+    if (hardware_abort_requested())
+        return -4;
+
+    std::cout << "[cap] 原图目录 " << dir_out << "\n"
+              << "[cap] 在运行 t170c_debug 的终端按回车拍一张；输入 quit 后回车结束\n"
+              << std::flush;
+
+    RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
+    int count = 0;
+    for (;;)
+    {
+        const CaptureKey key = wait_capture_enter();
+        if (key == CaptureKey::Quit)
+            break;
+        if (key == CaptureKey::Abort)
+        {
+            std::cout << "[cap] 采集中止，已采集 " << count << " 张\n";
+            return hardware_abort_requested() ? -4 : -2;
+        }
+        std::string saved;
+        if (!save_raw_head_frame(cameras, dir, count + 1, saved))
+            continue;
+        ++count;
+        std::cout << "[cap] 已采集 " << count << " 张  " << saved << "\n" << std::flush;
+        g_hw->last_debug_photo = saved;
+    }
+    std::cout << "[cap] 结束，" << label << " 共 " << count << " 张，目录 " << dir_out << "\n";
+    return count;
+}
+
+struct BeltPartMark
+{
+    double x = 0;
+    double y = 0;
+    double z = 0;
+    bool have_marker = false;
+    int class_id = -1;
+    float conf = 0.f;
+    float x0 = -1.f;
+    float y0 = -1.f;
+    float x1 = -1.f;
+    float y1 = -1.f;
+};
+
+struct BeltPartList
+{
+    bool ok = false;
+    std::string message;
+    std::vector<BeltPartMark> parts;
+};
+
+bool cam_to_marker(
+    const BeltDetectResult &det, double cx, double cy, double cz, double &bx, double &by, double &bz)
+{
+    if (!det.have_cam_pose)
+        return false;
+    cv::Mat rvec(3, 1, CV_64F);
+    cv::Mat tvec(3, 1, CV_64F);
+    for (int i = 0; i < 3; ++i)
+    {
+        rvec.at<double>(i) = det.rvec[i];
+        tvec.at<double>(i) = det.tvec[i];
+    }
+    cv::Mat R;
+    cv::Rodrigues(rvec, R);
+    cv::Mat d = (cv::Mat_<double>(3, 1) << cx - tvec.at<double>(0), cy - tvec.at<double>(1),
+                  cz - tvec.at<double>(2));
+    cv::Mat b = R.t() * d;
+    bx = b.at<double>(0);
+    by = b.at<double>(1);
+    bz = b.at<double>(2);
+    return std::isfinite(bx) && std::isfinite(by) && std::isfinite(bz);
+}
+
+/** 同一零件上立件框和倒件框会叠在一起。IoU 达到这个值就合成一个，不按框数相加。 */
+constexpr float kBeltPartMergeIou = 0.5f;
+/** 倒件置信度比叠在一起的立件高出这么多，才把该零件判成倒件。否则当成立件。 */
+constexpr float kFallenClearlyHigher = 0.10f;
+
+float belt_box_iou(const BeltPartMark &a, const BeltPartMark &b)
+{
+    const float x0 = std::max(a.x0, b.x0);
+    const float y0 = std::max(a.y0, b.y0);
+    const float x1 = std::min(a.x1, b.x1);
+    const float y1 = std::min(a.y1, b.y1);
+    const float w = x1 - x0;
+    const float h = y1 - y0;
+    if (!(w > 0.f) || !(h > 0.f))
+        return 0.f;
+    const float inter = w * h;
+    const float aa = std::max(0.f, a.x1 - a.x0) * std::max(0.f, a.y1 - a.y0);
+    const float bb = std::max(0.f, b.x1 - b.x0) * std::max(0.f, b.y1 - b.y0);
+    const float uni = aa + bb - inter;
+    if (!(uni > 0.f))
+        return 0.f;
+    return inter / uni;
+}
+
+/** 重叠框合成一个零件。类别取该零件上置信度最高的框；倒件只比立件略高时仍当立件。 */
+std::vector<BeltPartMark> merge_overlapping_belt_parts(const std::vector<BeltPartMark> &raw)
+{
+    const int n = static_cast<int>(raw.size());
+    std::vector<int> parent(static_cast<size_t>(n));
+    std::vector<int> rank(static_cast<size_t>(n), 0);
+    for (int i = 0; i < n; ++i)
+        parent[static_cast<size_t>(i)] = i;
+    auto find = [&](int i) {
+        while (parent[static_cast<size_t>(i)] != i)
+        {
+            parent[static_cast<size_t>(i)] = parent[static_cast<size_t>(parent[static_cast<size_t>(i)])];
+            i = parent[static_cast<size_t>(i)];
+        }
+        return i;
+    };
+    auto unite = [&](int a, int b) {
+        a = find(a);
+        b = find(b);
+        if (a == b)
+            return;
+        if (rank[static_cast<size_t>(a)] < rank[static_cast<size_t>(b)])
+            std::swap(a, b);
+        parent[static_cast<size_t>(b)] = a;
+        if (rank[static_cast<size_t>(a)] == rank[static_cast<size_t>(b)])
+            ++rank[static_cast<size_t>(a)];
+    };
+    for (int i = 0; i < n; ++i)
+    {
+        for (int j = i + 1; j < n; ++j)
+        {
+            if (belt_box_iou(raw[static_cast<size_t>(i)], raw[static_cast<size_t>(j)]) >= kBeltPartMergeIou)
+                unite(i, j);
+        }
+    }
+    std::vector<std::vector<int>> groups(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i)
+        groups[static_cast<size_t>(find(i))].push_back(i);
+    std::vector<BeltPartMark> out;
+    for (const auto &group : groups)
+    {
+        if (group.empty())
+            continue;
+        float work_conf = -1.f;
+        float fall_conf = -1.f;
+        int work_i = -1;
+        int fall_i = -1;
+        int best_i = group.front();
+        for (int idx : group)
+        {
+            const BeltPartMark &m = raw[static_cast<size_t>(idx)];
+            if (m.conf > raw[static_cast<size_t>(best_i)].conf)
+                best_i = idx;
+            if (m.class_id == kGraspDetectClassId && m.conf > work_conf)
+            {
+                work_conf = m.conf;
+                work_i = idx;
+            }
+            else if (m.class_id == kFallenClassId && m.conf > fall_conf)
+            {
+                fall_conf = m.conf;
+                fall_i = idx;
+            }
+        }
+        int pick = best_i;
+        if (fall_i >= 0 && (work_i < 0 || fall_conf > work_conf + kFallenClearlyHigher))
+            pick = fall_i;
+        else if (work_i >= 0)
+            pick = work_i;
+        out.push_back(raw[static_cast<size_t>(pick)]);
+    }
+    return out;
+}
+
+void log_belt_used_box(const char *name, const char *role, int index, const BeltPartMark &part);
+
+/** 整图 YOLO，把工件框画在原图上，并变到码坐标系。 */
+BeltPartList detect_belt_parts_full(
+    SegPoseBridge &bridge,
+    const CameraFrameData &frame,
+    const ConveyorStationConfig &c,
+    const BeltDetectResult &det,
+    const char *tag,
+    const PoseRunResult *precomputed = nullptr)
+{
+    BeltPartList out;
+    const char *name = (tag && tag[0]) ? tag : "belt";
+    PoseRunResult yolo;
+    if (precomputed != nullptr)
+    {
+        if (!precomputed->ok)
+        {
+            out.message = precomputed->message.empty() ? "YOLO失败" : precomputed->message;
+            return out;
+        }
+        yolo = *precomputed;
+    }
+    else
+    {
+        vision::DlRunOpts opts;
+        opts.algorithm_id = 2;
+        vision::BridgeDlEngine dl(bridge);
+        const vision::DlResult dl_res = dl.run(frame, "belt_presence", opts);
+        if (!dl_res.ok)
+        {
+            out.message = dl_res.message;
+            return out;
+        }
+        yolo = dl_res.raw;
+    }
+    std::vector<int> part_ids = c.yolo_part_class_ids;
+    if (part_ids.empty())
+        part_ids = {kGraspDetectClassId, kFallenClassId};
+    std::vector<BeltPartMark> raw_parts;
+    cv::Mat vis;
+    if (vision_debug_annotate() && frame.ok && !frame.color_bgr.empty())
+    {
+        vis = cv::Mat(frame.height, frame.width, CV_8UC3,
+                      const_cast<uint8_t *>(frame.color_bgr.data()))
+                  .clone();
+    }
+    for (const auto &t : yolo.targets)
+    {
+        if (!t.success || static_cast<double>(t.confidence) < c.yolo_min_conf)
+            continue;
+        bool part = false;
+        for (int id : part_ids)
+        {
+            if (id == t.class_id)
+            {
+                part = true;
+                break;
+            }
+        }
+        if (!part)
+            continue;
+        BeltPartMark m;
+        m.class_id = t.class_id;
+        m.conf = t.confidence;
+        m.x0 = t.box_x0;
+        m.y0 = t.box_y0;
+        m.x1 = t.box_x1;
+        m.y1 = t.box_y1;
+        m.have_marker = cam_to_marker(
+            det, t.pose_4x4[3], t.pose_4x4[7], t.pose_4x4[11], m.x, m.y, m.z);
+        if (m.have_marker)
+            raw_parts.push_back(m);
+        else
+            log_belt_used_box(name, "夹取", static_cast<int>(raw_parts.size()), m);
+        if (!vis.empty() && m.x0 >= 0.f && m.y0 >= 0.f)
+        {
+            cv::rectangle(
+                vis, cv::Point(cvRound(m.x0), cvRound(m.y0)),
+                cv::Point(cvRound(m.x1), cvRound(m.y1)), cv::Scalar(0, 255, 0), 2);
+            std::ostringstream lab;
+            lab << std::fixed << std::setprecision(2) << m.class_id << " " << m.conf;
+            if (m.have_marker)
+                lab << " (" << m.x << "," << m.y << ")";
+            cv::putText(
+                vis, lab.str(), cv::Point(cvRound(m.x0), std::max(16, cvRound(m.y0) - 4)),
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
+        }
+    }
+    if (!vis.empty())
+    {
+        const std::string path = vision_debug_make_path("head", "belt_yolo_det");
+        if (!path.empty() && cv::imwrite(path, vis))
+        {
+            std::cout << "[orch] 工件检测框 " << path << " 框数=" << raw_parts.size() << "\n";
+            if (g_hw != nullptr)
+                g_hw->last_debug_photo = path;
+        }
+    }
+    out.parts = merge_overlapping_belt_parts(raw_parts);
+    if (out.parts.size() != raw_parts.size())
+        std::cout << "[orch] " << name << " 重叠框合成 " << raw_parts.size() << " → "
+                  << out.parts.size() << "\n";
+    out.ok = true;
+    out.message = "ok";
+    return out;
+}
+
+struct MarkerQuery
+{
+    double x = 0;
+    double y = 0;
+    const char *name = "";
+};
+
+/** 传送带抓取门禁：不看抓取点。检测框中心在码系里落入该窗口才算有料。手臂仍走到 grasp_offset。 */
+constexpr double kBeltGraspWinXMinM = -0.06;
+constexpr double kBeltGraspWinXMaxM = 0.08;
+constexpr double kBeltGraspWinYMinM = 0.10;
+constexpr double kBeltGraspWinYMaxM = 0.13;
+
+bool belt_part_in_grasp_window(const BeltPartMark &part)
+{
+    return part.x >= kBeltGraspWinXMinM && part.x <= kBeltGraspWinXMaxM &&
+           part.y >= kBeltGraspWinYMinM && part.y <= kBeltGraspWinYMaxM;
+}
+
+void log_belt_used_box(const char *name, const char *role, int index, const BeltPartMark &part)
+{
+    const bool in = part.have_marker && belt_part_in_grasp_window(part);
+    const double cx = 0.5 * (static_cast<double>(part.x0) + static_cast<double>(part.x1));
+    const double cy = 0.5 * (static_cast<double>(part.y0) + static_cast<double>(part.y1));
+    std::cout << std::fixed << "[orch] " << name << " " << role << " 检测框" << index
+              << " " << belt_yolo_class_zh(part.class_id)
+              << " conf=" << std::setprecision(3) << part.conf
+              << " 像素框=(" << std::setprecision(0) << part.x0 << "," << part.y0 << ")-("
+              << part.x1 << "," << part.y1 << ") 像素中心=(" << cx << "," << cy << ")";
+    if (part.have_marker)
+    {
+        std::cout << std::setprecision(1) << " 码系 x=" << (part.x * 100.0)
+                  << "cm y=" << (part.y * 100.0) << "cm z=" << (part.z * 100.0) << "cm "
+                  << (in ? "在抓取窗口内" : "在抓取窗口外");
+    }
+    else
+        std::cout << " 码系转换失败";
+    std::cout << "\n";
+}
+
+struct BeltGraspWindow
+{
+    int count = 0;
+    bool right = false;
+    bool left = false;
+};
+
+/** 0 个不抓；1 个只伸右手（右臂锁定则左手）；不少于 2 个则双手，先右后左。 */
+BeltGraspWindow classify_belt_grasp_window(
+    const std::vector<BeltPartMark> &parts, const char *tag)
+{
+    BeltGraspWindow out;
+    const char *name = (tag && tag[0]) ? tag : "belt";
+    for (int i = 0; i < static_cast<int>(parts.size()); ++i)
+    {
+        const BeltPartMark &part = parts[static_cast<size_t>(i)];
+        log_belt_used_box(name, "夹取", i, part);
+        if (!belt_part_in_grasp_window(part))
+            continue;
+        ++out.count;
+    }
+    if (out.count == 1)
+    {
+        out.right = !right_arm_motors_locked();
+        out.left = right_arm_motors_locked();
+    }
+    else if (out.count >= 2)
+    {
+        out.right = !right_arm_motors_locked();
+        out.left = true;
+    }
+    std::ostringstream line;
+    line << std::fixed << std::setprecision(2) << "抓取窗口 x[" << kBeltGraspWinXMinM << ","
+         << kBeltGraspWinXMaxM << "] y[" << kBeltGraspWinYMinM << "," << kBeltGraspWinYMaxM
+         << "] 内 " << out.count << " 个";
+    const std::string text = line.str();
+    std::cout << "[orch] " << name << " " << text << "\n";
+    board_note("info", text);
+    return out;
+}
+
+/** 每个查询点最多配一个零件，每个零件最多配一个点。|dx|、|dy| 都须 ≤ tol，按距离从近到远。 */
+std::vector<int> match_parts_to_queries(
+    const std::vector<MarkerQuery> &queries,
+    const std::vector<BeltPartMark> &parts,
+    double tol_m)
+{
+    struct Cand
+    {
+        int q = 0;
+        int p = 0;
+        double d = 0;
+    };
+    std::vector<Cand> cands;
+    for (int qi = 0; qi < static_cast<int>(queries.size()); ++qi)
+    {
+        for (int pi = 0; pi < static_cast<int>(parts.size()); ++pi)
+        {
+            const double dx = parts[static_cast<size_t>(pi)].x - queries[static_cast<size_t>(qi)].x;
+            const double dy = parts[static_cast<size_t>(pi)].y - queries[static_cast<size_t>(qi)].y;
+            if (std::abs(dx) > tol_m || std::abs(dy) > tol_m)
+                continue;
+            cands.push_back(Cand{qi, pi, std::hypot(dx, dy)});
+        }
+    }
+    std::cout << std::fixed << std::setprecision(1);
+    for (int qi = 0; qi < static_cast<int>(queries.size()); ++qi)
+    {
+        const MarkerQuery &q = queries[static_cast<size_t>(qi)];
+        int best = -1;
+        double best_d = 0;
+        double best_dx = 0;
+        double best_dy = 0;
+        for (int pi = 0; pi < static_cast<int>(parts.size()); ++pi)
+        {
+            const double dx = parts[static_cast<size_t>(pi)].x - q.x;
+            const double dy = parts[static_cast<size_t>(pi)].y - q.y;
+            const double d = std::hypot(dx, dy);
+            if (best >= 0 && d >= best_d)
+                continue;
+            best = pi;
+            best_d = d;
+            best_dx = dx;
+            best_dy = dy;
+        }
+        std::ostringstream dev;
+        dev << std::fixed << std::setprecision(1) << "最小偏差 " << q.name;
+        if (best < 0)
+            dev << " 无零件";
+        else
+        {
+            const bool in_tol = std::abs(best_dx) <= tol_m && std::abs(best_dy) <= tol_m;
+            dev << " ↔ 零件" << best << std::showpos
+                << " dx=" << (best_dx * 100.0) << "cm"
+                << " dy=" << (best_dy * 100.0) << "cm" << std::noshowpos
+                << " 距离=" << (best_d * 100.0) << "cm"
+                << (in_tol ? "" : " 超出门限");
+        }
+        const std::string line = dev.str();
+        std::cout << "[orch] " << line << std::endl;
+        board_note("info", line);
+    }
+    std::sort(cands.begin(), cands.end(), [](const Cand &a, const Cand &b) { return a.d < b.d; });
+    std::vector<int> assigned(queries.size(), -1);
+    std::vector<char> used(parts.size(), 0);
+    for (const auto &cnd : cands)
+    {
+        if (assigned[static_cast<size_t>(cnd.q)] >= 0 || used[static_cast<size_t>(cnd.p)])
+            continue;
+        assigned[static_cast<size_t>(cnd.q)] = cnd.p;
+        used[static_cast<size_t>(cnd.p)] = 1;
+        std::cout << std::fixed << std::setprecision(3) << "[orch] 匹配 "
+                  << queries[static_cast<size_t>(cnd.q)].name << " ↔ 零件" << cnd.p
+                  << " 距离=" << cnd.d << " m\n";
+    }
+    return assigned;
+}
+
 int go_belt_station(
     const ConveyorStationConfig &c, const char *tag,
     const std::function<int(bool is_right)> &on_hand_placed = {},
@@ -1262,31 +1993,28 @@ int go_belt_station(
     {
         std::cerr << "[orch] belt 无相机，无法识别传送带码\n";
         g_hw->last_belt_message = "无相机";
-        return -1;
+        return kVisionQrFail;
     }
     SegPoseBridge &bridge = g_hw->pipeline->bridge();
     if (!bridge.belt_engine_ready())
     {
         std::cerr << "[orch] 传送带 ArUco 未加载（检查 board_belt_aruco/config.yaml），料盘引擎未动\n";
         g_hw->last_belt_message = "传送带引擎未加载";
-        return -5;
+        return kVisionQrFail;
     }
 
     RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
-    cameras.flush(CameraSlot::Head);
-    CameraFrameData frame = cameras.grab_wait(CameraSlot::Head);
-    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), CameraSlot::Head);
-    if (!frame.ok)
-    {
-        std::cerr << "[orch] belt 头相机取帧失败: " << frame.message << "\n";
-        g_hw->last_belt_message = "取帧失败";
-        return -2;
-    }
-
     if (kDebugVisualize)
         pose_vis_begin_phase(PoseVisLayout::Single, PoseVisPanel::Head, {PoseVisPanel::Head});
-    BeltDetectResult det =
-        bridge.run_belt_detect(frame, c.prefer_belt, kDebugVisualize, CameraSlot::Head);
+    HeadBeltPerception perc = perceive_belt_head(
+        cameras, bridge, c.prefer_belt, kDebugVisualize, nullptr, nullptr, c.yolo_roi_enable);
+    if (!perc.frame.ok)
+    {
+        std::cerr << "[orch] belt 头相机取帧失败: " << perc.frame.message << "\n";
+        g_hw->last_belt_message = "取帧失败";
+        return kVisionQrFail;
+    }
+    BeltDetectResult det = std::move(perc.belt);
     g_hw->last_belt_ok = det.ok && det.in_robot;
     g_hw->last_belt_name = det.name;
     g_hw->last_belt_message = det.message;
@@ -1326,6 +2054,39 @@ int go_belt_station(
     if (det.in_robot)
         g_hw->last_belt_z = det.origin_z;
 
+    if (c.yolo_roi_enable)
+    {
+        const BeltPartList parts = detect_belt_parts_full(
+            bridge, perc.frame, c, det, name, perc.yolo_ran ? &perc.yolo : nullptr);
+        if (!parts.ok)
+        {
+            g_hw->last_belt_message = parts.message;
+            std::cerr << "[orch] " << name << " 放置前检测失败: " << parts.message << "\n";
+            return kVisionQrFail;
+        }
+        std::vector<MarkerQuery> queries;
+        if (do_right)
+            queries.push_back(MarkerQuery{c.offset_right.x, c.offset_right.y, "右手放置点"});
+        if (do_left)
+            queries.push_back(MarkerQuery{c.offset_left.x, c.offset_left.y, "左手放置点"});
+        const std::vector<int> hit = match_parts_to_queries(queries, parts.parts, 0.03);
+        int near = 0;
+        for (int a : hit)
+        {
+            if (a >= 0)
+                ++near;
+        }
+        if (near > 0)
+        {
+            g_hw->last_belt_ok = false;
+            g_hw->last_belt_message = "放置点附近有零件";
+            std::cerr << "[orch] " << name << " 放置门禁：±3cm 内配到 " << near
+                      << " 个零件，左右手都不放\n";
+            return kBeltPlaceOccupied;
+        }
+        std::cout << "[orch] " << name << " 放置门禁通过：放置点 ±3cm 内没有零件\n";
+    }
+
     const auto &off_r = c.offset_right;
     const auto &off_l = c.offset_left;
     Eigen::Matrix<double, 1, 6> goal_r = move_box::make_belt_goal_right(det, c);
@@ -1360,16 +2121,22 @@ int go_belt_station(
         }
         Eigen::Matrix<double, 1, 6> goal = is_right ? goal_r : goal_l;
         const double place_mps = c.place_approach_vel_m_s;
+        double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
+        if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
+            return -30;
         std::cout << "[orch] belt " << (is_right ? "右手" : "左手")
                   << " " << std::fixed << std::setprecision(2) << place_mps
-                  << "m/s 先到上方再放下\n";
+                  << "m/s 先到上方，再竖直 " << kDescentMps << " m/s 放下\n";
         Eigen::Matrix<double, 1, 6> hover = goal;
         if (c.place_hover_above_m > 1e-9)
             hover(2) += c.place_hover_above_m;
-        const ArmLineMoveResult approach = arm_dual_rounded_corner_move_selective(
+        if(!g_move_cfg.visual_servo.belt_place_enabled)
+            std::cout << "[servo] 传送带放置使用既有开环目标；未定义可观测特征，不计入视觉闭环验收\n";
+        const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            place_mps);
+            place_mps, kDescentMps, {}, false, "belt放置", false,
+            g_move_cfg.visual_servo.belt_place_enabled, 1);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
@@ -1515,10 +2282,17 @@ int go_belt()
 
 /** 传送带重抓几次后仍空抓。不能用 10，那是 kVisionQrFail。 */
 constexpr int kBeltGraspEmpty = 11;
+/** 码系抓取窗口内无零件：不伸手；调度侧原地等指令。 */
+constexpr int kBeltNoPartVision = 12;
+/** 空抓后再拍，窗口内判成倒件。调度按没零件上报 1102 并原地等待。 */
+constexpr int kBeltFallen = 13;
+/** 调度已指定的那只手，窗口没有把它算进去：不伸这只手，整段任务不因此判空。 */
+constexpr int kBeltHandSkip = 14;
 constexpr int kEmptyRight = 1;
 constexpr int kEmptyLeft = 2;
 
-/** 拍照抓一次。空抓的手收回准备 tcp 后 empty_mask 置位并返回 0，由外层重拍重抓。 */
+/** 拍照抓一次。空抓的手收回准备 tcp 后 empty_mask 置位并返回 0，由外层重拍重抓。
+ *  only_hand: -1=按码系窗口件数（0 不抓，1 只右手，≥2 双手先右）；0=只左手，1=只右手。 */
 static int go_belt_grasp_attempt(
     bool from_place, const ConveyorStationConfig &c, const std::string &station, const char *tag,
     int only_hand, const std::function<int(bool is_right)> &on_grasped,
@@ -1605,38 +2379,40 @@ static int go_belt_grasp_attempt(
     {
         std::cerr << "[orch] belt_grasp 无相机，无法识别传送带码\n";
         g_hw->last_belt_message = "无相机";
-        return -1;
+        return kVisionQrFail;
     }
     SegPoseBridge &bridge = g_hw->pipeline->bridge();
     if (!bridge.belt_engine_ready())
     {
         std::cerr << "[orch] 传送带 ArUco 未加载（检查 board_belt_aruco/config.yaml），料盘引擎未动\n";
         g_hw->last_belt_message = "传送带引擎未加载";
-        return -5;
+        return kVisionQrFail;
     }
 
     RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
-    cameras.flush(CameraSlot::Head);
-    CameraFrameData frame = cameras.grab_wait(CameraSlot::Head);
-    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), CameraSlot::Head);
-    if (!frame.ok)
-    {
-        std::cerr << "[orch] belt_grasp 头相机取帧失败: " << frame.message << "\n";
-        g_hw->last_belt_message = "取帧失败";
-        return -2;
-    }
-
     if (kDebugVisualize)
         pose_vis_begin_phase(PoseVisLayout::Single, PoseVisPanel::Head, {PoseVisPanel::Head});
     const double grasp_off_l[3] = {
         c.grasp_offset_left.x, c.grasp_offset_left.y, c.grasp_offset_left.z};
     const double grasp_off_r[3] = {
         c.grasp_offset_right.x, c.grasp_offset_right.y, c.grasp_offset_right.z};
-    BeltDetectResult det = bridge.run_belt_detect(
-        frame, c.prefer_belt, kDebugVisualize, CameraSlot::Head, grasp_off_l, grasp_off_r);
-    const bool need_l = only_hand != 1;
-    const bool need_r = only_hand != 0;
-    g_hw->last_belt_ok = det.ok && (!need_l || det.have_grasp_l) && (!need_r || det.have_grasp_r);
+    HeadBeltPerception perc = perceive_belt_head(
+        cameras, bridge, c.prefer_belt, kDebugVisualize, grasp_off_l, grasp_off_r,
+        c.yolo_roi_enable);
+    if (!perc.frame.ok)
+    {
+        std::cerr << "[orch] belt_grasp 头相机取帧失败: " << perc.frame.message << "\n";
+        g_hw->last_belt_message = "取帧失败";
+        return kVisionQrFail;
+    }
+    const CameraFrameData &frame = perc.frame;
+    BeltDetectResult det = std::move(perc.belt);
+    int hand = only_hand;
+    // 窗口判定后可能把 hand 从 -1 收成 0/1；先按传入值估抓点需求，判定后再收紧。
+    auto need_l_fn = [&]() { return hand != 1; };
+    auto need_r_fn = [&]() { return hand != 0; };
+    g_hw->last_belt_ok =
+        det.ok && (!need_l_fn() || det.have_grasp_l) && (!need_r_fn() || det.have_grasp_r);
     g_hw->last_belt_name = det.name;
     g_hw->last_belt_message = det.message;
     g_hw->last_debug_photo = det.save_path;
@@ -1682,19 +2458,63 @@ static int go_belt_grasp_attempt(
         std::cerr << "[orch] belt_grasp 二维码解算失败，不往码上走\n";
         return kVisionQrFail;
     }
-    if ((need_l && !det.have_grasp_l) || (need_r && !det.have_grasp_r))
-    {
-        std::cerr << "[orch] belt_grasp 未拿到"
-                  << (only_hand < 0 ? "左右" : (only_hand == 0 ? "左手" : "右手"))
-                  << "抓取点，不往码上走\n";
-        return -3;
-    }
     apply_fixed_belt_origin_z(det, c, name);
     if (det.have_grasp_l)
         g_hw->last_belt_z = det.grasp_lz;
     else if (det.in_robot)
         g_hw->last_belt_z = det.origin_z;
-    if (c.grasp_yolo_enable && c.grasp_yolo_class_id >= 0)
+
+    if (c.yolo_roi_enable)
+    {
+        const BeltPartList parts = detect_belt_parts_full(
+            bridge, frame, c, det, name, perc.yolo_ran ? &perc.yolo : nullptr);
+        if (!parts.ok)
+        {
+            g_hw->last_belt_ok = false;
+            g_hw->last_belt_message = parts.message;
+            std::cerr << "[orch] " << name << " 抓取前检测失败: " << parts.message << "\n";
+            return kVisionQrFail;
+        }
+        const BeltGraspWindow win = classify_belt_grasp_window(parts.parts, name);
+        const bool grasp_right = win.right;
+        const bool grasp_left = win.left;
+        if (!grasp_right && !grasp_left)
+        {
+            g_hw->last_belt_ok = false;
+            g_hw->last_belt_message = "抓取窗口内没有料";
+            std::cerr << "[orch] " << name << " 码系抓取窗口内没有零件，两手都不抓\n";
+            return kBeltNoPartVision;
+        }
+        if (hand < 0)
+        {
+            if (grasp_right && grasp_left)
+                hand = -1;
+            else if (grasp_right)
+                hand = 1;
+            else
+                hand = 0;
+        }
+        else if (hand == 1 && !grasp_right)
+        {
+            if (g_hw->last_grasped_l && win.count > 0)
+                std::cout << "[orch] " << name << " 左手已夹住，不松开，窗口内还有零件，只补右手\n";
+            else
+                return grasp_left ? kBeltHandSkip : kBeltNoPartVision;
+        }
+        else if (hand == 0 && !grasp_left)
+        {
+            // 右手已经夹住时，件数常被判成「只伸右手」。这只手不再动，有料就补左手。
+            if (g_hw->last_grasped_r && win.count > 0)
+                std::cout << "[orch] " << name << " 右手已夹住，不松开，窗口内还有零件，只补左手\n";
+            else
+                return grasp_right ? kBeltHandSkip : kBeltNoPartVision;
+        }
+        std::cout << "[orch] " << name << " 抓取窗口 右=" << (grasp_right ? "有" : "无")
+                  << " 左=" << (grasp_left ? "有" : "无")
+                  << (hand < 0 ? "，双手先右后左" : hand == 1 ? "，只伸右手" : "，只伸左手")
+                  << "\n";
+    }
+    else if (c.grasp_yolo_enable && c.grasp_yolo_class_id >= 0)
     {
         std::string yolo_err;
         if (!belt_grasp_yolo_class_ok(bridge, frame, c.grasp_yolo_class_id, yolo_err))
@@ -1704,11 +2524,20 @@ static int go_belt_grasp_attempt(
             std::cerr << "[orch] belt_grasp " << yolo_err
                       << "，要求 " << belt_yolo_class_zh(c.grasp_yolo_class_id)
                       << " class=" << c.grasp_yolo_class_id << "，不抓\n";
-            return 1;
+            return kVisionQrFail;
         }
         std::cout << "[orch] belt_grasp YOLO 判定通过："
                   << belt_yolo_class_zh(c.grasp_yolo_class_id)
                   << " class=" << c.grasp_yolo_class_id << "，定位仍用码\n";
+    }
+
+    if ((need_l_fn() && !det.have_grasp_l) || (need_r_fn() && !det.have_grasp_r))
+    {
+        g_hw->last_belt_message = "未拿到抓取点";
+        std::cerr << "[orch] belt_grasp 未拿到"
+                  << (hand < 0 ? "左右" : (hand == 0 ? "左手" : "右手"))
+                  << "抓取点，不往码上走\n";
+        return kVisionQrFail;
     }
     if (aborted())
         return -4;
@@ -1752,17 +2581,30 @@ static int go_belt_grasp_attempt(
                   << "[orch] belt_grasp 准备姿态夹爪收到 " << grip_r
                   << "（0全开 1全合），避免磕皮带边\n";
         log_gripper_qs("belt_grasp准备夹爪前");
-        if (only_hand != 1)
+        if (hand != 1 && !g_hw->last_grasped_l)
             g_hw->g->closeAndWait(
                 gripper::Side::Left, grip_r, 0.15, std::chrono::milliseconds(3000));
-        if (only_hand != 0 && !right_arm_motors_locked())
+        else if (g_hw->last_grasped_l)
+            std::cout << "[orch] belt_grasp 左手已夹住，准备夹爪不动左手\n";
+        if (hand != 0 && !right_arm_motors_locked() && !g_hw->last_grasped_r)
             g_hw->g->closeAndWait(
                 gripper::Side::Right, grip_r, 0.15, std::chrono::milliseconds(3000));
+        else if (g_hw->last_grasped_r)
+            std::cout << "[orch] belt_grasp 右手已夹住，准备夹爪不动右手\n";
         log_gripper_qs("belt_grasp准备夹爪后");
         if (aborted())
             return -4;
     }
 
+    const int grasp_hand_sel = hand;
+    auto depart_if_last = [&](bool is_right, bool closed_ok) {
+        if (depart_after_right.empty())
+            return;
+        // 双手时右手不是最后一只；它空抓则左手不再伸，右手就是最后一只。
+        if (grasp_hand_sel < 0 && is_right && closed_ok)
+            return;
+        start_belt_depart_after_right(depart_after_right, is_right ? "右手" : "左手");
+    };
     auto grasp_one = [&](bool is_right) -> int {
         if (is_right && right_arm_motors_locked())
         {
@@ -1780,18 +2622,27 @@ static int go_belt_grasp_attempt(
         const double hover_z = c.grasp_hover_above_m > 1e-9 ? c.grasp_hover_above_m : 0.08;
         hover(2) += hover_z;
         const double reach_mps = c.grasp_approach_vel_m_s;
+        double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
+        if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
+            return -30;
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
-                  << "m/s 先到上方再下去\n";
-        const ArmLineMoveResult approach = arm_dual_rounded_corner_move_selective(
+                  << "m/s 先到正上方 " << (hover_z * 100.0)
+                  << " cm，再竖直 " << kDescentMps
+                  << " m/s 下降。";
+        if (g_move_cfg.cameras.hand_descent_correct)
+            std::cout << "下降段使用双轴闭环、延迟补偿与预测制动\n";
+        else
+            std::cout << "手相机修正已关，照头相机目标走\n";
+        const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            reach_mps);
+            reach_mps, kDescentMps, {}, false, "belt_grasp伸手", false, true, 0);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
             std::cerr << "[orch] belt_grasp " << hand
-                      << " 伸手抹角失败 code=" << approach_rc << "\n";
+                      << " 伸手失败 code=" << approach_rc << "\n";
             return aborted() ? -4 : -5;
         }
         if (aborted())
@@ -1808,15 +2659,15 @@ static int go_belt_grasp_attempt(
             const auto fb = g_hw->g->graspAndWait(side);
             log_gripper_qs(is_right ? "belt_grasp右合爪后" : "belt_grasp左合爪后");
             if (move_box::gripper_grasp_empty(*g_hw->g, side, fb, name))
-                return aborted() ? -4 : kBeltGraspEmpty;
-            if (is_right)
             {
-                g_hw->last_grasped_r = true;
-                if (!depart_after_right.empty())
-                    start_belt_depart_after_right(depart_after_right);
+                // 空抓先不让底盘走。外层还要再拍，倒件要原地等，立件可能再抓一次。
+                return aborted() ? -4 : kBeltGraspEmpty;
             }
+            if (is_right)
+                g_hw->last_grasped_r = true;
             else
                 g_hw->last_grasped_l = true;
+            depart_if_last(is_right, true);
             if (aborted())
                 return -4;
         }
@@ -1911,9 +2762,17 @@ static int go_belt_grasp_attempt(
         return aborted() ? -4 : 0;
     };
 
-    if (only_hand == 0 || only_hand == 1)
+    auto report_picked = [&](bool is_right) -> int {
+        if (!on_grasped)
+            return 0;
+        if (is_right && right_arm_motors_locked())
+            return 0;
+        return on_grasped(is_right);
+    };
+
+    if (hand == 0 || hand == 1)
     {
-        const bool is_right = only_hand == 1;
+        const bool is_right = hand == 1;
         const int rc = grasp_one(is_right);
         if (rc == kBeltGraspEmpty)
         {
@@ -1925,24 +2784,19 @@ static int go_belt_grasp_attempt(
         }
         if (rc != 0)
             return rc;
-        int note_rc = 0;
-        std::thread note_th;
         std::thread lift_th;
         const bool run_cb = !(is_right && right_arm_motors_locked());
-        if (on_grasped && run_cb)
-            note_th = std::thread([&]() { note_rc = on_grasped(is_right); });
-        // 上抬一开始就回调（调度用来申请下一只手），与抬升/收手并行。
+        // 上抬一开始就回调（调度用来申请下一只手），与抬升/收手并行。抓完信号等这只手收回再发。
         if (on_lift && run_cb)
             lift_th = std::thread([&]() { on_lift(is_right); });
         const int back_rc = grasp_lift_and_back(is_right);
         if (lift_th.joinable())
             lift_th.join();
-        if (note_th.joinable())
-            note_th.join();
-        if (note_rc != 0)
-            return note_rc;
         if (back_rc != 0)
             return back_rc;
+        const int note_rc = report_picked(is_right);
+        if (note_rc != 0)
+            return note_rc;
         if (is_right &&
             station_name_matches(depart_after_right, g_move_cfg.chassis.tray2_station))
             start_tray2_waist_after_right_arrived();
@@ -1957,47 +2811,80 @@ static int go_belt_grasp_attempt(
         return 0;
     }
 
-    int left_back_rc = 0;
-    const int left_rc = grasp_one(false);
-    if (left_rc == kBeltGraspEmpty)
-    {
-        // 右手抓到会触发底盘出发，所以左手没抓到时右手这一轮不动，两只手一起重来。
-        std::cout << "[orch] " << name << " 左手空抓，右手这一轮不伸，回准备位重拍\n";
-        const int back_rc = grasp_lift_and_back(false, true);
-        if (back_rc != 0)
-            return back_rc;
-        empty_mask = kEmptyLeft;
-        return 0;
-    }
-    if (left_rc != 0)
-        return left_rc;
+    // 双手：统一先右手，再左手（转运/下料两条传送带一致）。
     if (right_arm_motors_locked())
     {
-        const int back_only = grasp_lift_and_back(false);
-        if (back_only != 0)
-            return back_only;
+        std::cout << "[orch] " << name << " 右臂锁定，双手模式退化为只抓左手\n";
+        hand = 0;
+        const int rc = grasp_one(false);
+        if (rc == kBeltGraspEmpty)
+        {
+            const int back_rc = grasp_lift_and_back(false, true);
+            if (back_rc != 0)
+                return back_rc;
+            empty_mask = kEmptyLeft;
+            return 0;
+        }
+        if (rc != 0)
+            return rc;
+        const int back_rc = grasp_lift_and_back(false);
+        if (back_rc != 0)
+            return back_rc;
+        const int note_rc = report_picked(false);
+        if (note_rc != 0)
+            return note_rc;
+        return 0;
     }
-    else
+
+    int right_back_rc = 0;
+    const int right_rc = grasp_one(true);
+    if (right_rc == kBeltGraspEmpty)
     {
-        std::thread th_l([&]() { left_back_rc = grasp_lift_and_back(false); });
-        std::cout << "[orch] belt_grasp 左手已夹到，右手立刻过来（不等左手抬起回程）\n";
-        const int right_rc = grasp_one(true);
-        const bool right_empty = right_rc == kBeltGraspEmpty;
-        const int right_back_rc =
-            (right_rc == 0 || right_empty) ? grasp_lift_and_back(true, right_empty) : 0;
-        if (right_rc == 0 && right_back_rc == 0 &&
-            station_name_matches(depart_after_right, g_move_cfg.chassis.tray2_station))
-            start_tray2_waist_after_right_arrived();
-        th_l.join();
-        if (right_rc != 0 && !right_empty)
-            return right_rc;
-        if (right_back_rc != 0)
-            return right_back_rc;
-        if (left_back_rc != 0)
-            return left_back_rc;
-        if (right_empty)
-            empty_mask = kEmptyRight;
+        std::cout << "[orch] " << name << " 右手空抓，左手这一轮不伸，回准备位再拍\n";
+        const int back_rc = grasp_lift_and_back(true, true);
+        if (back_rc != 0)
+            return back_rc;
+        empty_mask = kEmptyRight;
+        return 0;
     }
+    if (right_rc != 0)
+        return right_rc;
+
+    std::thread th_r([&]() { right_back_rc = grasp_lift_and_back(true); });
+    std::cout << "[orch] belt_grasp 右手已夹到，左手立刻过来（不等右手抬起回程）\n";
+    const int left_rc = grasp_one(false);
+    const bool left_empty = left_rc == kBeltGraspEmpty;
+    const int left_back_rc =
+        (left_rc == 0 || left_empty) ? grasp_lift_and_back(false, left_empty) : 0;
+    if (left_rc == 0 || left_empty)
+    {
+        if (left_back_rc != 0)
+        {
+            th_r.join();
+            return left_back_rc;
+        }
+        if (!left_empty)
+        {
+            const int note_rc = report_picked(false);
+            if (note_rc != 0)
+            {
+                th_r.join();
+                return note_rc;
+            }
+        }
+    }
+    th_r.join();
+    if (right_rc == 0 && right_back_rc == 0 &&
+        station_name_matches(depart_after_right, g_move_cfg.chassis.tray2_station))
+        start_tray2_waist_after_right_arrived();
+    if (left_rc != 0 && !left_empty)
+        return left_rc;
+    if (left_back_rc != 0)
+        return left_back_rc;
+    if (right_back_rc != 0)
+        return right_back_rc;
+    if (left_empty)
+        empty_mask = kEmptyLeft;
 
     const int dep_rc = take_belt_depart();
     const int waist_rc = take_tray2_waist();
@@ -2006,8 +2893,93 @@ static int go_belt_grasp_attempt(
     if (waist_rc != 0)
         return waist_rc;
     if (empty_mask == 0)
-        std::cout << "[orch] " << name << " 双手抓取结束，停在 " << back_name_default
+        std::cout << "[orch] " << name << " 双手抓取结束（先右后左），停在 " << back_name_default
                   << "，可接入底盘/放置\n";
+    return 0;
+}
+
+/** 空抓后手臂已回到准备位。再拍一张，只看抓取窗口。
+ *  返回 0 窗口内没有零件，1 还有立件，2 判成倒件，kVisionQrFail 或 -4。 */
+static int belt_recheck_after_empty(const ConveyorStationConfig &c, const char *tag)
+{
+    const char *name = (tag && tag[0]) ? tag : "belt_grasp";
+    if (!c.yolo_roi_enable)
+        return 0;
+    if (g_hw == nullptr || g_hw->pipeline == nullptr)
+    {
+        if (g_hw != nullptr)
+            g_hw->last_belt_message = "无相机";
+        return kVisionQrFail;
+    }
+    SegPoseBridge &bridge = g_hw->pipeline->bridge();
+    if (!bridge.belt_engine_ready())
+    {
+        g_hw->last_belt_message = "传送带引擎未加载";
+        return kVisionQrFail;
+    }
+    std::cout << "[orch] " << name << " 空抓后再拍，看窗口里是倒件、立件还是没有\n";
+    const int settle_ms = static_cast<int>(
+        std::lround(std::max(0.0, c.grasp_photo_settle_sec) * 1000.0));
+    if (settle_ms > 0)
+        hardware_abort_sleep_ms(settle_ms);
+    if (hardware_abort_requested())
+        return -4;
+    const double grasp_off_l[3] = {
+        c.grasp_offset_left.x, c.grasp_offset_left.y, c.grasp_offset_left.z};
+    const double grasp_off_r[3] = {
+        c.grasp_offset_right.x, c.grasp_offset_right.y, c.grasp_offset_right.z};
+    HeadBeltPerception perc = perceive_belt_head(
+        g_hw->pipeline->cameras(), bridge, c.prefer_belt, kDebugVisualize, grasp_off_l,
+        grasp_off_r, true);
+    if (!perc.frame.ok)
+    {
+        g_hw->last_belt_message = "取帧失败";
+        std::cerr << "[orch] " << name << " 空抓后再拍取帧失败: " << perc.frame.message << "\n";
+        return kVisionQrFail;
+    }
+    if (!perc.belt.ok)
+    {
+        g_hw->last_belt_message = "二维码解算失败";
+        std::cerr << "[orch] " << name << " 空抓后再拍二维码失败\n";
+        return kVisionQrFail;
+    }
+    apply_fixed_belt_origin_z(perc.belt, c, name);
+    const BeltPartList parts = detect_belt_parts_full(
+        bridge, perc.frame, c, perc.belt, name, perc.yolo_ran ? &perc.yolo : nullptr);
+    if (!parts.ok)
+    {
+        g_hw->last_belt_message = parts.message;
+        std::cerr << "[orch] " << name << " 空抓后再拍检测失败: " << parts.message << "\n";
+        return kVisionQrFail;
+    }
+    std::cout << "[orch] " << name << " 二次拍照结果：符合要求的检测框 "
+              << parts.parts.size() << " 个\n";
+    if (parts.parts.empty())
+        std::cout << "[orch] " << name << " 二次拍照没有检测到符合要求的框\n";
+    bool fallen = false;
+    bool standing = false;
+    for (int i = 0; i < static_cast<int>(parts.parts.size()); ++i)
+    {
+        const BeltPartMark &part = parts.parts[static_cast<size_t>(i)];
+        log_belt_used_box(name, "二次拍照", i, part);
+        if (!belt_part_in_grasp_window(part))
+            continue;
+        if (part.class_id == kFallenClassId)
+            fallen = true;
+        else
+            standing = true;
+    }
+    if (fallen)
+    {
+        std::cout << "[orch] " << name << " 二次拍照判定：倒件\n";
+        return 2;
+    }
+    if (standing)
+    {
+        std::cout << "[orch] " << name << " 二次拍照判定：立件\n";
+        return 1;
+    }
+    std::cout << "[orch] " << name << " 二次拍照判定：抓取窗口内没有零件\n";
     return 0;
 }
 
@@ -2015,11 +2987,13 @@ int go_belt_grasp(
     bool from_place, const ConveyorStationConfig &c, const std::string &station, const char *tag,
     int only_hand = -1, const std::function<int(bool is_right)> &on_grasped = {},
     bool photo_settle = true, const std::string &depart_after_right = {},
-    const std::function<void(bool is_right)> &on_lift = {})
+    const std::function<void(bool is_right)> &on_lift = {},
+    bool no_empty_retry = false)
 {
+    (void)no_empty_retry;
     const char *name = (tag && tag[0]) ? tag : "belt_grasp";
-    const int max_retry = g_move_cfg.gripper_check.max_empty_retry;
     int hand = only_hand;
+    bool stood_retry = false;
     for (int attempt = 0;; ++attempt)
     {
         int empty_mask = 0;
@@ -2034,27 +3008,40 @@ int go_belt_grasp(
         if (empty_mask == 0)
             return rc;
         const std::string who = empty_mask == kEmptyRight ? "右手" : "左手";
-        if (attempt >= max_retry)
-        {
-            const std::string msg = std::string(name) + " " + who + "连续空抓 " +
-                                    std::to_string(attempt + 1) +
-                                    " 次，停止重抓，检查传送带上有没有件、夹爪是否正常";
-            std::cerr << "[orch] " << msg << "\n";
-            board_error(msg);
-            g_tray2_place_prep_done = false;
-            return kBeltGraspEmpty;
-        }
-        board_note("warn", std::string(name) + " " + who +
-                               "空抓，不算持件、不汇报，回准备位重拍重抓（第 " +
-                               std::to_string(attempt + 1) + " 次重抓）");
-        // 双手模式里右手空抓说明左手已经抓到，只补右手；左手空抓时右手还没伸，两只手重来。
-        if (only_hand < 0 && empty_mask == kEmptyRight)
-            hand = 1;
-        if (hardware_abort_requested())
+        const int kind = belt_recheck_after_empty(c, tag);
+        if (kind < 0 || kind == kVisionQrFail)
         {
             g_tray2_place_prep_done = false;
-            return -4;
+            return kind;
         }
+        if (kind == 2)
+        {
+            std::cerr << "[orch] " << name << " " << who << "空抓后再拍，窗口内是倒件\n";
+            board_error(std::string(name) + " 空抓后再拍看到倒件");
+            g_tray2_place_prep_done = false;
+            return kBeltFallen;
+        }
+        if (kind == 1 && !stood_retry)
+        {
+            stood_retry = true;
+            board_note("warn", std::string(name) + " " + who +
+                                   "空抓后再拍仍是立件，在抓取窗口内再抓一次");
+            if (only_hand < 0 && empty_mask == kEmptyLeft)
+                hand = 0;
+            if (only_hand < 0 && empty_mask == kEmptyRight)
+                hand = -1;
+            if (hardware_abort_requested())
+            {
+                g_tray2_place_prep_done = false;
+                return -4;
+            }
+            continue;
+        }
+        std::cout << "[orch] " << name << " " << who
+                  << (kind == 1 ? "再抓仍空，窗口里还是立件，不再抓\n"
+                                : "空抓后再拍窗口内没有零件，按没抓到继续\n");
+        g_tray2_place_prep_done = false;
+        return kBeltGraspEmpty;
     }
 }
 
@@ -2164,8 +3151,24 @@ namespace
 {
 
 int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy = false,
-                            bool depart_after_grasp = true, bool clear_tray_when_stay = true)
+                            bool depart_after_grasp = true, bool clear_tray_when_stay = true,
+                            bool save_descent_raw = false, bool hover_track = false)
 {
+    struct DescentRawGuard
+    {
+        bool on = false;
+        explicit DescentRawGuard(bool enable) : on(enable)
+        {
+            if (on)
+                hand_shadow_set_descent_raw(true);
+        }
+        ~DescentRawGuard()
+        {
+            if (on)
+                hand_shadow_set_descent_raw(false);
+        }
+    } raw_guard{save_descent_raw};
+
     g_load_parts_seen = -1;
     g_grasp_departed = false;
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
@@ -2311,6 +3314,41 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
     if (should_abort())
         return -4;
 
+    if (hover_track)
+    {
+        std::cout << "[跟随] 料盘准备和认码与抓取相同。分好之后只到工件上方，"
+                     "然后手相机跟踪 XY\n";
+        if(g_move_cfg.visual_servo.require_dual) wrist_servo::prepare_group();
+        move_box::GraspToStandbyResult r = move_box::run_grasp_to_standby(
+            *g_hw->g,
+            *g_hw->arm_r,
+            *g_hw->arm_l,
+            *g_hw->waist,
+            *g_hw->layer3,
+            g_hw->pipeline->cameras(),
+            g_hw->pipeline->bridge(),
+            cam2robot,
+            err,
+            should_abort,
+            engine_id,
+            false,
+            false,
+            false,
+            {},
+            true);
+        g_hw->last_grasp_status = static_cast<int>(r.status);
+        g_hw->last_grasped_r = false;
+        g_hw->last_grasped_l = false;
+        g_hw->last_grasp_count = 0;
+        if (r.status == move_box::GraspToStandbyStatus::Aborted)
+            return -4;
+        if (r.status == move_box::GraspToStandbyStatus::Ok)
+            return 0;
+        if (r.status == move_box::GraspToStandbyStatus::NoTarget)
+            return 1;
+        return -3;
+    }
+
     g_load_parts_seen = -1;
 
     const bool clear_tray = !depart_after_grasp && clear_tray_when_stay;
@@ -2437,6 +3475,17 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             return -4;
         }
 
+        if(g_move_cfg.visual_servo.require_dual) {
+            // One simultaneous attempt only: do not turn a dual-hand validation into serial retries.
+            last_rc=r.grasped_r && r.grasped_l && r.status==move_box::GraspToStandbyStatus::Ok ? 0 : -34;
+            std::cout << "[servo] 双手单次验证结束：右=" << r.grasped_r << " 左=" << r.grasped_l
+                      << " code=" << last_rc
+                      << " root_right=" << wrist_servo::last_failure(1)
+                      << " root_left=" << wrist_servo::last_failure(0)
+                      << "，不自动补抓\n";
+            break;
+        }
+
         if (r.empty_r || r.empty_l)
             board_note("warn", std::string("料盘一空抓") + (r.empty_r ? " 右手" : "") +
                                    (r.empty_l ? " 左手" : "") + "，不计数，原地重拍重抓");
@@ -2522,6 +3571,13 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
                   << static_cast<int>(r.status) << " 连续失败=" << none_streak
                   << " 持件 右=" << (holding_r ? 1 : 0)
                   << " 左=" << (holding_l ? 1 : 0) << "\n";
+        std::cout << "[grasp] 手还在外面，先收回旁边，收回之后才允许下一次头相机拍照\n";
+        if (!move_box::move_arms_to_standby(*g_hw->arm_r, *g_hw->arm_l))
+        {
+            std::cerr << "[grasp] 收回失败，不再拍照\n";
+            last_rc = should_abort() ? -4 : -5;
+            break;
+        }
         if (none_streak >= kMaxNoneStreak)
         {
             std::cerr << "[grasp] 连续 " << none_streak << " 轮未夹到，退出循环\n";
@@ -2583,6 +3639,72 @@ int vision_grasp_existing_pipeline(bool depart_after_grasp)
 int vision_grasp_once()
 {
     return vision_grasp_with_engine(SegEngineId::Default, false, false, false);
+}
+
+int vision_servo_dual_once()
+{
+    if(!g_move_cfg.cameras.hand_descent_correct) {
+        std::cerr << "[servo] 双手验证要求 cameras.hand_descent_correct=true\n";
+        return -30;
+    }
+    struct Restore {
+        bool saved=g_move_cfg.visual_servo.require_dual;
+        ~Restore() { g_move_cfg.visual_servo.require_dual=saved; }
+    } restore;
+    g_move_cfg.visual_servo.require_dual=true;
+    return vision_grasp_with_engine(SegEngineId::Default,false,false,false);
+}
+
+int vision_grasp_image()
+{
+    return vision_grasp_with_engine(SegEngineId::Default, false, false, true, true);
+}
+
+int vision_grasp_track()
+{
+    std::cerr << "[servo] 旧悬停跟随使用占位深度，已禁用；请使用 vision_grasp_once 验证双手新闭环\n";
+    return -30;
+}
+
+int tray_servo_jitter_test()
+{
+    if (g_hw == nullptr || g_hw->arm_r == nullptr || g_hw->arm_l == nullptr ||
+        g_hw->pipeline == nullptr)
+        return -1;
+    if (g_hw->waist == nullptr || g_hw->layer3 == nullptr)
+    {
+        std::cerr << "[伺服测试] 腰未初始化，不能进抓取准备姿态\n";
+        return -1;
+    }
+    std::cout << "[伺服测试] 不移动底盘。先到抓取准备姿态 ready2（第二近排），再拍照\n";
+    const int ready_rc = go_grasp_ready(*g_hw->arm_r, *g_hw->arm_l, 2);
+    if (ready_rc != 0)
+    {
+        std::cerr << "[伺服测试] 抓取准备姿态失败 code=" << ready_rc << "，不拍照\n";
+        return ready_rc;
+    }
+    if (hardware_abort_requested())
+        return -4;
+
+    std::array<double, 16> cam2robot{};
+    std::string err;
+    if (!load_head_cam2robot(cam2robot, err) &&
+        !load_cam2robot_matrix(default_camera_to_robot_yaml_path(), cam2robot, err))
+    {
+        std::cerr << "[伺服测试] 读头相机外参失败: " << err << "\n";
+        return -3;
+    }
+    auto should_abort = []() {
+        return hardware_abort_requested() ||
+               (g_hw && g_hw->abort && g_hw->abort->load()) || can_io_faulted();
+    };
+    return move_box::run_tray_servo_jitter_test(
+        *g_hw->arm_r,
+        *g_hw->arm_l,
+        g_hw->pipeline->cameras(),
+        g_hw->pipeline->bridge(),
+        cam2robot,
+        should_abort);
 }
 
 int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
@@ -2686,7 +3808,7 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
         return right_ok && left_ok && (placed_r || placed_l);
     };
 
-    std::cout << "[tray2] 开始循环：YOLO class3 空孔，顺序同 grasp；到位后张爪"
+    std::cout << "[tray2] 开始循环：YOLO class1 空孔，顺序同 grasp；到位后张爪"
               << (right_arm_motors_locked() ? "（右臂锁定，只要求左手放置）" : "")
               << (!allow_right ? "；右手不放" : "")
               << (!allow_left ? "；左手不放" : "")
@@ -3086,27 +4208,18 @@ bool detect_tray2_origin(double &x, double &y, double &z)
         std::cerr << "[tray2center] 料盘引擎未加载\n";
         return false;
     }
-    constexpr CameraSlot slot = CameraSlot::Head;
     RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
-    const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
-    cameras.flush(slot);
-    std::vector<CameraFrameData> frames;
-    frames.reserve(static_cast<size_t>(fuse_n));
-    for (int i = 0; i < fuse_n; ++i)
-    {
-        CameraFrameData one = cameras.grab_wait(slot);
-        one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), slot);
-        if (one.ok)
-            frames.push_back(std::move(one));
-    }
-    if (frames.empty())
+    PerceiveTrayOptions opts;
+    opts.run_yolo = false;
+    opts.tray2_markers = true;
+    opts.show_tray_visualization = kDebugVisualize;
+    const HeadTrayPerception perc = perceive_tray_head(cameras, bridge, opts);
+    if (perc.frames.empty())
     {
         std::cerr << "[tray2center] 头相机取帧失败\n";
         return false;
     }
-    PoseDetectionRecords yolo;
-    const TrayDetectResult det = bridge.run_tray_annotate_multiframe(
-        frames, yolo, kDebugVisualize, slot, true);
+    const TrayDetectResult &det = perc.tray;
     if (!det.ok || !std::isfinite(det.origin_x) || !std::isfinite(det.origin_y) ||
         !std::isfinite(det.origin_z))
     {
@@ -3648,57 +4761,28 @@ int vision_tray_holes_pipeline()
     RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
     std::cout << "[orch] 料盘孔位：ArUco 孔 XY + YOLO 类别 + 头测顶面 z（不动臂）\n";
 
-    constexpr CameraSlot slot = CameraSlot::Head;
-    const int fuse_n = std::max(1, g_move_cfg.tray.fuse_frames);
-    cameras.flush(slot);
-    std::vector<CameraFrameData> frames;
-    frames.reserve(static_cast<size_t>(fuse_n));
-    for (int i = 0; i < fuse_n; ++i)
-    {
-        CameraFrameData one = cameras.grab_wait(slot);
-        one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), slot);
-        if (one.ok)
-            frames.push_back(std::move(one));
-    }
-    if (frames.empty())
+    if (kDebugVisualize)
+        pose_vis_begin_phase(PoseVisLayout::Single, PoseVisPanel::Head, {PoseVisPanel::Head});
+
+    PerceiveTrayOptions opts;
+    opts.run_yolo = true;
+    opts.show_tray_visualization = kDebugVisualize;
+    const HeadTrayPerception perc = perceive_tray_head(cameras, bridge, opts);
+    if (perc.frames.empty())
     {
         std::cerr << "[tray] 头相机取帧失败: 多帧融合没有有效帧\n";
         g_hw->last_tray_message = "取帧失败";
         return -2;
     }
-    const CameraFrameData &frame = frames.back();
-
-    PoseDetectionRecords yolo;
-    const int algorithm_id = algorithm_id_for_slot(slot);
-    const PoseRunResult pose = bridge.run(frame, algorithm_id, false, slot, -1);
-    if (!pose.ok)
-    {
-        std::cerr << "[tray] YOLO 失败: " << pose.message << "（仍解料盘孔位）\n";
-    }
+    if (!perc.yolo.ok)
+        std::cerr << "[tray] YOLO 失败: " << perc.yolo.message << "（仍解料盘孔位）\n";
     else
-    {
-        for (const PoseTargetResult &t : pose.targets)
-        {
-            if (!t.success)
-                continue;
-            PoseDetectionRecord rec;
-            rec.slot = slot;
-            rec.slot_name = "head";
-            rec.frame_algorithm_id = algorithm_id;
-            rec.target = t;
-            yolo.push_back(std::move(rec));
-        }
-        std::cout << "[tray] YOLO 目标 " << yolo.size() << " 个（全部类别）\n";
-    }
+        std::cout << "[tray] YOLO 目标 " << perc.yolo_records.size() << " 个（全部类别）\n";
 
     if (should_abort())
         return -4;
 
-    if (kDebugVisualize)
-        pose_vis_begin_phase(PoseVisLayout::Single, PoseVisPanel::Head, {PoseVisPanel::Head});
-
-    const TrayDetectResult det =
-        bridge.run_tray_annotate_multiframe(frames, yolo, kDebugVisualize, slot);
+    const TrayDetectResult &det = perc.tray;
     g_hw->last_tray_ok = det.ok;
     g_hw->last_tray_message = det.message;
     g_hw->last_tray_save_path = det.save_path;
@@ -3731,6 +4815,8 @@ constexpr int kDispatchHandSkipped = 8;
 constexpr int kDispatchApplyTimeout = 6;
 /** 手里还有件但这次没放成（例如二维码连续失败）：原地待命，不报完成。 */
 constexpr int kDispatchHoldStay = 9;
+/** 传送带 ROI 无料：不抓、报没有料、原地听下一条（不回 AP14）。 */
+constexpr int kDispatchNoPartStay = 13;
 constexpr int kDispatchPointsMissing = 7;
 
 struct TaskPoints
@@ -3935,6 +5021,32 @@ int dispatch_report(RobotClient &client, DispatchNote note, const char *what)
     return 0;
 }
 
+int dispatch_report_now(RobotClient &client, DispatchNote note, const char *what)
+{
+    const char *state = dispatch_msg::DONE;
+    if (note == DispatchNote::PlaceHand)
+        state = dispatch_msg::PLACE_DONE;
+    else if (note == DispatchNote::PickHand)
+        state = dispatch_msg::PICK_UP_DONE;
+    std::cout << "[dispatch] " << what << " 手已收回，发送 " << state << std::endl;
+    if (note == DispatchNote::Mission)
+        board_step("汇报完成");
+    board_report_pending(state, what);
+    if (hardware_abort_requested())
+        return -4;
+    const bool ok = note == DispatchNote::PlaceHand ? client.place_done()
+                    : note == DispatchNote::PickHand ? client.pick_up_done()
+                                                     : client.mission_done();
+    board_report(state, what, ok);
+    if (!ok)
+    {
+        std::cerr << "[dispatch] 发送 " << state << " 失败\n";
+        return -7;
+    }
+    std::cout << "[dispatch] 已发送 " << state << std::endl;
+    return 0;
+}
+
 int dispatch_report_after(
     RobotClient &client, DispatchNote note, const char *what,
     std::chrono::steady_clock::time_point since)
@@ -4012,6 +5124,10 @@ void plan_unload_hands(bool &pick_left, bool &pick_right)
     }
 }
 
+bool dispatch_report_ex(RobotClient &client, int code, const char *zh);
+/** 传送带视觉失败：先自动再拍一次；仍失败才上报 1201。true=再拍，false=未解决、原地待命。 */
+bool dispatch_belt_vision_again(RobotClient &client, int &vision_retry, const char *what);
+
 int dispatch_pick_one(
     RobotClient &client, bool (*apply_pick)(RobotClient &, int),
     const std::string &request_state, const std::string &grant_state,
@@ -4030,8 +5146,9 @@ int dispatch_pick_one(
         return kDispatchHoldStay;
     }
     auto raw_apply = [&]() { return apply_pick(client, kDispatchApplyTimeoutMs); };
-    board_step(only_hand == 1 ? "右手申请抓取" : "左手申请抓取");
+    board_step("申请抓取");
     bool need_apply = !grant_done;
+    int vision_retry = 1;
     if (grant_done)
         std::cout << "[dispatch] " << done_what << " 申请已在上一只手上抬期间完成\n";
     for (int attempt = 0;; ++attempt)
@@ -4058,14 +5175,34 @@ int dispatch_pick_one(
         const int rc = go_belt_grasp(
             from_place, c, station, tag, only_hand,
             [&](bool) {
-                const auto closed_at = std::chrono::steady_clock::now();
-                return dispatch_report_after(client, DispatchNote::PickHand, done_what, closed_at);
+                return dispatch_report_now(client, DispatchNote::PickHand, done_what);
             },
             photo_settle, only_hand == 1 ? depart_after_right : std::string(),
             [&](bool) {
                 if (on_lift)
                     on_lift();
-            });
+            },
+            true);
+        if (rc == kBeltNoPartVision || rc == kBeltFallen)
+        {
+            std::cout << "[dispatch] " << done_what
+                      << (rc == kBeltFallen ? " 空抓后再拍是倒件，" : " 抓取窗口内没有料，")
+                      << "上报 1102\n";
+            if (!dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "下料点没有料可以抓"))
+                return kDispatchNoPartStay;
+            need_apply = false;
+            from_place = true;
+            continue;
+        }
+        if (rc == kBeltHandSkip)
+        {
+            std::cout << "[dispatch] " << done_what
+                      << " 这只手对应的分片没有料，不伸手，汇报抓取完成并继续\n";
+            const int note_rc = dispatch_report(client, DispatchNote::PickHand, done_what);
+            if (note_rc != 0)
+                return note_rc;
+            return 0;
+        }
         if (rc == kBeltGraspEmpty)
         {
             std::cerr << "[dispatch] " << done_what
@@ -4078,31 +5215,168 @@ int dispatch_pick_one(
         }
         if (rc != kVisionQrFail)
             return rc;
-        if (attempt >= kDispatchQrRetry)
-        {
-            std::cerr << "[dispatch] " << done_what << " 二维码解算连续失败 "
-                      << (attempt + 1) << " 次，停止重试\n";
-            return kVisionQrFail;
-        }
-        const int re_rc = dispatch_reapply_after_qr(
-            client, request_state, grant_state, done_what, raw_apply);
-        if (re_rc == kDispatchApplyTimeout)
-        {
-            std::cout << "[dispatch] " << done_what
-                      << " 重新申请超时，不抓这只手，发送 "
-                      << dispatch_msg::PICK_UP_DONE << " 后继续任务\n";
-            const int note_rc = dispatch_report(client, DispatchNote::PickHand, done_what);
-            if (note_rc != 0)
-                return note_rc;
-            return 0;
-        }
-        if (re_rc != 0)
-            return re_rc;
-        // 已在 reapply 里申请成功，下一轮不再重复申请。
+        if (!dispatch_belt_vision_again(client, vision_retry, done_what))
+            return kDispatchHoldStay;
         need_apply = false;
         from_place = true;
         photo_settle = true;
     }
+}
+
+/** 放置收手后拍一张。只数这次放过的放置点 ±6cm 内的倒件。立件不算。
+ *  返回倒件个数；视觉失败返回 kVisionQrFail；中止返回 -4。 */
+static int count_fallen_near_place_points(
+    const ConveyorStationConfig &c, const char *tag, bool do_right, bool do_left)
+{
+    const char *name = (tag && tag[0]) ? tag : "belt";
+    const bool check_right = do_right && !right_arm_motors_locked();
+    const bool check_left = do_left;
+    if (!check_right && !check_left)
+        return 0;
+    if (g_hw == nullptr || g_hw->pipeline == nullptr)
+    {
+        if (g_hw != nullptr)
+            g_hw->last_belt_message = "无相机";
+        return kVisionQrFail;
+    }
+    SegPoseBridge &bridge = g_hw->pipeline->bridge();
+    if (!bridge.belt_engine_ready())
+    {
+        g_hw->last_belt_message = "传送带引擎未加载";
+        return kVisionQrFail;
+    }
+    const int settle_ms = static_cast<int>(
+        std::lround(std::max(0.0, c.grasp_photo_settle_sec) * 1000.0));
+    std::cout << "[orch] " << name << " 放置完成，等 " << settle_ms
+              << " ms 再拍，看放置点 ±6cm 内有没有倒件\n";
+    if (settle_ms > 0)
+        hardware_abort_sleep_ms(settle_ms);
+    if (hardware_abort_requested())
+        return -4;
+
+    HeadBeltPerception perc = perceive_belt_head(
+        g_hw->pipeline->cameras(), bridge, c.prefer_belt, kDebugVisualize, nullptr, nullptr, true);
+    if (!perc.frame.ok)
+    {
+        g_hw->last_belt_message = "取帧失败";
+        std::cerr << "[orch] " << name << " 放置确认取帧失败: " << perc.frame.message << "\n";
+        return kVisionQrFail;
+    }
+    if (!perc.belt.ok || !perc.belt.in_robot)
+    {
+        g_hw->last_belt_message = "二维码解算失败";
+        std::cerr << "[orch] " << name << " 放置确认二维码失败\n";
+        return kVisionQrFail;
+    }
+    apply_fixed_belt_origin_z(perc.belt, c, name);
+    const BeltPartList parts = detect_belt_parts_full(
+        bridge, perc.frame, c, perc.belt, name, perc.yolo_ran ? &perc.yolo : nullptr);
+    if (!parts.ok)
+    {
+        g_hw->last_belt_message = parts.message;
+        std::cerr << "[orch] " << name << " 放置确认检测失败: " << parts.message << "\n";
+        return kVisionQrFail;
+    }
+
+    struct PlacePoint
+    {
+        double x = 0;
+        double y = 0;
+        const char *label = "";
+    };
+    std::vector<PlacePoint> points;
+    if (check_right)
+        points.push_back(PlacePoint{c.offset_right.x, c.offset_right.y, "右手放置点"});
+    if (check_left)
+        points.push_back(PlacePoint{c.offset_left.x, c.offset_left.y, "左手放置点"});
+
+    constexpr double kPlaceTolM = 0.06;
+    int fallen = 0;
+    for (int i = 0; i < static_cast<int>(parts.parts.size()); ++i)
+    {
+        const BeltPartMark &part = parts.parts[static_cast<size_t>(i)];
+        if (!part.have_marker)
+            continue;
+        bool in_region = false;
+        for (const PlacePoint &pt : points)
+        {
+            const double dx = part.x - pt.x;
+            const double dy = part.y - pt.y;
+            if (std::abs(dx) > kPlaceTolM || std::abs(dy) > kPlaceTolM)
+                continue;
+            in_region = true;
+            std::cout << std::fixed << std::setprecision(1) << "[orch] " << name
+                      << " 放置确认 零件" << i << " " << belt_yolo_class_zh(part.class_id)
+                      << " ↔ " << pt.label << std::showpos
+                      << " dx=" << (dx * 100.0) << "cm dy=" << (dy * 100.0) << "cm"
+                      << std::noshowpos << "\n";
+        }
+        if (!in_region || part.class_id != kFallenClassId)
+            continue;
+        ++fallen;
+    }
+    std::cout << "[orch] " << name << " 放置确认：放置点 ±6cm 内倒件 " << fallen << " 个\n";
+    return fallen;
+}
+
+/** 放置完成后确认。倒件上报 1102 并原地等待；已解决再拍。没有倒件返回 0。 */
+static int confirm_belt_place_not_fallen(
+    RobotClient &client, const ConveyorStationConfig &c, const char *tag,
+    bool do_right, bool do_left, const char *place_what)
+{
+    int vision_retry = 1;
+    for (;;)
+    {
+        const int fallen = count_fallen_near_place_points(c, tag, do_right, do_left);
+        if (fallen == -4)
+            return -4;
+        if (fallen == kVisionQrFail)
+        {
+            if (!dispatch_belt_vision_again(client, vision_retry, place_what))
+                return kDispatchHoldStay;
+            continue;
+        }
+        if (fallen > 0)
+        {
+            std::cout << "[dispatch] " << place_what << " 放置点 ±6cm 内倒件 " << fallen
+                      << " 个，上报 1102\n";
+            if (!dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "放置点零件倒了"))
+                return kDispatchHoldStay;
+            std::cout << "[dispatch] " << place_what << " 倒件已解决，再拍一张确认\n";
+            continue;
+        }
+        std::cout << "[dispatch] " << place_what << " 放置点没有倒件，继续\n";
+        return 0;
+    }
+}
+
+/** 上报异常并等待调度。true=已解决，调用方不再申请、直接重拍重做；false=未解决或发不出去，原地待命。 */
+bool dispatch_report_ex(RobotClient &client, int code, const char *zh)
+{
+    const bool retry = client.report_exception(code);
+    std::cout << "[dispatch] 上报异常 " << code << " " << (zh ? zh : "")
+              << (retry ? "，调度已解决，不再申请，再拍一次\n" : "，调度未解决，原地待命\n");
+    board_error(zh ? zh : "");
+    board_report(std::to_string(code), zh ? zh : "", retry);
+    return retry;
+}
+
+bool dispatch_belt_vision_again(RobotClient &client, int &vision_retry, const char *what)
+{
+    const char *name = (what && what[0]) ? what : "传送带";
+    if (vision_retry > 0)
+    {
+        --vision_retry;
+        std::cerr << "[dispatch] " << name << " 视觉失败，再拍一次\n";
+        board_note("warn", std::string(name) + " 视觉失败，再拍一次");
+        board_activity(std::string(name) + "：再拍一次");
+        return true;
+    }
+    std::cerr << "[dispatch] " << name << " 再拍仍失败，上报 1201\n";
+    if (!dispatch_report_ex(client, RobotClient::QrUnrecognized, "传送带视觉识别错误"))
+        return false;
+    vision_retry = 1;
+    return true;
 }
 
 int dispatch_place_belt(
@@ -4122,6 +5396,7 @@ int dispatch_place_belt(
     if (already_granted)
         std::cout << "[dispatch] " << place_what
                   << " 的申请已在来的路上结束，底盘停稳后拍照放置\n";
+    int vision_retry = 1;
     for (int attempt = 0;; ++attempt)
     {
         if (need_apply)
@@ -4139,62 +5414,54 @@ int dispatch_place_belt(
                           << " 放行\n";
         }
         need_apply = true;
-        bool reported = false;
-        auto report_on_last_lift = [&](bool) -> int {
-            if (reported)
-                return 0;
-            reported = true;
-            std::cout << "[dispatch] " << place_what
-                      << " 最后一手已收回准备位，发送 "
-                      << dispatch_msg::PLACE_DONE << " 和 " << dispatch_msg::DONE << "\n";
-            board_step("汇报完成");
-            const bool place_ok = client.place_done();
-            board_report(dispatch_msg::PLACE_DONE, place_what, place_ok);
-            if (!place_ok)
-            {
-                std::cerr << "[dispatch] 发送 " << dispatch_msg::PLACE_DONE << " 失败\n";
-                return -7;
-            }
-            std::cout << "[dispatch] 已发送 " << dispatch_msg::PLACE_DONE << "\n";
-            const bool done_ok = client.mission_done();
-            board_report(dispatch_msg::DONE, "任务完成", done_ok);
-            if (!done_ok)
-            {
-                std::cerr << "[dispatch] 发送 " << dispatch_msg::DONE << " 失败\n";
-                return -7;
-            }
-            std::cout << "[dispatch] 已发送 " << dispatch_msg::DONE << "\n";
-            return 0;
-        };
         board_step(std::string(tag) == "belt2" ? "传送带二放置" : "传送带一放置");
         board_activity(std::string(place_what) + "：拍照认码、依次放置");
         const int place_rc = go_belt_station(
-            c, tag, report_on_last_lift, hold_right, hold_left,
+            c, tag, {}, hold_right, hold_left,
             attempt == 0 ? skip_ready : true);
+        if (place_rc == kBeltPlaceOccupied)
+        {
+            std::cout << "[dispatch] " << place_what << " 放置点有零件，上报 1101\n";
+            if (!dispatch_report_ex(client, RobotClient::LoadPortBlocked, "上料口有料，无法放置"))
+                return kDispatchHoldStay;
+            skip_ready = true;
+            need_apply = false;
+            continue;
+        }
         if (place_rc == kVisionQrFail)
         {
-            if (attempt >= kDispatchQrRetry)
-            {
-                std::cerr << "[dispatch] " << place_what << " 二维码解算连续失败 "
-                          << (attempt + 1) << " 次，手里有件，原地待命\n";
+            if (!dispatch_belt_vision_again(client, vision_retry, place_what))
                 return kDispatchHoldStay;
-            }
-            const int re_rc = dispatch_reapply_after_qr(
-                client, request_state, grant_state, place_what, raw_apply);
-            if (re_rc == kDispatchApplyTimeout)
-            {
-                std::cout << "[dispatch] " << place_what
-                          << " 重新申请超时，直接再放一次\n";
-            }
-            else if (re_rc != 0)
-                return re_rc;
+            skip_ready = true;
             need_apply = false;
             continue;
         }
         if (place_rc != 0)
             return place_rc;
-        if (!reported)
-            return report_on_last_lift(false);
+        const int check_rc = confirm_belt_place_not_fallen(
+            client, c, tag, hold_right, hold_left, place_what);
+        if (check_rc != 0)
+            return check_rc;
+        std::cout << "[dispatch] " << place_what
+                  << " 放置确认通过，发送 "
+                  << dispatch_msg::PLACE_DONE << " 和 " << dispatch_msg::DONE << "\n";
+        board_step("汇报完成");
+        const bool place_ok = client.place_done();
+        board_report(dispatch_msg::PLACE_DONE, place_what, place_ok);
+        if (!place_ok)
+        {
+            std::cerr << "[dispatch] 发送 " << dispatch_msg::PLACE_DONE << " 失败\n";
+            return -7;
+        }
+        std::cout << "[dispatch] 已发送 " << dispatch_msg::PLACE_DONE << "\n";
+        const bool done_ok = client.mission_done();
+        board_report(dispatch_msg::DONE, "任务完成", done_ok);
+        if (!done_ok)
+        {
+            std::cerr << "[dispatch] 发送 " << dispatch_msg::DONE << " 失败\n";
+            return -7;
+        }
+        std::cout << "[dispatch] 已发送 " << dispatch_msg::DONE << "\n";
         return 0;
     }
 }
@@ -4277,27 +5544,94 @@ int dispatch_pick_pair(
     const std::string &request_state, const std::string &grant_state,
     const ConveyorStationConfig &c, const std::string &station, const char *tag,
     bool do_left, bool do_right, const char *left_what, const char *right_what,
-    const std::string &depart_after_right = {})
+    const std::string &depart_after_right = {}, bool skip_apply = false)
 {
-    // 一只手整段抓完（合爪+上抬+收手）后再申请下一只，不再与抬升重叠申请。
-    if (do_left)
+    if (do_left || do_right)
     {
-        const int left_rc = dispatch_pick_one(
-            client, apply_pick, request_state, grant_state,
-            true, c, station, tag, 0, left_what);
-        if (left_rc != 0)
-            return left_rc;
-    }
-    if (do_right)
-    {
-        if (do_left)
-            std::cout << "[dispatch] 左手已抓完，开始申请右手\n";
-        const int right_rc = dispatch_pick_one(
-            client, apply_pick, request_state, grant_state,
-            true, c, station, tag, 1, right_what,
-            {}, true, false, false, depart_after_right);
-        if (right_rc != 0)
-            return right_rc;
+        auto raw_apply = [&]() { return apply_pick(client, kDispatchApplyTimeoutMs); };
+        if (skip_apply)
+        {
+            std::cout << "[dispatch] 本次抓取不申请，按码系抓取窗口直接抓\n";
+            board_step("检测框抓取");
+        }
+        else
+            std::cout << "[dispatch] 抓取只申请一次，按码系抓取窗口决定伸哪只手\n";
+        if (!skip_apply)
+        {
+            board_step("申请抓取");
+            if (!dispatch_apply(request_state, grant_state, right_what, raw_apply))
+            {
+                std::cout << "[dispatch] " << right_what
+                          << " 申请超时，不抓，发送 " << dispatch_msg::PICK_UP_DONE
+                          << " 后继续任务\n";
+                return dispatch_report(client, DispatchNote::PickHand, right_what);
+            }
+        }
+        bool reported = false;
+        int rc = 0;
+        int vision_retry = 1;
+        int next_hand = -1;
+        for (;;)
+        {
+            reported = false;
+            rc = go_belt_grasp(
+                true, c, station, tag, next_hand,
+                [&](bool) {
+                    reported = true;
+                    return dispatch_report_now(client, DispatchNote::PickHand, right_what);
+                },
+                true, depart_after_right, {}, true);
+            if (rc == kBeltNoPartVision || rc == kBeltFallen)
+            {
+                std::cout << "[dispatch] "
+                          << (rc == kBeltFallen ? "空抓后再拍是倒件，" : "抓取窗口内没有料，")
+                          << "上报 1102\n";
+                if (!dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "下料点没有料可以抓"))
+                    return kDispatchNoPartStay;
+                const bool right_held = g_hw != nullptr && g_hw->last_grasped_r;
+                const bool left_held = g_hw != nullptr && g_hw->last_grasped_l;
+                if (right_held && !left_held)
+                {
+                    next_hand = 0;
+                    std::cout << "[dispatch] 已解决，右手保持夹持不动，只让左手再抓\n";
+                }
+                else if (left_held && !right_held)
+                {
+                    next_hand = 1;
+                    std::cout << "[dispatch] 已解决，左手保持夹持不动，只让右手再抓\n";
+                }
+                else
+                {
+                    next_hand = -1;
+                    if (rc == kBeltFallen)
+                        std::cout << "[dispatch] 倒件已解决，再拍照，按窗口决定伸哪只手\n";
+                }
+                continue;
+            }
+            if (rc == kVisionQrFail)
+            {
+                if (!dispatch_belt_vision_again(client, vision_retry, right_what))
+                    return kDispatchHoldStay;
+                continue;
+            }
+            break;
+        }
+        if (rc == kBeltGraspEmpty)
+        {
+            std::cout << "[dispatch] 抓空，不重试，继续任务\n";
+            if (!reported)
+            {
+                const int note_rc = dispatch_report(client, DispatchNote::PickHand, right_what);
+                if (note_rc != 0)
+                    return note_rc;
+            }
+            return 0;
+        }
+        if (rc != 0)
+            return rc;
+        if (!reported)
+            return dispatch_report(client, DispatchNote::PickHand, right_what);
+        return 0;
     }
     return 0;
 }
@@ -4343,33 +5677,34 @@ int place_while_driving(
     else
         std::cout << "[dispatch] 已收到 " << grant_state << "，" << place_what << " 放行\n";
     auto raw_apply = [&]() { return apply_place(client, kDispatchApplyTimeoutMs); };
+    int vision_retry = 1;
     for (int attempt = 0;; ++attempt)
     {
         board_step("传送带二放置");
         board_activity(std::string(place_what) + "：拍照认码、依次放置");
         const int place_rc = go_belt_station(c, tag, {}, hold_right, hold_left, true);
+        if (place_rc == kBeltPlaceOccupied)
+        {
+            std::cout << "[dispatch] " << place_what << " 放置点有零件，上报 1101\n";
+            if (!dispatch_report_ex(client, RobotClient::LoadPortBlocked, "上料口有料，无法放置"))
+                return kDispatchHoldStay;
+            continue;
+        }
         if (place_rc == kVisionQrFail)
         {
-            if (attempt >= kDispatchQrRetry)
-            {
-                std::cerr << "[dispatch] " << place_what << " 二维码解算连续失败 "
-                          << (attempt + 1) << " 次，手里有件，原地待命\n";
+            if (!dispatch_belt_vision_again(client, vision_retry, place_what))
                 return kDispatchHoldStay;
-            }
-            const int re_rc = dispatch_reapply_after_qr(
-                client, request_state, grant_state, place_what, raw_apply);
-            if (re_rc == kDispatchApplyTimeout)
-                std::cout << "[dispatch] " << place_what
-                          << " 重新申请超时，直接再放一次\n";
-            else if (re_rc != 0)
-                return re_rc;
             continue;
         }
         if (place_rc != 0)
             return place_rc;
+        const int check_rc = confirm_belt_place_not_fallen(
+            client, c, tag, hold_right, hold_left, place_what);
+        if (check_rc != 0)
+            return check_rc;
         break;
     }
-    std::cout << "[dispatch] " << place_what << " 结束，立刻发送 "
+    std::cout << "[dispatch] " << place_what << " 放置确认通过，发送 "
               << dispatch_msg::PLACE_DONE << "\n";
     const bool place_ok = client.place_done();
     board_report(dispatch_msg::PLACE_DONE, place_what, place_ok);
@@ -4702,20 +6037,19 @@ int dispatch_load(RobotClient &client)
         grasp_rc = vision_grasp_existing_pipeline();
         if (grasp_rc != kVisionQrFail)
             break;
-        if (attempt >= kDispatchQrRetry)
+        std::cerr << "[dispatch] 上料抓取 料盘二维码解算失败，上报 1201\n";
+        if (!dispatch_report_ex(client, RobotClient::QrUnrecognized, "二维码识别错误"))
         {
-            std::cerr << "[dispatch] 上料抓取 料盘二维码解算连续失败 "
-                      << (attempt + 1) << " 次，停止重试\n";
+            grasp_rc = kVisionQrFail;
             break;
         }
-        dispatch_report_qr_fail(client, "上料抓取");
-        board_activity("料盘码解算失败，重新拍照识别");
+        board_activity("调度已解决，再拍一次料盘");
     }
     g_on_grasp_depart = nullptr;
     if (grasp_rc < 0)
         return grasp_rc;
     if (grasp_rc == kVisionQrFail)
-        return kVisionQrFail;
+        return kDispatchHoldStay;
     const bool hold_r = g_hw != nullptr && g_hw->last_grasped_r;
     const bool hold_l = g_hw != nullptr && g_hw->last_grasped_l;
     const int took = (hold_r ? 1 : 0) + (hold_l ? 1 : 0);
@@ -4779,8 +6113,9 @@ int dispatch_transfer(RobotClient &client)
     g_move_cfg.chassis.belt_station = points.load;
     g_move_cfg.chassis.out_station = points.unload;
     std::cout << "[dispatch] 转运：" << points.load
-              << " 左右手各申请 20s，超时跳过该手并继续；有件才去 " << points.unload
-              << " 放，放置申请超时则直接放，然后发 " << dispatch_msg::DONE << "\n";
+              << " 不申请，按码系抓取窗口抓；窗口内没料报 1102；抓完发 "
+              << dispatch_msg::PICK_UP_DONE
+              << "。有件才去 " << points.unload << " 放\n";
     board_step("去传送带一");
     if (!belt_ready_to_pick(g_move_cfg.chassis.belt_station, g_move_cfg.conveyor, "转运"))
     {
@@ -4792,18 +6127,14 @@ int dispatch_transfer(RobotClient &client)
     g_hw->last_grasped_r = false;
     g_hw->last_grasped_l = false;
     ConveyorStationConfig transfer_grasp = g_move_cfg.conveyor;
-    constexpr double kTransferGraspXBiasM = 0.005;
-    transfer_grasp.grasp_offset_left.x += kTransferGraspXBiasM;
-    transfer_grasp.grasp_offset_right.x += kTransferGraspXBiasM;
-    std::cout << std::fixed << std::setprecision(4)
-              << "[dispatch] 转运抓取在传送带 +X 再偏 " << kTransferGraspXBiasM
-              << " m，左右手都加\n";
     const int pick_rc = dispatch_pick_pair(
         client, apply_pick_half, dispatch_msg::APPLY_PICK_HALF, dispatch_msg::PICK_HALF,
         transfer_grasp, g_move_cfg.chassis.belt_station, "belt_grasp",
-        true, !right_arm_motors_locked(), "转运左手抓取", "转运右手抓取",
-        g_move_cfg.chassis.out_station);
+        true, true, "转运左手抓取", "转运右手抓取",
+        g_move_cfg.chassis.out_station, true);
     if (pick_rc < 0)
+        return pick_rc;
+    if (pick_rc == kDispatchNoPartStay)
         return pick_rc;
     const bool hold_r = g_hw->last_grasped_r;
     const bool hold_l = g_hw->last_grasped_l;
@@ -4839,9 +6170,9 @@ int dispatch_unload(RobotClient &client)
     g_move_cfg.chassis.out_station = points.unload;
     g_move_cfg.chassis.tray2_station = points.well;
     std::cout << "[dispatch] 下料：" << points.unload
-              << " 按上次剩下的空孔抓 1 或 2 只手，申请 20s 超时跳过该手并继续；放到 "
-              << points.well << " 后若没有空孔就报满盘，再发 "
-              << dispatch_msg::DONE << "\n";
+              << " 不申请，到站拍一次按抓取窗口抓，然后去 " << points.well
+              << " 放置。放完再发 " << dispatch_msg::DONE
+              << "。空抓后再拍：倒件按没料上报 1102 并等待；立件再抓一次；没有空孔再报满盘\n";
     board_step("去传送带二");
     if (!belt_ready_to_pick(g_move_cfg.chassis.out_station, g_move_cfg.conveyor2, "下料"))
     {
@@ -4850,19 +6181,16 @@ int dispatch_unload(RobotClient &client)
         if (ready_rc != 0)
             return ready_rc;
     }
-    bool pick_left = true;
-    bool pick_right = true;
-    plan_unload_hands(pick_left, pick_right);
-    if (right_arm_motors_locked())
-        pick_right = false;
     g_hw->last_grasped_r = false;
     g_hw->last_grasped_l = false;
     const int pick_rc = dispatch_pick_pair(
         client, apply_pick_well, dispatch_msg::APPLY_PICK_WELL, dispatch_msg::PICK_WELL,
         g_move_cfg.conveyor2, g_move_cfg.chassis.out_station, "belt2_grasp",
-        pick_left, pick_right, "下料左手抓取", "下料右手抓取",
-        g_move_cfg.chassis.tray2_station);
+        true, true, "下料左手抓取", "下料右手抓取",
+        g_move_cfg.chassis.tray2_station, true);
     if (pick_rc < 0)
+        return pick_rc;
+    if (pick_rc == kDispatchNoPartStay)
         return pick_rc;
     const bool hold_r = g_hw->last_grasped_r;
     const bool hold_l = g_hw->last_grasped_l;
@@ -4874,14 +6202,10 @@ int dispatch_unload(RobotClient &client)
             place_rc = vision_place_tray2(hold_r, hold_l, false);
             if (place_rc != kVisionQrFail)
                 break;
-            if (attempt >= kDispatchQrRetry)
-            {
-                std::cerr << "[dispatch] 下料放置 料盘二维码解算连续失败 "
-                          << (attempt + 1) << " 次，手里有件，原地待命\n";
+            std::cerr << "[dispatch] 下料放置 料盘二维码解算失败，上报 1201\n";
+            if (!dispatch_report_ex(client, RobotClient::QrUnrecognized, "二维码识别错误"))
                 return kDispatchHoldStay;
-            }
-            dispatch_report_qr_fail(client, "下料放置");
-            board_activity("料盘码解算失败，重新拍照找空孔");
+            board_activity("调度已解决，再拍一次料盘");
         }
         if (place_rc < 0)
             return place_rc;
@@ -5153,9 +6477,57 @@ static int run_dispatch_mode_body()
         }
         return 0;
     };
+    // 进入调度：只在原地 home，底盘不导航。任务到来后由各任务自己去目标点。
+    // 任务结束、断线、超时无任务仍走 recover_home_ap14。
+    auto boot_home_here = [&]() -> int {
+        move_box::tray1_far_band_clear();
+        std::string here = chassis_location_station();
+        if (here.empty() && g_hw != nullptr)
+            here = g_hw->last_chassis_station;
+        if (here.empty())
+            here = "当前位置";
+        wait_station = here;
+        std::cout << "[dispatch] 调度启动 → 原地 home，底盘留在 " << wait_station
+                  << "，不去待命点\n";
+        board_activity("调度启动，原地回 home");
+        if (g_body_disabled_for_charge)
+        {
+            if (set_body_motors(true) != 0)
+            {
+                boot_announce("failure");
+                return dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            }
+        }
+        if (!box.running)
+            inbox_start(box, client);
+        dispatch_note_state(dispatch_msg::WORKING);
+        // dispatch.mp3 一句里包含「调度连接成功」和「进入初始姿态」。
+        boot_announce("dispatch");
+        const int home_rc = go_home(*g_hw->arm_r, *g_hw->arm_l);
+        if (home_rc != 0)
+        {
+            if (home_rc != -4 && !hardware_abort_requested())
+                boot_announce("failure");
+            return home_rc;
+        }
+        if (hardware_abort_requested())
+            return -4;
+        if (g_hw != nullptr && !g_hw->last_chassis_station.empty())
+            wait_station = g_hw->last_chassis_station;
+        else
+        {
+            const std::string now = chassis_location_station();
+            if (!now.empty())
+                wait_station = now;
+        }
+        std::cout << "[dispatch] 原地 home 完成，在 " << wait_station << " 待命\n";
+        boot_announce("standby");
+        take_cached_or_standby();
+        return 0;
+    };
     dispatch_note_state(dispatch_msg::STANDBY);
     {
-        const int boot_rc = recover_home_ap14("调度启动");
+        const int boot_rc = boot_home_here();
         if (boot_rc != 0)
             return boot_rc;
     }
@@ -5315,6 +6687,48 @@ static int run_dispatch_mode_body()
             const int r = recover_home_ap14("点位未下发齐");
             if (r != 0)
                 return r;
+            continue;
+        }
+        if (rc == kDispatchNoPartStay || rc == kDispatchHoldStay || rc == kVisionQrFail)
+        {
+            if (rc == kVisionQrFail)
+                dispatch_report_ex(client, RobotClient::QrUnrecognized, "二维码识别错误");
+            g_dispatch_stay_at_tray2 = false;
+            const std::string why = rc == kDispatchNoPartStay ? "抓取点没有料"
+                                   : rc == kVisionQrFail      ? "二维码识别错误"
+                                                              : "异常";
+            board_mission_end(false, why + "，原地待命");
+            if (g_hw != nullptr && !g_hw->last_chassis_station.empty())
+                wait_station = g_hw->last_chassis_station;
+            mission.clear();
+            board_clear_command();
+            dispatch_note_state(dispatch_msg::STANDBY);
+            std::cout << "[dispatch] " << why << "，停在 " << wait_station
+                      << " 待命，不回 AP14\n";
+            board_activity(why + "，原地待命");
+            for (;;)
+            {
+                if (!box.running)
+                    inbox_start(box, client);
+                std::string soon;
+                if (!inbox_wait(box, kDispatchNextMissionWaitMs, soon))
+                {
+                    inbox_join(box);
+                    if (hardware_abort_requested())
+                        return -4;
+                    std::cout << "[dispatch] 仍在 " << wait_station << " 待命\n";
+                    continue;
+                }
+                inbox_join(box);
+                if (hardware_abort_requested())
+                    return -4;
+                if (!soon.empty())
+                {
+                    std::cout << "[dispatch] 待命中收到 " << soon << "，原地执行\n";
+                    mission = soon;
+                    break;
+                }
+            }
             continue;
         }
         if (rc != 0)

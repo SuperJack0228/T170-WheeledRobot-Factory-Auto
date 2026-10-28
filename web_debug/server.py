@@ -35,7 +35,8 @@ import yaml
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
 WEB_API_VERSION = 4
-UI_VERSION = "1.1.6"
+UI_VERSION = "1.1.13"
+LIVE_SHM = Path("/dev/shm/t170-hand-live")
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
 CONFIG_FILES = {
@@ -382,7 +383,11 @@ ALLOWED_COMMANDS = {
     "vision_detect",
     "aruco_detect",
     "vision_grasp",
+    "vision_grasp_image",
     "vision_grasp_once",
+    "vision_servo_dual_once",
+    "vision_grasp_track",
+    "tray_servo_test",
     "grasp_belt",
     "grasp_belt1",
     "dispatch",
@@ -644,6 +649,17 @@ def latest_image(slot: str, kind: str) -> Path | None:
     return max(candidates, key=lambda p: p.stat().st_mtime_ns) if candidates else None
 
 
+def hand_live_preview_enabled() -> bool:
+    """网页实时画面会让 t170c_debug 从手相机抽帧。只读配置，进程要重启才生效。"""
+    path = CONFIG_FILES["motion"]
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        cameras = data.get("cameras") or {}
+        return bool(cameras.get("hand_live_preview", False))
+    except (OSError, yaml.YAMLError):
+        return False
+
+
 def host_status() -> dict[str, Any]:
     """Read inexpensive Linux host facts without shelling out."""
     can_interfaces: dict[str, str] = {}
@@ -683,6 +699,8 @@ class DebugHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:
         # 浏览器首次 URL 和旧图片链接可能带 token；日志中必须脱敏。
         message = fmt % args
+        if "/api/image/live" in message or "/api/stream/live" in message:
+            return
         if "token=" in message:
             prefix, _, tail = message.partition("token=")
             suffix = ""
@@ -759,6 +777,7 @@ class DebugHandler(BaseHTTPRequestHandler):
                         "managed_process_running": process is not None and process.poll() is None,
                         "project_root": str(PROJECT_ROOT),
                         "host": host_status(),
+                        "hand_live_preview": hand_live_preview_enabled(),
                     },
                 )
                 return
@@ -847,6 +866,26 @@ class DebugHandler(BaseHTTPRequestHandler):
                         )
                 self._json(HTTPStatus.OK, result)
                 return
+            if parsed.path == "/api/stream/live":
+                query = parse_qs(parsed.query)
+                slot = query.get("slot", [""])[0]
+                if slot not in {"right_hand", "left_hand"}:
+                    self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "没有这只手相机"})
+                    return
+                self._stream_mjpeg(LIVE_SHM / f"{slot}.jpg")
+                return
+            if parsed.path == "/api/image/live":
+                query = parse_qs(parsed.query)
+                slot = query.get("slot", [""])[0]
+                if slot not in {"right_hand", "left_hand"}:
+                    self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "没有这只手相机"})
+                    return
+                image = LIVE_SHM / f"{slot}.jpg"
+                if not image.is_file():
+                    self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "手相机还没有画面"})
+                    return
+                self._send(HTTPStatus.OK, image.read_bytes(), "image/jpeg")
+                return
             if parsed.path == "/api/image/latest":
                 query = parse_qs(parsed.query)
                 slot = query.get("slot", ["head"])[0]
@@ -863,6 +902,45 @@ class DebugHandler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             self.state.log(f"GET {parsed.path} 出错: {type(exc).__name__}: {exc}", "error")
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+
+    def _stream_mjpeg(self, path: Path) -> None:
+        """把内存里的最新 JPEG 连续推给浏览器。断线就结束，不写磁盘。"""
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.end_headers()
+        last_ns = -1
+        while True:
+            try:
+                stat = path.stat()
+            except OSError:
+                time.sleep(0.05)
+                continue
+            if stat.st_mtime_ns == last_ns or stat.st_size < 32:
+                time.sleep(0.008)
+                continue
+            try:
+                data = path.read_bytes()
+            except OSError:
+                time.sleep(0.008)
+                continue
+            if not data.startswith(b"\xff\xd8"):
+                time.sleep(0.008)
+                continue
+            last_ns = stat.st_mtime_ns
+            packet = (
+                b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                + str(len(data)).encode("ascii")
+                + b"\r\n\r\n"
+                + data
+                + b"\r\n"
+            )
+            try:
+                self.wfile.write(packet)
+                self.wfile.flush()
+            except OSError:
+                return
 
     def _serve_static(self, url_path: str) -> None:
         relative = "index.html" if url_path in {"", "/"} else url_path.lstrip("/")
@@ -1067,6 +1145,7 @@ def main() -> int:
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGPIPE, signal.SIG_IGN)
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:

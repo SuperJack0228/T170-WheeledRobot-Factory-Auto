@@ -9,6 +9,7 @@
 #include "move_box_runtime.h"
 #include "seg_pose_bridge.h"
 #include "Ti5_socketcan.h"
+#include "vision_debug.h"
 
 #include <json/json.h>
 #include <pybind11/embed.h>
@@ -25,6 +26,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -188,8 +190,9 @@ bool init_hardware(std::string &err)
     if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
         return false;
     print_move_box_config(g_move_cfg);
-    pose_vis_set_save_debug(kDebugVisualize);
-    pose_vis_set_gui_enabled(false);
+    vision_debug_init_from_env();
+    pose_vis_set_save_debug(vision_debug_save_pairs());
+    pose_vis_set_gui_enabled(vision_debug_gui());
 
     if (!init_socketcan())
     {
@@ -375,6 +378,19 @@ Json::Value dispatch(const Json::Value &request)
             return reply(false, err);
         Json::Value out = reply(true);
         out["charge_done_percent"] = g_move_cfg.chassis.charge_done_percent;
+        return out;
+    }
+    // 音频测试不占硬件锁。调度线程会一直拿着这把锁，测试指令必须能在调度进行中播。
+    if (cmd.size() == 6 && cmd.compare(0, 5, "Audio") == 0 && cmd[5] >= '1' && cmd[5] <= '5')
+    {
+        static const char *kClips[] = {"initialize", "initialize_finish", "dispatch", "standby",
+                                        "failure"};
+        const char *clip = kClips[cmd[5] - '1'];
+        std::string err;
+        if (!orch::play_boot_clip(clip, err, false))
+            return reply(false, err.empty() ? "播放失败" : err);
+        Json::Value out = reply(true);
+        out["audio"] = clip;
         return out;
     }
 
@@ -719,6 +735,20 @@ Json::Value dispatch(const Json::Value &request)
             out["photo"] = g_session.last_debug_photo;
         return out;
     }
+    if (cmd == "cap_belt" || cmd == "cap_belt2" || cmd == "cap_tray" || cmd == "cap_tray2")
+    {
+        std::string dir;
+        const int rc = orch::capture_head_dataset(cmd, dir);
+        const bool ok = rc >= 0;
+        Json::Value out = reply(ok, ok ? std::string() : ("采集失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        out["scene"] = cmd;
+        out["count"] = ok ? rc : 0;
+        out["dir"] = dir;
+        if (!g_session.last_debug_photo.empty())
+            out["photo"] = g_session.last_debug_photo;
+        return out;
+    }
     if (cmd == "belt2_grasp")
     {
         const int rc = orch::go_belt2_grasp();
@@ -842,10 +872,34 @@ Json::Value dispatch(const Json::Value &request)
         out["station"] = g_move_cfg.chassis.tray2_station;
         return out;
     }
-    if (cmd == "vision_grasp_once")
+    if (cmd == "tray_servo_test")
     {
-        const int rc = orch::vision_grasp_once();
+        const int rc = orch::tray_servo_jitter_test();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "伺服抖动测试失败/中止" : "");
+        out["code"] = rc;
+        return out;
+    }
+    if (cmd == "vision_grasp_once" || cmd == "vision_servo_dual_once")
+    {
+        const int rc = cmd == "vision_servo_dual_once" ? orch::vision_servo_dual_once() : orch::vision_grasp_once();
         Json::Value out = reply(rc >= 0, rc < 0 ? "抓一次料盘失败/中止" : "");
+        out["code"] = rc;
+        out["grasped_right"] = g_session.last_grasped_r;
+        out["grasped_left"] = g_session.last_grasped_l;
+        out["grasped_count"] = g_session.last_grasp_count;
+        return out;
+    }
+    if (cmd == "vision_grasp_track")
+    {
+        const int rc = orch::vision_grasp_track();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "悬停跟随失败/中止" : "");
+        out["code"] = rc;
+        return out;
+    }
+    if (cmd == "vision_grasp_image")
+    {
+        const int rc = orch::vision_grasp_image();
+        Json::Value out = reply(rc >= 0, rc < 0 ? "采图抓取失败/中止" : "");
         out["code"] = rc;
         out["grasped_right"] = g_session.last_grasped_r;
         out["grasped_left"] = g_session.last_grasped_l;
@@ -1056,7 +1110,9 @@ void handle_client(int fd)
         try
         {
             const std::string cmd = request.get("cmd", "").asString();
-            if (cmd == "ping" || cmd == "abort" || cmd == "dispatch_status")
+            if (cmd == "ping" || cmd == "abort" || cmd == "dispatch_status" ||
+                (cmd.size() == 6 && cmd.compare(0, 5, "Audio") == 0 && cmd[5] >= '1' &&
+                 cmd[5] <= '5'))
                 write_json(fd, dispatch(request));
             else
             {
@@ -1072,6 +1128,50 @@ void handle_client(int fd)
     ::close(fd);
 }
 
+void start_boot_dispatch()
+{
+    std::thread([]() {
+        std::lock_guard<std::mutex> lock(g_hw_mu);
+        if (app_stop_requested())
+            return;
+        g_abort.store(false);
+        hardware_abort_clear();
+        if (app_stop_requested())
+        {
+            g_abort.store(true);
+            hardware_abort_request();
+            return;
+        }
+        can_io_fault_clear();
+        can_io_watch_begin();
+        struct WatchEnd
+        {
+            ~WatchEnd() { can_io_watch_end(); }
+        } watch_end;
+        std::cerr << "[t170c_debug] 开机进入调度：原地 home 后待命\n" << std::flush;
+        int rc = 0;
+        try
+        {
+            rc = orch::run_dispatch_mode();
+        }
+        catch (const std::exception &ex)
+        {
+            std::cerr << "[t170c_debug] 开机调度异常: " << ex.what() << "\n";
+            orch::boot_announce("failure");
+            return;
+        }
+        catch (...)
+        {
+            std::cerr << "[t170c_debug] 开机调度异常\n";
+            orch::boot_announce("failure");
+            return;
+        }
+        std::cerr << "[t170c_debug] 开机调度结束 code=" << rc << "\n" << std::flush;
+        if (rc != 0 && rc != -4)
+            orch::boot_announce("failure");
+    }).detach();
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -1079,17 +1179,28 @@ int main(int argc, char **argv)
     try
     {
         int port = 8099;
-        for (int i = 1; i + 1 < argc; ++i)
-            if (std::string(argv[i]) == "--port")
+        bool boot_dispatch = false;
+        for (int i = 1; i < argc; ++i)
+        {
+            const std::string arg = argv[i];
+            if (arg == "--dispatch")
+                boot_dispatch = true;
+            else if (arg == "--port" && i + 1 < argc)
                 port = std::atoi(argv[++i]);
+        }
 
         install_app_sigint_handler();
+        if (boot_dispatch)
+            orch::boot_announce("initialize");
         std::string error;
         if (!init_hardware(error))
         {
             std::cerr << "[t170c_debug] 初始化失败: " << error << "\n";
+            orch::boot_announce("failure");
             shutdown_process(1);
         }
+        if (boot_dispatch)
+            orch::boot_announce("initialize_finish");
 
         const int server = ::socket(AF_INET, SOCK_STREAM, 0);
         int yes = 1;
@@ -1103,13 +1214,17 @@ int main(int argc, char **argv)
             std::cerr << "[t170c_debug] 无法监听 127.0.0.1:" << port << "\n";
             if (server >= 0)
                 ::close(server);
+            orch::boot_announce("failure");
             shutdown_process(1);
         }
 
         orch::start_chassis_status_reporter();
         std::cerr << "T170C_DEBUG_READY port=" << port << " chassis=" << g_move_cfg.chassis.host
                   << " belt=" << g_move_cfg.chassis.belt_station
-                  << " out=" << g_move_cfg.chassis.out_station << "\n";
+                  << " out=" << g_move_cfg.chassis.out_station
+                  << (boot_dispatch ? " dispatch=boot\n" : "\n");
+        if (boot_dispatch)
+            start_boot_dispatch();
         {
             pybind11::gil_scoped_release release_gil;
             while (!app_stop_requested())

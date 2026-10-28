@@ -9,12 +9,13 @@ from algorithm.config_loader import (
     load_pose_params,
 )
 from algorithm.engine import DEFAULT_RADIUS_M, CirclePoseEngine
-from algorithm.types import ALGO_CENTROID, ALGO_PNP, AlgorithmInput, AlgorithmOutput, TargetPose
+from algorithm.types import ALGO_BOX, ALGO_CENTROID, ALGO_PNP, AlgorithmInput, AlgorithmOutput, TargetPose
 from paths import DEFAULT_SEG_MODEL, MODELS_DIR, PROJECT_ROOT, resolve_model_path
 
 __all__ = [
     "ALGO_PNP",
     "ALGO_CENTROID",
+    "ALGO_BOX",
     "DEFAULT_ALGORITHM_ID",
     "DEFAULT_CONFIG_PATH",
     "DEFAULT_RADIUS_M",

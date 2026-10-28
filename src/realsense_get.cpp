@@ -4,25 +4,43 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <vector>
 
+#include <atomic>
 #include <chrono>
 #include <ctime>
 #include <filesystem>
 #include <iomanip>
+#include <pthread.h>
 #include <pwd.h>
+#include <sched.h>
 #include <sstream>
 #include <unistd.h>
+
+#include "vision_debug.h"
+#include "move_box_config.h"
 
 #include <librealsense2/rs.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <yaml-cpp/yaml.h>
 
 namespace
 {
+
+std::atomic<RealSenseMultiCam *> g_hand_cams{nullptr};
+
+std::mutex &grab_mu_for(CameraSlot slot)
+{
+    static std::mutex mu[3];
+    const int i = static_cast<int>(slot);
+    return mu[(i < 0 || i > 2) ? 0 : i];
+}
 
 constexpr const char *kSlotKeys[] = {"head", "right_hand", "left_hand"};
 constexpr int kWarmupFrames = 8;
@@ -42,7 +60,13 @@ struct SlotDevice
     std::array<double, 9> K{};
     std::array<double, 5> dist{};
     bool started = false;
+    bool color_only = false;
+    double frame_period_s = 1.0/15.0;
+    double hardware_to_steady_s = std::numeric_limits<double>::infinity();
+    double last_device_s = -1.0;
 };
+
+void stamp_color_frame(SlotDevice &dev,const rs2::frame &color,CameraFrameData &out);
 
 void try_set_frames_queue_size_one(const rs2::device &device)
 {
@@ -50,6 +74,12 @@ void try_set_frames_queue_size_one(const rs2::device &device)
     {
         if (sensor.supports(RS2_OPTION_FRAMES_QUEUE_SIZE))
             sensor.set_option(RS2_OPTION_FRAMES_QUEUE_SIZE, 1.f);
+        try {
+            if(sensor.supports(RS2_OPTION_GLOBAL_TIME_ENABLED))
+                sensor.set_option(RS2_OPTION_GLOBAL_TIME_ENABLED,1.f);
+        } catch(const std::exception &e) {
+            std::cerr << "[realsense] global time unavailable; bounded hardware-clock fallback: " << e.what() << '\n';
+        }
     }
 }
 
@@ -180,7 +210,7 @@ void try_hardware_reset_serial(const std::string &serial)
     }
 }
 
-bool start_slot_device(SlotDevice &dev, int width, int height, int fps, std::string &err)
+bool start_slot_device(SlotDevice &dev, int width, int height, int fps, bool with_depth, std::string &err)
 {
     err.clear();
     for (int attempt = 1; attempt <= kStartMaxAttempts; ++attempt)
@@ -201,7 +231,8 @@ bool start_slot_device(SlotDevice &dev, int width, int height, int fps, std::str
             rs2::config cfg;
             cfg.enable_device(dev.serial);
             cfg.enable_stream(RS2_STREAM_COLOR, width, height, RS2_FORMAT_BGR8, fps);
-            cfg.enable_stream(RS2_STREAM_DEPTH, width, height, RS2_FORMAT_Z16, fps);
+            if (with_depth)
+                cfg.enable_stream(RS2_STREAM_DEPTH, width, height, RS2_FORMAT_Z16, fps);
 
             const rs2::pipeline_profile profile = dev.pipeline.start(cfg);
             const rs2::video_stream_profile color_sp =
@@ -209,14 +240,25 @@ bool start_slot_device(SlotDevice &dev, int width, int height, int fps, std::str
             fill_intrinsics(color_sp.get_intrinsics(), dev.K, dev.dist);
 
             const rs2::device device = profile.get_device();
-            const rs2::depth_sensor depth_sensor = device.first<rs2::depth_sensor>();
-            dev.depth_scale = depth_sensor.get_depth_scale();
+            dev.color_only = !with_depth;
+            dev.frame_period_s=1.0/fps;
+            dev.hardware_to_steady_s=std::numeric_limits<double>::infinity();
+            dev.last_device_s=-1;
+            if (with_depth)
+            {
+                const rs2::depth_sensor depth_sensor = device.first<rs2::depth_sensor>();
+                dev.depth_scale = depth_sensor.get_depth_scale();
+            }
             try_set_frames_queue_size_one(device);
 
             // 首帧用长超时；USB 同口三台时经常要等 >5s
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            for (int i = 0; i < kWarmupFrames; ++i)
-                grab_newest_frameset(dev.pipeline, kStartWaitTimeoutMs);
+            for (int i = 0; i < kWarmupFrames; ++i) {
+                const auto frames=grab_newest_frameset(dev.pipeline,kStartWaitTimeoutMs);
+                const auto color=frames.get_color_frame();
+                CameraFrameData timing;
+                if(color) stamp_color_frame(dev,color,timing);
+            }
 
             dev.started = true;
             if (attempt > 1)
@@ -286,11 +328,14 @@ struct RealSenseMultiCam::Impl
     int height = 720;
     int head_fps = 15;
     int hand_fps = 15;
+    bool hand_live_preview = false;
     std::map<std::string, SlotDevice> slots;
+    std::atomic<bool> preview_run{false};
+    std::thread preview_thread;
 };
 
 RealSenseMultiCam::RealSenseMultiCam(
-    std::string yaml_path, int width, int height, int head_fps, int hand_fps)
+    std::string yaml_path, int width, int height, int head_fps, int hand_fps, bool hand_live_preview)
     : impl_(std::make_unique<Impl>())
 {
     impl_->yaml_path = std::move(yaml_path);
@@ -298,6 +343,7 @@ RealSenseMultiCam::RealSenseMultiCam(
     impl_->height = height;
     impl_->head_fps = head_fps;
     impl_->hand_fps = hand_fps;
+    impl_->hand_live_preview = hand_live_preview;
 }
 
 RealSenseMultiCam::~RealSenseMultiCam()
@@ -307,7 +353,12 @@ RealSenseMultiCam::~RealSenseMultiCam()
 
 const char *RealSenseMultiCam::slot_name(CameraSlot slot)
 {
-    return slot_key(slot).c_str();
+    switch(slot) {
+        case CameraSlot::Head: return "head";
+        case CameraSlot::RightHand: return "right_hand";
+        case CameraSlot::LeftHand: return "left_hand";
+    }
+    return "unknown";
 }
 
 CameraSlot RealSenseMultiCam::slot_from_choice(int choice)
@@ -368,7 +419,6 @@ bool RealSenseMultiCam::init(std::string &err)
         impl_->slots.emplace("head", std::move(dev));
     }
 
-    // 左右手相机当前不用，启动不打开、缺了也不失败。
     for (const char *key : {"right_hand", "left_hand"})
     {
         const YAML::Node node = realsense[key];
@@ -381,11 +431,10 @@ bool RealSenseMultiCam::init(std::string &err)
         if (!dev.serial.empty())
             impl_->slots.emplace(key, std::move(dev));
     }
-    std::cout << "[realsense] 左右手相机不要求打开，本次只启动头部\n";
 
     auto &dev = impl_->slots.at("head");
     std::string cam_err;
-    if (!start_slot_device(dev, impl_->width, impl_->height, impl_->head_fps, cam_err))
+    if (!start_slot_device(dev, impl_->width, impl_->height, impl_->head_fps, true, cam_err))
     {
         std::cerr << "[realsense] 配置 SN=" << dev.serial
                   << " 不在已连接列表中，请改 config/realsense_cameras.yaml\n";
@@ -398,17 +447,111 @@ bool RealSenseMultiCam::init(std::string &err)
               << ") SN=" << dev.serial << " " << impl_->width << "x" << impl_->height
               << "@" << impl_->head_fps << "fps\n";
 
+    for (const char *key : {"right_hand", "left_hand"})
+    {
+        auto it = impl_->slots.find(key);
+        if (it == impl_->slots.end())
+        {
+            std::cerr << "[realsense] 未配置 " << key << "，这只手伸手时不拍照\n";
+            continue;
+        }
+        std::string hand_err;
+        if (!start_slot_device(
+                it->second, impl_->width, impl_->height, impl_->hand_fps, false, hand_err))
+        {
+            std::cerr << "[realsense] 手相机打开失败 [" << key << "] SN=" << it->second.serial
+                      << "，头部继续用，这只手伸手时不拍照: " << hand_err << "\n";
+            log_connected_realsense();
+            continue;
+        }
+        std::cout << "RealSense 已启动: " << it->second.label << " (" << it->second.slot_id
+                  << ") SN=" << it->second.serial << " " << impl_->width << "x" << impl_->height
+                  << "@" << impl_->hand_fps << "fps 只采彩色\n";
+    }
+
+    g_hand_cams.store(this);
+    if (impl_->hand_live_preview && !g_move_cfg.cameras.hand_descent_correct)
+        start_hand_preview();
+    else
+        std::cout << "[handcam] 网页实时预览已关（cameras.hand_live_preview=false），不从手相机抽帧\n";
     return true;
+}
+
+RealSenseMultiCam *RealSenseMultiCam::live()
+{
+    return g_hand_cams.load();
 }
 
 namespace
 {
+
+void stamp_color_frame(SlotDevice &dev,const rs2::frame &color,CameraFrameData &out)
+{
+    const double steady=std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double epoch=std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+    const double device=color.get_timestamp()/1000.0;
+    out.frame_number=color.get_frame_number(); out.device_timestamp_ms=color.get_timestamp();
+    const auto domain=color.get_frame_timestamp_domain();
+    if(domain==RS2_TIMESTAMP_DOMAIN_SYSTEM_TIME || domain==RS2_TIMESTAMP_DOMAIN_GLOBAL_TIME) {
+        const double age=epoch-device;
+        if(!std::isfinite(age) || age < -0.02 || age > 5.0) return;
+        out.capture_steady_s=steady-age;
+        out.timestamp_uncertainty_s=0.005+0.5*dev.frame_period_s;
+        out.timestamp_source=domain==RS2_TIMESTAMP_DOMAIN_GLOBAL_TIME?2:1;
+    } else {
+        if(!std::isfinite(device) || device<0) return;
+        if(device<dev.last_device_s) dev.hardware_to_steady_s=std::numeric_limits<double>::infinity();
+        dev.last_device_s=device;
+        dev.hardware_to_steady_s=std::min(dev.hardware_to_steady_s,steady-device);
+        out.capture_steady_s=device+dev.hardware_to_steady_s;
+        // Arrival-based offset is not an exact exposure clock: include a frame-period budget.
+        out.timestamp_uncertainty_s=dev.frame_period_s+0.005;
+        out.timestamp_source=3;
+    }
+}
 
 CameraFrameData grab_frameset_from_pipeline(
     SlotDevice &dev,
     const rs2::frameset &frames,
     CameraFrameData &out)
 {
+    const rs2::frame timestamp_frame=frames.get_color_frame();
+    if(timestamp_frame) stamp_color_frame(dev,timestamp_frame,out);
+    if (dev.color_only)
+    {
+        const rs2::frame color_f = frames.get_color_frame();
+        if (!color_f)
+        {
+            out.message = "取帧失败: 彩色为空";
+            return out;
+        }
+        const rs2::video_frame color = color_f.as<rs2::video_frame>();
+        const int h = color.get_height();
+        const int w = color.get_width();
+        const int stride = color.get_stride_in_bytes();
+        const auto *src = reinterpret_cast<const uint8_t *>(color.get_data());
+        out.width = w;
+        out.height = h;
+        out.color_bgr.resize(static_cast<size_t>(h) * static_cast<size_t>(w) * 3u);
+        uint8_t *dst = out.color_bgr.data();
+        const size_t row_bytes = static_cast<size_t>(w) * 3u;
+        if (stride == static_cast<int>(row_bytes))
+            std::memcpy(dst, src, out.color_bgr.size());
+        else
+        {
+            for (int y = 0; y < h; ++y)
+                std::memcpy(dst + static_cast<size_t>(y) * row_bytes,
+                            src + static_cast<size_t>(y) * static_cast<size_t>(stride),
+                            row_bytes);
+        }
+        out.K = dev.K;
+        out.dist = dev.dist;
+        out.depth_m.clear();
+        out.ok = true;
+        out.message = "ok";
+        return out;
+    }
+
     const rs2::frameset aligned = dev.align.process(frames);
     const rs2::frame color_f = aligned.get_color_frame();
     const rs2::frame depth_f = aligned.get_depth_frame();
@@ -439,6 +582,9 @@ CameraFrameData grab_frameset_from_pipeline(
 
 void RealSenseMultiCam::flush(CameraSlot slot)
 {
+    std::unique_lock<std::mutex> hand_lock(grab_mu_for(slot), std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
     if (it == impl_->slots.end() || !it->second.started)
@@ -446,8 +592,11 @@ void RealSenseMultiCam::flush(CameraSlot slot)
     flush_pipeline(it->second.pipeline);
 }
 
-CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
+CameraFrameData RealSenseMultiCam::grab(CameraSlot slot, unsigned timeout_ms)
 {
+    std::unique_lock<std::mutex> hand_lock(grab_mu_for(slot), std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     CameraFrameData out;
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
@@ -460,7 +609,7 @@ CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
     auto &dev = it->second;
     try
     {
-        const rs2::frameset frames = grab_newest_frameset(dev.pipeline);
+        const rs2::frameset frames = grab_newest_frameset(dev.pipeline,timeout_ms);
         grab_frameset_from_pipeline(dev, frames, out);
     }
     catch (const std::exception &e)
@@ -472,6 +621,9 @@ CameraFrameData RealSenseMultiCam::grab(CameraSlot slot)
 
 CameraFrameData RealSenseMultiCam::grab_wait(CameraSlot slot)
 {
+    std::unique_lock<std::mutex> hand_lock(grab_mu_for(slot), std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     CameraFrameData out;
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
@@ -497,6 +649,9 @@ CameraFrameData RealSenseMultiCam::grab_wait(CameraSlot slot)
 
 CameraFrameData RealSenseMultiCam::grab_fresh(CameraSlot slot)
 {
+    std::unique_lock<std::mutex> hand_lock(grab_mu_for(slot), std::defer_lock);
+    if (slot != CameraSlot::Head)
+        hand_lock.lock();
     CameraFrameData out;
     const std::string key = slot_key(slot);
     auto it = impl_->slots.find(key);
@@ -530,15 +685,18 @@ CameraFrameData RealSenseMultiCam::prepare_frame_for_slot(CameraFrameData frame,
         return frame;
 
     cv::Mat bgr(h, w, CV_8UC3, frame.color_bgr.data());
-    cv::Mat depth(h, w, CV_32FC1, frame.depth_m.data());
 
     cv::Mat bgr_rot;
-    cv::Mat depth_rot;
     cv::rotate(bgr, bgr_rot, cv::ROTATE_180);
-    cv::rotate(depth, depth_rot, cv::ROTATE_180);
-
     mat_bgr_to_vector(bgr_rot, frame.color_bgr);
-    mat_depth_to_vector(depth_rot, frame.depth_m);
+
+    if (frame.depth_m.size() == static_cast<size_t>(w) * static_cast<size_t>(h))
+    {
+        cv::Mat depth(h, w, CV_32FC1, frame.depth_m.data());
+        cv::Mat depth_rot;
+        cv::rotate(depth, depth_rot, cv::ROTATE_180);
+        mat_depth_to_vector(depth_rot, frame.depth_m);
+    }
 
     // 图像旋转 180° 后主点与切向畸变需同步变换
     frame.K[2] = static_cast<double>(w - 1) - frame.K[2];
@@ -620,8 +778,136 @@ void RealSenseMultiCam::save_grasp_hand_camera_snapshots(bool save_right, bool s
         save_one_hand_grasp_snapshot(*this, CameraSlot::LeftHand, "左手");
 }
 
+namespace
+{
+
+/** 只取彩色。不对齐、不拷深度、不等待；缓冲空就返回 false。 */
+bool copy_newest_color(SlotDevice &dev, cv::Mat &out, unsigned long long &frame_number)
+{
+    rs2::frameset frames;
+    rs2::frameset newest;
+    while (dev.pipeline.poll_for_frames(&frames))
+        newest = std::move(frames);
+    if (!newest)
+        return false;
+    const rs2::frame color_f = newest.get_color_frame();
+    if (!color_f)
+        return false;
+    const rs2::video_frame color = color_f.as<rs2::video_frame>();
+    const int h = color.get_height();
+    const int w = color.get_width();
+    if (w <= 0 || h <= 0)
+        return false;
+    frame_number = color.get_frame_number();
+    const cv::Mat view(h, w, CV_8UC3, const_cast<void *>(color.get_data()));
+    view.copyTo(out);
+    return !out.empty();
+}
+
+bool write_jpeg_atomic(const std::filesystem::path &path, const cv::Mat &bgr)
+{
+    const std::filesystem::path tmp =
+        path.parent_path() / (path.stem().string() + ".writing.jpg");
+    if (!cv::imwrite(tmp.string(), bgr, {cv::IMWRITE_JPEG_QUALITY, 70}))
+        return false;
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    if (ec)
+        std::filesystem::remove(tmp, ec);
+    return !ec;
+}
+
+} // namespace
+
+void RealSenseMultiCam::start_hand_preview()
+{
+    stop_hand_preview();
+    const std::filesystem::path dir{"/dev/shm/t170-hand-live"};
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec)
+    {
+        std::cerr << "[handcam] 实时预览目录创建失败 " << dir.string() << ": " << ec.message() << "\n";
+        return;
+    }
+    impl_->preview_run.store(true);
+    impl_->preview_thread = std::thread([this, dir]() {
+#ifdef __linux__
+        sched_param idle{};
+        if (pthread_setschedparam(pthread_self(), SCHED_IDLE, &idle) != 0)
+            std::cerr << "[handcam] 预览线程没降到空闲优先级，编码仍只在这条线程\n";
+#endif
+        unsigned long long seen_right = ~0ull;
+        unsigned long long seen_left = ~0ull;
+        bool logged_right = false;
+        bool logged_left = false;
+        while (impl_->preview_run.load())
+        {
+            bool wrote = false;
+            for (const CameraSlot slot : {CameraSlot::RightHand, CameraSlot::LeftHand})
+            {
+                if (!impl_->preview_run.load() || g_hand_cams.load() != this)
+                    break;
+                try
+                {
+                    cv::Mat color;
+                    unsigned long long frame_number = 0;
+                    {
+                        std::lock_guard<std::mutex> lock(grab_mu_for(slot));
+                        if (!impl_->preview_run.load() || g_hand_cams.load() != this)
+                            break;
+                        auto it = impl_->slots.find(slot_key(slot));
+                        if (it == impl_->slots.end() || !it->second.started)
+                            continue;
+                        if (!copy_newest_color(it->second, color, frame_number))
+                            continue;
+                    }
+                    unsigned long long &seen = slot == CameraSlot::RightHand ? seen_right : seen_left;
+                    if (frame_number == seen)
+                        continue;
+                    seen = frame_number;
+                    if (slot == CameraSlot::LeftHand)
+                        cv::rotate(color, color, cv::ROTATE_180);
+                    const char *name = slot == CameraSlot::RightHand ? "right_hand.jpg" : "left_hand.jpg";
+                    if (!write_jpeg_atomic(dir / name, color))
+                        continue;
+                    wrote = true;
+                    bool &logged = slot == CameraSlot::RightHand ? logged_right : logged_left;
+                    if (!logged)
+                    {
+                        logged = true;
+                        std::cout << "[handcam] " << (slot == CameraSlot::RightHand ? "右手" : "左手")
+                                  << " 视频流 " << (dir / name).string() << "\n";
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "[handcam] 预览取帧失败: " << e.what() << "\n";
+                }
+            }
+            if (!wrote)
+                std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        }
+    });
+    std::cout << "[handcam] 左右手视频流已开。只取彩色、不读头相机、不进运动线程，"
+                 "线程为空闲优先级。画面在 "
+              << dir.string() << "\n";
+}
+
+void RealSenseMultiCam::stop_hand_preview()
+{
+    impl_->preview_run.store(false);
+    if (impl_->preview_thread.joinable())
+        impl_->preview_thread.join();
+}
+
 void RealSenseMultiCam::stop()
 {
+    stop_hand_preview();
+    if (g_hand_cams.load() == this)
+        g_hand_cams.store(nullptr);
+    std::scoped_lock lock(
+        grab_mu_for(CameraSlot::RightHand), grab_mu_for(CameraSlot::LeftHand));
     for (auto &kv : impl_->slots)
     {
         if (kv.second.started)

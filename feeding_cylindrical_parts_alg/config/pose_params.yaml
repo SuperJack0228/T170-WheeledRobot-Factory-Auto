@@ -1,68 +1,59 @@
-# feeding_cylindrical_parts_alg 统一参数（算法 0 PnP + 算法 1 重心共用）
+# feeding_cylindrical_parts_alg 统一参数
 # 长度单位：米 (m)；图像阈值为像素 (px)
 # YOLO class_id 须与训练 data.yaml 中 names 顺序一致
 
-# 与 best1015.pt（detect_factory_jindi / yolo11n）内 model.names 一致
+# 与 best1015.pt（倒件微调后的 yolo11n）内 model.names 一致。没有类别 3。
 yolo_class_names:
-  0: original_product          # 毛坯
-  1: semi_finished_product     # 半成品
-  2: finished_product          # 成品
-  3: feeding_hole              # 空孔
+  0: workpiece                 # 立件
+  1: feeding_hole              # 空孔
+  2: fallen                    # 倒件
 
 units:
   length: m
 
-# ---------- 位姿算法选择 ----------
-# 0 = 分割 + 圆盘 PnP（仅需 RGB）
-# 1 = 分割 + mask 深度重心（需对齐 depth，单位 m）
+# ---------- 位姿 / 关联点算法 ----------
+# 0 = 分割 + 圆盘 PnP（需原生 mask）
+# 1 = 分割 + mask 深度重心
+# 2 = 检测框中心 + 深度粗点（关联用；best1015 detect 默认）
+# detect 权重无 mask 时引擎强制走 2，与下列 default 无关。
 algorithm:
-  default_id: 0
+  default_id: 2
 
-# ---------- 分割模型 ----------
+# ---------- YOLO 模型 ----------
 segmentation:
-  # detect 权重也可：无 mask 时用检测框生成伪 mask，类别仍按 boxes.cls。
+  # detect 权重：只出框+类别，不再造伪 mask。分割权重仍可走 0/1。
+  # model 给头相机、料盘、传送带。hand_model 给左右手相机。类别号相同，不能混用。
   model: models/best1015.pt
+  hand_model: models/best1027.pt
   conf: 0.25
   iou: 0.5  # 过滤大于该值的框
   imgsz: 1280        # 推理长边；1280×720 勿用默认 640，0=自动 max(H,W)
-  retina_masks: true # 分割权重用原图分辨率 mask；detect 权重忽略此项
-  # 四类均参与推理和调试显示；C++ 抓取层仍只接受 class 0（毛坯）。
-  class_ids: [0, 1, 2, 3]
+  retina_masks: true # 仅分割权重有意义；detect 忽略
+  # 三类都参与推理。传送带零件计 0 和 2；料盘抓取用 0，料盘放置用 1。
+  class_ids: [0, 1, 2]
 
 # ---------- 类别几何（不同圆柱/圆盘直径） ----------
-# 新增类别：在此增加一项，并填写 class_id、radius_m
 defaults:
   radius_m: 0.0275
   enabled: true
-  algorithm_id: 0
+  algorithm_id: 2
 
 classes:
-  original_product:
+  workpiece:
     class_id: 0
     radius_m: 0.0275       # 圆柱件半径 27.5 mm
     enabled: true
-    algorithm_id: 1
-    # 可选：覆盖下方 algorithm_pnp / algorithm_centroid 中的单项
-    # pnp:
-    #   max_reproj_mean: 12.0
-    # centroid:
-    #   min_depth_m: 0.04
-
-  semi_finished_product:
+    algorithm_id: 2
+  feeding_hole:
     class_id: 1
     radius_m: 0.0275
     enabled: true
-    algorithm_id: 1
-  finished_product:
+    algorithm_id: 2
+  fallen:
     class_id: 2
     radius_m: 0.0275
     enabled: true
-    algorithm_id: 1
-  feeding_hole:
-    class_id: 3
-    radius_m: 0.0275
-    enabled: true
-    algorithm_id: 1
+    algorithm_id: 2
 
 # ---------- 算法 0：分割 + 圆盘 PnP ----------
 algorithm_pnp:

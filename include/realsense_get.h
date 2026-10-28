@@ -14,7 +14,7 @@ enum class CameraSlot
     LeftHand,
 };
 
-/** 单帧：1280×720 BGR + 对齐深度 (m) + 内参/畸变 */
+/** 单帧：彩色 BGR + 内参。头相机另有对齐深度 (m)；手相机 depth 为空。 */
 struct CameraFrameData
 {
     int width = 0;
@@ -25,6 +25,11 @@ struct CameraFrameData
     std::array<double, 5> dist{};   /**< k1,k2,p1,p2,k3 */
     bool ok = false;
     std::string message;
+    std::uint64_t frame_number = 0;
+    double capture_steady_s = 0.0;
+    double timestamp_uncertainty_s = 1.0;
+    double device_timestamp_ms = 0.0;
+    int timestamp_source = 0; // 1 system epoch, 2 global epoch, 3 bounded hardware-clock estimate
 };
 
 /** 从 YAML 初始化三台 RealSense，按部位取对齐彩色/深度帧 */
@@ -36,7 +41,8 @@ public:
         int width = 1280,
         int height = 720,
         int head_fps = 15,
-        int hand_fps = 15);
+        int hand_fps = 15,
+        bool hand_live_preview = false);
     ~RealSenseMultiCam();
 
     RealSenseMultiCam(const RealSenseMultiCam &) = delete;
@@ -46,7 +52,7 @@ public:
     /** 排空该相机 pipeline 内全部缓冲帧（不返回图像） */
     void flush(CameraSlot slot);
     /** 取该部位最新一帧（先排空 pipeline 缓冲，避免手臂移动期间积压的旧图） */
-    CameraFrameData grab(CameraSlot slot);
+    CameraFrameData grab(CameraSlot slot, unsigned timeout_ms = 5000);
     /** 阻塞等待下一帧（不排空）。多帧融合时先 flush 再连续 grab_wait。 */
     CameraFrameData grab_wait(CameraSlot slot);
     /** 手相机识别用：彻底 flush 后再 wait 两帧，尽量保证停稳后的新图 */
@@ -55,6 +61,9 @@ public:
 
     static const char *slot_name(CameraSlot slot);
     static CameraSlot slot_from_choice(int choice);
+
+    /** 服务已打开相机后的那台对象。未启动时为空。 */
+    static RealSenseMultiCam *live();
 
     /** 右手相机：RGB/深度旋转 180° 并修正内参；头/左手原样返回 */
     static CameraFrameData prepare_frame_for_slot(CameraFrameData frame, CameraSlot slot);
@@ -65,4 +74,8 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
+
+    /** 双手彩色视频流写到 /dev/shm。只取已到达的彩色帧，不读头相机，不等待。 */
+    void start_hand_preview();
+    void stop_hand_preview();
 };

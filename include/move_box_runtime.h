@@ -15,10 +15,15 @@
 #include "realsense_get.h"
 #include "seg_pose_bridge.h"
 #include "Ti5_Arm.h"
+#include "vision_debug.h"
 #include "waist.h"
 
-// true=OpenCV 可视化调试；false=仅终端打印
-constexpr bool kDebugVisualize = true;
+/** 历史名：实际读 T170_VISION_DEBUG（默认关重可视化）。见 vision_debug.h。 */
+struct DebugVisualizeFlag
+{
+    operator bool() const { return vision_debug_annotate(); }
+};
+inline constexpr DebugVisualizeFlag kDebugVisualize{};
 
 namespace move_box
 {
@@ -371,6 +376,19 @@ struct GraspToStandbyResult
  * adaptive_approach_rpy=true：用当前 TCP→目标水平朝向定 yaw，再下斜 adaptive_pitch_down_deg（默认 45°）。
  * holding_r/l：该侧已持件，本轮不松爪、不分配、不运动该臂，只给空爪补抓。
  */
+/**
+ * 料盘伺服抖动测试。人已经在料盘旁边。头相机拍空孔，取离机器人第二近的一排，
+ * 左右各一孔，直线停在孔上方，然后每 100 ms 更新一次假坐标，连续跟踪 3 秒。
+ * 不合爪，不下降进孔，不移动底盘。返回 0 完成，负数失败或中止。
+ */
+int run_tray_servo_jitter_test(
+    Robot_Arm &arm_r,
+    Robot_Arm &arm_l,
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const std::array<double, 16> &cam2robot,
+    const std::function<bool()> &should_abort = nullptr);
+
 GraspToStandbyResult run_grasp_to_standby(
     gripper::Gripper &g,
     Robot_Arm &arm_r,
@@ -386,7 +404,21 @@ GraspToStandbyResult run_grasp_to_standby(
     bool adaptive_approach_rpy = false,
     bool holding_r = false,
     bool holding_l = false,
-    const std::function<void(bool did_r, bool did_l)> &on_place_retract = {});
+    const std::function<void(bool did_r, bool did_l)> &on_place_retract = {},
+    bool hover_track = false);
+
+/**
+ * 头相机已经分好孔。直线到工件上方后停住，不下降、不合爪。
+ * 手相机看见工件就把该侧 XY 改到检测点，高度和姿态保持。锁定关闭。
+ * 最多 180 秒，abort 立刻停在当前高度。返回 0 走完，-4 中止，其它为失败。
+ */
+int run_hand_hover_track(
+    Robot_Arm &arm_r,
+    Robot_Arm &arm_l,
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    HeadAssignState &st,
+    const std::function<bool()> &should_abort = nullptr);
 
 void lift_grasped_after_pick(
     Robot_Arm &arm_r,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <cstddef>
 #include <initializer_list>
 #include <limits>
@@ -20,6 +21,14 @@ struct PoseTargetResult
     int algorithm_id = 0;
     float confidence = 0.f;
     float radius_m = 0.f;
+    /** 检测框中心像素；<0 表示未知。 */
+    float box_u = -1.f;
+    float box_v = -1.f;
+    /** 检测框像素角点；<0 表示未知。 */
+    float box_x0 = -1.f;
+    float box_y0 = -1.f;
+    float box_x1 = -1.f;
+    float box_y1 = -1.f;
     bool success = false;
     std::string message;
     std::array<double, 16> pose_4x4{}; // 行主序 4×4，单位 m
@@ -45,7 +54,12 @@ using PoseDetectionRecords = std::vector<PoseDetectionRecord>;
 
 enum class SegEngineId
 {
+    /** 按相机槽：手相机用手部权重，头相机用头相机权重。 */
     Default = 0,
+    /** 料盘、传送带。对应 model_key tray_parts / belt_presence。 */
+    Head = 1,
+    /** 左右手相机。对应 model_key hand_parts。 */
+    Hand = 2,
 };
 
 /** 单码 ArUco（online_pose）：相机系 4×4，t 单位 m */
@@ -134,6 +148,10 @@ struct BeltDetectResult
     double grasp_rz = std::numeric_limits<double>::quiet_NaN();
     bool have_grasp_l = false;
     bool have_grasp_r = false;
+    /** 码平面在相机系的位姿（Rodrigues + 原点），用于把码系 ROI 投到图像。 */
+    double rvec[3]{0, 0, 0};
+    double tvec[3]{0, 0, 0};
+    bool have_cam_pose = false;
 };
 
 /**
@@ -157,7 +175,7 @@ public:
 
     ArucoDetectResult run_aruco(
         const CameraFrameData &frame,
-        bool show_visualization = true,
+        bool show_visualization = false,
         CameraSlot vis_slot = CameraSlot::Head);
 
     /** board_yf100 五码料盘：孔 1–36 + YOLO 类别 + 头测顶面 z；失败不影响抓取 */
@@ -168,10 +186,23 @@ public:
     bool init_belt_engine(const std::string &config_path, std::string &err);
     bool belt_engine_ready() const;
 
+    /** 空图推理一次。已预热则直接返回，不重新加载权重。 */
+    bool warmup_yolo(int height, int width, std::string &err);
+
+    /**
+     * 只检料盘码并缓存，供紧接着的 run_tray 跳过第二次 detectMarkers。
+     * 返回 0 表示没缓存。与 YOLO 并行调用。
+     */
+    std::uint64_t locate_tray_markers(
+        const std::vector<CameraFrameData> &frames,
+        bool tray2_markers,
+        std::string &err);
+    void drop_tray_locate(std::uint64_t token);
+
     BeltDetectResult run_belt_detect(
         const CameraFrameData &frame,
         const std::string &prefer_name,
-        bool show_visualization = true,
+        bool show_visualization = false,
         CameraSlot vis_slot = CameraSlot::Head,
         const double *grasp_offset_left = nullptr,
         const double *grasp_offset_right = nullptr);
@@ -179,24 +210,62 @@ public:
     TrayDetectResult run_tray_annotate(
         const CameraFrameData &frame,
         const PoseDetectionRecords &yolo,
-        bool show_visualization = true,
+        bool show_visualization = false,
         CameraSlot vis_slot = CameraSlot::Head);
 
     /** 多帧料盘位姿融合：各帧解扶平 T_robot_tray 后平均，YOLO/叠加用最后一帧。 */
     TrayDetectResult run_tray_annotate_multiframe(
         const std::vector<CameraFrameData> &frames,
         const PoseDetectionRecords &yolo,
-        bool show_visualization = true,
+        bool show_visualization = false,
         CameraSlot vis_slot = CameraSlot::Head,
-        bool tray2_markers = false);
+        bool tray2_markers = false,
+        std::uint64_t marker_token = 0);
 
     PoseRunResult run(
         const CameraFrameData &frame,
         int algorithm_id = -1,
-        bool show_visualization = true,
+        bool show_visualization = false,
         CameraSlot vis_slot = CameraSlot::Head,
         int vis_panel = -1,
         SegEngineId engine_id = SegEngineId::Default);
+
+    /** 稳定业务名：YOLO / 料盘 / 传送带（实现仍走 run / run_tray_annotate* / run_belt_detect）。 */
+    PoseRunResult run_yolo(
+        const CameraFrameData &frame,
+        int algorithm_id = -1,
+        bool show_visualization = false,
+        CameraSlot vis_slot = CameraSlot::Head,
+        int vis_panel = -1,
+        SegEngineId engine_id = SegEngineId::Default)
+    {
+        return run(frame, algorithm_id, show_visualization, vis_slot, vis_panel, engine_id);
+    }
+
+    TrayDetectResult run_tray(
+        const std::vector<CameraFrameData> &frames,
+        const PoseDetectionRecords &yolo,
+        bool show_visualization = false,
+        CameraSlot vis_slot = CameraSlot::Head,
+        bool tray2_markers = false,
+        std::uint64_t marker_token = 0)
+    {
+        return run_tray_annotate_multiframe(
+            frames, yolo, show_visualization, vis_slot, tray2_markers, marker_token);
+    }
+
+    BeltDetectResult run_belt(
+        const CameraFrameData &frame,
+        const std::string &prefer_name,
+        bool show_visualization = false,
+        CameraSlot vis_slot = CameraSlot::Head,
+        const double *grasp_offset_left = nullptr,
+        const double *grasp_offset_right = nullptr)
+    {
+        return run_belt_detect(
+            frame, prefer_name, show_visualization, vis_slot, grasp_offset_left,
+            grasp_offset_right);
+    }
 
     void close_visualization();
 
@@ -207,11 +276,12 @@ private:
 
 void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
 
-/** 当前唯一启用的 YOLO 类别：0=圆柱物料。 */
-constexpr int kGraspDetectClassId = 0; // best1015.pt: original_product
-constexpr int kEmptyHoleClassId = 3;   // feeding_hole / 空孔，料盘2放置用
+/** 头相机 best1015.pt 与手相机 best1027.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
+constexpr int kGraspDetectClassId = 0; // workpiece，立着的工件
+constexpr int kEmptyHoleClassId = 1;   // feeding_hole / 空孔，料盘2放置用
+constexpr int kFallenClassId = 2;      // fallen / 倒件
 
-/** 抓取阶段：按 move_box_params.yaml vision_detect 与相机槽返回 algorithm_id（-1/0/1） */
+/** 抓取阶段：按 move_box_params.yaml vision_detect 与相机槽返回 algorithm_id（-1/0/1/2） */
 int algorithm_id_for_slot(CameraSlot slot);
 
 /**
@@ -232,6 +302,61 @@ PoseDetectionRecords detect_pose_at_slot(
     bool show_visualization = false,
     int filter_class_id = kGraspDetectClassId,
     SegEngineId engine_id = SegEngineId::Default);
+
+/** 头相机：flush → 取 fuse_n 帧并 prepare。fuse_n<=0 用 yaml tray.fuse_frames。 */
+std::vector<CameraFrameData> grab_head_fused_frames(
+    RealSenseMultiCam &cameras,
+    int fuse_n = 0);
+
+/** 料盘头视感知编排选项。run_yolo 时 YOLO 与检码并行，再融合。 */
+struct PerceiveTrayOptions
+{
+    bool run_yolo = true;
+    bool tray2_markers = false;
+    bool show_tray_visualization = false;
+    bool show_yolo_visualization = false;
+    SegEngineId engine_id = SegEngineId::Default;
+    int fuse_n = 0;
+};
+
+struct HeadTrayPerception
+{
+    std::vector<CameraFrameData> frames;
+    PoseRunResult yolo;
+    PoseDetectionRecords yolo_records;
+    TrayDetectResult tray;
+};
+
+/** 已有多帧：可选 YOLO（末帧）→ run_tray。frames 空则 tray.message=取帧失败。 */
+HeadTrayPerception perceive_tray_from_frames(
+    SegPoseBridge &bridge,
+    std::vector<CameraFrameData> frames,
+    const PerceiveTrayOptions &opts = {});
+
+/** 取头相机融合帧 + perceive_tray_from_frames。 */
+HeadTrayPerception perceive_tray_head(
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const PerceiveTrayOptions &opts = {});
+
+struct HeadBeltPerception
+{
+    CameraFrameData frame;
+    BeltDetectResult belt;
+    /** parallel_yolo 时与检码同时跑的整图 YOLO。裁切 ROI 仍要等码位姿，不走这里。 */
+    bool yolo_ran = false;
+    PoseRunResult yolo;
+};
+
+/** 头相机单帧 + run_belt。parallel_yolo 时整图 YOLO 与检码并行。 */
+HeadBeltPerception perceive_belt_head(
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const std::string &prefer_name,
+    bool show_visualization = false,
+    const double *grasp_offset_left = nullptr,
+    const double *grasp_offset_right = nullptr,
+    bool parallel_yolo = false);
 
 void append_pose_records(
     PoseDetectionRecords &records,
@@ -315,10 +440,10 @@ void pose_vis_begin_phase(
     int single_panel_index,
     std::initializer_list<int> clear_panels);
 
-/** 与 kDebugVisualize 联动：保存头相机/手相机原图和标注图。 */
+/** 与 T170_VISION_DEBUG / vision_debug_save_pairs 联动：保存原图与标注成对图。 */
 void pose_vis_set_save_debug(bool enable);
 
-/** 是否弹出 OpenCV/Qt 窗口。orch_hw 无显示器时必须关闭，否则 imshow 会 abort */
+/** 是否弹出 OpenCV 窗口（仅 T170_VISION_DEBUG=2）。无显示器勿开，imshow 会 abort */
 void pose_vis_set_gui_enabled(bool enable);
 
 /** 保存一对调试图+原图（同名、各分子目录）；某一侧 ptr 为空或 bytes=0 则只存另一侧 */

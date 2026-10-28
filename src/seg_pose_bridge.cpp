@@ -3,7 +3,10 @@
 #include "head_cam2robot.h"
 #include "move_box_config.h"
 #include "function.h"
+#include "hand_shadow.h"
 #include "Ti5_socketcan.h"
+#include "vision_debug.h"
+#include "vision/pipeline.h"
 
 #include <atomic>
 #include <chrono>
@@ -14,7 +17,9 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <mutex>
 #include <pwd.h>
+#include <unordered_map>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -614,6 +619,7 @@ struct SegPoseBridge::Impl
 {
     std::unique_ptr<py::scoped_interpreter> interpreter;
     py::object engine;
+    py::object hand_engine;
     py::object algorithm_input_cls;
     py::object engine_cls;
     py::object load_pose_params;
@@ -624,6 +630,10 @@ struct SegPoseBridge::Impl
     bool tray_ready = false;
     py::object belt_detect_fn;
     bool belt_ready = false;
+    std::atomic<bool> yolo_warmed{false};
+    std::mutex tray_locate_mu;
+    std::unordered_map<std::uint64_t, py::object> tray_locate;
+    std::uint64_t tray_locate_seq = 0;
 };
 
 SegPoseBridge::SegPoseBridge() : impl_(std::make_unique<Impl>()) {}
@@ -652,7 +662,8 @@ bool SegPoseBridge::init(const std::string &pose_config_path, const std::string 
         impl_->load_pose_params = config_mod.attr("load_pose_params");
         impl_->engine_cls = engine_mod.attr("CirclePoseEngine");
         py::object params = impl_->load_pose_params(pose_config_path);
-        impl_->engine = impl_->engine_cls(params);
+        impl_->engine = engine_mod.attr("open_engine")(params, py::none());
+        impl_->hand_engine = engine_mod.attr("open_engine")(params, params.attr("hand_model_path"));
         impl_->aruco_detect_fn = py::none();
         impl_->aruco_ready = false;
         impl_->tray_detect_fn = py::none();
@@ -663,13 +674,17 @@ bool SegPoseBridge::init(const std::string &pose_config_path, const std::string 
         impl_->algorithm_input_cls = types_mod.attr("AlgorithmInput");
 
         std::cout << "CirclePoseEngine 已加载 (feeding_cylindrical_parts_alg), 配置: "
-                  << pose_config_path << std::endl;
+                  << pose_config_path << "\n"
+                  << "  头相机/料盘/传送带 " << std::string(py::str(impl_->engine.attr("model_path")))
+                  << "\n  手相机 " << std::string(py::str(impl_->hand_engine.attr("model_path")))
+                  << std::endl;
         return true;
     }
     catch (const std::exception &e)
     {
         err = std::string("SegPoseBridge 初始化失败: ") + e.what();
         impl_->engine = py::none();
+        impl_->hand_engine = py::none();
         impl_->aruco_detect_fn = py::none();
         impl_->aruco_ready = false;
         impl_->tray_detect_fn = py::none();
@@ -878,6 +893,126 @@ bool SegPoseBridge::belt_engine_ready() const
     return impl_ && impl_->belt_ready;
 }
 
+bool SegPoseBridge::warmup_yolo(int height, int width, std::string &err)
+{
+    err.clear();
+    if (!impl_ || !impl_->interpreter)
+    {
+        err = "引擎未初始化";
+        return false;
+    }
+    if (impl_->yolo_warmed.load())
+        return true;
+    if (!impl_->engine || impl_->engine.is_none() || !impl_->hand_engine ||
+        impl_->hand_engine.is_none())
+    {
+        err = "YOLO 引擎未加载";
+        return false;
+    }
+    if (height <= 0)
+        height = 720;
+    if (width <= 0)
+        width = 1280;
+    try
+    {
+        py::gil_scoped_acquire gil;
+        if (impl_->yolo_warmed.load())
+            return true;
+        const std::string head_path = py::str(impl_->engine.attr("warmup")(height, width));
+        const std::string hand_path = py::str(impl_->hand_engine.attr("warmup")(height, width));
+        impl_->yolo_warmed.store(true);
+        std::cout << "[dl] YOLO 预热完成 " << width << "x" << height
+                  << "，两套权重已驻留\n"
+                  << "  头相机 " << head_path << "\n"
+                  << "  手相机 " << hand_path << "\n";
+        return true;
+    }
+    catch (const std::exception &e)
+    {
+        err = std::string("YOLO 预热失败: ") + e.what();
+        return false;
+    }
+}
+
+void SegPoseBridge::drop_tray_locate(std::uint64_t token)
+{
+    if (token == 0 || !impl_)
+        return;
+    py::gil_scoped_acquire gil;
+    std::lock_guard<std::mutex> lk(impl_->tray_locate_mu);
+    impl_->tray_locate.erase(token);
+}
+
+std::uint64_t SegPoseBridge::locate_tray_markers(
+    const std::vector<CameraFrameData> &frames,
+    bool tray2_markers,
+    std::string &err)
+{
+    err.clear();
+    py::gil_scoped_acquire gil;
+    if (!impl_->tray_ready || !impl_->interpreter)
+    {
+        err = "料盘引擎未初始化";
+        return 0;
+    }
+    struct TrayBoardReset
+    {
+        bool tray2 = false;
+        ~TrayBoardReset()
+        {
+            if (!tray2)
+                return;
+            try
+            {
+                py::module_::import("tray_detect_api").attr("set_active_board")("tray");
+            }
+            catch (...)
+            {
+            }
+        }
+    } board_reset;
+    try
+    {
+        if (tray2_markers)
+        {
+            py::module_::import("tray_detect_api").attr("set_active_board")("tray2");
+            board_reset.tray2 = true;
+        }
+        py::object cam2robot_arg = py::none();
+        std::array<double, 16> cam2robot{};
+        std::string ext_err;
+        if (load_head_cam2robot(cam2robot, ext_err))
+            cam2robot_arg = pose16_to_numpy(cam2robot);
+
+        py::module_ api = py::module_::import("tray_detect_api");
+        py::list located;
+        for (const CameraFrameData &f : frames)
+        {
+            if (!f.ok || f.color_bgr.empty())
+                continue;
+            located.append(api.attr("locate_markers")(
+                bgr_vector_to_numpy(f.height, f.width, f.color_bgr),
+                K_to_numpy(f.K),
+                dist_to_numpy(f.dist),
+                cam2robot_arg));
+        }
+        if (located.empty())
+        {
+            err = "没有料盘识别帧";
+            return 0;
+        }
+        std::lock_guard<std::mutex> lk(impl_->tray_locate_mu);
+        const std::uint64_t token = ++impl_->tray_locate_seq;
+        impl_->tray_locate.emplace(token, std::move(located));
+        return token;
+    }
+    catch (const std::exception &e)
+    {
+        err = std::string("料盘检码失败: ") + e.what();
+        return 0;
+    }
+}
+
 BeltDetectResult SegPoseBridge::run_belt_detect(
     const CameraFrameData &frame,
     const std::string &prefer_name,
@@ -910,9 +1045,13 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
         if (got_ext)
             cam2robot_arg = pose16_to_numpy(cam2robot);
 
-        py::object belt_api = py::module_::import("sys").attr("modules")["t170c_belt_detect_api"];
-        const std::string save_path =
-            py::str(belt_api.attr("default_save_path")(project_root_dir()));
+        py::object save_arg = py::none();
+        if (show_visualization)
+        {
+            const std::string save_path = vision_debug_annotate_path("head", "belt_aruco");
+            if (!save_path.empty())
+                save_arg = py::str(save_path);
+        }
 
         auto make_off = [](const double *src) -> py::object {
             if (src == nullptr)
@@ -928,7 +1067,7 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
             K_to_numpy(frame.K),
             dist_to_numpy(frame.dist),
             cam2robot_arg,
-            save_path,
+            save_arg,
             prefer_name,
             py::none(),
             make_off(grasp_offset_left),
@@ -958,6 +1097,19 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
             return std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
         };
         read_xyz(out.attr("get")("origin_cam"), result.cam_x, result.cam_y, result.cam_z);
+        double rv0 = 0, rv1 = 0, rv2 = 0, tv0 = 0, tv1 = 0, tv2 = 0;
+        const bool got_r = read_xyz(out.attr("get")("rvec"), rv0, rv1, rv2);
+        const bool got_t = read_xyz(out.attr("get")("tvec"), tv0, tv1, tv2);
+        if (got_r && got_t)
+        {
+            result.rvec[0] = rv0;
+            result.rvec[1] = rv1;
+            result.rvec[2] = rv2;
+            result.tvec[0] = tv0;
+            result.tvec[1] = tv1;
+            result.tvec[2] = tv2;
+            result.have_cam_pose = true;
+        }
         result.in_robot = read_xyz(
             out.attr("get")("origin_robot"), result.origin_x, result.origin_y, result.origin_z);
         result.have_grasp_l = read_xyz(
@@ -1022,10 +1174,22 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
     const PoseDetectionRecords &yolo,
     bool show_visualization,
     CameraSlot vis_slot,
-    bool tray2_markers)
+    bool tray2_markers,
+    std::uint64_t marker_token)
 {
     orch::TimingSpan span("vision_aruco");
     py::gil_scoped_acquire gil;
+    py::object located = py::none();
+    if (marker_token != 0)
+    {
+        std::lock_guard<std::mutex> lk(impl_->tray_locate_mu);
+        const auto it = impl_->tray_locate.find(marker_token);
+        if (it != impl_->tray_locate.end())
+        {
+            located = std::move(it->second);
+            impl_->tray_locate.erase(it);
+        }
+    }
     TrayDetectResult result;
     if (!impl_->tray_ready || !impl_->tray_detect_fn || impl_->tray_detect_fn.is_none())
     {
@@ -1096,11 +1260,17 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
             dets.append(d);
         }
 
-        const std::string save_path =
-            py::str(py::module_::import("tray_detect_api").attr("default_save_path")(project_root_dir()));
+        py::object save_arg = py::none();
+        if (show_visualization)
+        {
+            const std::string save_path = vision_debug_annotate_path("head", "tray_yolo");
+            if (!save_path.empty())
+                save_arg = py::str(save_path);
+        }
 
         py::object out;
         const bool use_fuse = frames.size() > 1 && impl_->tray_fuse_fn && !impl_->tray_fuse_fn.is_none();
+        bool used_prefetch = false;
         if (use_fuse)
         {
             py::list bgrs;
@@ -1110,26 +1280,72 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
                     continue;
                 bgrs.append(bgr_vector_to_numpy(f.height, f.width, f.color_bgr));
             }
-            out = impl_->tray_fuse_fn(
-                bgrs,
-                depth_arg,
-                K_to_numpy(frame.K),
-                dist_to_numpy(frame.dist),
-                cam2robot_arg,
-                dets,
-                save_path);
+            if (!located.is_none() && py::len(located) == bgrs.size())
+            {
+                used_prefetch = true;
+                out = impl_->tray_fuse_fn(
+                    bgrs,
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg,
+                    0.03,
+                    located);
+            }
+            else
+            {
+                out = impl_->tray_fuse_fn(
+                    bgrs,
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg);
+            }
         }
         else
         {
-            out = impl_->tray_detect_fn(
-                bgr_vector_to_numpy(frame.height, frame.width, frame.color_bgr),
-                depth_arg,
-                K_to_numpy(frame.K),
-                dist_to_numpy(frame.dist),
-                cam2robot_arg,
-                dets,
-                save_path);
+            py::object one = py::none();
+            if (!located.is_none() && py::len(located) >= 1)
+            {
+                py::list lst = located.cast<py::list>();
+                one = lst[lst.size() - 1];
+                used_prefetch = true;
+            }
+            if (used_prefetch)
+            {
+                out = impl_->tray_detect_fn(
+                    bgr_vector_to_numpy(frame.height, frame.width, frame.color_bgr),
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg,
+                    0.03,
+                    py::none(),
+                    py::none(),
+                    0,
+                    0,
+                    one);
+            }
+            else
+            {
+                out = impl_->tray_detect_fn(
+                    bgr_vector_to_numpy(frame.height, frame.width, frame.color_bgr),
+                    depth_arg,
+                    K_to_numpy(frame.K),
+                    dist_to_numpy(frame.dist),
+                    cam2robot_arg,
+                    dets,
+                    save_arg);
+            }
         }
+        if (used_prefetch)
+            std::cout << "[vision] 料盘使用并行检码结果，不再重复 detectMarkers\n";
 
         result.ok = out.attr("get")("ok").cast<bool>();
         result.message = py::str(out.attr("get")("message"));
@@ -1239,11 +1455,17 @@ PoseRunResult SegPoseBridge::run(
     int vis_panel,
     SegEngineId engine_id)
 {
+    // 两套权重共用这一把锁。头相机和手相机不会同时跑推理，也不会再套第二把锁。
+    static std::mutex yolo_mu;
+    std::lock_guard<std::mutex> yolo_lock(yolo_mu);
     py::gil_scoped_acquire gil;
     PoseRunResult result;
-    (void)engine_id;
-    py::object engine = impl_->engine;
-    const char *missing = "引擎未初始化";
+    const bool hand_slot =
+        vis_slot == CameraSlot::LeftHand || vis_slot == CameraSlot::RightHand;
+    const bool use_hand = engine_id == SegEngineId::Hand ||
+                          (engine_id == SegEngineId::Default && hand_slot);
+    py::object engine = use_hand ? impl_->hand_engine : impl_->engine;
+    const char *missing = use_hand ? "手相机引擎未初始化" : "引擎未初始化";
     if (!engine || engine.is_none())
     {
         result.message = missing;
@@ -1257,6 +1479,7 @@ PoseRunResult SegPoseBridge::run(
 
     try
     {
+        // 1=mask 重心，必须有深度。2=检测框中心，没有深度时仍返回框。
         const bool need_depth = (algorithm_id == 1);
         py::object depth_arg;
         if (need_depth)
@@ -1303,6 +1526,26 @@ PoseRunResult SegPoseBridge::run(
             one.success = t.attr("success").cast<bool>();
             one.message = py::str(t.attr("message"));
             one.pose_4x4 = numpy_pose_to_array(t.attr("pose_4x4"));
+            try
+            {
+                py::object xy = t.attr("xyxy");
+                if (!xy.is_none())
+                {
+                    const auto v = xy.attr("tolist")().cast<std::vector<double>>();
+                    if (v.size() >= 4 && std::isfinite(v[0]) && std::isfinite(v[2]))
+                    {
+                        one.box_x0 = static_cast<float>(v[0]);
+                        one.box_y0 = static_cast<float>(v[1]);
+                        one.box_x1 = static_cast<float>(v[2]);
+                        one.box_y1 = static_cast<float>(v[3]);
+                        one.box_u = static_cast<float>(0.5 * (v[0] + v[2]));
+                        one.box_v = static_cast<float>(0.5 * (v[1] + v[3]));
+                    }
+                }
+            }
+            catch (const std::exception &)
+            {
+            }
             result.targets.push_back(std::move(one));
         }
 
@@ -1855,7 +2098,8 @@ bool PosePipeline::init(std::string &err)
         g_move_cfg.cameras.width,
         g_move_cfg.cameras.height,
         g_move_cfg.cameras.head_fps,
-        g_move_cfg.cameras.hand_fps);
+        g_move_cfg.cameras.hand_fps,
+        g_move_cfg.cameras.hand_live_preview);
     if (!cameras_->init(err))
     {
         std::cout << "失败\n";
@@ -1912,12 +2156,31 @@ bool PosePipeline::init(std::string &err)
         std::cout << "OK\n";
     }
 
+    std::cout << "[6] YOLO 预热（空图，权重留在进程内）... ";
+    std::cout.flush();
+    const auto warm_t0 = std::chrono::steady_clock::now();
+    std::string werr;
+    if (!bridge_->warmup_yolo(g_move_cfg.cameras.height, g_move_cfg.cameras.width, werr))
+    {
+        std::cout << "跳过\n";
+        std::cerr << "[dl] " << werr << "（第一次拍照会支付冷启动）\n";
+    }
+    else
+    {
+        const auto warm_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now() - warm_t0)
+                                 .count();
+        std::cout << "OK " << warm_ms << " ms\n";
+    }
+
+    hand_shadow_bind(bridge_.get());
     install_app_sigint_handler();
     return true;
 }
 
 void PosePipeline::shutdown(bool close_visualization)
 {
+    hand_shadow_bind(nullptr);
     if (bridge_)
     {
         if (close_visualization)
@@ -2042,6 +2305,44 @@ PoseDetectionRecords pose_records_from_run(
     return records;
 }
 
+std::vector<CameraFrameData> grab_head_fused_frames(RealSenseMultiCam &cameras, int fuse_n)
+{
+    vision::RealSenseCameraBackend cam(cameras);
+    return vision::grab_head_fused(cam, fuse_n);
+}
+
+HeadTrayPerception perceive_tray_from_frames(
+    SegPoseBridge &bridge,
+    std::vector<CameraFrameData> frames,
+    const PerceiveTrayOptions &opts)
+{
+    vision::BridgeDlEngine dl(bridge);
+    vision::BridgePoseSolver pose(bridge);
+    return vision::perceive_tray_from_frames(dl, pose, std::move(frames), opts);
+}
+
+HeadTrayPerception perceive_tray_head(
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const PerceiveTrayOptions &opts)
+{
+    return vision::perceive_tray_head(cameras, bridge, opts);
+}
+
+HeadBeltPerception perceive_belt_head(
+    RealSenseMultiCam &cameras,
+    SegPoseBridge &bridge,
+    const std::string &prefer_name,
+    bool show_visualization,
+    const double *grasp_offset_left,
+    const double *grasp_offset_right,
+    bool parallel_yolo)
+{
+    return vision::perceive_belt_head(
+        cameras, bridge, prefer_name, show_visualization, grasp_offset_left,
+        grasp_offset_right, parallel_yolo);
+}
+
 PoseDetectionRecords detect_pose_at_slot(
     RealSenseMultiCam &cameras,
     SegPoseBridge &bridge,
@@ -2075,7 +2376,7 @@ PoseDetectionRecords detect_pose_at_slot(
     frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), slot);
 
     const int algorithm_id = algorithm_id_for_slot(slot);
-    const PoseRunResult result = bridge.run(
+    const PoseRunResult result = bridge.run_yolo(
         frame, algorithm_id, show_visualization, slot, -1, engine_id);
     if (!result.ok)
     {

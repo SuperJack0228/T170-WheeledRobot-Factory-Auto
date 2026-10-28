@@ -1,7 +1,10 @@
-"""Head-camera tray+YOLO overlay API (no RealSense open).
+"""料盘 Detector + 标注编排 API（给 C++ SegPoseBridge 用，不打开 RealSense）。
 
-Used by t170c_debug: ArUco 5-marker tray pose → holes 1–36 → associate YOLO
-→ sample top-surface z in a small depth window. Does not move the robot.
+分层（D）：
+  - Detector（本文件 + online）：ArUco 位姿、枚举孔、画图、深度窗采顶面 Z
+  - Fusion（tray_fusion）：孔↔YOLO 关联、多帧扶平位姿剔野/平均
+
+入口仍是 detect_and_annotate / fuse_and_annotate（C++ 路径不变）。
 """
 
 from __future__ import annotations
@@ -27,27 +30,25 @@ from online import (
     overlay_tray,
     parse_slot_ids,
 )
+from tray_fusion import (
+    CLASS_LABEL_ZH,
+    HoleGeom,
+    associate_yolo_to_holes,
+    fuse_leveled_tray_poses,
+)
 
 HERE = Path(__file__).resolve().parent
 
-CLASS_LABEL_ZH = {
-    0: "毛坯",
-    1: "半成品",
-    2: "成品",
-    3: "空孔",
-}
 # OpenCV Hershey 字体画不出中文，图上必须用 ASCII。
 CLASS_LABEL_EN = {
-    0: "raw",
-    1: "semi",
-    2: "fin",
-    3: "empty",
+    0: "up",
+    1: "hole",
+    2: "fall",
 }
 CLASS_BGR = {
     0: (0, 220, 0),
-    1: (0, 220, 220),
-    2: (255, 140, 40),
-    3: (150, 150, 150),
+    1: (150, 150, 150),
+    2: (0, 0, 255),
 }
 
 _cfg: AppConfig | None = None
@@ -382,60 +383,6 @@ def _sample_top_xyz(
     return xyz, int(vals.size)
 
 
-def _mean_rotation_svd(Rs: list[np.ndarray]) -> np.ndarray:
-    """Chordal mean：ΣR 的 SVD 投影回 SO(3)。"""
-    M = np.zeros((3, 3), dtype=np.float64)
-    for R in Rs:
-        M += np.asarray(R, dtype=np.float64).reshape(3, 3)
-    U, _, Vt = np.linalg.svd(M)
-    R = U @ Vt
-    if np.linalg.det(R) < 0.0:
-        U = U.copy()
-        U[:, 2] *= -1.0
-        R = U @ Vt
-    return R
-
-
-def _geodesic_deg(R_a: np.ndarray, R_b: np.ndarray) -> float:
-    c = np.clip((np.trace(R_a.T @ R_b) - 1.0) * 0.5, -1.0, 1.0)
-    return float(np.degrees(np.arccos(c)))
-
-
-def _reject_leveled_outliers(
-    Rs: list[np.ndarray], ts: list[np.ndarray]
-) -> tuple[list[np.ndarray], list[np.ndarray], int]:
-    """丢掉相对中位数偏差过大的帧，避免坏 PnP 把平均拉飞。至少留 2 帧。"""
-    n = len(Rs)
-    if n <= 2:
-        return Rs, ts, 0
-    t = np.stack(ts, axis=0)
-    t_med = np.median(t, axis=0)
-    d = np.linalg.norm(t - t_med, axis=1)
-    mad_t = float(np.median(np.abs(d - np.median(d))))
-    t_lim = max(0.010, 3.0 * 1.4826 * mad_t)
-
-    R_ref = _mean_rotation_svd(Rs)
-    ang = np.array([_geodesic_deg(R_ref, R) for R in Rs], dtype=np.float64)
-    mad_a = float(np.median(np.abs(ang - np.median(ang))))
-    a_lim = max(2.0, 3.0 * 1.4826 * mad_a)
-
-    keep = (d <= t_lim) & (ang <= a_lim)
-    n_keep = int(np.count_nonzero(keep))
-    if n_keep < 2:
-        return Rs, ts, 0
-    dropped = n - n_keep
-    if dropped:
-        for i, ok in enumerate(keep):
-            if not ok:
-                print(
-                    f"[tray] 丢掉第{i + 1}帧  Δt={d[i] * 1000:.1f}mm "
-                    f"(限{t_lim * 1000:.1f})  ΔR={ang[i]:.2f}deg (限{a_lim:.1f})"
-                )
-    Rs_k = [R for R, ok in zip(Rs, keep) if ok]
-    ts_k = [ti for ti, ok in zip(ts, keep) if ok]
-    return Rs_k, ts_k, dropped
-
-
 def _T_from_Rt(R: np.ndarray, t: np.ndarray) -> np.ndarray:
     T = np.eye(4, dtype=np.float64)
     T[:3, :3] = R
@@ -472,6 +419,40 @@ def _estimate_leveled_T(
     }
 
 
+def locate_markers(
+    bgr: np.ndarray,
+    K: np.ndarray,
+    dist: np.ndarray | None,
+    cam2robot: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """只检 ArUco 并给出扶平位姿。不含孔关联，供和 YOLO 并行。"""
+    cfg, detector = _require()
+    K = _as_K(K)
+    dist = _as_dist(dist)
+    T_rc = _as_T(cam2robot)
+    bgr = np.ascontiguousarray(bgr)
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = detector.detectMarkers(gray)
+    tray = _estimate_active_pose(corners, ids, cfg, K, dist)
+    R_level = None
+    t_level = None
+    tilt_deg = float("nan")
+    yaw_deg = float("nan")
+    if tray is not None and T_rc is not None:
+        _R_ct, _t_ct, R_level, t_level, tilt_deg, yaw_deg = _level_robot_tray(
+            T_rc, tray.rvec, tray.tvec
+        )
+    return {
+        "corners": corners,
+        "ids": ids,
+        "R_level": R_level,
+        "t_level": t_level,
+        "tilt_deg": tilt_deg,
+        "yaw_deg": yaw_deg,
+        "ok": tray is not None,
+    }
+
+
 def detect_and_annotate(
     bgr: np.ndarray,
     depth_m: np.ndarray | None,
@@ -485,14 +466,19 @@ def detect_and_annotate(
     t_level_override: np.ndarray | None = None,
     fuse_ok: int = 0,
     fuse_n: int = 0,
+    located: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cfg, detector = _require()
     K = _as_K(K)
     dist = _as_dist(dist)
     T_rc = _as_T(cam2robot)
     bgr = np.ascontiguousarray(bgr)
-    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-    corners, ids, _ = detector.detectMarkers(gray)
+    if located is not None and located.get("corners") is not None:
+        corners = located.get("corners")
+        ids = located.get("ids")
+    else:
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        corners, ids, _ = detector.detectMarkers(gray)
     tray = _estimate_active_pose(corners, ids, cfg, K, dist)
 
     vis = bgr.copy()
@@ -589,30 +575,16 @@ def detect_and_annotate(
             }
         )
 
-    claimed: set[int] = set()
-    for hole in holes:
-        best = None
-        best_d = 1e9
-        use_robot = hole.xyz_robot is not None
-        hx, hy = (hole.xyz_robot[0], hole.xyz_robot[1]) if use_robot else (hole.xyz_cam[0], hole.xyz_cam[1])
-        for di, det in enumerate(dets):
-            if di in claimed:
-                continue
-            src = det["xyz_robot"] if use_robot and det["xyz_robot"] is not None else det["xyz_cam"]
-            dxy = float(np.hypot(src[0] - hx, src[1] - hy))
-            if dxy < best_d:
-                best_d = dxy
-                best = (di, det)
-        cls_id = -1
-        cls_name = ""
-        conf = 0.0
-        dxy = -1.0
-        if best is not None and best_d <= associate_max_m:
-            claimed.add(best[0])
-            cls_id = int(best[1]["class_id"])
-            cls_name = str(best[1]["class_name"] or CLASS_LABEL_ZH.get(cls_id, ""))
-            conf = float(best[1]["conf"])
-            dxy = best_d
+    hole_geoms = [
+        HoleGeom(hole_id=h.hole_id, xyz_cam=h.xyz_cam, xyz_robot=h.xyz_robot) for h in holes
+    ]
+    assoc_list = associate_yolo_to_holes(hole_geoms, dets, associate_max_m=associate_max_m)
+
+    for hole, assoc in zip(holes, assoc_list):
+        cls_id = int(assoc["class_id"])
+        cls_name = str(assoc.get("class_name") or "")
+        conf = float(assoc["conf"])
+        dxy = float(assoc["dxy"])
 
         xyz_depth, n_depth = _sample_top_xyz(
             None if depth_m is None else np.asarray(depth_m),
@@ -825,6 +797,7 @@ def fuse_and_annotate(
     detections: list[dict[str, Any]] | None,
     save_path: str | None = None,
     associate_max_m: float = 0.03,
+    located_frames: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """多帧扶平 T_robot_tray：丢掉大偏差帧后旋转 SVD 平均、平移取均值；YOLO/可视化用最后一帧。"""
     if not bgrs:
@@ -843,25 +816,46 @@ def fuse_and_annotate(
     T_rc = _as_T(cam2robot)
     Rs: list[np.ndarray] = []
     ts: list[np.ndarray] = []
-    for raw in bgrs:
-        bgr = np.ascontiguousarray(raw)
-        est = _estimate_leveled_T(bgr, K, dist, T_rc)
-        if est is None:
-            continue
-        Rs.append(est["R_level"])
-        ts.append(np.asarray(est["t_level"], dtype=np.float64).reshape(3))
+    last_located = None
+    if located_frames:
+        last_located = located_frames[-1]
+        for loc in located_frames:
+            if not isinstance(loc, dict):
+                continue
+            R = loc.get("R_level")
+            t = loc.get("t_level")
+            if R is None or t is None:
+                continue
+            Rs.append(np.asarray(R, dtype=np.float64).reshape(3, 3))
+            ts.append(np.asarray(t, dtype=np.float64).reshape(3))
+    else:
+        for raw in bgrs:
+            bgr = np.ascontiguousarray(raw)
+            est = _estimate_leveled_T(bgr, K, dist, T_rc)
+            if est is None:
+                continue
+            Rs.append(est["R_level"])
+            ts.append(np.asarray(est["t_level"], dtype=np.float64).reshape(3))
     last = np.ascontiguousarray(bgrs[-1])
     if not Rs:
         return detect_and_annotate(
-            last, depth_m, K, dist, cam2robot, detections, save_path, associate_max_m
+            last,
+            depth_m,
+            K,
+            dist,
+            cam2robot,
+            detections,
+            save_path,
+            associate_max_m,
+            located=last_located,
         )
     n_ok = len(Rs)
-    Rs, ts, n_drop = _reject_leveled_outliers(Rs, ts)
-    R_avg = _mean_rotation_svd(Rs)
-    t_avg = np.mean(np.stack(ts, axis=0), axis=0)
+    R_avg, t_avg, n_drop = fuse_leveled_tray_poses(Rs, ts)
+    # 剔野后参与平均的帧数 = 解算成功数 − 丢弃数
+    n_fused = n_ok - n_drop
     drop_txt = f" 丢{n_drop}帧" if n_drop else ""
     print(
-        f"[tray] 多帧融合 {len(Rs)}/{len(bgrs)}（解算{n_ok}{drop_txt}）  "
+        f"[tray] 多帧融合 {n_fused}/{len(bgrs)}（解算{n_ok}{drop_txt}）  "
         f"t_avg=({t_avg[0]:.4f},{t_avg[1]:.4f},{t_avg[2]:.4f})"
     )
     return detect_and_annotate(
@@ -875,8 +869,9 @@ def fuse_and_annotate(
         associate_max_m,
         R_level_override=R_avg,
         t_level_override=t_avg,
-        fuse_ok=len(Rs),
+        fuse_ok=n_fused,
         fuse_n=len(bgrs),
+        located=last_located,
     )
 
 

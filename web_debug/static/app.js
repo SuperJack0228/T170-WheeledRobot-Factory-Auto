@@ -9,7 +9,7 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
 const WEB_API = 4;
-const UI_VERSION = "1.1.6";
+const UI_VERSION = "1.1.13";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -83,6 +83,7 @@ async function refreshStatus() {
   try {
     const health = await api("/api/health");
     checkVersion(health);
+    setHandLivePreview(health.hand_live_preview === true);
     const chip = $("serviceChip");
     chip.textContent = health.robot_online ? "已连接" : "未连接";
     chip.className = `pill ${health.robot_online ? "ok" : "bad"}`;
@@ -181,7 +182,7 @@ function applyTile(a) {
   switch (a.state) {
     case "waiting": return tile("申请", "已发出，等待同意", `${a.name} → 等 ${a.grant} · ${what}`, "wait", "pulse");
     case "granted": return tile("申请", "已同意", `${a.name} → 收到 ${a.grant} · ${what}`, "ok");
-    case "denied": return tile("申请", "未同意", `${a.name} 超时没回 ${a.grant} · ${what}`, "bad");
+    case "denied": return tile("申请", "超时", `${a.name} 20s 没有回复 · ${what}`, "bad");
     default: return tile("申请", "无", "这个任务还没发申请", "idle");
   }
 }
@@ -425,6 +426,54 @@ $("saveConfig").addEventListener("click", async () => {
 
 const versionEl = $("uiVersion");
 if (versionEl) versionEl.textContent = `T170C Web Debug  v${UI_VERSION}`;
+
+function bindHandStream(id, slot, enabled) {
+  const img = $(id);
+  const empty = $(id + "Empty");
+  if (!img) return;
+  if (!enabled) {
+    if (img.dataset.streaming === "1") {
+      img.dataset.streaming = "0";
+      img.removeAttribute("src");
+      img.classList.remove("show");
+    }
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = "预览已关";
+    }
+    return;
+  }
+  if (empty && !img.classList.contains("show")) {
+    empty.hidden = false;
+    empty.textContent = "等待画面";
+  }
+  if (img.dataset.streaming === "1") return;
+  img.dataset.streaming = "1";
+  img.onload = () => {
+    img.classList.add("show");
+    if (empty) empty.hidden = true;
+  };
+  img.onerror = () => {
+    img.dataset.streaming = "0";
+    img.classList.remove("show");
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = "画面中断";
+    }
+  };
+  img.src = `/api/stream/live?slot=${slot}&token=${encodeURIComponent(token)}`;
+}
+
+function setHandLivePreview(enabled) {
+  const note = $("handLiveNote");
+  if (note) {
+    note.textContent = enabled
+      ? "视频流开着，按相机帧率推左右手彩色。不读头相机，不进调度运动循环。和影子同时开时，影子取帧会变慢。不用时把 cameras.hand_live_preview 改回 false，再重启服务。"
+      : "实时预览已关，不从手相机抽帧。要看画面，把 cameras.hand_live_preview 改成 true，再重启服务。";
+  }
+  bindHandStream("liveLeft", "left_hand", enabled);
+  bindHandStream("liveRight", "right_hand", enabled);
+}
 
 setInterval(refreshStatus, 1000);
 setInterval(() => { if ($("page-dispatch").classList.contains("active")) refreshDispatch(); }, 1000);

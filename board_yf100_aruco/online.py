@@ -495,7 +495,15 @@ def estimate_diagonal_tray_pose(
             candidates.append(pose)
     if not candidates:
         return None
-    return min(candidates, key=lambda p: p.reproj_px)
+    best = min(candidates, key=lambda p: p.reproj_px)
+    # 正常四角约 0.8px。码号从 0 误成 3 时会到 19–24px，孔位会偏出一排。
+    if best.reproj_px > 5.0:
+        print(
+            f"[tray] 四角重投影 {best.reproj_px:.2f}px 超过 5px，这帧不定位",
+            flush=True,
+        )
+        return None
+    return best
 
 
 def draw_pose_text(vis: np.ndarray, lines: list[str], origin: tuple[int, int], color) -> None:

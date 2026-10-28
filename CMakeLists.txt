@@ -3,7 +3,45 @@ project(t170c_cylinder_debug LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Hardware-independent regression tests: no Linux SDK, cameras, Python or CAN required.
+option(T170_SERVO_TESTS_ONLY "Build only wrist-servo controller tests" OFF)
+if(T170_SERVO_TESTS_ONLY)
+    find_package(Threads REQUIRED)
+    enable_testing()
+    add_executable(visual_servo_test tests/visual_servo_test.cpp src/servo/visual_servo.cpp src/servo/kinematics.cpp src/servo/trace.cpp)
+    target_include_directories(visual_servo_test PRIVATE include eigen3)
+    target_link_libraries(visual_servo_test PRIVATE Threads::Threads)
+    add_test(NAME visual_servo_test COMMAND visual_servo_test)
+    add_executable(visual_servo_runtime_test tests/visual_servo_runtime_test.cpp
+        src/servo/visual_servo.cpp src/servo/trace.cpp src/servo/runtime.cpp)
+    target_include_directories(visual_servo_runtime_test PRIVATE include eigen3)
+    target_link_libraries(visual_servo_runtime_test PRIVATE Threads::Threads)
+    add_test(NAME visual_servo_runtime_test COMMAND visual_servo_runtime_test)
+    find_package(yaml-cpp QUIET)
+    if(yaml-cpp_FOUND)
+        add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp
+            src/servo/config.cpp src/servo/visual_servo.cpp)
+        target_include_directories(visual_servo_config_test PRIVATE include eigen3)
+        if(TARGET yaml-cpp::yaml-cpp)
+            target_link_libraries(visual_servo_config_test PRIVATE yaml-cpp::yaml-cpp)
+        else()
+            target_link_libraries(visual_servo_config_test PRIVATE yaml-cpp)
+        endif()
+        add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
+            ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml)
+    endif()
+    return()
+endif()
+
 add_compile_definitions(MARKET_SIMPLE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_custom_target(servo_build_identity
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+        -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/servo_build_identity.h
+        -P ${PROJECT_SOURCE_DIR}/cmake/servo_build_identity.cmake
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/servo_build_identity.h
+    VERBATIM)
+
 
 set(HUMAN_INTERACTION_ENV_ROOT "/home/ti5robot/anaconda3/envs/human_interaction_env" CACHE PATH
     "Conda environment containing ultralytics, OpenCV and pybind11")
@@ -81,16 +119,30 @@ add_executable(t170c_debug
     orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
     src/function.cpp
+    src/hand_shadow.cpp
+    src/servo/visual_servo.cpp
+    src/servo/kinematics.cpp
+    src/servo/config.cpp
+    src/servo/runtime.cpp
+    src/servo/trace.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp
     src/realsense_get.cpp
     src/seg_pose_bridge.cpp
+    src/vision_debug.cpp
+    src/vision/camera.cpp
+    src/vision/dl.cpp
+    src/vision/marker.cpp
+    src/vision/pose.cpp
+    src/vision/pipeline.cpp
     src/move_box_config.cpp
     src/move_box_runtime.cpp
     src/head_cam2robot.cpp
     src/head_control.cpp
 )
+add_dependencies(t170c_debug servo_build_identity)
+target_include_directories(t170c_debug PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_include_directories(t170c_debug PRIVATE
     ${PROJECT_SOURCE_DIR}
@@ -161,16 +213,30 @@ add_executable(arm_plane_repeat
     orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
     src/function.cpp
+    src/hand_shadow.cpp
+    src/servo/visual_servo.cpp
+    src/servo/kinematics.cpp
+    src/servo/config.cpp
+    src/servo/runtime.cpp
+    src/servo/trace.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp
     src/realsense_get.cpp
     src/seg_pose_bridge.cpp
+    src/vision_debug.cpp
+    src/vision/camera.cpp
+    src/vision/dl.cpp
+    src/vision/marker.cpp
+    src/vision/pose.cpp
+    src/vision/pipeline.cpp
     src/move_box_config.cpp
     src/move_box_runtime.cpp
     src/head_cam2robot.cpp
     src/head_control.cpp
 )
+add_dependencies(arm_plane_repeat servo_build_identity)
+target_include_directories(arm_plane_repeat PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(arm_plane_repeat PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include

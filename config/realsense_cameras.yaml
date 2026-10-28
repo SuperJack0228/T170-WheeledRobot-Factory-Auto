@@ -1,24 +1,28 @@
-# RealSense 位置与序列号。2026-09-21 按现场枚举更新（旧 SN 已不在线上）。
+# 本机相机 SN ↔ 槽位（M1）。型号参数见 camera_profile_*.yaml。
 # 键: head / right_hand / left_hand
 # 另有一台 D435I SN=261922073079 在 PCIe USB（14100000.pcie / usb4-2），未编入本表。
-generated_at: '2026-09-21T22:39:00+08:00'
+# 2026-10-20 重新枚举：右手口 2-3.2、左手口 2-3.4 上的 D405 已换机，序列号以下面为准。
+generated_at: '2026-10-20T16:10:00+08:00'
 camera_count: 3
 realsense:
   head:
     label: 头部
     serial: '261722072173'
     name: Intel RealSense D435I
+    profile: d435i
     usb_type: '3.2'
     # Jetson 原生 USB 2-2（3610000.usb），与手相机 Hub 同控制器相邻口
   right_hand:
     label: 右手
-    serial: '261922272699'
+    serial: '261122271695'
     name: Intel RealSense D405
+    profile: d405
     usb_type: '3.2'
     # Hub 口 2-3.2。若左右拍反，和 left_hand 对调 serial。
   left_hand:
     label: 左手
-    serial: '261922272962'
+    serial: '261922275388'
     name: Intel RealSense D405
+    profile: d405
     usb_type: '3.2'
     # Hub 口 2-3.4
