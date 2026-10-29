@@ -8,6 +8,8 @@
 #include "Ti5_socketcan.h"
 #include "hand_shadow.h"
 #include "servo/runtime.h"
+#include "servo/trajectory.h"
+#include "servo/trace.h"
 #include "realsense_get.h"
 
 #include <atomic>
@@ -22,6 +24,7 @@
 #include <mutex>
 #include <vector>
 #include <stdexcept>
+#include <limits>
 
 #include "move_box_config.h"
 #include "seg_pose_bridge.h"
@@ -1141,96 +1144,137 @@ Eigen::MatrixXd make_linear_joint_traj(
 
 namespace
 {
-Eigen::MatrixXd bridge_from_hold(const Eigen::MatrixXd &src, const wrist_servo::Joints &held, double dt, int hand)
+wrist_servo::ConnectorLimits retract_connector_limits()
 {
-    const int dof = static_cast<int>(std::min(src.cols(), static_cast<Eigen::Index>(7)));
-    if (src.rows() < 1 || dof < 1)
-        return src;
-    Eigen::RowVectorXd q(dof);
-    for (int j = 0; j < dof; ++j)
-        q(j) = held(j);
-    const double max_step = 25.0 * M_PI / 180.0 * std::max(dt, 1e-3);
-    std::vector<Eigen::RowVectorXd> pts;
-    const double jump = (src.row(0).head(dof) - q).cwiseAbs().maxCoeff();
-    if (!(jump > 0.5 * M_PI / 180.0))
-        return src;
-    pts.push_back(q);
-    auto append_bridge = [&](const Eigen::RowVectorXd &target) {
-        const double gap = (target - pts.back()).cwiseAbs().maxCoeff();
-        if (!(gap > max_step))
-        {
-            pts.push_back(target);
-            return;
-        }
-        const int n = std::max(1, static_cast<int>(std::ceil(gap / max_step)));
-        const Eigen::RowVectorXd from = pts.back();
-        for (int k = 1; k <= n; ++k)
-        {
-            const double u = static_cast<double>(k) / static_cast<double>(n);
-            pts.push_back(from + u * (target - from));
-        }
+    const auto &c = g_move_cfg.head_grasp;
+    return {c.retract_connector_speed_rad_s, c.retract_connector_accel_rad_s2,
+            c.retract_connector_jerk_rad_s3, c.retract_connector_max_s};
+}
+
+std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
+    Robot_Arm &arm, const Eigen::RowVectorXd &held)
+{
+    const Eigen::Vector3d start=arm_tcp_from_joints(arm,held).head<3>().transpose();
+    return [&arm,start](const Eigen::RowVectorXd &q) {
+        const Eigen::Vector3d p=arm_tcp_from_joints(arm,q).head<3>().transpose();
+        // A connector near a loaded tray must neither dip below the held TCP
+        // nor turn a small IK discrepancy into a large sideways motion.
+        return p.allFinite() && p.z()>=start.z()-.001 &&
+               (p.head<2>()-start.head<2>()).norm()<=.005;
     };
-    append_bridge(Eigen::RowVectorXd(src.row(0).head(dof)));
-    const int tail = std::max(0, static_cast<int>(src.rows()) - 1);
-    Eigen::MatrixXd out(static_cast<Eigen::Index>(pts.size()) + tail, dof);
-    for (int i = 0; i < static_cast<int>(pts.size()); ++i)
-        out.row(i) = pts[static_cast<std::size_t>(i)];
-    for (int r = 1; r < src.rows(); ++r)
-        out.row(static_cast<Eigen::Index>(pts.size()) + r - 1) = src.row(r).head(dof);
-    std::cout << "[retract] " << (hand == 1 ? "右手" : "左手")
-              << " 收手起点与保持关节差 " << std::fixed << std::setprecision(2)
-              << (jump * 180.0 / M_PI) << " deg，已平滑接上\n";
+}
+
+Eigen::MatrixXd bridge_from_hold(const Eigen::MatrixXd &src, const wrist_servo::Joints &held,
+                                 double dt, int hand, Robot_Arm *arm)
+{
+    const auto valid=arm ? lift_connector_validity(*arm,held) :
+                          std::function<bool(const Eigen::RowVectorXd &)>{};
+    const auto out = wrist_servo::connect_held_start(src, held, dt, retract_connector_limits(),valid);
+    const double gap = src.rows() && src.cols() == 7
+                           ? (src.row(0) - held).cwiseAbs().maxCoeff() : INFINITY;
+    if (out.rows() == 0 || out.rows() != src.rows())
+        std::cout << "[retract] hand=" << hand << " start_gap_deg=" << gap * 180 / M_PI
+                  << " connector_ms=" << std::max<Eigen::Index>(0, out.rows()-src.rows())*dt*1000
+                  << " result=" << (out.rows() ? "quintic" : "invalid_start") << std::endl;
     return out;
 }
 } // namespace
 
-int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt = k_arm_traj_dt)
+int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt = k_arm_traj_dt,
+                           Robot_Arm *retract_arm = nullptr)
 {
-    if (hand == 1 && right_arm_motors_locked())
-        return 0;
-    if (traj_in.rows() == 0)
-    {
-        cout << "[Error] Trajectory is empty, execution aborted." << endl;
-        return -1;
-    }
+    if (hand == 1 && right_arm_motors_locked()) return 0;
+    if (traj_in.rows()<2 || traj_in.cols()!=7 || !traj_in.allFinite() || !std::isfinite(dt) || dt<=0)
+        return -16;
     MatrixXd traj = traj_in;
     wrist_servo::Joints held;
-    if (wrist_servo::take_final_hold(hand, held))
-        traj = bridge_from_hold(traj, held, dt, hand);
-
-    const int dof = static_cast<int>(std::min(traj.cols(), static_cast<Eigen::Index>(7)));
-    for (int i = 0; i < traj.rows(); ++i)
-    {
-        if (hardware_abort_requested())
-        {
-            std::cout << "[arm] STOP，停止轨迹\n";
-            return -4;
-        }
-        if (can_io_faulted())
-        {
-            std::cout << "[arm] CAN 收发失败，停止轨迹: " << can_io_fault_message() << std::endl;
-            return -2;
-        }
-        const auto cycle_start = chrono::high_resolution_clock::now();
-
-        int motor_cmd[7] = {0};
-        for (int j = 0; j < dof; ++j)
-        {
-            motor_cmd[j] = rad_to_encoder_cnt(traj(i, j));
-        }
-        set_motor_position(motor_cmd, hand);
-
-        const double elapsed_ms =
-            chrono::duration<double, milli>(chrono::high_resolution_clock::now() - cycle_start).count();
-        const double sleep_ms = std::max(0.0, dt * 1000.0 - elapsed_ms);
-        if (sleep_ms > 1e-6)
-            this_thread::sleep_for(chrono::duration<double, milli>(sleep_ms));
+    const bool had_hold = wrist_servo::peek_final_hold(hand, held);
+    const bool diagnostic = had_hold || retract_arm != nullptr;
+    // Plan the small start connector while the old reference is still being held.
+    // A large/stale discrepancy is not sent as a one-tick jump.
+    if (had_hold) {
+        traj = bridge_from_hold(traj_in, held, dt, hand, retract_arm);
+        if (traj.rows()<2) return -16;
     }
-
+    wrist_servo::ObservationContext context;
+    if (diagnostic) wrist_servo::observation_context(hand, context);
+    wrist_servo::Joints initial_actual;
+    const bool initial_feedback = diagnostic && wrist_servo::read_joint_feedback(hand, initial_actual);
+    const double release_start = wrist_servo::monotonic_seconds();
+    wrist_servo::Joints transferred;
+    const bool took_hold = wrist_servo::take_final_hold(hand, transferred);
+    const double release_ms = (wrist_servo::monotonic_seconds()-release_start)*1000;
+    if (took_hold && (!had_hold || (transferred-held).cwiseAbs().maxCoeff()>1e-9)) {
+        traj = bridge_from_hold(traj_in, transferred, dt, hand, retract_arm);
+        if (traj.rows()<2) return -16;
+    }
+    auto trace = [&](const char *event, const char *reason, int row, double cycle_ms,
+                     const Eigen::RowVectorXd &v, const Eigen::RowVectorXd &a,
+                     const Eigen::RowVectorXd &jerk, const wrist_servo::Joints *actual) {
+        if (!diagnostic) return;
+        wrist_servo::TraceRow r;
+        r.time_s=wrist_servo::monotonic_seconds(); r.session=context.session;
+        r.hand=hand; r.task_tag=context.task_tag; r.target_class=context.target_class;
+        r.final_z=context.final_z; r.event=event; r.reason=reason;
+        r.trajectory_row=row; r.dt_ms=cycle_ms; r.hold_release_wait_ms=release_ms;
+        r.commanded=traj.row(row);
+        r.command_step_rad=row>0 ? (traj.row(row)-traj.row(row-1)).cwiseAbs().maxCoeff() :
+            (took_hold ? (traj.row(0)-transferred).cwiseAbs().maxCoeff() : 0);
+        r.command_speed_rad_s=v.cwiseAbs().maxCoeff();
+        r.command_accel_rad_s2=a.cwiseAbs().maxCoeff(); r.command_jerk_rad_s3=jerk.cwiseAbs().maxCoeff();
+        const double nan=std::numeric_limits<double>::quiet_NaN();
+        r.measured.joints.setConstant(nan); r.measured.position.setConstant(nan);
+        r.measured.velocity.setConstant(nan); r.reference.setConstant(nan);
+        r.joint_feedback_valid=actual!=nullptr;
+        if(actual) {
+            r.measured.joints=*actual;
+            if(retract_arm) r.measured.position=arm_tcp_from_joints(*retract_arm,*actual).head<3>().transpose();
+        }
+        wrist_servo::trace_writer().push(std::move(r));
+    };
+    Eigen::RowVectorXd previous_v=Eigen::RowVectorXd::Zero(7), previous_a=previous_v;
+    trace("retract_start",took_hold ? "exclusive_hold_to_trajectory" : "trajectory_without_hold",
+          0,0,previous_v,previous_a,previous_a,initial_feedback ? &initial_actual : nullptr);
+    double last_tick=0;
+    double peak_step=0,peak_v=0,peak_a=0,peak_j=0;
+    for (int i=0; i<traj.rows(); ++i) {
+        if (hardware_abort_requested() || can_io_faulted()) {
+            trace("retract_abort",hardware_abort_requested() ? "STOP" : "CAN_fault",
+                  i,0,previous_v,previous_a,previous_a,nullptr);
+            return hardware_abort_requested() ? -4 : -2;
+        }
+        const auto cycle_start=std::chrono::steady_clock::now();
+        const double tick=wrist_servo::monotonic_seconds();
+        const double cycle_ms=last_tick>0 ? (tick-last_tick)*1000 : 0;
+        last_tick=tick;
+        int motor_cmd[7] = {0};
+        for (int j=0;j<7;++j) motor_cmd[j]=rad_to_encoder_cnt(traj(i,j));
+        set_motor_position(motor_cmd,hand);
+        const Eigen::RowVectorXd v=i>0 ? Eigen::RowVectorXd((traj.row(i)-traj.row(i-1))/dt)
+                                                     : Eigen::RowVectorXd::Zero(7);
+        const Eigen::RowVectorXd a=(v-previous_v)/dt, jerk=(a-previous_a)/dt;
+        peak_v=std::max(peak_v,v.cwiseAbs().maxCoeff()); peak_a=std::max(peak_a,a.cwiseAbs().maxCoeff());
+        peak_j=std::max(peak_j,jerk.cwiseAbs().maxCoeff());
+        if(i>0) peak_step=std::max(peak_step,(traj.row(i)-traj.row(i-1)).cwiseAbs().maxCoeff());
+        // Capture every command in the first 250 ms, then 10 Hz and the end.
+        // No feedback/CAN reads or synchronous file writes inside this loop.
+        if(i<=50 || i%20==0 || i+1==traj.rows())
+            trace("retract_sample","command_stream",i,cycle_ms,v,a,jerk,nullptr);
+        previous_v=v; previous_a=a;
+        std::this_thread::sleep_until(cycle_start+std::chrono::duration<double>(dt));
+    }
     int last_cmd[7] = {0};
-    for (int j = 0; j < dof; ++j)
-        last_cmd[j] = rad_to_encoder_cnt(traj(traj.rows() - 1, j));
-    save_arm_last_commanded_position(hand, last_cmd);
+    for(int j=0;j<7;++j) last_cmd[j]=rad_to_encoder_cnt(traj(traj.rows()-1,j));
+    save_arm_last_commanded_position(hand,last_cmd);
+    wrist_servo::Joints final_actual;
+    const bool final_feedback=diagnostic && wrist_servo::read_joint_feedback(hand,final_actual);
+    trace("retract_end","playback_complete",static_cast<int>(traj.rows()-1),0,
+          previous_v,previous_a,Eigen::RowVectorXd::Zero(7),final_feedback ? &final_actual : nullptr);
+    if(diagnostic)
+        std::cout << "[retract] hand=" << hand << " rows=" << traj.rows()
+                  << " nominal_s=" << (traj.rows()-1)*dt << " hold_release_ms=" << release_ms
+                  << " peak_step_deg=" << peak_step*180/M_PI << " peak_v_rad_s=" << peak_v
+                  << " peak_a_rad_s2=" << peak_a << " peak_j_rad_s3=" << peak_j << std::endl;
     return 0;
 }
 
@@ -2980,8 +3024,23 @@ int plan_arm_line_from(
     }
     if (ret != 0 || traj.rows() < 2)
         return ret != 0 ? ret : -16;
-    if (lock_redundant && traj.cols() >= q_start.cols())
-        traj.row(0) = q_start.row(0).head(traj.cols());
+    if (lock_redundant) {
+        // Never disguise an SDK branch change by overwriting row zero alone.
+        // Keep the real first rows and connect from the held reference at rest.
+        Eigen::MatrixXd connected = wrist_servo::connect_held_start(
+            traj, q_start.row(0), k_arm_traj_dt, retract_connector_limits(),
+            lift_connector_validity(arm,q_start.row(0)));
+        if (connected.rows()<2) {
+            std::cerr << "[retract] locked SDK start not continuous, retry free redundancy\n";
+            ret=arm.Line_Trajectory(q_start,goal,traj);
+            if(ret!=0 || traj.rows()<2) return ret!=0 ? ret : -16;
+            connected=wrist_servo::connect_held_start(
+                traj,q_start.row(0),k_arm_traj_dt,retract_connector_limits(),
+                lift_connector_validity(arm,q_start.row(0)));
+        }
+        if (connected.rows()<2) return -16;
+        traj=std::move(connected);
+    }
     return 0;
 }
 
@@ -3026,52 +3085,56 @@ Eigen::MatrixXd stitch_cruise_lines(const Eigen::MatrixXd &first, const Eigen::M
     return out;
 }
 
-Eigen::MatrixXd stitch_lift_then_return(const Eigen::MatrixXd &first, const Eigen::MatrixXd &second)
+Eigen::MatrixXd stitch_lift_then_return(Robot_Arm &arm, const Eigen::MatrixXd &first,
+                                            const Eigen::MatrixXd &second)
 {
-    const int n1 = static_cast<int>(first.rows());
-    const int n2 = static_cast<int>(second.rows());
-    if (n1 < 2 || n2 < 2 || first.cols() != second.cols())
-        return Eigen::MatrixXd();
-    const int dof = static_cast<int>(first.cols());
-    const double peak1 = std::max(traj_peak_step(first), 1e-6);
-    int ia = n1 - 1;
-    const int earliest = std::max(1, (n1 - 1) * 85 / 100);
-    while (ia > earliest && traj_joint_step(first, ia) < 0.25 * peak1)
-        --ia;
-    const double peak2 = std::max(traj_peak_step(second), 1e-6);
-    int ib = 0;
-    const int latest = std::min(n2 - 1, std::max(1, (n2 - 1) * 15 / 100));
-    while (ib < latest && traj_joint_step(second, ib + 1) < 0.25 * peak2)
-        ++ib;
-
-    const Eigen::RowVectorXd qa = first.row(ia);
-    const Eigen::RowVectorXd qb = second.row(ib);
-    double step = (ia >= 1) ? traj_joint_step(first, ia) : 1e-3;
-    step = std::max(step, 1e-4);
-    const double dist = (qa - qb).norm();
-    int n_bridge = 1;
-    if (std::isfinite(dist) && std::isfinite(step) && step > 0.0)
-        n_bridge = std::max(1, static_cast<int>(std::ceil(dist / step)));
-    const double max_joint = (qa - qb).cwiseAbs().maxCoeff();
-    const double max_step = 25.0 * M_PI / 180.0 * k_arm_traj_dt;
-    if (std::isfinite(max_joint) && max_joint > max_step * static_cast<double>(n_bridge))
-        n_bridge = std::max(1, static_cast<int>(std::ceil(max_joint / max_step)));
-    if (n_bridge > 2000)
-        n_bridge = 2000;
-    const int n_tail = n2 - ib;
-    const int n = ia + n_bridge + n_tail;
-    if (n <= 0 || n > 20000 || n_tail < 1)
-        return Eigen::MatrixXd();
-    Eigen::MatrixXd out(n, dof);
-    for (int i = 0; i <= ia; ++i)
-        out.row(i) = first.row(i);
-    for (int k = 1; k < n_bridge; ++k)
-    {
-        const double u = static_cast<double>(k) / static_cast<double>(n_bridge);
-        out.row(ia + k) = qa + u * (qb - qa);
+    const int n1=static_cast<int>(first.rows()), n2=static_cast<int>(second.rows());
+    if(n1<3 || n2<3 || first.cols()!=second.cols()) return {};
+    // Round only the end of the lift, after at least 90% of the planned lift
+    // samples. The validity check also constrains the actual TCP path below.
+    const int ia=std::max(1,std::max((n1-1)*90/100,last_cruise_row(first)));
+    const int ib=std::min(n2-2,std::min(std::max(1,(n2-1)*15/100),first_cruise_row(second)));
+    const Eigen::Vector3d a=arm_tcp_from_joints(arm,first.row(ia)).head<3>().transpose();
+    const Eigen::Vector3d corner=arm_tcp_from_joints(arm,first.row(n1-1)).head<3>().transpose();
+    const Eigen::Vector3d b=arm_tcp_from_joints(arm,second.row(ib)).head<3>().transpose();
+    const double start_z=arm_tcp_from_joints(arm,first.row(0))(2);
+    const bool nearly_lifted=a.z()>=corner.z()-std::min(.01,std::max(0.0,corner.z()-start_z)*.1);
+    auto distance_to_segment=[](const Eigen::Vector3d &p,const Eigen::Vector3d &u,const Eigen::Vector3d &v) {
+        const Eigen::Vector3d d=v-u;
+        const double t=d.squaredNorm()>1e-12 ? std::clamp((p-u).dot(d)/d.squaredNorm(),0.0,1.0) : 0.0;
+        return (p-u-t*d).norm();
+    };
+    const auto valid=[&](const Eigen::RowVectorXd &q) {
+        const Eigen::Vector3d p=arm_tcp_from_joints(arm,q).head<3>().transpose();
+        return nearly_lifted && p.allFinite() && p.z()>=std::min(a.z(),b.z())-.001 &&
+            std::min(distance_to_segment(p,a,corner),distance_to_segment(p,corner,b))<=.005;
+    };
+    const auto bridge=wrist_servo::connect_joint_boundaries(
+        wrist_servo::trajectory_boundary(first,ia,k_arm_traj_dt,false),
+        wrist_servo::trajectory_boundary(second,ib,k_arm_traj_dt,true),
+        k_arm_traj_dt,retract_connector_limits(),valid);
+    if(bridge.rows()>0) {
+        const int tail=n2-ib-1;
+        Eigen::MatrixXd out(ia+bridge.rows()+tail,first.cols());
+        out.topRows(ia)=first.topRows(ia);
+        out.middleRows(ia,bridge.rows())=bridge;
+        out.bottomRows(tail)=second.bottomRows(tail);
+        std::cout << "[retract] hand=" << arm_hand_side(arm) << " corner=quintic"
+                  << " lift_join=" << ia << " return_join=" << ib
+                  << " connector_ms=" << (bridge.rows()-1)*k_arm_traj_dt*1000 << std::endl;
+        return out;
     }
-    for (int j = 0; j < n_tail; ++j)
-        out.row(ia + n_bridge + j) = second.row(ib + j);
+    // No arbitrary straight interpolation and no sleep. Retain both SDK
+    // acceleration/deceleration profiles if a short safe blend cannot be found.
+    // Their shared endpoint is included once.
+    const Eigen::MatrixXd aligned=wrist_servo::connect_held_start(
+        second,first.row(n1-1),k_arm_traj_dt,retract_connector_limits(),
+        lift_connector_validity(arm,first.row(n1-1)));
+    if(aligned.rows()<2) return {};
+    Eigen::MatrixXd out(n1+aligned.rows()-1,first.cols());
+    out.topRows(n1)=first; out.bottomRows(aligned.rows()-1)=aligned.bottomRows(aligned.rows()-1);
+    std::cout << "[retract] hand=" << arm_hand_side(arm)
+              << " corner=sdk_profiles (no valid short quintic)" << std::endl;
     return out;
 }
 
@@ -3127,7 +3190,7 @@ int plan_line_then_line(
         return rc_goal;
     const int ib = lift_then_retract ? 0 : first_cruise_row(traj_goal);
     const int n_tail = static_cast<int>(traj_goal.rows()) - ib;
-    traj_out = lift_then_retract ? stitch_lift_then_return(traj_mid, traj_goal)
+    traj_out = lift_then_retract ? stitch_lift_then_return(arm, traj_mid, traj_goal)
                                  : stitch_cruise_lines(traj_mid, traj_goal);
     if (traj_out.rows() < 2)
         return -16;
@@ -3154,6 +3217,7 @@ struct PreparedLinePlan
     bool have = false;
     int ret = -1;
     Eigen::MatrixXd traj;
+    ~PreparedLinePlan() { if(worker.joinable()) worker.join(); }
 };
 
 PreparedLinePlan g_prepared_line[2];
@@ -3200,6 +3264,15 @@ bool take_prepared_line(int hand, Eigen::MatrixXd &traj, int &ret)
 }
 
 } // namespace
+
+void arm_discard_line_then_line_plan(int hand)
+{
+    if(hand<0 || hand>1) return;
+    auto &slot=g_prepared_line[hand];
+    if(slot.worker.joinable()) slot.worker.join();
+    std::lock_guard<std::mutex> lock(slot.mu);
+    slot.have=false;slot.traj.resize(0,0);
+}
 
 int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, double max_deg_s)
 {
@@ -3463,7 +3536,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
                 ret = execute_descent_table(traj, hand, g_planned_descent_row[hand], arm, goal,
                                             vel_second_m_s, hand_target_class,log_tag);
             else
-                ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+                ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt, use_prepared ? &arm : nullptr);
         } catch(const std::exception &ex) {
             std::cerr << "[servo] hand=" << hand << " execution exception: " << ex.what() << std::endl;
             wrist_servo::ObservationContext context;

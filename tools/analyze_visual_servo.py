@@ -45,9 +45,49 @@ def summarize(path):
         accepted = [r for r in rows if r["event"] == "observation" and r["reason"] == "accepted"]
         rejected = collections.Counter(r["reason"] for r in rows if r["event"] == "observation" and r["reason"] != "accepted")
         vision_events = collections.Counter(r["reason"] for r in rows if r["event"] == "vision")
+        virtual = [r for r in accepted if r.get("virtual_target") == "1"]
+        placement_geometry = None if not virtual else {
+            "sources": dict(collections.Counter(r.get("vision_source","unknown") for r in virtual)),
+            "target_identities": sorted({(int(number(r,"target_row")),int(number(r,"target_col"))) for r in virtual}),
+            "min_neighbor_count": min(number(r,"neighbor_count") for r in virtual),
+            "max_marker_corner_count": max(number(r,"marker_corner_count") for r in virtual),
+            "reprojection_p95_px": percentile([number(r,"plane_reprojection_px") for r in virtual],.95),
+            "geometry_processing_p95_ms": percentile([number(r,"infer_ms") for r in virtual],.95),
+        }
         ends = [r for r in rows if r["event"] == "end"]
         final = ends[-1] if ends else controls[-1] if controls else rows[-1]
         commits = [r for r in controls if r["phase"] == "commit"]
+        retract_starts = [r for r in rows if r["event"] == "retract_start"]
+        retract_ends = [r for r in rows if r["event"] == "retract_end"]
+        retract_samples = [r for r in rows if r["event"] == "retract_sample"]
+        retract_aborts = [r["reason"] for r in rows if r["event"] == "retract_abort"]
+        retract_start = retract_starts[0] if retract_starts else None
+        retract_end = retract_ends[-1] if retract_ends else None
+        gripper_ends = [r for r in rows if r["event"] == "gripper_end" and
+                        (retract_start is None or number(r,"steady_s")<=number(retract_start,"steady_s"))]
+        startup = [r for r in retract_samples if retract_start is not None and
+                   number(r,"steady_s")-number(retract_start,"steady_s")<=.25]
+        def following_gap(row):
+            if not row or row.get("joint_feedback_valid") != "1":
+                return None
+            try:
+                gaps = [abs(float(row[f"actual_q{j}"])-float(row[f"command_q{j}"])) for j in range(7)]
+                return max(gaps) if all(math.isfinite(x) for x in gaps) else None
+            except (KeyError,ValueError,TypeError):
+                return None
+        retract = None if retract_start is None else {
+            "playback_completed": retract_end is not None and not retract_aborts,
+            "abort_reasons": retract_aborts,
+            "duration_s": number(retract_end,"steady_s")-number(retract_start,"steady_s") if retract_end else None,
+            "gripper_end_to_start_ms": 1000*(number(retract_start,"steady_s")-number(gripper_ends[-1],"steady_s")) if gripper_ends else None,
+            "hold_release_wait_ms": number(retract_start,"hold_release_wait_ms"),
+            "first_command_gap_rad": number(retract_start,"command_step_rad"),
+            "startup_peak_command_step_rad": max((number(r,"command_step_rad") for r in startup),default=None),
+            "startup_peak_command_speed_rad_s": max((number(r,"command_speed_rad_s") for r in startup),default=None),
+            "sampled_command_dt_p95_ms": percentile([number(r,"dt_ms") for r in retract_samples if number(r,"dt_ms")>0],.95),
+            "start_joint_following_gap_rad": following_gap(retract_start),
+            "end_joint_following_gap_rad": following_gap(retract_end),
+        }
         start = min(number(r, "steady_s") for r in rows)
         result.append({
             "file": str(path), "session": session, "hand": "left" if hand == "0" else "right",
@@ -67,7 +107,12 @@ def summarize(path):
                 ("command_vx_m_s","command_vy_m_s","command_vz_m_s"))) if ends else None,
             "timeline": [{"event":r["event"], "reason":r["reason"],
                 "elapsed_s":number(r,"steady_s")-start} for r in rows if r["event"] in
-                {"handoff","joint_policy","both_ready","gripper_gate","gripper_start","gripper_end"}],
+                {"handoff","joint_policy","both_ready","gripper_gate","gripper_start","gripper_end",
+                 "retract_start","retract_end","retract_abort"}],
+            "retract": retract,
+            "placement_geometry": placement_geometry,
+            "release_confirmed": any(r["event"]=="gripper_end" and r["reason"]=="open_confirmed" for r in rows),
+            "release_failed": any(r["event"]=="gripper_end" and r["reason"]=="open_failed" for r in rows),
             "vision_events": dict(vision_events),
             "pair_invalidated_before_gripper": bool(vision_events.get("peer_failed_before_gripper")),
             "gripper_gate_rejections": [r["reason"] for r in rows
@@ -121,6 +166,11 @@ def main():
             print("  timeline:", s["timeline"])
         if s["gripper_checks"]:
             print("  gripper:", s["gripper_checks"])
+        if s["retract"] is not None:
+            print("  retract (command diagnostics; not measured vibration):",s["retract"])
+        if s["placement_geometry"] is not None:
+            print("  placement geometry:",s["placement_geometry"],
+                  "open_confirmed=",s["release_confirmed"],"open_failed=",s["release_failed"])
     return 0
 
 

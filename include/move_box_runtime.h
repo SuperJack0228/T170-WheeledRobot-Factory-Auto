@@ -60,6 +60,9 @@ struct HeadAssignState
     /** 手臂到位合了爪，但夹爪合到底，没夹到件。手臂照常收回，只是不算持件。 */
     bool empty_grasp_r = false;
     bool empty_grasp_l = false;
+    /** 本次头相机原始盘面孔心，仅用于手相机邻孔的编号与粗几何锚定。 */
+    std::vector<wrist_servo::TrayAnchor> tray_anchors;
+    bool released_r=false,released_l=false,release_failed=false;
 };
 
 /** 本轮抓取腰进已用步数（与 stagger_max_steps 合计，双手共享；头相机不重拍，只补偿 goal x） */
@@ -351,6 +354,8 @@ enum class GraspToStandbyStatus
     Aborted = 2,
     GraspNone = 3,
     CamFail = 4,
+    MotionFail = 5, // 夹爪结果仍保留，但收手未完成，不可继续工位流转。
+    ReleaseFail = 6, // 张爪未确认：保留已确认松开的侧，禁止自动重放。
 };
 
 struct GraspToStandbyResult

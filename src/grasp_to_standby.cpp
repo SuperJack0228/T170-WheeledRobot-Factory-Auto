@@ -355,6 +355,7 @@ GraspToStandbyResult run_grasp_to_standby(
     bool grasped_l = false;
     bool lifted_r = false;
     bool lifted_l = false;
+    bool retract_failed = false;
 
     auto retract_placed_nostop = [&](bool want_r, bool want_l) -> bool {
         if (!want_r && !want_l)
@@ -367,7 +368,8 @@ GraspToStandbyResult run_grasp_to_standby(
             mid = wrist_servo::peek_final_hold(hand, held)
                       ? arm_tcp_from_joints(arm, held)
                       : arm_get_tcp_pos(arm);
-            mid(2) += g_move_cfg.head_grasp.lift_after_grasp_z;
+            mid(2) += tray_hole_task()==TrayHoleTask::PlaceEmpty ? g_move_cfg.tray2_place.retract_lift_m
+                                                                             : g_move_cfg.head_grasp.lift_after_grasp_z;
             if (mid(2) > g_move_cfg.grasp_valid.z_max)
                 mid(2) = g_move_cfg.grasp_valid.z_max;
             if (tray_hole_task() == TrayHoleTask::PlaceEmpty)
@@ -383,8 +385,11 @@ GraspToStandbyResult run_grasp_to_standby(
             fill(arm_r, true, mid_r, goal_r);
         if (want_l)
             fill(arm_l, false, mid_l, goal_l);
-        const double lift_mps = g_move_cfg.head_grasp.return_vel_m_s;
-        const double return_mps = g_move_cfg.head_grasp.return_vel_m_s;
+        const double lift_mps = tray_hole_task() == TrayHoleTask::PlaceEmpty
+                                    ? g_move_cfg.tray2_place.retract_lift_vel_m_s
+                                    : g_move_cfg.head_grasp.retract_lift_vel_m_s;
+        const double return_mps = tray_hole_task()==TrayHoleTask::PlaceEmpty
+                                      ? g_move_cfg.tray2_place.retract_return_vel_m_s : g_move_cfg.head_grasp.return_vel_m_s;
         const ArmLineMoveResult stitched = arm_dual_line_then_line_nostop(
             arm_r, mid_r, goal_r, want_r,
             arm_l, mid_l, goal_l, want_l,
@@ -398,27 +403,16 @@ GraspToStandbyResult run_grasp_to_standby(
         const bool ok_l = !want_l || stitched.ret_l == 0;
         if (ok_r && ok_l)
             return true;
-        std::cerr << "[arm] 收手衔接失败 右=" << stitched.ret_r
-                  << " 左=" << stitched.ret_l << "，退回抬升后直线\n";
-        lift_grasped_selective(arm_r, arm_l, cameras, st, want_r, want_l);
-        if (on_place_retract)
-            on_place_retract(grasped_r, grasped_l);
-        if (tray_hole_task() != TrayHoleTask::PlaceEmpty)
-            return move_arms_tcp_to_home(arm_r, arm_l, want_r, want_l);
-        const bool move_r = want_r && !right_arm_motors_locked();
-        std::cout << "[arm] 抬升后直线回传送带二 tcp"
-                  << (move_r ? " 右" : "") << (want_l ? " 左" : "") << "\n";
-        const ArmLineMoveResult back = arm_dual_line_move_selective(
-            arm_r, goal_r, move_r, arm_l, goal_l, want_l,
-            g_move_cfg.head_grasp.return_vel_m_s);
-        return (!move_r || back.ret_r == 0) && (!want_l || back.ret_l == 0) &&
-               !hardware_abort_requested();
+        std::cerr << "[arm] 收手失败 右=" << stitched.ret_r
+                  << " 左=" << stitched.ret_l << "，保留夹爪状态并上报，禁止继续离开工位\n";
+        retract_failed = true;
+        return false;
     };
 
     auto clear_after_place = [&](bool is_right) {
         if (!tray2_precision_test())
         {
-            retract_placed_nostop(is_right, !is_right);
+            if (!retract_placed_nostop(is_right, !is_right)) return;
             if (is_right)
                 lifted_r = true;
             else
@@ -460,6 +454,11 @@ GraspToStandbyResult run_grasp_to_standby(
         r.zone_count_ok = out.zone_count_ok;
         r.zone_right = out.zone_right;
         r.zone_left = out.zone_left;
+        if (retract_failed) {
+            r.status=hardware_abort_requested() ? GraspToStandbyStatus::Aborted
+                                               : GraspToStandbyStatus::MotionFail;
+            return r;
+        }
         if (!grasped_r && !grasped_l)
         {
             std::cout << (tray_hole_task() == TrayHoleTask::PlaceEmpty
@@ -495,8 +494,12 @@ GraspToStandbyResult run_grasp_to_standby(
                                  : "抓取完成 → 竖直抬升后不停，只把抓到的手去传送带准备 tcp");
             const bool need_r = grasped_r && !lifted_r;
             const bool need_l = grasped_l && !lifted_l;
-            if (need_r || need_l)
-                retract_placed_nostop(need_r, need_l);
+            if ((need_r || need_l) && !retract_placed_nostop(need_r, need_l)) {
+                r.st=st;
+                r.status=hardware_abort_requested() ? GraspToStandbyStatus::Aborted
+                                                   : GraspToStandbyStatus::MotionFail;
+                return r;
+            }
             if (tray_hole_task() != TrayHoleTask::PlaceEmpty && !hardware_abort_requested())
                 release_empty();
         }
@@ -506,14 +509,22 @@ GraspToStandbyResult run_grasp_to_standby(
     };
 
     auto aborted_now = [&]() -> bool {
-        if (!aborting(should_abort))
+        if(st.release_failed) {
+            out.status=GraspToStandbyStatus::ReleaseFail; out.st=st;
+            out.grasped_r=st.released_r; out.grasped_l=st.released_l;
+            out.waist_adjusted=waist_adjusted;
+            std::cerr << "[tray_place] 张爪未全部确认，保留各侧状态，禁止自动重放或收手\n";
+            return true;
+        }
+        if (!retract_failed && !aborting(should_abort))
             return false;
-        out.status = GraspToStandbyStatus::Aborted;
+        out.status = retract_failed && !hardware_abort_requested()
+                         ? GraspToStandbyStatus::MotionFail : GraspToStandbyStatus::Aborted;
         out.st = st;
         out.grasped_r = grasped_r && !st.empty_grasp_r;
         out.grasped_l = grasped_l && !st.empty_grasp_l;
         out.waist_adjusted = waist_adjusted;
-        std::cerr << "[grasp] STOP：退出整段抓取，停在原地\n";
+        std::cerr << "[grasp] 退出整段抓取，保留当前夹爪状态\n";
         return true;
     };
 

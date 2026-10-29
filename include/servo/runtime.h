@@ -17,6 +17,7 @@ struct ObservationContext {
     Eigen::Matrix3d desired_rotation = Eigen::Matrix3d::Identity();
     ImageProfile profile;
     Config config;
+    TrayTarget tray_target;
     int image_width = 0, image_height = 0;
 };
 void prepare_group();
@@ -31,6 +32,9 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int ta
 void sample_approach_state(Robot_Arm &arm);
 void end_session(int hand, bool success);
 bool observation_context(int hand, ObservationContext &context);
+void stage_tray_target(int hand,const TrayTarget &target);
+// Measured state interpolated at the frame timestamp; never command extrapolation.
+bool camera_at_capture(int hand,std::uint64_t session,double capture_s,Eigen::Matrix4d &base_camera);
 bool submit_observation(int hand, const PixelObservation &observation);
 void observation_event(int hand, std::uint64_t session, const char *reason,
                        const PixelObservation &observation = {});
@@ -45,7 +49,8 @@ void repeat_final_hold(int hand);
 void start_final_hold_repeat();
 // Copy that reference without stopping the repeat.
 bool peek_final_hold(int hand, Joints &q);
-// Stop the repeat for this hand and return the joints playback must start from.
+// Stop the repeat, wait for any in-flight seven-joint hold packet to finish,
+// then return the joints playback must start from. No old hold send can follow.
 bool take_final_hold(int hand, Joints &q);
 void task_event(int hand, const char *event, const char *reason);
 void handoff_event(Robot_Arm &arm, const Joints &command, const Joints &previous, const char *reason);

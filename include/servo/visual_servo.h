@@ -7,6 +7,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include "servo/tray_localizer.h"
 
 namespace YAML { class Node; }
 
@@ -37,6 +38,7 @@ struct ImageProfile {
 struct Config {
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
     bool require_dual = false; // set by the dedicated dual-hand validation command
+    TrayPlaceVisionConfig tray_place;
     double period_s = 0.01;
     double kp = 1.5;
     double kd = 0.2;
@@ -133,6 +135,10 @@ struct PixelObservation {
     double confidence = 0.0;
     double fx = 0.0, fy = 0.0, cx = 0.0, cy = 0.0;
     int width = 0, height = 0;
+    bool virtual_target=false;
+    int target_row=0,target_col=0,neighbor_count=0,marker_corner_count=0;
+    double plane_z_m=0,plane_reprojection_px=0;
+    std::string vision_source="yolo";
 };
 
 struct Mapping {

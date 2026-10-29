@@ -2350,8 +2350,12 @@ namespace move_box
         st.col_aruco_r = 0;
         st.col_aruco_l = 0;
         st.zones = {};
+        st.tray_anchors.clear();
         if (!tray.ok)
             return false;
+        for(const auto &h:tray.holes)
+            if(h.in_robot && std::isfinite(h.x) && std::isfinite(h.y) && std::isfinite(h.tray_z))
+                st.tray_anchors.push_back({h.row,h.col,Eigen::Vector3d(h.x,h.y,h.tray_z)});
 
         struct Cand
         {
@@ -3414,6 +3418,12 @@ namespace move_box
         HandMoveState &hs)
     {
         const bool straight_descent = !g_move_cfg.head_grasp.use_hand_camera;
+        const bool place=g_tray_hole_task==TrayHoleTask::PlaceEmpty;
+        if(hs.move_r) st.released_r=false;
+        if(hs.move_l) st.released_l=false;
+        st.release_failed=false;
+        wrist_servo::stage_tray_target(0,{});
+        wrist_servo::stage_tray_target(1,{});
         if(hs.move_r) wrist_servo::invalidate_result(1);
         if(hs.move_l) wrist_servo::invalidate_result(0);
         log_phase_banner(straight_descent
@@ -3458,6 +3468,37 @@ namespace move_box
         Eigen::Matrix<double, 1, 6> goal_r_arm = arm_goal_in_real_waist_frame(st.goal_last_r);
         Eigen::Matrix<double, 1, 6> goal_l_arm = arm_goal_in_real_waist_frame(st.goal_last_l);
 
+        if(place && straight_descent && g_move_cfg.cameras.hand_descent_correct &&
+           g_move_cfg.visual_servo.tray_place.enabled) {
+            wrist_servo::TrayBoardGeometry board; std::string error;
+            const auto path=std::filesystem::path(g_move_cfg.visual_servo.tray_place.board_config);
+            const auto absolute=path.is_absolute() ? path : std::filesystem::path(project_root_dir())/path;
+            if(!wrist_servo::load_tray_board(absolute.string(),board,error)) {
+                std::cerr << "[tray_place] board geometry: " << error << std::endl;
+                return {hs.move_r?-39:0,hs.move_l?-39:0};
+            }
+            auto prepare=[&](int hand,int row,int col) {
+                wrist_servo::TrayTarget target;
+                if(!wrist_servo::make_tray_target(st.tray_anchors,board,row,col,target,error)) return false;
+                const Eigen::Matrix3d r=rot_y(g_waist_pitch_rad)*rot_x(g_waist_roll_rad)*rot_z(g_waist_yaw_rad);
+                Eigen::Matrix4d current_from_upright=Eigen::Matrix4d::Identity();
+                current_from_upright.block<3,3>(0,0)=r.transpose();
+                current_from_upright.block<3,1>(0,3)=-r.transpose()*Eigen::Vector3d(
+                    kWaistPitchLinkM*std::sin(g_waist_pitch_rad),0,
+                    kWaistPitchLinkM*(std::cos(g_waist_pitch_rad)-1));
+                target.base_from_tray=current_from_upright*target.base_from_tray;
+                wrist_servo::stage_tray_target(hand,target);
+                std::cout << "[tray_place] hand=" << hand << " fixed row=" << row << " col=" << col
+                          << " RGB neighbor/marker tracking; no nearest-box fallback\n";
+                return true;
+            };
+            if((hs.move_r && !prepare(1,st.row_aruco_r,st.col_aruco_r)) ||
+               (hs.move_l && !prepare(0,st.row_aruco_l,st.col_aruco_l))) {
+                std::cerr << "[tray_place] cannot bind assigned hole: " << error << std::endl;
+                return {hs.move_r?-39:0,hs.move_l?-39:0};
+            }
+        }
+
         if(g_move_cfg.visual_servo.require_dual &&
            (!hs.move_r || !hs.move_l || !head_grasp_simultaneous(st))) {
             std::cerr << "[servo] 双手验证需要两侧有效目标且满足原有列间距/避让约束；本次不降级为单手\n";
@@ -3483,7 +3524,7 @@ namespace move_box
             out = arm_dual_line_then_line_nostop(
                 arm_r, hover_r_arm, goal_r_arm, hs.move_r,
                 arm_l, hover_l_arm, goal_l_arm, hs.move_l,
-                approach_mps, kDescentMps, {}, false, "下降", false, true, hand_class);
+                approach_mps, kDescentMps, {}, false, place ? "料盘放置下降" : "下降", false, true, hand_class);
         }
         else
         {
@@ -3508,21 +3549,20 @@ namespace move_box
             return out;
         }
 
-        // The servo owns stable completion. Keep the legacy checks only for open-loop/place.
-        const bool servo_grasp=straight_descent && g_move_cfg.cameras.hand_descent_correct &&
-            g_tray_hole_task!=TrayHoleTask::PlaceEmpty;
+        // The servo owns stable completion for grasp AND tray placement.
+        const bool servo_descent=straight_descent && g_move_cfg.cameras.hand_descent_correct;
         // Keep the last joint reference streaming until retract playback takes it.
         // Stopping it when the claw feedback returns leaves a gap, then the retract
         // trajectory's first sample is not that joint pose and the arm yanks.
-        if (servo_grasp && ((hs.move_r && out.ret_r == 0) || (hs.move_l && out.ret_l == 0)))
+        if (servo_descent && ((hs.move_r && out.ret_r == 0) || (hs.move_l && out.ret_l == 0)))
             wrist_servo::start_final_hold_repeat();
-        if(servo_grasp) {
+        if(servo_descent) {
             if(hs.move_r) wrist_servo::task_event(1,"both_ready","checking_before_gripper");
             if(hs.move_l) wrist_servo::task_event(0,"both_ready","checking_before_gripper");
             const bool right_ready=!hs.move_r || wrist_servo::ready_for_gripper(arm_r);
             const bool left_ready=!hs.move_l || wrist_servo::ready_for_gripper(arm_l);
             if(!right_ready || !left_ready) {
-                std::cerr << "[servo] 合爪前位置复核失败，详见 gripper_gate 日志\n";
+                std::cerr << "[servo] " << (place ? "张爪" : "合爪") << "前位置复核失败，详见 gripper_gate 日志\n";
                 return {hs.move_r?-36:0,hs.move_l?-36:0};
             }
         } else {
@@ -3615,7 +3655,7 @@ namespace move_box
                     wrist_servo::peek_final_hold(hand, held)
                         ? arm_tcp_from_joints(arm, held)
                         : arm_get_tcp_pos(arm);
-                mid(2) += hg.lift_after_grasp_z;
+                mid(2) += place ? g_move_cfg.tray2_place.retract_lift_m : hg.lift_after_grasp_z;
                 if (mid(2) > g_move_cfg.grasp_valid.z_max)
                     mid(2) = g_move_cfg.grasp_valid.z_max;
                 const Eigen::Matrix<double, 1, 6> goal =
@@ -3626,9 +3666,9 @@ namespace move_box
                 std::cout << "[retract] " << (is_right ? "右" : "左")
                           << (place ? " 张爪同时规划收手，目标是传送带二 tcp\n"
                                     : " 合爪同时规划收手，目标是传送带准备 tcp\n");
-                const double up_mps = place ? hg.lift_vel_m_s : hg.return_vel_m_s;
+                const double up_mps = place ? g_move_cfg.tray2_place.retract_lift_vel_m_s : hg.retract_lift_vel_m_s;
                 arm_start_line_then_line_plan(
-                    arm, mid, goal, up_mps, hg.return_vel_m_s);
+                    arm, mid, goal, up_mps, place ? g_move_cfg.tray2_place.retract_return_vel_m_s : hg.return_vel_m_s);
             };
             if (hs.move_r && out.ret_r == 0)
                 start_retract_plan(arm_r, true);
@@ -3637,8 +3677,8 @@ namespace move_box
         }
 
         const int settle_ms = static_cast<int>(
-            std::max(0.0, g_move_cfg.head_grasp.pre_grasp_settle_sec) * 1000.0);
-        if (!servo_grasp && settle_ms > 0)
+            std::max(0.0, place ? g_move_cfg.tray2_place.pre_open_settle_sec : g_move_cfg.head_grasp.pre_grasp_settle_sec) * 1000.0);
+        if (!servo_descent && settle_ms > 0)
             hardware_abort_sleep_ms(settle_ms);
         if (hardware_abort_requested())
         {
@@ -3647,9 +3687,51 @@ namespace move_box
             return out;
         }
 
-        const bool parallel_servo_grasp = servo_grasp && hs.move_r && hs.move_l &&
+        if(place && !tray2_precision_test()) {
+            bool released[2]={false,false};
+            const auto &p=g_move_cfg.tray2_place;
+            auto open=[&](int hand) {
+                hand_shadow_end(hand);
+                wrist_servo::task_event(hand,"gripper_start","open");
+                try {
+                    const auto side=hand==1 ? gripper::Side::Right : gripper::Side::Left;
+                    // The SDK treats an unpaired side as success; placement must
+                    // confirm real feedback before clearing a held-part latch.
+                    if(g.hasSide(side)) {
+                        const bool waited=g.openAndWait(side,p.open_tolerance_rad,std::chrono::milliseconds(p.open_timeout_ms));
+                        const auto fb=g.feedback(side);
+                        released[hand]=waited && fb.have_feedback && fb.io_ok && fb.merror==0 &&
+                            std::abs(fb.position_rad-g.config().open_position_rad)<=p.open_tolerance_rad;
+                        wrist_servo::record_gripper_check(hand,fb.position_rad,fb.torque,
+                                                         released[hand] ? "open_confirmed" : "open_not_confirmed");
+                    }
+                }
+                catch(const std::exception &ex) { std::cerr << "[tray_place] open exception: " << ex.what() << std::endl; }
+                wrist_servo::task_event(hand,"gripper_end",released[hand] ? "open_confirmed" : "open_failed");
+            };
+            std::thread right,left;
+            if(hs.move_r && out.ret_r==0) right=std::thread([&]{open(1);});
+            if(hs.move_l && out.ret_l==0) left=std::thread([&]{open(0);});
+            if(right.joinable()) right.join();
+            if(left.joinable()) left.join();
+            if(hs.move_r && out.ret_r==0) {
+                st.released_r=released[1];
+                if(!released[1]) {out.ret_r=-38;st.release_failed=true;}
+            }
+            if(hs.move_l && out.ret_l==0) {
+                st.released_l=released[0];
+                if(!released[0]) {out.ret_l=-38;st.release_failed=true;}
+            }
+            if(st.release_failed) {
+                if(hs.move_r) arm_discard_line_then_line_plan(1);
+                if(hs.move_l) arm_discard_line_then_line_plan(0);
+            }
+            return out;
+        }
+
+        const bool parallel_servo_descent = !place && servo_descent && hs.move_r && hs.move_l &&
             out.ret_r == 0 && out.ret_l == 0;
-        if (parallel_servo_grasp)
+        if (parallel_servo_descent)
         {
             hand_shadow_end(1);
             hand_shadow_end(0);
@@ -3670,33 +3752,23 @@ namespace move_box
         {
             if (g_tray_hole_task == TrayHoleTask::PlaceEmpty && tray2_precision_test())
                 std::cout << "[gripper] 精度测试右手到位，不松爪\n";
-            else if (g_tray_hole_task == TrayHoleTask::PlaceEmpty)
-            {
-                if (!g.openAndWait(gripper::Side::Right, 0.2, std::chrono::milliseconds(1500)))
-                    std::cerr << "[gripper] 右手张爪失败\n";
-            }
             else
             {
-                if(servo_grasp) wrist_servo::task_event(1,"gripper_start","close");
+                if(servo_descent) wrist_servo::task_event(1,"gripper_start","close");
                 const auto grasp_r = g.graspAndWait(gripper::Side::Right);
-                if(servo_grasp) wrist_servo::task_event(1,"gripper_end","feedback_received");
+                if(servo_descent) wrist_servo::task_event(1,"gripper_end","feedback_received");
                 st.empty_grasp_r = gripper_grasp_empty(g, gripper::Side::Right, grasp_r, "料盘抓取");
             }
         }
-        if (!parallel_servo_grasp && hs.move_l && out.ret_l == 0)
+        if (!parallel_servo_descent && hs.move_l && out.ret_l == 0)
         {
             if (g_tray_hole_task == TrayHoleTask::PlaceEmpty && tray2_precision_test())
                 std::cout << "[gripper] 精度测试左手到位，不松爪\n";
-            else if (g_tray_hole_task == TrayHoleTask::PlaceEmpty)
-            {
-                if (!g.openAndWait(gripper::Side::Left, 0.2, std::chrono::milliseconds(1500)))
-                    std::cerr << "[gripper] 左手张爪失败\n";
-            }
             else
             {
-                if(servo_grasp) wrist_servo::task_event(0,"gripper_start","close");
+                if(servo_descent) wrist_servo::task_event(0,"gripper_start","close");
                 const auto grasp_l = g.graspAndWait(gripper::Side::Left);
-                if(servo_grasp) wrist_servo::task_event(0,"gripper_end","feedback_received");
+                if(servo_descent) wrist_servo::task_event(0,"gripper_end","feedback_received");
                 st.empty_grasp_l = gripper_grasp_empty(g, gripper::Side::Left, grasp_l, "料盘抓取");
             }
         }
@@ -3710,7 +3782,7 @@ namespace move_box
                                  Eigen::Matrix<double, 1, 6> &mid,
                                  Eigen::Matrix<double, 1, 6> &goal) {
                 mid = arm_get_tcp_pos(arm);
-                mid(2) += hg.lift_after_grasp_z;
+                mid(2) += place ? g_move_cfg.tray2_place.retract_lift_m : hg.lift_after_grasp_z;
                 if (mid(2) > g_move_cfg.grasp_valid.z_max)
                     mid(2) = g_move_cfg.grasp_valid.z_max;
                 goal = place ? (is_right ? g_move_cfg.conveyor2.tcp.right
@@ -3878,6 +3950,7 @@ namespace move_box
         if (std::abs(waist_actual_delta) <= 1e-9)
             return;
         const double comp = waist_x_arm_goal_comp(waist_actual_delta);
+        for(auto &anchor:st.tray_anchors) anchor.base.x()+=comp;
         if (st.have_r)
             st.goal_last_r(0) += comp;
         if (st.have_l)

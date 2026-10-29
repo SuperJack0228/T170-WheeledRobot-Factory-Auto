@@ -40,6 +40,12 @@ void profile(const YAML::Node &n, ImageProfile &p) {
 void load_config(const YAML::Node &n, Config &c) {
     read(n,"belt_place_enabled",c.belt_place_enabled);
     read(n,"require_dual",c.require_dual);
+    const auto placement=n ? n["tray_place"] : YAML::Node();
+#define PLACE_READ(field) read(placement,#field,c.tray_place.field)
+    PLACE_READ(enabled); PLACE_READ(board_config); PLACE_READ(association_gate_m);
+    PLACE_READ(reprojection_gate_px); PLACE_READ(circle_residual_m);
+    PLACE_READ(max_plane_update_m); PLACE_READ(min_neighbors); PLACE_READ(rectified_pixels_per_m);
+#undef PLACE_READ
 #define SERVO_READ(field) read(n, #field, c.field)
     SERVO_READ(period_s); SERVO_READ(kp); SERVO_READ(kd);
     SERVO_READ(max_xy_speed_m_s); SERVO_READ(max_xy_accel_m_s2); SERVO_READ(max_z_accel_m_s2);
@@ -87,6 +93,13 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         out << YAML::Key << "visual_servo" << YAML::Value << YAML::BeginMap;
         out << YAML::Key << "belt_place_enabled" << YAML::Value << c.belt_place_enabled;
         out << YAML::Key << "require_dual" << YAML::Value << c.require_dual;
+        out << YAML::Key << "tray_place" << YAML::Value << YAML::BeginMap;
+#define PLACE_WRITE(field) out << YAML::Key << #field << YAML::Value << c.tray_place.field
+        PLACE_WRITE(enabled); PLACE_WRITE(board_config); PLACE_WRITE(association_gate_m);
+        PLACE_WRITE(reprojection_gate_px); PLACE_WRITE(circle_residual_m);
+        PLACE_WRITE(max_plane_update_m); PLACE_WRITE(min_neighbors); PLACE_WRITE(rectified_pixels_per_m);
+#undef PLACE_WRITE
+        out << YAML::EndMap;
         out << YAML::Key << "period_s" << YAML::Value << c.period_s;
         out << YAML::Key << "kp" << YAML::Value << c.kp;
         out << YAML::Key << "kd" << YAML::Value << c.kd;

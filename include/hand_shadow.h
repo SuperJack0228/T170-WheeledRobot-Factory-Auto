@@ -20,7 +20,7 @@ void hand_shadow_begin(
     int want_class = -1);
 
 /** 激活接近与下降期间的手相机观测。
- *  want_class：0 只认工件（抓取），1 只认孔（放置），-1 不限。 */
+ *  want_class：0 工件抓取；1 在 tray_place 开启时用邻孔/标记计算指定孔心；-1 不限。 */
 void hand_shadow_ensure(
     int hand,
     Robot_Arm *arm,

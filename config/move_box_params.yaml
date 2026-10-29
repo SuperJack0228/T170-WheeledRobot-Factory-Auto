@@ -120,6 +120,13 @@ head_grasp:
   descend_vel_m_s: 0.10
   lift_vel_m_s: 0.25
   return_vel_m_s: 0.40
+  # 抓取完成后的竖直上抬，沿用当前主流程实际使用的 0.40；放置仍使用 lift_vel_m_s。
+  retract_lift_vel_m_s: 0.40
+  # 只约束收手交接/转弯接缝，不改变 SDK 巡航速度。现场先验证默认值。
+  retract_connector_speed_rad_s: 1.5
+  retract_connector_accel_rad_s2: 6.0
+  retract_connector_jerk_rad_s3: 80.0
+  retract_connector_max_s: 0.40
   # 下压到位后再等这么久才合爪。
   pre_grasp_settle_sec: 0.15
   hand_detect_invalid_redo_max: 10
@@ -128,6 +135,12 @@ head_grasp:
 # tray2ready1/2/3/6 只换手腕；tray2 流程：AP9 → 下蹲同 grasp → 认 class1 空孔放置。
 # offset 相对孔位，基座系，左右分开。初值抄当前抓取，之后只调料盘2。
 tray2_place:
+  retract_lift_m: 0.08
+  retract_lift_vel_m_s: 0.40
+  retract_return_vel_m_s: 0.40
+  pre_open_settle_sec: 0.0
+  open_tolerance_rad: 0.2
+  open_timeout_ms: 1500
   offset:
     left:  { x: 0.039, y: 0.01, z: -0.01 }
     right: { x: 0.036, y: 0.013, z: -0.01 }
@@ -476,6 +489,17 @@ visual_servo:
   # 要区分抓/放参考时在对应profile显式添加reference_px: [u, v]。
   left_grasp:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   right_grasp: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
+  # 放置参考像素应示教工件轴心在正确放置高度的投影，不能用邻孔框中心代替。
+  # 当前未另填 reference_px 时沿用该手现有参考像素，现场需确认。
+  tray_place:
+    enabled: true
+    board_config: board_yf100_aruco/config.yaml
+    association_gate_m: 0.025
+    reprojection_gate_px: 3.0
+    circle_residual_m: 0.0015
+    max_plane_update_m: 0.030
+    min_neighbors: 2
+    rectified_pixels_per_m: 2000
   left_place:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   right_place: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   # 实测表的格式（不可把示例矩阵当作真实标定）：

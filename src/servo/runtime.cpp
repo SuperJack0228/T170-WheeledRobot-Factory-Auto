@@ -10,6 +10,8 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <optional>
@@ -29,6 +31,7 @@ struct Runtime {
     Joints final_command = Joints::Zero();
     Vec2 completed_goal = Vec2::Zero();
     std::string failure_reason;
+    TrayTarget staged_tray_target;
 };
 Runtime slots[2];
 std::atomic<std::uint64_t> next_session{1};
@@ -100,8 +103,12 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     }
     const Config cfg=g_move_cfg.visual_servo;
     const auto &profile=profile_for(cfg,hand,cls);
+    bool tray_placement=false;
+    { std::lock_guard<std::mutex> lock(slots[hand].mutex);
+      tray_placement=cls==1 && cfg.tray_place.enabled && slots[hand].staged_tray_target.valid;
+    }
     Eigen::Matrix4d eye=Eigen::Matrix4d::Identity();
-    if (profile.mode=="geometry") {
+    if (profile.mode=="geometry" || tray_placement) {
         std::array<double,16> raw; std::string error;
         const auto path=hand==1?default_right_hand_to_robot_yaml_path():default_left_hand_to_robot_yaml_path();
         if(!load_cam2robot_matrix(path,raw,error)) { std::cerr << "[servo] " << error << '\n'; return false; }
@@ -118,6 +125,8 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
         slot.context.task_tag=tag?tag:"descent";
         slot.context.nominal_xy=goal.head<2>().transpose();
         slot.context.config=cfg;
+        if(cls==1) slot.context.tray_target=slot.staged_tray_target;
+        slot.staged_tray_target={};
         slot.context.image_width=g_move_cfg.cameras.width; slot.context.image_height=g_move_cfg.cameras.height;
         slot.tcp_to_camera=tool_transform(arm).inverse()*eye;
     }
@@ -133,6 +142,25 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     std::filesystem::copy_file(std::filesystem::path(project_root_dir())/"config"/"Robot_Arm_Model.yaml",
         prefix+".arm_model_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
     if(copy_error) std::cerr << "[servo] 模型文件备份失败: " << copy_error.message() << '\n';
+    ObservationContext saved;observation_context(hand,saved);
+    if(cls==1 && cfg.tray_place.enabled && saved.tray_target.valid) {
+        const auto &target=saved.tray_target;const auto &board=target.board;
+        std::ofstream snapshot(prefix+".tray_target.yaml");snapshot<<std::setprecision(17);
+        snapshot<<"target_row: "<<target.row<<"\ntarget_col: "<<target.col
+                <<"\nrows: "<<board.rows<<"\ncols: "<<board.cols<<"\npitch_m: "<<board.pitch_m
+                <<"\nradius_m: "<<board.radius_m<<"\nbase_from_tray:\n";
+        for(int r=0;r<4;++r) {
+            snapshot<<"  - [";
+            for(int c=0;c<4;++c) snapshot<<(c ? ", " : "")<<target.base_from_tray(r,c);
+            snapshot<<"]\n";
+        }
+        snapshot.flush();
+        if(!snapshot) throw std::runtime_error("tray_target_snapshot_failed");
+        const auto board_path=std::filesystem::path(cfg.tray_place.board_config);
+        std::filesystem::copy_file(board_path.is_absolute() ? board_path : std::filesystem::path(project_root_dir())/board_path,
+            prefix+".tray_board_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
+        if(copy_error) std::cerr<<"[tray_place] board snapshot: "<<copy_error.message()<<'\n';
+    }
     double read_ms=0; const auto state=measured(arm,slot,read_ms);
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand; row.event="begin";
     { std::lock_guard<std::mutex> lock(slot.mutex); row.session=slot.context.session; }
@@ -163,6 +191,22 @@ bool observation_context(int hand, ObservationContext &context) {
     if(hand<0 || hand>1) return false;
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     context=slots[hand].context; return context.active;
+}
+
+void stage_tray_target(int hand,const TrayTarget &target) {
+    if(hand<0 || hand>1) return;
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    slots[hand].staged_tray_target=target;
+}
+bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera) {
+    if(hand<0 || hand>1) return false;
+    auto &slot=slots[hand]; std::lock_guard<std::mutex> lock(slot.mutex);
+    State capture;
+    if(!slot.context.active || slot.context.session!=session ||
+       !slot.history.interpolate(time,slot.context.config.max_state_gap_s,capture)) return false;
+    Eigen::Matrix4d tcp=Eigen::Matrix4d::Identity();
+    tcp.block<3,3>(0,0)=capture.rotation; tcp.block<3,1>(0,3)=capture.position;
+    base_camera=tcp*slot.tcp_to_camera; return base_camera.allFinite();
 }
 
 bool submit_observation(int hand, const PixelObservation &o) {
@@ -200,16 +244,18 @@ void invalidate_result(int hand) {
 
 bool ready_for_gripper(Robot_Arm &arm) {
     const int hand=hand_index(arm); auto &slot=slots[hand];
-    Vec2 goal; Config cfg; double final_z; bool succeeded; Eigen::Matrix3d rotation;
+    Vec2 goal; Config cfg; double final_z; bool succeeded,place; Eigen::Matrix3d rotation;
     { std::lock_guard<std::mutex> lock(slot.mutex);
       succeeded=slot.succeeded; goal=slot.completed_goal;
       cfg=slot.context.config; final_z=slot.context.final_z;
       rotation=slot.context.desired_rotation;
+      place=slot.context.target_class==1;
     }
     if(!succeeded || hardware_abort_requested() || can_io_faulted() || group_failed.load()) return false;
     double read_ms=0; const auto state=measured(arm,slot,read_ms);
-    const bool ready=(state.position.head<2>()-goal).norm()<=cfg.grasp_xy_accept_m &&
-        state.position.z()>=final_z && state.position.z()<=final_z+cfg.grasp_z_accept_above_m &&
+    const bool ready=(state.position.head<2>()-goal).norm()<=(place ? cfg.xy_tolerance_m : cfg.grasp_xy_accept_m) &&
+        state.position.z()>=final_z-(place ? cfg.z_tolerance_m : 0) &&
+        state.position.z()<=final_z+(place ? cfg.z_tolerance_m : cfg.grasp_z_accept_above_m) &&
         Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle()<=cfg.max_orientation_error_rad;
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand;
     { std::lock_guard<std::mutex> lock(slot.mutex);
@@ -227,23 +273,23 @@ bool ready_for_gripper(Robot_Arm &arm) {
 
 void repeat_final_hold(int hand) {
     if(hand<0 || hand>1 || hardware_abort_requested() || can_io_faulted()) return;
-    Joints command; bool hold=false;
-    { std::lock_guard<std::mutex> lock(slots[hand].mutex);
-      hold=slots[hand].final_hold; command=slots[hand].final_command; }
-    if(!hold) return;
-    try { send(hand,command); }
+    // Same lock as take_final_hold: it fences the ENTIRE seven-joint send.
+    // Once take returns, no sender can still own a cached old hold command.
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    if(!slots[hand].final_hold) return;
+    try { send(hand,slots[hand].final_command); }
     catch(const std::exception &ex) {
         std::cerr << "[servo] 保持最终关节指令失败 hand=" << hand << " " << ex.what() << "\n";
-        std::lock_guard<std::mutex> lock(slots[hand].mutex);
         slots[hand].final_hold=false;
     }
 }
 
 void start_final_hold_repeat() {
-    static std::once_flag once;
-    std::call_once(once, [] {
-        std::thread([] {
-            while (true) {
+    struct Repeater {
+        std::atomic<bool> running{true};
+        std::thread worker;
+        Repeater():worker([this] {
+            while (running.load()) {
                 const auto tick = std::chrono::steady_clock::now();
                 bool any = false;
                 for (int hand = 0; hand < 2; ++hand) {
@@ -255,8 +301,10 @@ void start_final_hold_repeat() {
                 }
                 std::this_thread::sleep_until(tick + std::chrono::milliseconds(any ? 5 : 20));
             }
-        }).detach();
-    });
+        }) {}
+        ~Repeater() { running.store(false); if(worker.joinable()) worker.join(); }
+    };
+    static Repeater repeater;
 }
 
 bool peek_final_hold(int hand, Joints &q) {
@@ -390,7 +438,10 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 Eigen::Matrix4d tcp=Eigen::Matrix4d::Identity();
                 tcp.block<3,3>(0,0)=capture.rotation; tcp.block<3,1>(0,3)=capture.position;
                 const Eigen::Matrix4d camera=tcp*slot.tcp_to_camera;
-                map=map_observation(context.profile,*observation,capture,goal(2),
+                auto profile=context.profile;
+                if(observation->virtual_target && context.target_class==1)
+                    profile.feature_z_offset_m=observation->plane_z_m-goal(2);
+                map=map_observation(profile,*observation,capture,goal(2),
                                     camera.block<3,1>(0,3),camera.block<3,3>(0,0));
                 accepted=controller.observe(*observation,capture,map,monotonic_seconds(),reason);
             }

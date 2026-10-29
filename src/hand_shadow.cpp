@@ -27,6 +27,8 @@ std::condition_variable wake;
 std::atomic<SegPoseBridge*> engine{nullptr};
 std::atomic<bool> running{false}, save_raw{false};
 std::thread worker;
+wrist_servo::TrayLocalizer tray_localizers[2];
+std::uint64_t tray_sessions[2]{}; // exclusively owned by the observation worker
 
 void rotate_left(CameraFrameData &f,int hand) {
     if(hand!=0) return;
@@ -78,6 +80,47 @@ void observe(int hand) {
     }
     PoseRunResult result;
     const double infer_start=wrist_servo::monotonic_seconds();
+    if(context.target_class==1 && cfg.tray_place.enabled && context.tray_target.valid) {
+        Eigen::Matrix4d base_camera;
+        bool have_capture=wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera);
+        // A just-captured frame may precede the next 10ms feedback sample. Wait
+        // only in this observer, never extrapolate a commanded camera pose.
+        for(int retry=0;retry<6 && !have_capture;++retry) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            have_capture=wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera);
+        }
+        if(!have_capture) {
+            wrist_servo::observation_event(hand,context.session,"tray_capture_state_unavailable",obs);return;
+        }
+        if(tray_sessions[hand]!=context.session) {
+            tray_localizers[hand].reset(context.tray_target,cfg.tray_place);
+            tray_sessions[hand]=context.session;
+        }
+        const auto located=tray_localizers[hand].locate(frame,base_camera);
+        obs.completed_s=wrist_servo::monotonic_seconds(); obs.infer_ms=(obs.completed_s-infer_start)*1000;
+        obs.virtual_target=true; obs.target_row=context.tray_target.row; obs.target_col=context.tray_target.col;
+        obs.neighbor_count=located.neighbors; obs.marker_corner_count=located.marker_corners;
+        obs.vision_source=located.source; obs.plane_reprojection_px=located.reprojection_px;
+        obs.plane_z_m=located.plane_z_m;
+        if(!located.valid) {
+            wrist_servo::observation_event(hand,context.session,located.reason.c_str(),obs);return;
+        }
+        if(obs.completed_s-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
+            wrist_servo::observation_event(hand,context.session,"tray_geometry_frame_expired",obs);return;
+        }
+        obs.pixel=located.pixel;
+        obs.confidence=.98/(1+located.reprojection_px/cfg.tray_place.reprojection_gate_px);
+        if(!wrist_servo::submit_observation(hand,obs))
+            wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
+        if(save_raw.load()) {
+            const auto directory=std::filesystem::path(project_root_dir())/"hand_descent_raw";
+            std::error_code ec;std::filesystem::create_directories(directory,ec);
+            if(!ec) cv::imwrite((directory/("place_session_"+std::to_string(context.session)+"_hand_"+
+                std::to_string(hand)+"_frame_"+std::to_string(obs.frame)+".jpg")).string(),
+                cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()));
+        }
+        return; // no YOLO call and no closest-box fallback for tray placement
+    }
     try { result=bridge->run_yolo(frame,algorithm_id_for_slot(camera),false,camera,-1,SegEngineId::Hand); }
     catch(const std::exception &ex) { result.ok=false; result.message=ex.what(); }
     obs.completed_s=wrist_servo::monotonic_seconds();
