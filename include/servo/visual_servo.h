@@ -7,6 +7,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include "servo/tray_localizer.h"
 
 namespace YAML { class Node; }
 
@@ -37,12 +38,13 @@ struct ImageProfile {
 struct Config {
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
     bool require_dual = false; // set by the dedicated dual-hand validation command
+    TrayPlaceVisionConfig tray_place;
     double period_s = 0.01;
     double kp = 1.5;
     double kd = 0.2;
-    double max_xy_speed_m_s = 0.020;
-    double max_xy_accel_m_s2 = 0.10;
-    double max_z_accel_m_s2 = 0.10;
+    double max_xy_speed_m_s = 0.040;
+    double max_xy_accel_m_s2 = 0.20;
+    double max_z_accel_m_s2 = 0.25;
     double brake_delay_s = 0.08;
     double model_uncertainty_m = 0.0005;
     double xy_tolerance_m = 0.002;
@@ -50,7 +52,7 @@ struct Config {
     double z_tolerance_m = 0.001;
     double commit_height_m = 0.008;
     double freeze_height_m = 0.030;
-    double commit_speed_m_s = 0.010;
+    double commit_speed_m_s = 0.060;
     double commit_timeout_s = 5.0;
     // Positive base Z points UP: keep the reference above nominal C, not below it.
     double grasp_height_margin_m = 0.002;
@@ -58,7 +60,7 @@ struct Config {
     double grasp_xy_accept_m = 0.006;
     double grasp_relax_after_s = 0.35;
     double finish_speed_m_s = 0.008;
-    double finish_stable_s = 0.10;
+    double finish_stable_s = 0.04;
     double alignment_time_margin_s = 0.12;
     double acquire_descent_m = 0.020;
     double handoff_distance_m = 0.015;
@@ -133,6 +135,10 @@ struct PixelObservation {
     double confidence = 0.0;
     double fx = 0.0, fy = 0.0, cx = 0.0, cy = 0.0;
     int width = 0, height = 0;
+    bool virtual_target=false;
+    int target_row=0,target_col=0,neighbor_count=0,marker_corner_count=0;
+    double plane_z_m=0,plane_reprojection_px=0;
+    std::string vision_source="yolo";
 };
 
 struct Mapping {

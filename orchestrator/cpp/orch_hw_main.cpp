@@ -848,6 +848,17 @@ Json::Value dispatch(const Json::Value &request)
         out["placed_count"] = g_session.last_grasp_count;
         return out;
     }
+    if (cmd == "tray2_auto")
+    {
+        const bool right=orch::live_gripper_holding(true),left=orch::live_gripper_holding(false);
+        if(!right && !left) return reply(false,"没有已识别的持件侧，先完成抓取后再执行 tray2_auto");
+        const int rc=orch::vision_place_tray2(right,left,false);
+        Json::Value out=reply(rc==0,rc==0 ? std::string() : "料盘2放置未全部完成，code="+std::to_string(rc));
+        out["code"]=rc;out["station"]=g_move_cfg.chassis.tray2_station;
+        out["placed_right"]=g_session.last_placed_r;out["placed_left"]=g_session.last_placed_l;
+        out["placed_count"]=g_session.last_grasp_count;
+        return out;
+    }
     if (cmd == "tray2" || cmd == "tray2_place")
     {
         const int rc = orch::vision_place_tray2_precision();

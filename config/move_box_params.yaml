@@ -40,12 +40,12 @@ head:
 head_grasp:
   hover_above_m: 0.12
   # 左手孔位偏置（基座系）。X 前为正，Y 左为正，Z 上为正。
-  grasp_z_offset_m: -0.01
+  grasp_z_offset_m: -0.005
   goal_z_base: -0.30
   goal_x_offset: 0.04
   goal_y_offset: 0.00
   # 右手单独孔位偏置（基座系，不取反）。缺省时 x/z 跟左手、y 取左手相反。
-  right_grasp_z_offset_m: -0.01
+  right_grasp_z_offset_m: 0.0
   right_goal_x_offset: 0.04
   right_goal_y_offset: 0.01
   # 仅离机器人最近一排（from_robot=6）。叠在左右手 z_offset 上。向上为正，夹不到改负。
@@ -116,10 +116,17 @@ head_grasp:
   bezier_endpoint_xyz_tol_m: 0.008
   bezier_endpoint_rpy_tol_deg: 3.0
   approach_vel_m_s: 0.40
-  # 竖直下降。
-  descend_vel_m_s: 0.03
+  # 竖直下降上限。闭环末段另受 visual_servo.commit_speed_m_s 限制。
+  descend_vel_m_s: 0.10
   lift_vel_m_s: 0.25
   return_vel_m_s: 0.40
+  # 抓取完成后的竖直上抬，沿用当前主流程实际使用的 0.40；放置仍使用 lift_vel_m_s。
+  retract_lift_vel_m_s: 0.40
+  # 只约束收手交接/转弯接缝，不改变 SDK 巡航速度。现场先验证默认值。
+  retract_connector_speed_rad_s: 1.5
+  retract_connector_accel_rad_s2: 6.0
+  retract_connector_jerk_rad_s3: 80.0
+  retract_connector_max_s: 0.40
   # 下压到位后再等这么久才合爪。
   pre_grasp_settle_sec: 0.15
   hand_detect_invalid_redo_max: 10
@@ -128,6 +135,12 @@ head_grasp:
 # tray2ready1/2/3/6 只换手腕；tray2 流程：AP9 → 下蹲同 grasp → 认 class1 空孔放置。
 # offset 相对孔位，基座系，左右分开。初值抄当前抓取，之后只调料盘2。
 tray2_place:
+  retract_lift_m: 0.08
+  retract_lift_vel_m_s: 0.40
+  retract_return_vel_m_s: 0.40
+  pre_open_settle_sec: 0.0
+  open_tolerance_rad: 0.2
+  open_timeout_ms: 1500
   offset:
     left:  { x: 0.039, y: 0.01, z: -0.01 }
     right: { x: 0.036, y: 0.013, z: -0.01 }
@@ -412,9 +425,9 @@ visual_servo:
   period_s: 0.01
   kp: 1.5
   kd: 0.2
-  max_xy_speed_m_s: 0.020
-  max_xy_accel_m_s2: 0.10
-  max_z_accel_m_s2: 0.10
+  max_xy_speed_m_s: 0.040
+  max_xy_accel_m_s2: 0.20
+  max_z_accel_m_s2: 0.25
   brake_delay_s: 0.08
   model_uncertainty_m: 0.0005
   xy_tolerance_m: 0.002
@@ -423,7 +436,7 @@ visual_servo:
   # 未对齐时参考停在 C 上方8mm；正常提前对齐则在30mm内直接连续进入末段。
   commit_height_m: 0.008
   freeze_height_m: 0.030
-  commit_speed_m_s: 0.010
+  commit_speed_m_s: 0.060
   commit_timeout_s: 5.0
   # 基座Z向上为正：参考停在原C上方2mm，视觉特征平面仍按原C计算。
   grasp_height_margin_m: 0.002
@@ -432,7 +445,7 @@ visual_servo:
   grasp_xy_accept_m: 0.006
   grasp_relax_after_s: 0.35
   finish_speed_m_s: 0.008
-  finish_stable_s: 0.10
+  finish_stable_s: 0.04
   alignment_time_margin_s: 0.12
   # 第一帧未就绪前仅允许最多20mm有界下降，不允许盲抓。
   acquire_descent_m: 0.020
@@ -449,7 +462,7 @@ visual_servo:
   task_timeout_s: 18.0
   max_tick_gap_s: 0.15
   max_state_gap_s: 0.06
-  # 12mm开始逐渐减速，25mm限制参考继续前推；持续异常0.5s才失败。
+  # 12mm开始逐渐减速，25mm限制参考继续前推。落后仍在缩小只刷新观察窗；停下或持续2s才失败。
   max_reference_lead_m: 0.012
   hard_reference_lead_m: 0.025
   following_timeout_s: 0.50
@@ -476,6 +489,17 @@ visual_servo:
   # 要区分抓/放参考时在对应profile显式添加reference_px: [u, v]。
   left_grasp:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   right_grasp: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
+  # 放置参考像素应示教工件轴心在正确放置高度的投影，不能用邻孔框中心代替。
+  # 当前未另填 reference_px 时沿用该手现有参考像素，现场需确认。
+  tray_place:
+    enabled: true
+    board_config: board_yf100_aruco/config.yaml
+    association_gate_m: 0.025
+    reprojection_gate_px: 3.0
+    circle_residual_m: 0.0015
+    max_plane_update_m: 0.030
+    min_neighbors: 2
+    rectified_pixels_per_m: 2000
   left_place:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   right_place: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   # 实测表的格式（不可把示例矩阵当作真实标定）：

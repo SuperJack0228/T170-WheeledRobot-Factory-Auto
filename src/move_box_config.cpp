@@ -443,6 +443,19 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         const YAML::Node t2 = root["tray2_place"];
         if (t2)
         {
+            read_value(t2,"retract_lift_m",cfg.tray2_place.retract_lift_m);
+            read_value(t2,"retract_lift_vel_m_s",cfg.tray2_place.retract_lift_vel_m_s);
+            read_value(t2,"retract_return_vel_m_s",cfg.tray2_place.retract_return_vel_m_s);
+            read_value(t2,"pre_open_settle_sec",cfg.tray2_place.pre_open_settle_sec);
+            read_value(t2,"open_tolerance_rad",cfg.tray2_place.open_tolerance_rad);
+            read_value(t2,"open_timeout_ms",cfg.tray2_place.open_timeout_ms);
+            const auto &p=cfg.tray2_place;
+            if(!std::isfinite(p.retract_lift_m) || p.retract_lift_m<=0 ||
+               !std::isfinite(p.retract_lift_vel_m_s) || p.retract_lift_vel_m_s<=0 ||
+               !std::isfinite(p.retract_return_vel_m_s) || p.retract_return_vel_m_s<=0 ||
+               !std::isfinite(p.pre_open_settle_sec) || p.pre_open_settle_sec<0 ||
+               !std::isfinite(p.open_tolerance_rad) || p.open_tolerance_rad<=0 || p.open_timeout_ms<1)
+                throw std::runtime_error("invalid tray2_place retract/open parameters");
             read_row_rpy_list(t2["row_place_rpy_deg"]["left"], cfg.tray2_place.left_row_rpy_deg);
             if (t2["row_place_rpy_deg"]["right"] && t2["row_place_rpy_deg"]["right"].IsSequence())
                 read_row_rpy_list(t2["row_place_rpy_deg"]["right"], cfg.tray2_place.right_row_rpy_deg);
@@ -526,6 +539,23 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         read_value(hg, "descend_vel_m_s", cfg.head_grasp.descend_vel_m_s);
         read_value(hg, "lift_vel_m_s", cfg.head_grasp.lift_vel_m_s);
         read_value(hg, "return_vel_m_s", cfg.head_grasp.return_vel_m_s);
+        read_value(hg, "retract_lift_vel_m_s", cfg.head_grasp.retract_lift_vel_m_s);
+        read_value(hg, "retract_connector_speed_rad_s", cfg.head_grasp.retract_connector_speed_rad_s);
+        read_value(hg, "retract_connector_accel_rad_s2", cfg.head_grasp.retract_connector_accel_rad_s2);
+        read_value(hg, "retract_connector_jerk_rad_s3", cfg.head_grasp.retract_connector_jerk_rad_s3);
+        read_value(hg, "retract_connector_max_s", cfg.head_grasp.retract_connector_max_s);
+        // Reject bad configuration at startup; never silently turn zero into a fast move.
+        auto require_positive = [](double v, const char *key) {
+            if (!std::isfinite(v) || v <= 0.0)
+                throw std::runtime_error(std::string("head_grasp.")+key+" 必须为有限正数");
+        };
+        require_positive(cfg.head_grasp.retract_lift_vel_m_s, "retract_lift_vel_m_s");
+        require_positive(cfg.head_grasp.retract_connector_speed_rad_s, "retract_connector_speed_rad_s");
+        require_positive(cfg.head_grasp.retract_connector_accel_rad_s2, "retract_connector_accel_rad_s2");
+        require_positive(cfg.head_grasp.retract_connector_jerk_rad_s3, "retract_connector_jerk_rad_s3");
+        if (!std::isfinite(cfg.head_grasp.retract_connector_max_s) ||
+            cfg.head_grasp.retract_connector_max_s<.02 || cfg.head_grasp.retract_connector_max_s>1.0)
+            throw std::runtime_error("head_grasp.retract_connector_max_s 必须在 0.02 到 1.0 秒之间");
         read_value(hg, "pre_grasp_settle_sec", cfg.head_grasp.pre_grasp_settle_sec);
         read_value(hg, "hand_detect_invalid_redo_max", cfg.head_grasp.hand_detect_invalid_redo_max);
         read_hand_offset(hg["hand_grasp"]["left"], cfg.head_grasp.hand_left);
@@ -1058,7 +1088,12 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << " descend=" << cfg.head_grasp.descend_vel_m_s
               << " lift=" << cfg.head_grasp.lift_vel_m_s
               << " return=" << cfg.head_grasp.return_vel_m_s
+              << " grasp_retract_lift=" << cfg.head_grasp.retract_lift_vel_m_s
               << " m/s pre_grasp_settle=" << cfg.head_grasp.pre_grasp_settle_sec << "s\n"
+              << "[cfg] retract connector v=" << cfg.head_grasp.retract_connector_speed_rad_s
+              << " rad/s a=" << cfg.head_grasp.retract_connector_accel_rad_s2
+              << " rad/s2 j=" << cfg.head_grasp.retract_connector_jerk_rad_s3
+              << " rad/s3 max=" << cfg.head_grasp.retract_connector_max_s << "s\n"
               << "[cfg] cameras " << cfg.cameras.width << 'x' << cfg.cameras.height
               << " head=" << cfg.cameras.head_fps << "fps hand=" << cfg.cameras.hand_fps
               << "fps hand_live_preview=" << (cfg.cameras.hand_live_preview ? "on" : "off")

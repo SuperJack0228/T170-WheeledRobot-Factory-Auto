@@ -18,10 +18,13 @@ if(T170_SERVO_TESTS_ONLY)
     target_include_directories(visual_servo_runtime_test PRIVATE include eigen3)
     target_link_libraries(visual_servo_runtime_test PRIVATE Threads::Threads)
     add_test(NAME visual_servo_runtime_test COMMAND visual_servo_runtime_test)
+    add_executable(retract_trajectory_test tests/retract_trajectory_test.cpp)
+    target_include_directories(retract_trajectory_test PRIVATE include eigen3)
+    add_test(NAME retract_trajectory_test COMMAND retract_trajectory_test)
     find_package(yaml-cpp QUIET)
     if(yaml-cpp_FOUND)
         add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp
-            src/servo/config.cpp src/servo/visual_servo.cpp)
+            src/servo/config.cpp src/servo/visual_servo.cpp src/move_box_config.cpp)
         target_include_directories(visual_servo_config_test PRIVATE include eigen3)
         if(TARGET yaml-cpp::yaml-cpp)
             target_link_libraries(visual_servo_config_test PRIVATE yaml-cpp::yaml-cpp)
@@ -30,6 +33,19 @@ if(T170_SERVO_TESTS_ONLY)
         endif()
         add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
             ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml)
+        find_package(OpenCV QUIET COMPONENTS core imgproc calib3d aruco)
+        if(OpenCV_FOUND)
+            add_executable(tray_localizer_test tests/tray_localizer_test.cpp src/servo/tray_localizer.cpp)
+            target_include_directories(tray_localizer_test PRIVATE include eigen3 ${OpenCV_INCLUDE_DIRS})
+            target_link_libraries(tray_localizer_test PRIVATE ${OpenCV_LIBS})
+            if(TARGET yaml-cpp::yaml-cpp)
+                target_link_libraries(tray_localizer_test PRIVATE yaml-cpp::yaml-cpp)
+            else()
+                target_link_libraries(tray_localizer_test PRIVATE yaml-cpp)
+            endif()
+            add_test(NAME tray_localizer_test COMMAND tray_localizer_test
+                ${PROJECT_SOURCE_DIR}/board_yf100_aruco/config.yaml)
+        endif()
     endif()
     return()
 endif()
@@ -125,6 +141,7 @@ add_executable(t170c_debug
     src/servo/config.cpp
     src/servo/runtime.cpp
     src/servo/trace.cpp
+    src/servo/tray_localizer.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp

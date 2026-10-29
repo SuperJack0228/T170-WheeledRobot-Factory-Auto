@@ -3340,6 +3340,14 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
         g_hw->last_grasped_r = false;
         g_hw->last_grasped_l = false;
         g_hw->last_grasp_count = 0;
+        if (r.status == move_box::GraspToStandbyStatus::ReleaseFail) {
+            std::cerr << "[tray_place] 张爪未确认，停止任务，保留已确认放置的侧\n";
+            return -38;
+        }
+        if (r.status == move_box::GraspToStandbyStatus::MotionFail) {
+            std::cerr << "[retract] 收手未完成，停止当前任务，保留已持件/已放置状态\n";
+            return -37;
+        }
         if (r.status == move_box::GraspToStandbyStatus::Aborted)
             return -4;
         if (r.status == move_box::GraspToStandbyStatus::Ok)
@@ -3467,6 +3475,14 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
         g_hw->last_grasped_l = holding_l;
         g_hw->last_grasp_status = static_cast<int>(r.status);
 
+        if (r.status == move_box::GraspToStandbyStatus::ReleaseFail) {
+            std::cerr << "[tray_place] 张爪未确认，停止任务，保留已确认放置的侧\n";
+            return -38;
+        }
+        if (r.status == move_box::GraspToStandbyStatus::MotionFail) {
+            std::cerr << "[retract] 收手未完成，停止当前任务，保留已持件/已放置状态\n";
+            return -37;
+        }
         if (r.status == move_box::GraspToStandbyStatus::Aborted)
         {
             g_hw->last_grasp_count = grasped_count;
@@ -3712,6 +3728,7 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
         return -1;
 
+    g_hw->last_placed_r=false;g_hw->last_placed_l=false;
     std::array<double, 16> cam2robot{};
     std::string err;
     if (!load_head_cam2robot(cam2robot, err) &&
@@ -3799,8 +3816,7 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
     bool placed_r = false;
     bool placed_l = false;
     g_hw->last_grasp_count = 0;
-    g_hw->last_grasped_r = false;
-    g_hw->last_grasped_l = false;
+    // Keep holding latches until each side has confirmed its open feedback.
 
     const auto both_placed = [&]() -> bool {
         const bool right_ok = !allow_right || right_arm_motors_locked() || placed_r;
@@ -3884,8 +3900,18 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
             clear_last_grasped(false, true);
         }
         placed_count = (placed_r ? 1 : 0) + (placed_l ? 1 : 0);
+        g_hw->last_placed_r=placed_r;g_hw->last_placed_l=placed_l;
+        g_hw->last_grasp_count=placed_count;
         g_hw->last_grasp_status = static_cast<int>(r.status);
 
+        if (r.status == move_box::GraspToStandbyStatus::ReleaseFail) {
+            std::cerr << "[tray_place] 张爪未确认，停止任务，保留已确认放置的侧\n";
+            return -38;
+        }
+        if (r.status == move_box::GraspToStandbyStatus::MotionFail) {
+            std::cerr << "[retract] 收手未完成，停止当前任务，保留已持件/已放置状态\n";
+            return -37;
+        }
         if (r.status == move_box::GraspToStandbyStatus::Aborted)
         {
             g_hw->last_grasp_count = placed_count;
@@ -4127,6 +4153,14 @@ int vision_place_tray2_precision()
             false,
             false);
         g_hw->last_grasp_status = static_cast<int>(r.status);
+        if (r.status == move_box::GraspToStandbyStatus::ReleaseFail) {
+            std::cerr << "[tray_place] 张爪未确认，停止任务，保留已确认放置的侧\n";
+            return -38;
+        }
+        if (r.status == move_box::GraspToStandbyStatus::MotionFail) {
+            std::cerr << "[retract] 收手未完成，停止当前任务，保留已持件/已放置状态\n";
+            return -37;
+        }
         if (r.status == move_box::GraspToStandbyStatus::Aborted)
             return -4;
         if (r.status == move_box::GraspToStandbyStatus::NoTarget)

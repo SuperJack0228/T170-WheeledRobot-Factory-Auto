@@ -42,6 +42,8 @@ bool TraceWriter::start(const std::string &dir) {
     for(int j=0;j<7;++j) file_ << ",actual_q" << j;
     for(int j=0;j<7;++j) file_ << ",command_q" << j;
     file_ << ",reference_floor_z_m,alignment_time_s,available_time_s,finish_xy_tolerance_m,relaxed_grasp,nominal_final_z_m";
+    file_ << ",trajectory_row,joint_feedback_valid,command_step_rad,command_speed_rad_s,command_accel_rad_s2,command_jerk_rad_s3,hold_release_wait_ms";
+    file_ << ",vision_source,virtual_target,target_row,target_col,neighbor_count,marker_corner_count,plane_reprojection_px,observed_plane_z_m";
     file_ << '\n'; file_.flush();
     if(!file_) return false;
     healthy_.store(true);
@@ -95,6 +97,12 @@ void TraceWriter::run() {
         for(int j=0;j<7;++j) file_ << ',' << r.commanded(j);
         file_ << ',' << c.reference_floor_z << ',' << c.alignment_time_s << ',' << c.available_time_s
               << ',' << c.finish_xy_tolerance_m << ',' << c.relaxed_grasp << ',' << r.final_z;
+        file_ << ',' << r.trajectory_row << ',' << r.joint_feedback_valid
+              << ',' << r.command_step_rad << ',' << r.command_speed_rad_s
+              << ',' << r.command_accel_rad_s2 << ',' << r.command_jerk_rad_s3
+              << ',' << r.hold_release_wait_ms;
+        file_ << ',' << cell(o.vision_source) << ',' << o.virtual_target << ',' << o.target_row << ',' << o.target_col
+              << ',' << o.neighbor_count << ',' << o.marker_corner_count << ',' << o.plane_reprojection_px << ',' << o.plane_z_m;
         file_ << '\n';
         if(++since_flush>=20 || r.event=="end" || r.event=="reject") { file_.flush(); since_flush=0; }
         if(!file_ && healthy_.exchange(false)) std::cerr << "[servo] 调试日志写入失败 " << path_ << '\n';

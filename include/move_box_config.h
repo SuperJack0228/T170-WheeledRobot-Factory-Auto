@@ -100,6 +100,13 @@ struct HeadGraspConfig
     double descend_vel_m_s = 0.25;
     double lift_vel_m_s = 0.25;
     double return_vel_m_s = 0.25;
+    /** 抓取合爪后专用上抬速度；独立于放置/旧流程 lift_vel_m_s。 */
+    double retract_lift_vel_m_s = 0.40;
+    /** 仅约束收手接缝，不重定时 SDK 巡航段。单位 rad/s、rad/s²、rad/s³、s。 */
+    double retract_connector_speed_rad_s = 1.5;
+    double retract_connector_accel_rad_s2 = 6.0;
+    double retract_connector_jerk_rad_s3 = 80.0;
+    double retract_connector_max_s = 0.40;
     /** 下压到位后、合爪前等待（秒），避免还在晃就夹。 */
     double pre_grasp_settle_sec = 0.5;
     int hand_detect_invalid_redo_max = 10;
@@ -190,6 +197,12 @@ struct ChassisConfig
 /** 料盘2空孔放置的四组 TCP 姿态。与 head_grasp ready1/2/3/6 独立，方便单独微调。 */
 struct Tray2PlaceConfig
 {
+    double retract_lift_m = 0.08;
+    double retract_lift_vel_m_s = 0.40;
+    double retract_return_vel_m_s = 0.40;
+    double pre_open_settle_sec = 0.0;
+    double open_tolerance_rad = 0.2;
+    int open_timeout_ms = 1500;
     GraspRpyDeg left_row_rpy_deg[3];
     GraspRpyDeg right_row_rpy_deg[3];
     GraspRpyDeg left_row6_rpy_deg;

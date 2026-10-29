@@ -29,6 +29,12 @@ struct TraceRow {
     double actual_rotation_error_rad = 0, reference_lead_m = 0, joint_lead_rad = 0;
     int solver_failures = 0;
     double gripper_position_rad = 0, gripper_torque_nm = 0;
+    // Open-loop retract diagnostics. Feedback is read only at start/end, never per tick.
+    int trajectory_row = -1;
+    bool joint_feedback_valid = false;
+    double command_step_rad = 0, command_speed_rad_s = 0;
+    double command_accel_rad_s2 = 0, command_jerk_rad_s3 = 0;
+    double hold_release_wait_ms = 0;
 };
 
 // Disk IO is confined to the writer; a bounded queue must not delay a motion tick.

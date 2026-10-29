@@ -10,6 +10,8 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <optional>
@@ -25,8 +27,11 @@ struct Runtime {
     std::optional<PixelObservation> pending;
     Eigen::Matrix4d tcp_to_camera = Eigen::Matrix4d::Identity();
     bool succeeded = false;
+    bool final_hold = false;
+    Joints final_command = Joints::Zero();
     Vec2 completed_goal = Vec2::Zero();
     std::string failure_reason;
+    TrayTarget staged_tray_target;
 };
 Runtime slots[2];
 std::atomic<std::uint64_t> next_session{1};
@@ -78,7 +83,9 @@ void send(int hand, const Joints &q) {
 void prepare_group() {
     group_failed.store(false);
     for(auto &slot:slots) {
-        std::lock_guard<std::mutex> lock(slot.mutex); slot.failure_reason.clear();
+        std::lock_guard<std::mutex> lock(slot.mutex);
+        slot.failure_reason.clear();
+        slot.final_hold=false;
     }
 }
 bool group_is_failed() { return group_failed.load(); }
@@ -96,8 +103,12 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     }
     const Config cfg=g_move_cfg.visual_servo;
     const auto &profile=profile_for(cfg,hand,cls);
+    bool tray_placement=false;
+    { std::lock_guard<std::mutex> lock(slots[hand].mutex);
+      tray_placement=cls==1 && cfg.tray_place.enabled && slots[hand].staged_tray_target.valid;
+    }
     Eigen::Matrix4d eye=Eigen::Matrix4d::Identity();
-    if (profile.mode=="geometry") {
+    if (profile.mode=="geometry" || tray_placement) {
         std::array<double,16> raw; std::string error;
         const auto path=hand==1?default_right_hand_to_robot_yaml_path():default_left_hand_to_robot_yaml_path();
         if(!load_cam2robot_matrix(path,raw,error)) { std::cerr << "[servo] " << error << '\n'; return false; }
@@ -114,6 +125,8 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
         slot.context.task_tag=tag?tag:"descent";
         slot.context.nominal_xy=goal.head<2>().transpose();
         slot.context.config=cfg;
+        if(cls==1) slot.context.tray_target=slot.staged_tray_target;
+        slot.staged_tray_target={};
         slot.context.image_width=g_move_cfg.cameras.width; slot.context.image_height=g_move_cfg.cameras.height;
         slot.tcp_to_camera=tool_transform(arm).inverse()*eye;
     }
@@ -129,6 +142,25 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     std::filesystem::copy_file(std::filesystem::path(project_root_dir())/"config"/"Robot_Arm_Model.yaml",
         prefix+".arm_model_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
     if(copy_error) std::cerr << "[servo] 模型文件备份失败: " << copy_error.message() << '\n';
+    ObservationContext saved;observation_context(hand,saved);
+    if(cls==1 && cfg.tray_place.enabled && saved.tray_target.valid) {
+        const auto &target=saved.tray_target;const auto &board=target.board;
+        std::ofstream snapshot(prefix+".tray_target.yaml");snapshot<<std::setprecision(17);
+        snapshot<<"target_row: "<<target.row<<"\ntarget_col: "<<target.col
+                <<"\nrows: "<<board.rows<<"\ncols: "<<board.cols<<"\npitch_m: "<<board.pitch_m
+                <<"\nradius_m: "<<board.radius_m<<"\nbase_from_tray:\n";
+        for(int r=0;r<4;++r) {
+            snapshot<<"  - [";
+            for(int c=0;c<4;++c) snapshot<<(c ? ", " : "")<<target.base_from_tray(r,c);
+            snapshot<<"]\n";
+        }
+        snapshot.flush();
+        if(!snapshot) throw std::runtime_error("tray_target_snapshot_failed");
+        const auto board_path=std::filesystem::path(cfg.tray_place.board_config);
+        std::filesystem::copy_file(board_path.is_absolute() ? board_path : std::filesystem::path(project_root_dir())/board_path,
+            prefix+".tray_board_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
+        if(copy_error) std::cerr<<"[tray_place] board snapshot: "<<copy_error.message()<<'\n';
+    }
     double read_ms=0; const auto state=measured(arm,slot,read_ms);
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand; row.event="begin";
     { std::lock_guard<std::mutex> lock(slot.mutex); row.session=slot.context.session; }
@@ -159,6 +191,22 @@ bool observation_context(int hand, ObservationContext &context) {
     if(hand<0 || hand>1) return false;
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     context=slots[hand].context; return context.active;
+}
+
+void stage_tray_target(int hand,const TrayTarget &target) {
+    if(hand<0 || hand>1) return;
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    slots[hand].staged_tray_target=target;
+}
+bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera) {
+    if(hand<0 || hand>1) return false;
+    auto &slot=slots[hand]; std::lock_guard<std::mutex> lock(slot.mutex);
+    State capture;
+    if(!slot.context.active || slot.context.session!=session ||
+       !slot.history.interpolate(time,slot.context.config.max_state_gap_s,capture)) return false;
+    Eigen::Matrix4d tcp=Eigen::Matrix4d::Identity();
+    tcp.block<3,3>(0,0)=capture.rotation; tcp.block<3,1>(0,3)=capture.position;
+    base_camera=tcp*slot.tcp_to_camera; return base_camera.allFinite();
 }
 
 bool submit_observation(int hand, const PixelObservation &o) {
@@ -196,16 +244,18 @@ void invalidate_result(int hand) {
 
 bool ready_for_gripper(Robot_Arm &arm) {
     const int hand=hand_index(arm); auto &slot=slots[hand];
-    Vec2 goal; Config cfg; double final_z; bool succeeded; Eigen::Matrix3d rotation;
+    Vec2 goal; Config cfg; double final_z; bool succeeded,place; Eigen::Matrix3d rotation;
     { std::lock_guard<std::mutex> lock(slot.mutex);
       succeeded=slot.succeeded; goal=slot.completed_goal;
       cfg=slot.context.config; final_z=slot.context.final_z;
       rotation=slot.context.desired_rotation;
+      place=slot.context.target_class==1;
     }
     if(!succeeded || hardware_abort_requested() || can_io_faulted() || group_failed.load()) return false;
     double read_ms=0; const auto state=measured(arm,slot,read_ms);
-    const bool ready=(state.position.head<2>()-goal).norm()<=cfg.grasp_xy_accept_m &&
-        state.position.z()>=final_z && state.position.z()<=final_z+cfg.grasp_z_accept_above_m &&
+    const bool ready=(state.position.head<2>()-goal).norm()<=(place ? cfg.xy_tolerance_m : cfg.grasp_xy_accept_m) &&
+        state.position.z()>=final_z-(place ? cfg.z_tolerance_m : 0) &&
+        state.position.z()<=final_z+(place ? cfg.z_tolerance_m : cfg.grasp_z_accept_above_m) &&
         Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle()<=cfg.max_orientation_error_rad;
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand;
     { std::lock_guard<std::mutex> lock(slot.mutex);
@@ -219,6 +269,59 @@ bool ready_for_gripper(Robot_Arm &arm) {
         invalidate_result(hand); group_failed.store(true);
     }
     return ready;
+}
+
+void repeat_final_hold(int hand) {
+    if(hand<0 || hand>1 || hardware_abort_requested() || can_io_faulted()) return;
+    // Same lock as take_final_hold: it fences the ENTIRE seven-joint send.
+    // Once take returns, no sender can still own a cached old hold command.
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    if(!slots[hand].final_hold) return;
+    try { send(hand,slots[hand].final_command); }
+    catch(const std::exception &ex) {
+        std::cerr << "[servo] 保持最终关节指令失败 hand=" << hand << " " << ex.what() << "\n";
+        slots[hand].final_hold=false;
+    }
+}
+
+void start_final_hold_repeat() {
+    struct Repeater {
+        std::atomic<bool> running{true};
+        std::thread worker;
+        Repeater():worker([this] {
+            while (running.load()) {
+                const auto tick = std::chrono::steady_clock::now();
+                bool any = false;
+                for (int hand = 0; hand < 2; ++hand) {
+                    bool hold = false;
+                    { std::lock_guard<std::mutex> lock(slots[hand].mutex); hold = slots[hand].final_hold; }
+                    if (!hold) continue;
+                    any = true;
+                    repeat_final_hold(hand);
+                }
+                std::this_thread::sleep_until(tick + std::chrono::milliseconds(any ? 5 : 20));
+            }
+        }) {}
+        ~Repeater() { running.store(false); if(worker.joinable()) worker.join(); }
+    };
+    static Repeater repeater;
+}
+
+bool peek_final_hold(int hand, Joints &q) {
+    if (hand < 0 || hand > 1) return false;
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    if (!slots[hand].final_hold || !slots[hand].final_command.allFinite()) return false;
+    q = slots[hand].final_command;
+    return true;
+}
+
+bool take_final_hold(int hand, Joints &q) {
+    if (hand < 0 || hand > 1) return false;
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    if (!slots[hand].final_hold) return false;
+    q = slots[hand].final_command;
+    slots[hand].final_hold = false;
+    return q.allFinite();
 }
 
 void handoff_event(Robot_Arm &arm,const Joints &command,const Joints &previous,const char *reason) {
@@ -278,7 +381,8 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     const Vec3 incoming_velocity=(reference-arm_tcp_from_joints(arm,previous_command).head<3>().transpose())/0.005;
     controller.feedback_reference(reference,incoming_velocity);
     { std::lock_guard<std::mutex> lock(slot.mutex); slot.context.descending=true; }
-    double previous_time=state.time_s, last_log=0, fault_since=-1;
+    double previous_time=state.time_s, last_log=0, fault_since=-1, fault_mark=-1;
+    double mark_lead=0, mark_joint=0, mark_rot=0;
     int failures=0; Phase previous_phase=Phase::Acquiring;
     PixelObservation last_observation; Mapping last_map;
     int result=-31;
@@ -292,13 +396,31 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         const double rotation_error=Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle();
         const double lead=(reference-state.position).norm();
         const double joint_lead=(command-state.joints).cwiseAbs().maxCoeff();
-        const bool outside=lead>cfg.hard_reference_lead_m || joint_lead>cfg.max_joint_lead_rad ||
-                           rotation_error>cfg.max_orientation_error_rad;
-        if(outside) { if(fault_since<0) fault_since=state.time_s; }
-        else fault_since=-1;
-        if(fault_since>=0 && state.time_s-fault_since>cfg.following_timeout_s)
-            controller.fail(rotation_error>cfg.max_orientation_error_rad?
-                "persistent_orientation_error":"persistent_following_error");
+        // Early handoff leaves a large but shrinking lag. That catch-up is not a fault.
+        // Abort only when an out-of-band channel stops closing, or the catch-up runs past 2s.
+        const bool over_lead=lead>cfg.hard_reference_lead_m;
+        const bool over_joint=joint_lead>cfg.max_joint_lead_rad;
+        const bool over_rot=rotation_error>cfg.max_orientation_error_rad;
+        const bool outside=over_lead || over_joint || over_rot;
+        if(!outside) fault_since=-1;
+        else if(fault_since<0) {
+            fault_since=state.time_s; fault_mark=state.time_s;
+            mark_lead=lead; mark_joint=joint_lead; mark_rot=rotation_error;
+        } else if(state.time_s-fault_mark>cfg.following_timeout_s) {
+            auto stalled=[&](bool over,double now,double then,double least) {
+                return over && now>then-least;
+            };
+            const bool stuck=
+                stalled(over_lead,lead,mark_lead,std::max(0.008,0.30*(mark_lead-cfg.hard_reference_lead_m))) ||
+                stalled(over_joint,joint_lead,mark_joint,std::max(0.015,0.30*(mark_joint-cfg.max_joint_lead_rad))) ||
+                stalled(over_rot,rotation_error,mark_rot,std::max(0.008,0.30*(mark_rot-cfg.max_orientation_error_rad)));
+            if(stuck || state.time_s-fault_since>2.0)
+                controller.fail(over_rot && !over_lead && !over_joint?
+                    "persistent_orientation_error":"persistent_following_error");
+            else {
+                fault_mark=state.time_s; mark_lead=lead; mark_joint=joint_lead; mark_rot=rotation_error;
+            }
+        }
         if(group_failed.load()) controller.fail("peer_arm_failed");
         if(!trace_writer().healthy()) controller.fail("trace_write_failed");
         std::optional<PixelObservation> observation;
@@ -316,7 +438,10 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 Eigen::Matrix4d tcp=Eigen::Matrix4d::Identity();
                 tcp.block<3,3>(0,0)=capture.rotation; tcp.block<3,1>(0,3)=capture.position;
                 const Eigen::Matrix4d camera=tcp*slot.tcp_to_camera;
-                map=map_observation(context.profile,*observation,capture,goal(2),
+                auto profile=context.profile;
+                if(observation->virtual_target && context.target_class==1)
+                    profile.feature_z_offset_m=observation->plane_z_m-goal(2);
+                map=map_observation(profile,*observation,capture,goal(2),
                                     camera.block<3,1>(0,3),camera.block<3,3>(0,0));
                 accepted=controller.observe(*observation,capture,map,monotonic_seconds(),reason);
             }
@@ -416,7 +541,12 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(terminal) {
             result=output.phase==Phase::Done && solved ? 0 : -31;
             if(result!=0) { std::lock_guard<std::mutex> lock(slot.mutex); slot.failure_reason=output.reason; }
-            if(result==0) { std::lock_guard<std::mutex> lock(slot.mutex); slot.completed_goal=controller.goal_xy(); }
+            if(result==0) {
+                std::lock_guard<std::mutex> lock(slot.mutex);
+                slot.completed_goal=controller.goal_xy();
+                slot.final_command=command;
+                slot.final_hold=command.allFinite();
+            }
             break;
         }
         std::this_thread::sleep_until(cycle+std::chrono::duration_cast<std::chrono::steady_clock::duration>(

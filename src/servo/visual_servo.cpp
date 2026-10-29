@@ -15,6 +15,15 @@ const ImageProfile &profile_for(const Config &c, int hand, int cls) {
 }
 
 bool validate_config(const Config &c, std::string &error) {
+    const auto &p=c.tray_place;
+    if(p.board_config.empty() || !std::isfinite(p.association_gate_m) || p.association_gate_m<=0 ||
+       !std::isfinite(p.reprojection_gate_px) || p.reprojection_gate_px<=0 ||
+       !std::isfinite(p.circle_residual_m) || p.circle_residual_m<=0 ||
+       !std::isfinite(p.max_plane_update_m) || p.max_plane_update_m<=0 || p.max_plane_update_m>.05 ||
+       p.min_neighbors<2 || p.min_neighbors>12 || !std::isfinite(p.rectified_pixels_per_m) ||
+       p.rectified_pixels_per_m<500 || p.rectified_pixels_per_m>4000) {
+        error="invalid tray placement vision configuration";return false;
+    }
     auto positive = [&](double x, const char *name) {
         if (!std::isfinite(x) || x <= 0) { error = std::string(name) + " must be finite and positive"; return false; }
         return true;

@@ -1,0 +1,98 @@
+schema_version: 2
+build_revision: 9354b0aa427ce26f9ccc1199656178b484fc45bc
+build_dirty: 1
+build_diff_sha256: 1ce77565b2637d5d952eda804a94d20cc0362cc3fe0692bd5d0cbbfb6c557565
+build_source_config_sha256: 9b5e543e79cbd4a5028563c73dd722593dd46f9c3febe01785c22d7a68602779
+build_time: Oct 29 2026 13:47:17
+visual_servo:
+  belt_place_enabled: false
+  require_dual: false
+  period_s: 0.01
+  kp: 1.5
+  kd: 0.20000000000000001
+  max_xy_speed_m_s: 0.040000000000000001
+  max_xy_accel_m_s2: 0.20000000000000001
+  max_z_accel_m_s2: 0.25
+  brake_delay_s: 0.080000000000000002
+  model_uncertainty_m: 0.00050000000000000001
+  xy_tolerance_m: 0.002
+  settle_speed_m_s: 0.0030000000000000001
+  z_tolerance_m: 0.001
+  commit_height_m: 0.0080000000000000002
+  commit_speed_m_s: 0.059999999999999998
+  commit_timeout_s: 5
+  max_correction_m: 0.035000000000000003
+  innovation_gate_m: 0.012
+  goal_filter_alpha: 0.65000000000000002
+  max_observation_age_s: 0.34999999999999998
+  max_clock_uncertainty_s: 0.12
+  feedback_age_budget_s: 0.02
+  loss_timeout_s: 1.5
+  task_timeout_s: 18
+  max_tick_gap_s: 0.14999999999999999
+  max_state_gap_s: 0.059999999999999998
+  max_reference_lead_m: 0.012
+  max_joint_lead_rad: 0.080000000000000002
+  max_joint_speed_rad_s: 0.45000000000000001
+  max_joint_accel_rad_s2: 2
+  max_orientation_error_rad: 0.052359877559999997
+  solver_position_tolerance_m: 0.00059999999999999995
+  solver_rotation_tolerance_rad: 0.0087266462600000001
+  max_solver_failures: 5
+  stable_frames: 2
+  min_confidence: 0.45000000000000001
+  acquire_radius_px: 180
+  track_radius_px: 100
+  pair_clearance_m: 0.10000000000000001
+  log_period_s: 0.050000000000000003
+  freeze_height_m: 0.029999999999999999
+  grasp_height_margin_m: 0.002
+  grasp_z_accept_above_m: 0.0060000000000000001
+  grasp_xy_accept_m: 0.0060000000000000001
+  grasp_relax_after_s: 0.34999999999999998
+  finish_speed_m_s: 0.0080000000000000002
+  finish_stable_s: 0.040000000000000001
+  alignment_time_margin_s: 0.12
+  acquire_descent_m: 0.02
+  handoff_distance_m: 0.014999999999999999
+  handoff_speed_m_s: 0.029999999999999999
+  hard_reference_lead_m: 0.025000000000000001
+  following_timeout_s: 0.5
+  enforce_sdk_joint_limits: false
+  max_joint_excursion_rad: 0.69999999999999996
+  left_grasp:
+    mode: geometry
+    reference_px: [598, 458]
+    reference_height_m: 0
+    feature_z_offset_m: 0
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []
+  right_grasp:
+    mode: geometry
+    reference_px: [702, 458]
+    reference_height_m: 0
+    feature_z_offset_m: 0
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []
+  left_place:
+    mode: geometry
+    reference_px: [598, 458]
+    reference_height_m: 0
+    feature_z_offset_m: 0
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []
+  right_place:
+    mode: geometry
+    reference_px: [702, 458]
+    reference_height_m: 0
+    feature_z_offset_m: 0
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []

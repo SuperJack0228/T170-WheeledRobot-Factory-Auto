@@ -45,6 +45,7 @@ struct HwSession
     bool last_grasped_l = false;
     int last_grasp_status = 0;
     int last_grasp_count = 0;
+    bool last_placed_r=false,last_placed_l=false;
     int last_aruco_head = 0;
     int last_aruco_status = 0;
     std::vector<ArucoHit> last_aruco_hits;
