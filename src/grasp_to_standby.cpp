@@ -1,5 +1,6 @@
 #include "move_box_runtime.h"
 #include "function.h"
+#include "servo/runtime.h"
 #include "head_control.h"
 #include "Ti5_socketcan.h"
 
@@ -361,7 +362,11 @@ GraspToStandbyResult run_grasp_to_standby(
         auto fill = [](Robot_Arm &arm, bool is_right,
                        Eigen::Matrix<double, 1, 6> &mid,
                        Eigen::Matrix<double, 1, 6> &goal) {
-            mid = arm_get_tcp_pos(arm);
+            wrist_servo::Joints held;
+            const int hand = is_right ? 1 : 0;
+            mid = wrist_servo::peek_final_hold(hand, held)
+                      ? arm_tcp_from_joints(arm, held)
+                      : arm_get_tcp_pos(arm);
             mid(2) += g_move_cfg.head_grasp.lift_after_grasp_z;
             if (mid(2) > g_move_cfg.grasp_valid.z_max)
                 mid(2) = g_move_cfg.grasp_valid.z_max;
@@ -378,8 +383,8 @@ GraspToStandbyResult run_grasp_to_standby(
             fill(arm_r, true, mid_r, goal_r);
         if (want_l)
             fill(arm_l, false, mid_l, goal_l);
-        constexpr double lift_mps = 0.25;
-        constexpr double return_mps = 0.25;
+        const double lift_mps = g_move_cfg.head_grasp.return_vel_m_s;
+        const double return_mps = g_move_cfg.head_grasp.return_vel_m_s;
         const ArmLineMoveResult stitched = arm_dual_line_then_line_nostop(
             arm_r, mid_r, goal_r, want_r,
             arm_l, mid_l, goal_l, want_l,

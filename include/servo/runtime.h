@@ -39,6 +39,14 @@ int run_descent(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal,
 bool completed_xy(int hand, double &x, double &y);
 void invalidate_result(int hand);
 bool ready_for_gripper(Robot_Arm &arm);
+// Re-send the joint reference captured when descent finished. No-op until then.
+void repeat_final_hold(int hand);
+// Keep sending that reference until a later trajectory takes it.
+void start_final_hold_repeat();
+// Copy that reference without stopping the repeat.
+bool peek_final_hold(int hand, Joints &q);
+// Stop the repeat for this hand and return the joints playback must start from.
+bool take_final_hold(int hand, Joints &q);
 void task_event(int hand, const char *event, const char *reason);
 void handoff_event(Robot_Arm &arm, const Joints &command, const Joints &previous, const char *reason);
 void record_gripper_check(int hand, double position_rad, double torque_nm, const char *outcome);

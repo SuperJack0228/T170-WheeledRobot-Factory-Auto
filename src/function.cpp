@@ -1139,15 +1139,64 @@ Eigen::MatrixXd make_linear_joint_traj(
     return traj;
 }
 
-int execute_arm_trajectory(const MatrixXd &traj, int hand, double dt = k_arm_traj_dt)
+namespace
+{
+Eigen::MatrixXd bridge_from_hold(const Eigen::MatrixXd &src, const wrist_servo::Joints &held, double dt, int hand)
+{
+    const int dof = static_cast<int>(std::min(src.cols(), static_cast<Eigen::Index>(7)));
+    if (src.rows() < 1 || dof < 1)
+        return src;
+    Eigen::RowVectorXd q(dof);
+    for (int j = 0; j < dof; ++j)
+        q(j) = held(j);
+    const double max_step = 25.0 * M_PI / 180.0 * std::max(dt, 1e-3);
+    std::vector<Eigen::RowVectorXd> pts;
+    const double jump = (src.row(0).head(dof) - q).cwiseAbs().maxCoeff();
+    if (!(jump > 0.5 * M_PI / 180.0))
+        return src;
+    pts.push_back(q);
+    auto append_bridge = [&](const Eigen::RowVectorXd &target) {
+        const double gap = (target - pts.back()).cwiseAbs().maxCoeff();
+        if (!(gap > max_step))
+        {
+            pts.push_back(target);
+            return;
+        }
+        const int n = std::max(1, static_cast<int>(std::ceil(gap / max_step)));
+        const Eigen::RowVectorXd from = pts.back();
+        for (int k = 1; k <= n; ++k)
+        {
+            const double u = static_cast<double>(k) / static_cast<double>(n);
+            pts.push_back(from + u * (target - from));
+        }
+    };
+    append_bridge(Eigen::RowVectorXd(src.row(0).head(dof)));
+    const int tail = std::max(0, static_cast<int>(src.rows()) - 1);
+    Eigen::MatrixXd out(static_cast<Eigen::Index>(pts.size()) + tail, dof);
+    for (int i = 0; i < static_cast<int>(pts.size()); ++i)
+        out.row(i) = pts[static_cast<std::size_t>(i)];
+    for (int r = 1; r < src.rows(); ++r)
+        out.row(static_cast<Eigen::Index>(pts.size()) + r - 1) = src.row(r).head(dof);
+    std::cout << "[retract] " << (hand == 1 ? "右手" : "左手")
+              << " 收手起点与保持关节差 " << std::fixed << std::setprecision(2)
+              << (jump * 180.0 / M_PI) << " deg，已平滑接上\n";
+    return out;
+}
+} // namespace
+
+int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt = k_arm_traj_dt)
 {
     if (hand == 1 && right_arm_motors_locked())
         return 0;
-    if (traj.rows() == 0)
+    if (traj_in.rows() == 0)
     {
         cout << "[Error] Trajectory is empty, execution aborted." << endl;
         return -1;
     }
+    MatrixXd traj = traj_in;
+    wrist_servo::Joints held;
+    if (wrist_servo::take_final_hold(hand, held))
+        traj = bridge_from_hold(traj, held, dt, hand);
 
     const int dof = static_cast<int>(std::min(traj.cols(), static_cast<Eigen::Index>(7)));
     for (int i = 0; i < traj.rows(); ++i)
@@ -2911,7 +2960,8 @@ int plan_arm_line_from(
     Eigen::Matrix<double, 1, 6> goal,
     double vel_m_s,
     const Eigen::MatrixXd &q_start,
-    Eigen::MatrixXd &traj)
+    Eigen::MatrixXd &traj,
+    bool lock_redundant = false)
 {
     if (q_start.rows() != 1 || q_start.cols() < 6 || !q_start.allFinite() || !goal.allFinite())
         return -10;
@@ -2919,9 +2969,19 @@ int plan_arm_line_from(
         return -10;
     clamp_cart_goal_z(goal, "两段直线");
     arm.Cart_Linear_Velocity = vel_m_s;
-    const int ret = arm.Line_Trajectory(q_start, goal, traj);
+    int ret = -16;
+    if (lock_redundant && q_start.cols() >= 2)
+        ret = arm.Line_Trajectory(q_start, goal, traj, q_start(0, 1));
+    if (!lock_redundant || ret != 0 || traj.rows() < 2)
+    {
+        if (lock_redundant && ret != 0)
+            std::cerr << "[retract] 竖直抬升锁冗余关节失败，改为自由冗余\n";
+        ret = arm.Line_Trajectory(q_start, goal, traj);
+    }
     if (ret != 0 || traj.rows() < 2)
         return ret != 0 ? ret : -16;
+    if (lock_redundant && traj.cols() >= q_start.cols())
+        traj.row(0) = q_start.row(0).head(traj.cols());
     return 0;
 }
 
@@ -2966,6 +3026,55 @@ Eigen::MatrixXd stitch_cruise_lines(const Eigen::MatrixXd &first, const Eigen::M
     return out;
 }
 
+Eigen::MatrixXd stitch_lift_then_return(const Eigen::MatrixXd &first, const Eigen::MatrixXd &second)
+{
+    const int n1 = static_cast<int>(first.rows());
+    const int n2 = static_cast<int>(second.rows());
+    if (n1 < 2 || n2 < 2 || first.cols() != second.cols())
+        return Eigen::MatrixXd();
+    const int dof = static_cast<int>(first.cols());
+    const double peak1 = std::max(traj_peak_step(first), 1e-6);
+    int ia = n1 - 1;
+    const int earliest = std::max(1, (n1 - 1) * 85 / 100);
+    while (ia > earliest && traj_joint_step(first, ia) < 0.25 * peak1)
+        --ia;
+    const double peak2 = std::max(traj_peak_step(second), 1e-6);
+    int ib = 0;
+    const int latest = std::min(n2 - 1, std::max(1, (n2 - 1) * 15 / 100));
+    while (ib < latest && traj_joint_step(second, ib + 1) < 0.25 * peak2)
+        ++ib;
+
+    const Eigen::RowVectorXd qa = first.row(ia);
+    const Eigen::RowVectorXd qb = second.row(ib);
+    double step = (ia >= 1) ? traj_joint_step(first, ia) : 1e-3;
+    step = std::max(step, 1e-4);
+    const double dist = (qa - qb).norm();
+    int n_bridge = 1;
+    if (std::isfinite(dist) && std::isfinite(step) && step > 0.0)
+        n_bridge = std::max(1, static_cast<int>(std::ceil(dist / step)));
+    const double max_joint = (qa - qb).cwiseAbs().maxCoeff();
+    const double max_step = 25.0 * M_PI / 180.0 * k_arm_traj_dt;
+    if (std::isfinite(max_joint) && max_joint > max_step * static_cast<double>(n_bridge))
+        n_bridge = std::max(1, static_cast<int>(std::ceil(max_joint / max_step)));
+    if (n_bridge > 2000)
+        n_bridge = 2000;
+    const int n_tail = n2 - ib;
+    const int n = ia + n_bridge + n_tail;
+    if (n <= 0 || n > 20000 || n_tail < 1)
+        return Eigen::MatrixXd();
+    Eigen::MatrixXd out(n, dof);
+    for (int i = 0; i <= ia; ++i)
+        out.row(i) = first.row(i);
+    for (int k = 1; k < n_bridge; ++k)
+    {
+        const double u = static_cast<double>(k) / static_cast<double>(n_bridge);
+        out.row(ia + k) = qa + u * (qb - qa);
+    }
+    for (int j = 0; j < n_tail; ++j)
+        out.row(ia + n_bridge + j) = second.row(ib + j);
+    return out;
+}
+
 int plan_line_then_line(
     Robot_Arm &arm,
     Eigen::Matrix<double, 1, 6> mid,
@@ -2973,16 +3082,41 @@ int plan_line_then_line(
     double vel_first_m_s,
     double vel_second_m_s,
     Eigen::MatrixXd &traj_out,
-    const char *tag)
+    const char *tag,
+    const Eigen::MatrixXd *q_override = nullptr,
+    bool lift_then_retract = false)
 {
     const int hand = arm_hand_side(arm);
     if (hand == 1 && right_arm_motors_locked())
         return 0;
     if (hand >= 0 && hand <= 1)
         g_planned_descent_row[hand] = -1;
-    Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
+    Eigen::MatrixXd peeked;
+    const Eigen::MatrixXd *start = q_override;
+    if (lift_then_retract && (start == nullptr || start->rows() != 1 || start->cols() < 6))
+    {
+        wrist_servo::Joints held;
+        if (wrist_servo::peek_final_hold(hand, held))
+        {
+            peeked.resize(1, 7);
+            peeked.row(0) = held;
+            start = &peeked;
+        }
+    }
+    Eigen::MatrixXd q_start = (start != nullptr && start->rows() == 1 && start->cols() >= 6)
+                                  ? *start
+                                  : arm_read_motor_joints(hand);
+    if (lift_then_retract && start != nullptr)
+    {
+        const Eigen::Matrix<double, 1, 6> held_pose = arm_tcp_from_joints(arm, q_start.row(0));
+        const double raised_z = mid(2);
+        mid = held_pose;
+        if (raised_z > held_pose(2) + 1e-4)
+            mid(2) = raised_z;
+    }
     Eigen::MatrixXd traj_mid;
-    const int rc_mid = plan_arm_line_from(arm, mid, vel_first_m_s, q_start, traj_mid);
+    const int rc_mid = plan_arm_line_from(
+        arm, mid, vel_first_m_s, q_start, traj_mid, lift_then_retract);
     if (rc_mid != 0)
         return rc_mid;
     Eigen::MatrixXd q_mid(1, traj_mid.cols());
@@ -2991,9 +3125,10 @@ int plan_line_then_line(
     const int rc_goal = plan_arm_line_from(arm, goal, vel_second_m_s, q_mid, traj_goal);
     if (rc_goal != 0)
         return rc_goal;
-    const int ib = first_cruise_row(traj_goal);
+    const int ib = lift_then_retract ? 0 : first_cruise_row(traj_goal);
     const int n_tail = static_cast<int>(traj_goal.rows()) - ib;
-    traj_out = stitch_cruise_lines(traj_mid, traj_goal);
+    traj_out = lift_then_retract ? stitch_lift_then_return(traj_mid, traj_goal)
+                                 : stitch_cruise_lines(traj_mid, traj_goal);
     if (traj_out.rows() < 2)
         return -16;
     int descent = static_cast<int>(traj_out.rows()) - n_tail;
@@ -3004,11 +3139,11 @@ int plan_line_then_line(
     if (hand >= 0 && hand <= 1)
         g_planned_descent_row[hand] = descent;
     std::cout << "[" << (tag != nullptr ? tag : "line") << "] " << arm_hand_label(hand)
-              << " 两段直线中间不停"
+              << (lift_then_retract ? " 竖直抬升后衔接收手" : " 两段直线中间不停")
               << " 点=" << traj_out.rows()
               << " 第一段=" << traj_mid.rows()
               << " 第二段=" << traj_goal.rows()
-              << " 下降起行=" << descent << "\n";
+              << " 抬升保留到=" << descent << "\n";
     return 0;
 }
 
@@ -3037,10 +3172,16 @@ bool take_prepared_line(int hand, Eigen::MatrixXd &traj, int &ret)
         return false;
     }
     const Eigen::MatrixXd q_now = arm_read_motor_joints(hand);
-    const double mismatch =
+    double mismatch =
         (q_now.cols() == slot.traj.cols())
             ? (q_now.row(0) - slot.traj.row(0)).cwiseAbs().maxCoeff()
             : 1.0;
+    wrist_servo::Joints held;
+    if (wrist_servo::peek_final_hold(hand, held) && slot.traj.cols() >= 7)
+    {
+        const double hold_mismatch = (held - slot.traj.row(0).head(7)).cwiseAbs().maxCoeff();
+        mismatch = std::min(mismatch, hold_mismatch);
+    }
     if (!(mismatch <= 0.05))
     {
         std::cout << "[retract] " << arm_hand_label(hand)
@@ -3114,13 +3255,22 @@ void arm_start_line_then_line_plan(
     Robot_Arm *arm_ptr = &arm;
     const Eigen::Matrix<double, 1, 6> mid_copy = mid;
     const Eigen::Matrix<double, 1, 6> goal_copy = goal;
-    slot.worker = std::thread([arm_ptr, hand, mid_copy, goal_copy, vel_first_m_s, vel_second_m_s]() {
+    Eigen::MatrixXd q_hold;
+    wrist_servo::Joints held;
+    const bool have_hold = wrist_servo::peek_final_hold(hand, held);
+    if (have_hold)
+    {
+        q_hold.resize(1, 7);
+        q_hold.row(0) = held;
+    }
+    slot.worker = std::thread([arm_ptr, hand, mid_copy, goal_copy, vel_first_m_s, vel_second_m_s, q_hold, have_hold]() {
         int rc = -16;
         Eigen::MatrixXd traj;
         try
         {
             rc = plan_line_then_line(
-                *arm_ptr, mid_copy, goal_copy, vel_first_m_s, vel_second_m_s, traj, "收手");
+                *arm_ptr, mid_copy, goal_copy, vel_first_m_s, vel_second_m_s, traj, "收手",
+                have_hold ? &q_hold : nullptr, true);
         }
         catch (const std::exception &ex)
         {
@@ -3271,7 +3421,8 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         take_prepared_line(arm_hand_side(arm_l), traj_l, out.ret_l);
     auto plan=[&](Robot_Arm &arm,Eigen::Matrix<double,1,6> mid,
                   const Eigen::Matrix<double,1,6> &goal,Eigen::MatrixXd &trajectory) {
-        if(!visual) return plan_line_then_line(arm,mid,goal,vel_first_m_s,vel_second_m_s,trajectory,log_tag);
+        if(!visual) return plan_line_then_line(
+            arm,mid,goal,vel_first_m_s,vel_second_m_s,trajectory,log_tag,nullptr,use_prepared);
         wrist_servo::Joints q;
         if(!wrist_servo::read_joint_feedback(arm_hand_side(arm),q)) return -32;
         const int code=plan_arm_line_from(arm,mid,vel_first_m_s,Eigen::MatrixXd(q),trajectory);

@@ -40,9 +40,9 @@ struct Config {
     double period_s = 0.01;
     double kp = 1.5;
     double kd = 0.2;
-    double max_xy_speed_m_s = 0.020;
-    double max_xy_accel_m_s2 = 0.10;
-    double max_z_accel_m_s2 = 0.10;
+    double max_xy_speed_m_s = 0.040;
+    double max_xy_accel_m_s2 = 0.20;
+    double max_z_accel_m_s2 = 0.25;
     double brake_delay_s = 0.08;
     double model_uncertainty_m = 0.0005;
     double xy_tolerance_m = 0.002;
@@ -50,7 +50,7 @@ struct Config {
     double z_tolerance_m = 0.001;
     double commit_height_m = 0.008;
     double freeze_height_m = 0.030;
-    double commit_speed_m_s = 0.010;
+    double commit_speed_m_s = 0.060;
     double commit_timeout_s = 5.0;
     // Positive base Z points UP: keep the reference above nominal C, not below it.
     double grasp_height_margin_m = 0.002;
@@ -58,7 +58,7 @@ struct Config {
     double grasp_xy_accept_m = 0.006;
     double grasp_relax_after_s = 0.35;
     double finish_speed_m_s = 0.008;
-    double finish_stable_s = 0.10;
+    double finish_stable_s = 0.04;
     double alignment_time_margin_s = 0.12;
     double acquire_descent_m = 0.020;
     double handoff_distance_m = 0.015;
