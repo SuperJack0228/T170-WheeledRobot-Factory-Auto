@@ -80,9 +80,11 @@ void send(int hand, const Joints &q) {
 }
 }
 
-void prepare_group() {
+void prepare_group(bool move_r,bool move_l) {
     group_failed.store(false);
-    for(auto &slot:slots) {
+    for(int hand=0;hand<2;++hand) {
+        if(!(hand==1 ? move_r : move_l)) continue;
+        auto &slot=slots[hand];
         std::lock_guard<std::mutex> lock(slot.mutex);
         slot.failure_reason.clear();
         slot.final_hold=false;

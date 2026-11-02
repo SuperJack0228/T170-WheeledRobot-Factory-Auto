@@ -726,16 +726,12 @@ void start_belt_depart_after_right(const std::string &station, const char *hand_
     g_belt_depart_rc = 0;
     const std::string who = (hand_zh && hand_zh[0]) ? hand_zh : "手";
     g_belt_depart_th = std::thread([station, who]() {
-        std::cout << "[orch] " << who << "已合爪，2s 后底盘去 " << station
-                  << "，不等收手到位\n"
-                  << std::flush;
-        hardware_abort_sleep_ms(2000);
         if (hardware_abort_requested())
         {
             g_belt_depart_rc = -4;
             return;
         }
-        std::cout << "[orch] " << who << "合爪已 2s，底盘出发去 " << station << "\n" << std::flush;
+        std::cout << "[orch] " << who << "收手完成，底盘出发去 " << station << "\n" << std::flush;
         try
         {
             g_belt_depart_rc = chassis_goto_station(station);
@@ -2310,7 +2306,7 @@ static int go_belt_grasp_attempt(
             take_tray2_waist();
         }
     } belt_depart_guard;
-    if (g_hw == nullptr || g_hw->waist == nullptr || g_hw->layer3 == nullptr)
+    if (g_hw == nullptr || g_hw->g == nullptr || g_hw->waist == nullptr || g_hw->layer3 == nullptr)
     {
         std::cerr << "[orch] belt_grasp 失败：腰未初始化\n";
         return -1;
@@ -2596,12 +2592,31 @@ static int go_belt_grasp_attempt(
             return -4;
     }
 
+    const bool back_to_belt_ready =
+        station_name_matches(station, g_move_cfg.chassis.belt_station);
+    const bool back_to_tray_ready =
+        station_name_matches(station, g_move_cfg.chassis.out_station);
+    const char *back_name_default = back_to_belt_ready ? "传送带准备 tcp"
+                                    : back_to_tray_ready ? "料盘放置准备"
+                                                         : "grasp_tcp";
+    auto retract_poses = [&](bool is_right,bool to_ready,
+                             Eigen::Matrix<double,1,6> &lift,Eigen::Matrix<double,1,6> &back_pose) {
+        Robot_Arm &arm=is_right ? *g_hw->arm_r : *g_hw->arm_l;
+        wrist_servo::Joints held;
+        lift=wrist_servo::peek_final_hold(is_right ? 1 : 0,held)
+                 ? arm_tcp_from_joints(arm,held) : arm_get_tcp_pos(arm);
+        lift(2)+=c.grasp_hover_above_m>1e-9 ? c.grasp_hover_above_m : g_move_cfg.head_grasp.lift_after_grasp_z;
+        lift(2)=std::min(lift(2),g_move_cfg.grasp_valid.z_max);
+        back_pose=is_right ? c.grasp_tcp.right : c.grasp_tcp.left;
+        if(back_to_belt_ready || to_ready) back_pose=is_right ? c.tcp.right : c.tcp.left;
+        else if(back_to_tray_ready) back_pose=is_right ? g_move_cfg.standby.right : g_move_cfg.standby.left;
+    };
     const int grasp_hand_sel = hand;
-    auto depart_if_last = [&](bool is_right, bool closed_ok) {
-        if (depart_after_right.empty())
+    auto depart_if_last = [&](bool is_right) {
+        if (depart_after_right.empty() || !(is_right ? g_hw->last_grasped_r : g_hw->last_grasped_l))
             return;
-        // 双手时右手不是最后一只；它空抓则左手不再伸，右手就是最后一只。
-        if (grasp_hand_sel < 0 && is_right && closed_ok)
+        // 双手等待两侧收手完成；单手在本侧收手完成后离站。
+        if (grasp_hand_sel < 0 && is_right)
             return;
         start_belt_depart_after_right(depart_after_right, is_right ? "右手" : "左手");
     };
@@ -2634,53 +2649,44 @@ static int go_belt_grasp_attempt(
             std::cout << "下降段使用双轴闭环、延迟补偿与预测制动\n";
         else
             std::cout << "手相机修正已关，照头相机目标走\n";
+        const std::string descent_tag=std::string(name)+"/"+station+"/grasp";
         const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            reach_mps, kDescentMps, {}, false, "belt_grasp伸手", false, true, 0);
+            reach_mps, kDescentMps, {}, false, descent_tag.c_str(), false, true, 0);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
             std::cerr << "[orch] belt_grasp " << hand
                       << " 伸手失败 code=" << approach_rc << "\n";
-            return aborted() ? -4 : -5;
+            return aborted() ? -4 : approach_rc;
         }
-        if (aborted())
-            return -4;
-        std::cout << "[orch] belt_grasp " << hand << " 到位，停 0.5s 再合爪\n";
-        hardware_abort_sleep_ms(500);
-        if (aborted())
-            return -4;
-        if (g_hw->g != nullptr)
-        {
-            std::cout << "[orch] belt_grasp " << hand << " 合爪\n";
-            log_gripper_qs(is_right ? "belt_grasp右合爪前" : "belt_grasp左合爪前");
-            const gripper::Side side = is_right ? gripper::Side::Right : gripper::Side::Left;
-            const auto fb = g_hw->g->graspAndWait(side);
-            log_gripper_qs(is_right ? "belt_grasp右合爪后" : "belt_grasp左合爪后");
-            if (move_box::gripper_grasp_empty(*g_hw->g, side, fb, name))
-            {
-                // 空抓先不让底盘走。外层还要再拍，倒件要原地等，立件可能再抓一次。
-                return aborted() ? -4 : kBeltGraspEmpty;
-            }
-            if (is_right)
-                g_hw->last_grasped_r = true;
-            else
-                g_hw->last_grasped_l = true;
-            depart_if_last(is_right, true);
-            if (aborted())
-                return -4;
+        if (aborted()) return -4;
+        bool empty_r=false,empty_l=false;
+        if(g_move_cfg.cameras.hand_descent_correct) {
+            const auto closed=move_box::finish_servo_grasp(
+                *g_hw->g,*g_hw->arm_r,*g_hw->arm_l,is_right,!is_right,empty_r,empty_l,name,[&] {
+                    Eigen::Matrix<double,1,6> lift,back;
+                    retract_poses(is_right,false,lift,back);
+                    arm_start_line_then_line_plan(is_right ? *g_hw->arm_r : *g_hw->arm_l,
+                        lift,back,c.grasp_retract_vel_m_s,c.grasp_retract_vel_m_s);
+                });
+            const int code=is_right ? closed.ret_r : closed.ret_l;
+            if(code!=0) return code;
+        } else {
+            // Preserve the old settling behavior only when visual correction is explicitly disabled.
+            hardware_abort_sleep_ms(500);
+            if(aborted()) return -4;
+            const auto side=is_right ? gripper::Side::Right : gripper::Side::Left;
+            const auto feedback=g_hw->g->graspAndWait(side);
+            (is_right ? empty_r : empty_l)=move_box::gripper_grasp_empty(*g_hw->g,side,feedback,name);
         }
+        if(is_right ? empty_r : empty_l) return aborted() ? -4 : kBeltGraspEmpty;
+        if(is_right) g_hw->last_grasped_r=true;
+        else g_hw->last_grasped_l=true;
         return aborted() ? -4 : 0;
     };
 
-    const bool back_to_belt_ready =
-        station_name_matches(station, g_move_cfg.chassis.belt_station);
-    const bool back_to_tray_ready =
-        station_name_matches(station, g_move_cfg.chassis.out_station);
-    const char *back_name_default = back_to_belt_ready ? "传送带准备 tcp"
-                                    : back_to_tray_ready ? "料盘放置准备"
-                                                         : "grasp_tcp";
     // to_ready：空抓的手回到伸手前的准备 tcp，外层从这里直接重拍重抓。
     auto grasp_lift_and_back = [&](bool is_right, bool to_ready = false) -> int {
         if (is_right && right_arm_motors_locked())
@@ -2692,72 +2698,20 @@ static int go_belt_grasp_attempt(
         const char *back_name = to_ready ? "传送带准备 tcp（空抓）" : back_name_default;
         if (aborted())
             return -4;
-        const double lift_z = c.grasp_hover_above_m > 1e-9
-                                  ? c.grasp_hover_above_m
-                                  : g_move_cfg.head_grasp.lift_after_grasp_z;
-        Eigen::Matrix<double, 1, 6> lift = arm_get_tcp_pos(arm);
-        lift(2) += lift_z;
-        if (lift(2) > g_move_cfg.grasp_valid.z_max)
-            lift(2) = g_move_cfg.grasp_valid.z_max;
-        Eigen::Matrix<double, 1, 6> back_pose =
-            is_right ? c.grasp_tcp.right : c.grasp_tcp.left;
-        if (back_to_belt_ready || to_ready)
-            back_pose = is_right ? c.tcp.right : c.tcp.left;
-        else if (back_to_tray_ready)
-            back_pose = is_right ? g_move_cfg.standby.right : g_move_cfg.standby.left;
-        // 平移时保持抓取腕角。腕子差得大的目标姿态等到位置到了再慢转，避免接缝抽臂。
-        Eigen::Matrix<double, 1, 6> back_move = back_pose;
-        back_move(3) = lift(3);
-        back_move(4) = lift(4);
-        back_move(5) = lift(5);
-        const double retract_mps = c.grasp_retract_vel_m_s;
-        std::cout << std::fixed << std::setprecision(3)
-                  << "[orch] belt_grasp " << hand << " " << retract_mps
-                  << "m/s 抬 " << lift_z << "m 后不停，先平移回 " << back_name
-                  << "，腕角保持抓取姿态\n";
-        const ArmLineMoveResult stitched = arm_dual_line_then_line_nostop(
-            *g_hw->arm_r, lift, back_move, is_right,
-            *g_hw->arm_l, lift, back_move, !is_right,
-            retract_mps, retract_mps, {}, false, "传送带抓取收手");
-        const int back_rc = is_right ? stitched.ret_r : stitched.ret_l;
-        if (back_rc == 0)
-        {
-            auto wrap = [](double a) {
-                return std::abs(std::atan2(std::sin(a), std::cos(a)));
-            };
-            const bool need_wrist =
-                wrap(back_pose(3) - lift(3)) > 2.0 * M_PI / 180.0 ||
-                wrap(back_pose(4) - lift(4)) > 2.0 * M_PI / 180.0 ||
-                wrap(back_pose(5) - lift(5)) > 2.0 * M_PI / 180.0;
-            if (!need_wrist)
-                return aborted() ? -4 : 0;
-            std::cout << "[orch] belt_grasp " << hand
-                      << " 已到回程位置，40°/s 慢转腕到 " << back_name << "\n";
-            const int rot_rc = arm_reorient_limited(arm, back_pose, 40.0);
-            if (rot_rc != 0)
-            {
-                std::cerr << "[orch] belt_grasp " << hand << " 慢转腕失败 code=" << rot_rc << "\n";
-                return aborted() ? -4 : -5;
-            }
-            return aborted() ? -4 : 0;
-        }
-        if (aborted())
-            return -4;
-        std::cerr << "[orch] belt_grasp " << hand
-                  << " 收手衔接失败 code=" << back_rc << "，退回抬升后直线\n";
-        if (!move_box::move_one_arm_line_to(
-                arm, is_right, lift, is_right ? "belt_grasp右手抬升" : "belt_grasp左手抬升",
-                false))
-        {
-            if (aborted())
-                return -4;
-        }
-        if (!move_box::move_one_arm_line_to(
-                arm, is_right, back_pose,
-                is_right ? "belt_grasp右手回收手" : "belt_grasp左手回收手"))
-        {
-            std::cerr << "[orch] belt_grasp " << hand << " 回 " << back_name << " 失败\n";
-            return aborted() ? -4 : -5;
+        Eigen::Matrix<double,1,6> lift,back_pose;
+        retract_poses(is_right,to_ready,lift,back_pose);
+        if(to_ready) arm_discard_line_then_line_plan(is_right ? 1 : 0);
+        const double speed=c.grasp_retract_vel_m_s;
+        std::cout<<"[orch] "<<name<<' '<<hand<<" 合爪后按料盘同一链路上抬收手，目标="<<back_name
+                 <<" speed="<<speed<<"m/s\n";
+        const auto moved=arm_dual_line_then_line_nostop(
+            *g_hw->arm_r,lift,back_pose,is_right,
+            *g_hw->arm_l,lift,back_pose,!is_right,
+            speed,speed,{},true,"传送带抓取收手");
+        const int code=is_right ? moved.ret_r : moved.ret_l;
+        if(code!=0) {
+            std::cerr<<"[orch] "<<name<<' '<<hand<<" 收手失败 code="<<code<<"，保留夹爪状态\n";
+            return aborted() ? -4 : code;
         }
         return aborted() ? -4 : 0;
     };
@@ -2797,6 +2751,7 @@ static int go_belt_grasp_attempt(
         const int note_rc = report_picked(is_right);
         if (note_rc != 0)
             return note_rc;
+        depart_if_last(is_right);
         if (is_right &&
             station_name_matches(depart_after_right, g_move_cfg.chassis.tray2_station))
             start_tray2_waist_after_right_arrived();
@@ -2833,6 +2788,7 @@ static int go_belt_grasp_attempt(
         const int note_rc = report_picked(false);
         if (note_rc != 0)
             return note_rc;
+        depart_if_last(false);
         return 0;
     }
 
@@ -2850,7 +2806,16 @@ static int go_belt_grasp_attempt(
     if (right_rc != 0)
         return right_rc;
 
-    std::thread th_r([&]() { right_back_rc = grasp_lift_and_back(true); });
+    std::thread th_r([&]() {
+        try { right_back_rc=grasp_lift_and_back(true); }
+        catch(const std::exception &ex) {
+            std::cerr<<"[orch] 右手收手异常: "<<ex.what()<<'\n';right_back_rc=-32;
+        }
+    });
+    struct JoinRetreat {
+        std::thread &worker;
+        ~JoinRetreat() {if(worker.joinable()) worker.join();}
+    } join_retreat{th_r};
     std::cout << "[orch] belt_grasp 右手已夹到，左手立刻过来（不等右手抬起回程）\n";
     const int left_rc = grasp_one(false);
     const bool left_empty = left_rc == kBeltGraspEmpty;
@@ -2863,20 +2828,8 @@ static int go_belt_grasp_attempt(
             th_r.join();
             return left_back_rc;
         }
-        if (!left_empty)
-        {
-            const int note_rc = report_picked(false);
-            if (note_rc != 0)
-            {
-                th_r.join();
-                return note_rc;
-            }
-        }
     }
     th_r.join();
-    if (right_rc == 0 && right_back_rc == 0 &&
-        station_name_matches(depart_after_right, g_move_cfg.chassis.tray2_station))
-        start_tray2_waist_after_right_arrived();
     if (left_rc != 0 && !left_empty)
         return left_rc;
     if (left_back_rc != 0)
@@ -2885,6 +2838,13 @@ static int go_belt_grasp_attempt(
         return right_back_rc;
     if (left_empty)
         empty_mask = kEmptyLeft;
+    if(!left_empty) {
+        const int note_rc=report_picked(false);
+        if(note_rc!=0) return note_rc;
+        depart_if_last(false);
+    }
+    if(station_name_matches(depart_after_right,g_move_cfg.chassis.tray2_station) && !left_empty)
+        start_tray2_waist_after_right_arrived();
 
     const int dep_rc = take_belt_depart();
     const int waist_rc = take_tray2_waist();

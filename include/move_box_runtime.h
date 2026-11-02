@@ -102,6 +102,14 @@ void log_arm_skip_left();
 bool gripper_grasp_empty(gripper::Gripper &g, gripper::Side side,
                          const gripper::GraspFeedback &fb, const char *tag);
 
+/** 料盘/传送带共用的闭环抓取结束阶段：保位、复核、合爪及反馈。
+ *  before_close 在复核成功后、保位期间执行，用于重叠预规划收手。
+ *  空抓由 empty_* 返回；失败码保留给调用者，禁止继续按成功收手。 */
+ArmLineMoveResult finish_servo_grasp(
+    gripper::Gripper &g, Robot_Arm &arm_r, Robot_Arm &arm_l,
+    bool move_r, bool move_l, bool &empty_r, bool &empty_l,
+    const char *tag, const std::function<void()> &before_close = {});
+
 /** 本轮抓取是否启用 TCP→目标自适应 pitch/yaw（run_grasp_to_standby 置位） */
 extern bool g_grasp_adaptive_rpy;
 

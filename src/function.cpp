@@ -3517,7 +3517,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     if (before_move)
         before_move();
     if (visual)
-        wrist_servo::prepare_group();
+        wrist_servo::prepare_group(move_r,move_l);
     const auto watch = [&](Robot_Arm &arm, const Eigen::Matrix<double, 1, 6> &goal) {
         const int hand = arm_hand_side(arm);
         if (visual)
