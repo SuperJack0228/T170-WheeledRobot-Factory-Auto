@@ -1,3 +1,5 @@
+> 当前主程序：`t170_factory`。基础组件迁移及新构建命令见 [基础组件迁移说明](docs/FOUNDATION_MIGRATION.md)。下文历史流程说明仍应结合实际源码核对。
+
 # T170C
 
 **轮式双臂圆柱件上下料**
@@ -121,15 +123,15 @@ T170Clean
 └── docs/                      流程与参数说明
 ```
 
-运行程序是 `build_robot/t170c_debug`，只接受本机 `127.0.0.1:8099` 的调试命令。
+运行程序是 `build_robot/t170_factory`，只接受本机 `127.0.0.1:8099` 的调试命令。
 
 ---
 
 ## 在机器人上运行
 
 ```bash
-cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170c_debug
-./build_robot/t170c_debug
+cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170_factory
+./build_robot/t170_factory
 ```
 
 另一个终端：
@@ -145,7 +147,7 @@ python3 tools/debug_client.py abort
 调试图：
 
 ```bash
-T170_VISION_DEBUG=1 ./build_robot/t170c_debug
+T170_VISION_DEBUG=1 ./build_robot/t170_factory
 ```
 
 头相机检测框写在 `picture_debug/head/`。手相机伸手照片写在 `picture_debug/right_hand/` 和 `picture_debug/left_hand/`。

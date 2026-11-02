@@ -1477,7 +1477,7 @@ int capture_head_dataset(const std::string &scene, std::string &dir_out)
         return -4;
 
     std::cout << "[cap] 原图目录 " << dir_out << "\n"
-              << "[cap] 在运行 t170c_debug 的终端按回车拍一张；输入 quit 后回车结束\n"
+              << "[cap] 在运行 t170_factory 的终端按回车拍一张；输入 quit 后回车结束\n"
               << std::flush;
 
     RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
@@ -4164,7 +4164,7 @@ namespace
 
 bool wait_tray2_center_key()
 {
-    std::cout << "\n[tray2center] 已停住。请在运行 t170c_debug 的终端按回车，或输入一个字符后继续\n"
+    std::cout << "\n[tray2center] 已停住。请在运行 t170_factory 的终端按回车，或输入一个字符后继续\n"
               << std::flush;
     if (!isatty(STDIN_FILENO))
     {

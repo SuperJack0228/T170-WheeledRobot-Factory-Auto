@@ -1,3 +1,5 @@
+#include "t170/common/paths.h"
+#include "t170/common/logging.h"
 #include "hand_shadow.h"
 #include "servo/runtime.h"
 #include "Ti5_socketcan.h"
@@ -228,7 +230,7 @@ void hand_shadow_end(int hand) {
 void hand_shadow_set_descent_raw(bool enable) { save_raw.store(enable); }
 void hand_track_log(const std::string &hand,const std::string &result,const std::string &detail) {
     std::lock_guard<std::mutex> lock(legacy_log_mutex);
-    const auto path=std::filesystem::path(project_root_dir())/"logs"/"hand_track.csv";
+    const auto path=t170::logging::file("hand_track.csv");
     std::error_code ec; std::filesystem::create_directories(path.parent_path(),ec);
     std::ofstream out(path,std::ios::app);
     out << wrist_servo::monotonic_seconds() << ',' << hand << ',' << result << ',' << detail << '\n';

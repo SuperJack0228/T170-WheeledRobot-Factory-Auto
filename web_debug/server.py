@@ -2,7 +2,7 @@
 """T170C robot-hosted debug web server.
 
 The browser talks only to this process. Hardware remains exclusively owned by
-the localhost C++ daemon (t170c_debug on 127.0.0.1:8099).
+the localhost C++ daemon (t170_factory on 127.0.0.1:8099).
 """
 
 from __future__ import annotations
@@ -37,22 +37,26 @@ import yaml
 WEB_API_VERSION = 4
 UI_VERSION = "1.1.13"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
+from t170_common.paths import load_paths
+
+RUNTIME_PATHS = load_paths()
+PROJECT_ROOT = RUNTIME_PATHS.root
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
 CONFIG_FILES = {
-    "motion": PROJECT_ROOT / "config" / "move_box_params.yaml",
+    "motion": RUNTIME_PATHS.config_dir / "move_box_params.yaml",
     "tray_code": PROJECT_ROOT / "board_yf100_aruco" / "config.yaml",
     "belt_code": PROJECT_ROOT / "board_belt_aruco" / "config.yaml",
     "hand_eye": PROJECT_ROOT / "free_calib" / "config" / "camera_to_head_connector_result.yaml",
     "head_geom": PROJECT_ROOT / "free_calib" / "config" / "head_params.yaml",
-    "hand_eye_fallback": PROJECT_ROOT / "config" / "camera_to_base_result.yaml",
+    "hand_eye_fallback": RUNTIME_PATHS.config_dir / "camera_to_base_result.yaml",
 }
 CONFIG_NOTES = {
-    "motion": "保存后会立刻 reload。手臂模型、新代码仍要重启 t170c_debug。",
-    "tray_code": "料盘二维码。保存后要重启 t170c_debug 才生效。",
-    "belt_code": "传送带二维码。保存后要重启 t170c_debug 才生效。",
-    "hand_eye": "相机到头部的平移。保存后要重启 t170c_debug。程序读矩阵，平移会同时写进矩阵。",
-    "head_geom": "头部离基座的高度。保存后要重启 t170c_debug。",
+    "motion": "保存后会立刻 reload。手臂模型、新代码仍要重启 t170_factory。",
+    "tray_code": "料盘二维码。保存后要重启 t170_factory 才生效。",
+    "belt_code": "传送带二维码。保存后要重启 t170_factory 才生效。",
+    "hand_eye": "相机到头部的平移。保存后要重启 t170_factory。程序读矩阵，平移会同时写进矩阵。",
+    "head_geom": "头部离基座的高度。保存后要重启 t170_factory。",
     "hand_eye_fallback": "手眼失败时的回退。这一页仍是原文，保存后要重启。",
 }
 MANUAL_TASKS = {
@@ -374,7 +378,7 @@ def write_field_groups(file_id: str, updates: dict[str, str]) -> None:
     os.replace(temp, path)
 
 PICTURE_ROOT = PROJECT_ROOT / "picture_debug"
-RUNTIME_ROOT = Path(__file__).resolve().parent / "runtime"
+RUNTIME_ROOT = RUNTIME_PATHS.log_dir / "web"
 CAMERA_SLOTS = ("head", "right_hand", "left_hand")
 ALLOWED_COMMANDS = {
     "ping",
@@ -559,7 +563,7 @@ class AppState:
 
     def start_robot(self) -> bool:
         if self.robot_online():
-            self.log("检测到现有 t170c_debug，Web 调试台将连接该进程")
+            self.log("检测到现有 t170_factory，Web 调试台将连接该进程")
             return True
         if self.robot_process and self.robot_process.poll() is None:
             return False
@@ -650,7 +654,7 @@ def latest_image(slot: str, kind: str) -> Path | None:
 
 
 def hand_live_preview_enabled() -> bool:
-    """网页实时画面会让 t170c_debug 从手相机抽帧。只读配置，进程要重启才生效。"""
+    """网页实时画面会让 t170_factory 从手相机抽帧。只读配置，进程要重启才生效。"""
     path = CONFIG_FILES["motion"]
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -802,7 +806,7 @@ class DebugHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/dispatch":
                 result = self.state.robot_request({"cmd": "dispatch_status"}, timeout=3.0)
                 if not result.get("ok") and "未知命令" in str(result.get("error", "")):
-                    result["error"] = "t170c_debug 是旧版本，重启它之后才有调度面板"
+                    result["error"] = "t170_factory 是旧版本，重启它之后才有调度面板"
                 result["job"] = self.state.job_view()
                 self._json(HTTPStatus.OK, result)
                 return
@@ -845,7 +849,9 @@ class DebugHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     since = 0
                 seq, lines = self.state.logs_since(max(0, since))
-                startup = PROJECT_ROOT / "startup.log"
+                startup = RUNTIME_PATHS.log_dir / "startup.log"
+                if not startup.is_file():
+                    startup = PROJECT_ROOT / "startup.log"
                 startup_tail = ""
                 if startup.is_file():
                     with startup.open("rb") as handle:
@@ -1024,7 +1030,7 @@ class DebugHandler(BaseHTTPRequestHandler):
                     self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "有数字填得不对"})
                     return
                 if file_id != "motion":
-                    self.state.log(f"{file_id} 参数已保存，重启 t170c_debug 后生效", "config")
+                    self.state.log(f"{file_id} 参数已保存，重启 t170_factory 后生效", "config")
                     self._json(HTTPStatus.OK, {"ok": True, "reload": False})
                     return
                 try:
@@ -1060,7 +1066,7 @@ class DebugHandler(BaseHTTPRequestHandler):
                 temp.write_text(content, encoding="utf-8")
                 os.replace(temp, path)
                 if file_id != "motion":
-                    self.state.log(f"{path.name} 已保存，重启 t170c_debug 后生效，备份={backup.name}", "config")
+                    self.state.log(f"{path.name} 已保存，重启 t170_factory 后生效，备份={backup.name}", "config")
                     self._json(HTTPStatus.OK, {"ok": True, "backup": backup.name, "reload": False})
                     return
                 try:
@@ -1113,7 +1119,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8080, help="Web 监听端口")
     parser.add_argument("--robot-host", default="127.0.0.1")
     parser.add_argument("--robot-port", type=int, default=8099)
-    parser.add_argument("--robot-command", default="./build_robot/t170c_debug")
+    parser.add_argument("--robot-command", default="./build_robot/t170_factory")
     parser.add_argument("--start-robot", action="store_true", help="若 C++ 服务未运行则自动启动")
     parser.add_argument("--token", default=os.environ.get("T170_WEB_TOKEN", ""))
     return parser.parse_args()

@@ -7,7 +7,6 @@
 #include <fstream>
 
 MoveBoxConfig g_move_cfg;
-std::string project_root_dir() { return std::filesystem::current_path().string(); }
 
 void require(bool ok,const char *message) { if(!ok) throw std::runtime_error(message); }
 int main(int argc,char **argv) {
@@ -37,6 +36,16 @@ int main(int argc,char **argv) {
         changed["head_grasp"]["retract_lift_vel_m_s"]=0;
         { std::ofstream out(retract_config); out<<changed; }
         require(!load_move_box_config(retract_config,full,config_error),"zero retract speed silently accepted");
+        require(full.head_grasp.retract_lift_vel_m_s==.31 &&
+                full.head_grasp.retract_connector_accel_rad_s2==4.2,
+                "rejected reload replaced the previous complete configuration");
+        require(!load_move_box_config(retract_config+".missing",full,config_error) &&
+                full.head_grasp.retract_lift_vel_m_s==.31,
+                "missing file replaced live configuration with defaults");
+        { std::ofstream out(retract_config); out<<"standby: [invalid YAML\n"; }
+        require(!load_move_box_config(retract_config,full,config_error) &&
+                full.head_grasp.retract_lift_vel_m_s==.31,
+                "malformed file replaced live configuration");
         for(const char *key:{"retract_lift_vel_m_s","retract_connector_speed_rad_s",
                             "retract_connector_accel_rad_s2","retract_connector_jerk_rad_s3","retract_connector_max_s"})
             changed["head_grasp"].remove(key);

@@ -8,6 +8,12 @@ execute_process(COMMAND git diff HEAD -- WORKING_DIRECTORY "${SOURCE_DIR}"
 string(SHA256 diff_hash "${changes}\n${status}")
 file(GLOB_RECURSE inputs LIST_DIRECTORIES false
     "${SOURCE_DIR}/src/*.cpp" "${SOURCE_DIR}/include/*.h" "${SOURCE_DIR}/include/*.hpp"
+    "${SOURCE_DIR}/apps/*.cpp" "${SOURCE_DIR}/tools/*.cpp"
+    "${SOURCE_DIR}/python/*.py" "${SOURCE_DIR}/tools/*.py" "${SOURCE_DIR}/web_debug/*.py"
+    "${SOURCE_DIR}/feeding_cylindrical_parts_alg/*.py"
+    "${SOURCE_DIR}/board_yf100_aruco/*.py" "${SOURCE_DIR}/board_belt_aruco/*.py"
+    "${SOURCE_DIR}/online_pose/*.py" "${SOURCE_DIR}/free_calib/*.py"
+    "${SOURCE_DIR}/deploy/*.sh" "${SOURCE_DIR}/deploy/*.service"
     "${SOURCE_DIR}/orchestrator/cpp/*.cpp" "${SOURCE_DIR}/orchestrator/cpp/*.h"
     "${SOURCE_DIR}/config/*.yaml" "${SOURCE_DIR}/cmake/*.cmake")
 list(APPEND inputs "${SOURCE_DIR}/CMakeLists.txt")

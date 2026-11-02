@@ -1,3 +1,5 @@
+#include "t170/common/paths.h"
+#include "t170/common/logging.h"
 #include "servo/runtime.h"
 #include "servo/trace.h"
 #include "function.h"
@@ -100,7 +102,7 @@ std::string last_failure(int hand) {
 bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,const char *tag) {
     const int hand=hand_index(arm);
     if(hand<0 || hand>1) return false;
-    if (!trace_writer().start((std::filesystem::path(project_root_dir())/"logs"/"visual_servo").string())) {
+    if (!trace_writer().start(t170::logging::file("visual_servo").string())) {
         std::cerr << "[servo] 无法创建调试日志，取消视觉动作\n"; return false;
     }
     const Config cfg=g_move_cfg.visual_servo;
@@ -141,7 +143,7 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     // Preserve on-disk model for diagnosis. It is explicitly not proof of the SDK's
     // in-memory model if someone edits the YAML after process startup.
     std::error_code copy_error;
-    std::filesystem::copy_file(std::filesystem::path(project_root_dir())/"config"/"Robot_Arm_Model.yaml",
+    std::filesystem::copy_file(t170::paths::config_file("Robot_Arm_Model.yaml"),
         prefix+".arm_model_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
     if(copy_error) std::cerr << "[servo] 模型文件备份失败: " << copy_error.message() << '\n';
     ObservationContext saved;observation_context(hand,saved);

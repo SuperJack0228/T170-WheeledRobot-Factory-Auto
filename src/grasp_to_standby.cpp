@@ -25,7 +25,7 @@ bool aborting(const std::function<bool()> &should_abort)
 /** 料盘二精度测试：到位后停住。回车继续；输入 quit 再回车则退出。 */
 bool wait_tray2_step_key()
 {
-    std::cout << "\n[tray2] 已到位，动作暂停。在运行 t170c_debug 的终端按回车继续，或输入 quit 后回车退出\n"
+    std::cout << "\n[tray2] 已到位，动作暂停。在运行 t170_factory 的终端按回车继续，或输入 quit 后回车退出\n"
               << std::flush;
     if (!isatty(STDIN_FILENO))
     {

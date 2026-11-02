@@ -42,11 +42,6 @@ MatrixXd TR(Matrix<double,1,6> p) {
 Matrix<double,1,6> arm_tcp_from_joints(Robot_Arm &,const Eigen::Ref<const Eigen::RowVectorXd> &q) {
     Matrix<double,1,6> p=Matrix<double,1,6>::Zero(); p.head<3>()=q.head<3>(); return p;
 }
-std::string project_root_dir() {
-    return (std::filesystem::temp_directory_path()/"t170_servo_runtime_model_test").string();
-}
-std::string default_left_hand_to_robot_yaml_path() { return "unused_synthetic_test"; }
-std::string default_right_hand_to_robot_yaml_path() { return "unused_synthetic_test"; }
 bool load_cam2robot_matrix(const std::string &,std::array<double,16> &,std::string &) { return false; }
 bool hardware_abort_requested() { return abort_test.load(); }
 bool can_io_faulted() { return false; }
@@ -84,6 +79,9 @@ bool write_config_snapshot(const Config &,const std::string &path,std::string &)
 }
 
 int main() {
+    const auto test_root=(std::filesystem::temp_directory_path()/"t170_servo_runtime_model_test").string();
+    setenv("T170_ROOT",test_root.c_str(),1);
+    unsetenv("T170_CONFIG_DIR"); unsetenv("T170_LOG_DIR");
     using namespace wrist_servo;
     Robot_Arm left("synthetic","synthetic","left"),right("synthetic","synthetic","right");
     Robot_Arm *arms[]={&left,&right};

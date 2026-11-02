@@ -1,5 +1,5 @@
 [Unit]
-Description=T170C 开机进入调度，原地 home 后待命
+Description=T170 Factory 开机进入调度，原地 home 后待命
 After=network-online.target
 Wants=network-online.target
 
@@ -9,7 +9,9 @@ User=ti5robot
 Group=ti5robot
 WorkingDirectory=/home/ti5robot/T170Clean
 ExecStartPre=/bin/sleep 8
-ExecStart=/home/ti5robot/T170Clean/build_robot/t170c_debug --dispatch
+Environment=T170_ROOT=/home/ti5robot/T170Clean
+EnvironmentFile=-/etc/t170-factory/runtime.env
+ExecStart=/home/ti5robot/T170Clean/deploy/run_factory.sh --dispatch
 Restart=no
 KillSignal=SIGTERM
 TimeoutStopSec=90
