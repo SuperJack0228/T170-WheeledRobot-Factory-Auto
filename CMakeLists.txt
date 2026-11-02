@@ -21,6 +21,10 @@ if(T170_SERVO_TESTS_ONLY)
     add_executable(retract_trajectory_test tests/retract_trajectory_test.cpp)
     target_include_directories(retract_trajectory_test PRIVATE include eigen3)
     add_test(NAME retract_trajectory_test COMMAND retract_trajectory_test)
+    add_executable(grasp_execution_test tests/grasp_execution_test.cpp src/grasp_execution.cpp)
+    target_include_directories(grasp_execution_test PRIVATE include eigen3 LowerBody/include)
+    target_link_libraries(grasp_execution_test PRIVATE Threads::Threads)
+    add_test(NAME grasp_execution_test COMMAND grasp_execution_test)
     find_package(yaml-cpp QUIET)
     if(yaml-cpp_FOUND)
         add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp
@@ -134,6 +138,7 @@ add_executable(t170c_debug
     orchestrator/cpp/dispatch_board.cpp
     orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
+    src/grasp_execution.cpp
     src/function.cpp
     src/hand_shadow.cpp
     src/servo/visual_servo.cpp
@@ -229,6 +234,7 @@ add_executable(arm_plane_repeat
     orchestrator/cpp/dispatch_board.cpp
     orchestrator/cpp/dispatch_timing.cpp
     src/grasp_to_standby.cpp
+    src/grasp_execution.cpp
     src/function.cpp
     src/hand_shadow.cpp
     src/servo/visual_servo.cpp
@@ -236,6 +242,7 @@ add_executable(arm_plane_repeat
     src/servo/config.cpp
     src/servo/runtime.cpp
     src/servo/trace.cpp
+    src/servo/tray_localizer.cpp
     src/waist.cpp
     src/Ti5_socketcan.cpp
     src/gripper_interface.cpp

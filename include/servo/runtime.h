@@ -20,7 +20,8 @@ struct ObservationContext {
     TrayTarget tray_target;
     int image_width = 0, image_height = 0;
 };
-void prepare_group();
+// Reset only selected hands: the peer may still be holding/retracting a part.
+void prepare_group(bool move_r = true, bool move_l = true);
 bool group_is_failed();
 std::string last_failure(int hand);
 int hand_index(const Robot_Arm &arm);

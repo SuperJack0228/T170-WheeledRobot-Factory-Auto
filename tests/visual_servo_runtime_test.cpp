@@ -187,6 +187,13 @@ int main() {
         std::cerr << "runtime FAIL: old hold packet crossed the retract handoff\n"; return 1;
     }
     send_joint_reference(0,held);
+    // Starting the next hand must not cancel the peer's pending hold/retract handoff.
+    Joints peer_hold,before_peer;
+    if(!peek_final_hold(1,before_peer)) return 1;
+    prepare_group(false,true);
+    if(!peek_final_hold(1,peer_hold) || (peer_hold-before_peer).norm()>1e-12) {
+        std::cerr<<"runtime FAIL: left-only approach cleared the right hand hold\n";return 1;
+    }
     // A subsequently changed pose must not inherit the earlier permission to close.
     Joints saved;
     { std::lock_guard<std::mutex> lock(plants[0].mutex);
