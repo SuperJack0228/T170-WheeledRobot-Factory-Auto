@@ -120,7 +120,7 @@ AP7 抓毛坯（夹爪保持闭合）
 
 **料盘二放完要去 AP7 抓**（人在 `tray2_station`，或 `vision_place_tray2` 的 `return_to_tray=true`）：**先升腰，再开底盘，到 AP7 后再降腰。** `cycle` 走这条。`cycle3` 和调度下料 `return_to_tray=false`，放完停在 AP9 不升腰；下一次从这里发出的料盘一抓取，同样先升、再走、再降。
 
-**调度开局：** 去 AP14 的同时腰升到 home。到站后再 `go_home`，以 home 姿态等待，等待时不挥手。任务结束且没有下一条：先 `go_home`，再去 `standby_point` 或 AP14。`1101` / `1102` / `1201` 未解决时留在原地。充电结束去 AP12，不回 AP14。
+**调度开局：** 去 AP14 的同时腰升到 home。到站后再 `go_home`，以 home 姿态等待，等待时不挥手。任务结束且没有下一条：先 `go_home`，再去 `standby_point` 或 AP14。`1101` / `1102` / `1201` / `1301` 未解决时留在原地。充电结束去 AP12，不回 AP14。
 
 **不要改**腰 ready 检查那条：dx 约 0.0126 大于 0.01 就放弃。用户没要求就别放宽。
 
@@ -130,9 +130,9 @@ AP7 抓毛坯（夹爪保持闭合）
 
 ## 6. 调度
 
-库是 `ti5-jindi-faactory-robot-client` **1.8.0**。没有 `report_state`，不要再发 `STANDBY` / `WORKING` / `GO_CHARGE` / `commuting` / `CHARGING` / `ERR_*`。这些只留在本机面板。调度靠每 2 秒的 `POSE` 看位置，报文里有 `current_point`（底盘当前站名，由程序写入 `RobotClient::current_point`）。
+库是已安装的 `ti5-jindi-faactory-robot-client`。不要再发 `STANDBY` / `WORKING` / `GO_CHARGE` / `commuting` / `CHARGING`。电机掉线或失能用 `report_exception(1403)`，相机掉线用 `1402`。调度靠每 2 秒的 `POSE` 看位置，报文里有 `current_point`（底盘当前站名，由程序写入 `RobotClient::current_point`）。
 
-`apply_mission` 在料架、待命点、两个工序点都空时，先发 `NEED_POINTS` 再要任务。任务报文里的同名点才覆盖：`raw_material_point`、`well_done_point`、`standby_point`、`sequence_one`、`sequence_two`。任务结束不清。收到 `CHARGE` 时库清空料架、待命点和工序点，并写入 `charge_point`。无任务去 `standby_point`，还没有则去 yaml `dispatch_wait_station`（AP14）。到站后保持 home 姿态等任务，不等待时挥手。任务：`TASK_LOAD` / `TASK_TRANSFER` / `TASK_UNLOAD` / `TASK_CHARGE`。缺站点就不动。
+`apply_mission` 在料架、待命点和四个工序口都空时，先发 `NEED_POINTS` 再要任务。任务报文里的同名点才覆盖：`raw_material_point`、`well_done_point`、`standby_point`、`sequence_one_port_one`、`sequence_one_port_two`、`sequence_two_port_one`、`sequence_two_port_two`。圆方只写口一；口一空时采用口二。任务结束不清。收到 `CHARGE` 时库清空料架、待命点和四个工序口，并写入 `charge_point`。连上后先对地图，新图写入 `/opt/ti5-jindi-factory-robot-client/map/`，`is_map_updated` 为真时上传并载入底盘，然后把标志改回假。无任务去 `standby_point`，还没有则去 yaml `dispatch_wait_station`（AP14）。到站后保持 home 姿态等任务，不等待时挥手。任务：`TASK_LOAD` / `TASK_TRANSFER` / `TASK_UNLOAD` / `CHARGE`。缺站点就不动。
 
 | 任务 | 动作 |
 |------|------|
@@ -143,7 +143,7 @@ AP7 抓毛坯（夹爪保持闭合）
 
 申请超时 **20 s**。放置申请超时：**直接放**。传送带抓取不再申请。客户端日志看不到「申请已发出」；只有 `t170c_debug` 控制台有「去某站的同时发送 APPLY_…」以及没有「发送失败」。
 
-`1101` / `1102` / `1201` 上报后等网页。返回 true：不再申请，原地再拍，重做刚才的抓或放，不回 AP14。返回 false：停在当前站等下一条，20 s 超时也不回 AP14。传送带取帧、二维码、检测失败先自动再拍一次，第二次仍失败才上报 `1201`。
+`1101` / `1102` / `1201` / `1301` 上报后等网页。倒件用 `1301`，窗口内没有料用 `1102`。电机掉线或失能上报 `1403`，相机掉线上报 `1402`。返回 true：不再申请，原地再拍，重做刚才的抓或放，不回 AP14。返回 false：停在当前站等下一条，20 s 超时也不回 AP14。传送带取帧、二维码、检测失败先自动再拍一次，第二次仍失败才上报 `1201`。
 
 手里还有件的失败：留下，不报完成，不回料盘再抓（`kDispatchHoldStay=9`）。上料/转运/下料成功后在当前位置再听 **20 s**，没新任务才 `go_home` 并回待命点（`standby_point` 或 AP14）。充电成功停在充电等待点，在那里断线重连也不改去 AP14。
 

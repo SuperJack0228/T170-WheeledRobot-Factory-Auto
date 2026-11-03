@@ -27,6 +27,7 @@
 #include <cstring>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -37,6 +38,7 @@
 #include <cerrno>
 #include <csignal>
 #include <mutex>
+#include "servo/retreat_gate.h"
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <thread>
@@ -446,6 +448,56 @@ bool ensure_chassis()
     }
     logged_fail = false;
     std::cout << "[orch] 底盘已连接 " << g_move_cfg.chassis.host << "\n";
+    return true;
+}
+
+/** 调度下发新地图后 is_map_updated 为真。载入底盘成功后由本程序改回假。 */
+bool load_dispatch_map_if_updated()
+{
+    if (!RobotClient::is_map_updated)
+    {
+        std::cout << "[dispatch] 调度地图未变化\n";
+        return true;
+    }
+    const std::filesystem::path dir{"/opt/ti5-jindi-factory-robot-client/map"};
+    std::error_code ec;
+    if (!std::filesystem::is_directory(dir, ec))
+    {
+        std::cerr << "[dispatch] 调度已下发新地图，目录不存在: " << dir << "\n";
+        return false;
+    }
+    std::filesystem::path chosen;
+    for (const std::filesystem::directory_entry &ent : std::filesystem::directory_iterator(dir, ec))
+    {
+        if (ec || !ent.is_regular_file())
+            continue;
+        chosen = ent.path();
+        break;
+    }
+    if (chosen.empty())
+    {
+        std::cerr << "[dispatch] 调度已下发新地图，目录里没有文件\n";
+        return false;
+    }
+    std::ifstream in(chosen);
+    std::ostringstream body;
+    body << in.rdbuf();
+    if (!in || body.str().empty())
+    {
+        std::cerr << "[dispatch] 读地图失败 " << chosen << "\n";
+        return false;
+    }
+    if (!ensure_chassis())
+        return false;
+    const int rc = chassis_seer().UploadAndLoadMap(body.str());
+    if (rc != 0)
+    {
+        std::cerr << "[dispatch] 上传并载入地图失败 code=" << rc << " "
+                  << chassis_seer().LastMessage() << "\n";
+        return false;
+    }
+    RobotClient::is_map_updated = false;
+    std::cout << "[dispatch] 已载入调度地图 " << chosen.filename().string() << "\n";
     return true;
 }
 
@@ -1346,14 +1398,19 @@ CaptureKey wait_capture_enter()
     return CaptureKey::Abort;
 }
 
-bool save_raw_head_frame(RealSenseMultiCam &cameras, const std::filesystem::path &dir, int index,
-                         std::string &saved)
+bool save_raw_camera_frame(
+    RealSenseMultiCam &cameras,
+    CameraSlot slot,
+    const std::filesystem::path &dir,
+    int index,
+    const char *fail_tag,
+    std::string &saved)
 {
-    CameraFrameData frame = cameras.grab_fresh(CameraSlot::Head);
-    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), CameraSlot::Head);
+    CameraFrameData frame = cameras.grab_fresh(slot);
+    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), slot);
     if (!frame.ok || frame.color_bgr.empty() || frame.width <= 0 || frame.height <= 0)
     {
-        std::cerr << "[cap] 头相机取图失败: " << frame.message << "\n";
+        std::cerr << "[cap] " << fail_tag << "取图失败: " << frame.message << "\n";
         return false;
     }
     const auto now = std::chrono::system_clock::now();
@@ -1375,7 +1432,63 @@ bool save_raw_head_frame(RealSenseMultiCam &cameras, const std::filesystem::path
     return true;
 }
 
+bool save_raw_head_frame(RealSenseMultiCam &cameras, const std::filesystem::path &dir, int index,
+                         std::string &saved)
+{
+    return save_raw_camera_frame(cameras, CameraSlot::Head, dir, index, "头相机", saved);
+}
+
+
 } // namespace
+
+int capture_right_hand_belt_pictures(std::string &dir_out)
+{
+    dir_out.clear();
+    if (g_hw == nullptr || g_hw->pipeline == nullptr)
+    {
+        std::cerr << "[cap] 相机未初始化，无法拍右手图\n";
+        return -1;
+    }
+
+    const std::filesystem::path dir =
+        std::filesystem::path(project_root_dir()) / "belt_picture";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec)
+    {
+        std::cerr << "[cap] 创建目录失败 " << dir.string() << ": " << ec.message() << "\n";
+        return -2;
+    }
+    dir_out = dir.string();
+
+    std::cout << "[cap] 右手手相机原地拍照：不使能、不移动左右手臂，也不动底盘/腰/头\n"
+              << "[cap] 原图目录 " << dir_out << "\n"
+              << "[cap] 在运行 t170_factory 的终端按回车拍一张；输入 quit 后回车结束\n"
+              << std::flush;
+
+    RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
+    int count = 0;
+    for (;;)
+    {
+        const CaptureKey key = wait_capture_enter();
+        if (key == CaptureKey::Quit)
+            break;
+        if (key == CaptureKey::Abort)
+        {
+            std::cout << "[cap] 采集中止，已采集 " << count << " 张\n";
+            return hardware_abort_requested() ? -4 : -2;
+        }
+        std::string saved;
+        if (!save_raw_camera_frame(
+                cameras, CameraSlot::RightHand, dir, count + 1, "右手相机", saved))
+            continue;
+        ++count;
+        std::cout << "[cap] 已采集 " << count << " 张  " << saved << "\n" << std::flush;
+        g_hw->last_debug_photo = saved;
+    }
+    std::cout << "[cap] 结束，右手共 " << count << " 张，目录 " << dir_out << "\n";
+    return count;
+}
 
 int capture_head_dataset(const std::string &scene, std::string &dir_out)
 {
@@ -1477,7 +1590,7 @@ int capture_head_dataset(const std::string &scene, std::string &dir_out)
         return -4;
 
     std::cout << "[cap] 原图目录 " << dir_out << "\n"
-              << "[cap] 在运行 t170c_debug 的终端按回车拍一张；输入 quit 后回车结束\n"
+              << "[cap] 在运行 t170_factory 的终端按回车拍一张；输入 quit 后回车结束\n"
               << std::flush;
 
     RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
@@ -2280,7 +2393,7 @@ int go_belt()
 constexpr int kBeltGraspEmpty = 11;
 /** 码系抓取窗口内无零件：不伸手；调度侧原地等指令。 */
 constexpr int kBeltNoPartVision = 12;
-/** 空抓后再拍，窗口内判成倒件。调度按没零件上报 1102 并原地等待。 */
+/** 空抓后再拍，窗口内判成倒件。调度上报 1301 并原地等待。 */
 constexpr int kBeltFallen = 13;
 /** 调度已指定的那只手，窗口没有把它算进去：不伸这只手，整段任务不因此判空。 */
 constexpr int kBeltHandSkip = 14;
@@ -2640,20 +2753,24 @@ static int go_belt_grasp_attempt(
         double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
         if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
             return -30;
+        const bool belt_grasp_servo =
+            g_move_cfg.cameras.hand_descent_correct &&
+            g_move_cfg.visual_servo.belt_grasp_enabled;
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
                   << "m/s 先到正上方 " << (hover_z * 100.0)
                   << " cm，再竖直 " << kDescentMps
                   << " m/s 下降。";
-        if (g_move_cfg.cameras.hand_descent_correct)
+        if (belt_grasp_servo)
             std::cout << "下降段使用双轴闭环、延迟补偿与预测制动\n";
         else
-            std::cout << "手相机修正已关，照头相机目标走\n";
+            std::cout << "传送带抓取开环偏置（码+offset），不进手相机伺服\n";
         const std::string descent_tag=std::string(name)+"/"+station+"/grasp";
         const ArmLineMoveResult approach = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, hover, goal, is_right,
             *g_hw->arm_l, hover, goal, !is_right,
-            reach_mps, kDescentMps, {}, false, descent_tag.c_str(), false, true, 0);
+            reach_mps, kDescentMps, {}, false, descent_tag.c_str(), false,
+            belt_grasp_servo, 0);
         const int approach_rc = is_right ? approach.ret_r : approach.ret_l;
         if (approach_rc != 0)
         {
@@ -2663,18 +2780,13 @@ static int go_belt_grasp_attempt(
         }
         if (aborted()) return -4;
         bool empty_r=false,empty_l=false;
-        if(g_move_cfg.cameras.hand_descent_correct) {
+        if(belt_grasp_servo) {
             const auto closed=move_box::finish_servo_grasp(
-                *g_hw->g,*g_hw->arm_r,*g_hw->arm_l,is_right,!is_right,empty_r,empty_l,name,[&] {
-                    Eigen::Matrix<double,1,6> lift,back;
-                    retract_poses(is_right,false,lift,back);
-                    arm_start_line_then_line_plan(is_right ? *g_hw->arm_r : *g_hw->arm_l,
-                        lift,back,c.grasp_retract_vel_m_s,c.grasp_retract_vel_m_s);
-                });
+                *g_hw->g,*g_hw->arm_r,*g_hw->arm_l,is_right,!is_right,empty_r,empty_l,name);
             const int code=is_right ? closed.ret_r : closed.ret_l;
             if(code!=0) return code;
         } else {
-            // Preserve the old settling behavior only when visual correction is explicitly disabled.
+            // Open-loop belt grasp: settle then close; no wrist_servo hold/gate.
             hardware_abort_sleep_ms(500);
             if(aborted()) return -4;
             const auto side=is_right ? gripper::Side::Right : gripper::Side::Left;
@@ -2688,7 +2800,8 @@ static int go_belt_grasp_attempt(
     };
 
     // to_ready：空抓的手回到伸手前的准备 tcp，外层从这里直接重拍重抓。
-    auto grasp_lift_and_back = [&](bool is_right, bool to_ready = false) -> int {
+    auto grasp_lift_and_back = [&](bool is_right, bool to_ready = false,
+                                   const std::function<void(double)> &progress = {}) -> int {
         if (is_right && right_arm_motors_locked())
             return 0;
         if (aborted())
@@ -2702,13 +2815,11 @@ static int go_belt_grasp_attempt(
         retract_poses(is_right,to_ready,lift,back_pose);
         if(to_ready) arm_discard_line_then_line_plan(is_right ? 1 : 0);
         const double speed=c.grasp_retract_vel_m_s;
-        std::cout<<"[orch] "<<name<<' '<<hand<<" 合爪后按料盘同一链路上抬收手，目标="<<back_name
+        std::cout<<"[orch] "<<name<<' '<<hand<<" 合爪后先竖直抬离，再规划返回，目标="<<back_name
                  <<" speed="<<speed<<"m/s\n";
-        const auto moved=arm_dual_line_then_line_nostop(
-            *g_hw->arm_r,lift,back_pose,is_right,
-            *g_hw->arm_l,lift,back_pose,!is_right,
-            speed,speed,{},true,"传送带抓取收手");
-        const int code=is_right ? moved.ret_r : moved.ret_l;
+        const double lift_height=c.grasp_hover_above_m>1e-9 ? c.grasp_hover_above_m : g_move_cfg.head_grasp.lift_after_grasp_z;
+        int code=arm_vertical_lift(arm,lift_height,speed,progress);
+        if(code==0) code=arm_return_after_lift(arm,back_pose,speed);
         if(code!=0) {
             std::cerr<<"[orch] "<<name<<' '<<hand<<" 收手失败 code="<<code<<"，保留夹爪状态\n";
             return aborted() ? -4 : code;
@@ -2806,17 +2917,27 @@ static int go_belt_grasp_attempt(
     if (right_rc != 0)
         return right_rc;
 
+    wrist_servo::RetreatClearanceGate right_clearance(c.next_hand_clearance_m);
     std::thread th_r([&]() {
-        try { right_back_rc=grasp_lift_and_back(true); }
+        try { right_back_rc=grasp_lift_and_back(true,false,
+            [&](double gain){right_clearance.measured_lift(gain);}); }
         catch(const std::exception &ex) {
             std::cerr<<"[orch] 右手收手异常: "<<ex.what()<<'\n';right_back_rc=-32;
         }
+        right_clearance.finish(right_back_rc);
     });
     struct JoinRetreat {
         std::thread &worker;
         ~JoinRetreat() {if(worker.joinable()) worker.join();}
     } join_retreat{th_r};
-    std::cout << "[orch] belt_grasp 右手已夹到，左手立刻过来（不等右手抬起回程）\n";
+    wrist_servo::task_event(1,"peer_wait_clearance","right_must_physically_lift_first");
+    const int clearance_rc=right_clearance.wait(c.next_hand_clearance_timeout_s);
+    if(clearance_rc!=0 || aborted()) {
+        std::cerr<<"[orch] 右手未确认抬离，左手禁止进入 code="<<clearance_rc<<'\n';
+        return aborted()?-4:clearance_rc;
+    }
+    wrist_servo::task_event(1,"peer_clearance","measured_vertical_clearance_reached");
+    std::cout << "[orch] belt_grasp 右手已实际抬离，左手立即进入，与右手后续返回并行\n";
     const int left_rc = grasp_one(false);
     const bool left_empty = left_rc == kBeltGraspEmpty;
     const int left_back_rc =
@@ -3412,7 +3533,8 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             engine_id,
             adaptive_approach_rpy,
             clear_tray ? false : holding_r,
-            clear_tray ? false : holding_l);
+            clear_tray ? false : holding_l,
+            {}, false, !clear_tray);
 
         if (g_load_parts_seen < 0 && r.zone_count_ok)
         {
@@ -4164,7 +4286,7 @@ namespace
 
 bool wait_tray2_center_key()
 {
-    std::cout << "\n[tray2center] 已停住。请在运行 t170c_debug 的终端按回车，或输入一个字符后继续\n"
+    std::cout << "\n[tray2center] 已停住。请在运行 t170_factory 的终端按回车，或输入一个字符后继续\n"
               << std::flush;
     if (!isatty(STDIN_FILENO))
     {
@@ -4821,16 +4943,28 @@ struct TaskPoints
     std::string unload;
 };
 
+std::string dispatch_port(const std::string &port_one, const std::string &port_two)
+{
+    if (!port_one.empty())
+        return port_one;
+    return port_two;
+}
+
 TaskPoints read_task_points()
 {
     TaskPoints p;
     p.raw = RobotClient::raw_material_point;
     p.well = RobotClient::well_done_point;
-    p.load = RobotClient::sequence_one;
-    p.unload = RobotClient::sequence_two;
+    // 圆方只写口一。海德曼本次允许的口可能在口二，口一空时用口二。
+    p.load = dispatch_port(RobotClient::sequence_one_port_one, RobotClient::sequence_one_port_two);
+    p.unload = dispatch_port(RobotClient::sequence_two_port_one, RobotClient::sequence_two_port_two);
     std::cout << "[dispatch] 调度点位 上料架=" << p.raw
-              << " 上料点=" << p.load
-              << " 下料点=" << p.unload
+              << " 工序一口一=" << RobotClient::sequence_one_port_one
+              << " 口二=" << RobotClient::sequence_one_port_two
+              << " 采用上料点=" << p.load
+              << " 工序二口一=" << RobotClient::sequence_two_port_one
+              << " 口二=" << RobotClient::sequence_two_port_two
+              << " 采用下料点=" << p.unload
               << " 下料架=" << p.well
               << " 待命点=" << RobotClient::standby_point
               << " 充电点=" << RobotClient::charge_point << "\n";
@@ -4846,11 +4980,11 @@ bool task_points_ready(const std::string &task, const TaskPoints &p)
         return true;
     };
     if (task == dispatch_msg::TASK_LOAD)
-        return !(miss("raw_material_point", p.raw) || miss("sequence_one", p.load));
+        return !(miss("raw_material_point", p.raw) || miss("sequence_one_port", p.load));
     if (task == dispatch_msg::TASK_TRANSFER)
-        return !(miss("sequence_one", p.load) || miss("sequence_two", p.unload));
+        return !(miss("sequence_one_port", p.load) || miss("sequence_two_port", p.unload));
     if (task == dispatch_msg::TASK_UNLOAD)
-        return !(miss("sequence_two", p.unload) || miss("well_done_point", p.well));
+        return !(miss("sequence_two_port", p.unload) || miss("well_done_point", p.well));
     return false;
 }
 
@@ -4882,12 +5016,12 @@ int dispatch_back_to_tray(bool watch_obstacle = false)
     return ch_rc;
 }
 
-/** 1.8 库没有 report_state。STANDBY / WORKING / 充电过程 / ERR_* 只留在本机面板。
+/** STANDBY / WORKING / 充电过程只留在本机面板。电机和相机掉线另走 report_exception。
  *  调度靠 POSE 里的 current_point 知道人在哪个点。 */
 void dispatch_note_state(const std::string &state)
 {
     std::cout << "[dispatch] 本机状态 " << state
-              << "（调度 1.8 不接收该状态，站点随 POSE 的 current_point 上报）\n";
+              << "（站点随 POSE 的 current_point 上报）\n";
     board_state(state, true);
 }
 
@@ -4942,12 +5076,28 @@ int dispatch_reapply_after_qr(
     return 0;
 }
 
+bool dispatch_report_ex(RobotClient &client, int code, const char *zh);
+
 int dispatch_wait_system(RobotClient &client, const std::string &state)
 {
     std::cerr << "[dispatch] 异常 " << state << "，停止动作，保持连接等待系统处理\n";
     board_error("异常 " + state + "（" + dispatch_state_zh(state) + "），停止动作，等待系统处理");
     board_activity("异常停机，等待系统处理");
     dispatch_note_state(state);
+    int code = 0;
+    const char *zh = nullptr;
+    if (state == dispatch_msg::ERR_MOTOR_LOST || state == dispatch_msg::ERR_MOTOR_DISABLE)
+    {
+        code = RobotClient::MotorDisconnected;
+        zh = "电机连接掉线";
+    }
+    else if (state == dispatch_msg::ERR_CAMERA)
+    {
+        code = RobotClient::CameraDisconnected;
+        zh = "相机连接掉线";
+    }
+    if (code != 0)
+        dispatch_report_ex(client, code, zh);
     while (!hardware_abort_requested())
         hardware_abort_sleep_ms(500);
     return -4;
@@ -5179,10 +5329,14 @@ int dispatch_pick_one(
             true);
         if (rc == kBeltNoPartVision || rc == kBeltFallen)
         {
+            const bool fallen = rc == kBeltFallen;
             std::cout << "[dispatch] " << done_what
-                      << (rc == kBeltFallen ? " 空抓后再拍是倒件，" : " 抓取窗口内没有料，")
-                      << "上报 1102\n";
-            if (!dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "下料点没有料可以抓"))
+                      << (fallen ? " 空抓后再拍是倒件，上报 1301\n"
+                                 : " 抓取窗口内没有料，上报 1102\n");
+            const bool solved = fallen
+                                    ? dispatch_report_ex(client, RobotClient::WorkpieceFallen, "工件倒了")
+                                    : dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "下料点没有料可以抓");
+            if (!solved)
                 return kDispatchNoPartStay;
             need_apply = false;
             from_place = true;
@@ -5313,7 +5467,7 @@ static int count_fallen_near_place_points(
     return fallen;
 }
 
-/** 放置完成后确认。倒件上报 1102 并原地等待；已解决再拍。没有倒件返回 0。 */
+/** 放置完成后确认。倒件上报 1301 并原地等待；已解决再拍。没有倒件返回 0。 */
 static int confirm_belt_place_not_fallen(
     RobotClient &client, const ConveyorStationConfig &c, const char *tag,
     bool do_right, bool do_left, const char *place_what)
@@ -5333,8 +5487,8 @@ static int confirm_belt_place_not_fallen(
         if (fallen > 0)
         {
             std::cout << "[dispatch] " << place_what << " 放置点 ±6cm 内倒件 " << fallen
-                      << " 个，上报 1102\n";
-            if (!dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "放置点零件倒了"))
+                      << " 个，上报 1301\n";
+            if (!dispatch_report_ex(client, RobotClient::WorkpieceFallen, "工件倒了"))
                 return kDispatchHoldStay;
             std::cout << "[dispatch] " << place_what << " 倒件已解决，再拍一张确认\n";
             continue;
@@ -5577,10 +5731,14 @@ int dispatch_pick_pair(
                 true, depart_after_right, {}, true);
             if (rc == kBeltNoPartVision || rc == kBeltFallen)
             {
+                const bool fallen = rc == kBeltFallen;
                 std::cout << "[dispatch] "
-                          << (rc == kBeltFallen ? "空抓后再拍是倒件，" : "抓取窗口内没有料，")
-                          << "上报 1102\n";
-                if (!dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "下料点没有料可以抓"))
+                          << (fallen ? "空抓后再拍是倒件，上报 1301\n"
+                                     : "抓取窗口内没有料，上报 1102\n");
+                const bool solved = fallen
+                                        ? dispatch_report_ex(client, RobotClient::WorkpieceFallen, "工件倒了")
+                                        : dispatch_report_ex(client, RobotClient::UnloadPointEmpty, "下料点没有料可以抓");
+                if (!solved)
                     return kDispatchNoPartStay;
                 const bool right_held = g_hw != nullptr && g_hw->last_grasped_r;
                 const bool left_held = g_hw != nullptr && g_hw->last_grasped_l;
@@ -6107,7 +6265,7 @@ int dispatch_transfer(RobotClient &client)
     g_move_cfg.chassis.belt_station = points.load;
     g_move_cfg.chassis.out_station = points.unload;
     std::cout << "[dispatch] 转运：" << points.load
-              << " 不申请，按码系抓取窗口抓；窗口内没料报 1102；抓完发 "
+              << " 不申请，按码系抓取窗口抓；窗口内没料报 1102，倒件报 1301；抓完发 "
               << dispatch_msg::PICK_UP_DONE
               << "。有件才去 " << points.unload << " 放\n";
     board_step("去传送带一");
@@ -6166,7 +6324,7 @@ int dispatch_unload(RobotClient &client)
     std::cout << "[dispatch] 下料：" << points.unload
               << " 不申请，到站拍一次按抓取窗口抓，然后去 " << points.well
               << " 放置。放完再发 " << dispatch_msg::DONE
-              << "。空抓后再拍：倒件按没料上报 1102 并等待；立件再抓一次；没有空孔再报满盘\n";
+              << "。空抓后再拍：倒件上报 1301 并等待；立件再抓一次；没有空孔再报满盘\n";
     board_step("去传送带二");
     if (!belt_ready_to_pick(g_move_cfg.chassis.out_station, g_move_cfg.conveyor2, "下料"))
     {
@@ -6335,6 +6493,8 @@ static int run_dispatch_mode_body()
     // board_end 迟迟不跑，网页一直显示「调度中」。
     auto client_holder = std::make_unique<RobotClient>(ch.robot_type, ch.sequence_number);
     RobotClient &client = *client_holder;
+    if (!load_dispatch_map_if_updated())
+        return -1;
     struct BodyMotorRestore
     {
         ~BodyMotorRestore()
@@ -6731,7 +6891,7 @@ static int run_dispatch_mode_body()
             const std::string fault = dispatch_exception_state();
             if (!fault.empty() &&
                 (fault == dispatch_msg::ERR_MOTOR_LOST || fault == dispatch_msg::ERR_MOTOR_DISABLE ||
-                 fault == dispatch_msg::ERR_GRIPPER_LOST))
+                 fault == dispatch_msg::ERR_CAMERA || fault == dispatch_msg::ERR_GRIPPER_LOST))
             {
                 board_mission_end(false, "异常 " + fault + "，等待系统处理");
                 return dispatch_wait_system(client, fault);

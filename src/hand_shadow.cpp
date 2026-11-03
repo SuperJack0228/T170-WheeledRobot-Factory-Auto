@@ -1,3 +1,5 @@
+#include "t170/common/paths.h"
+#include "t170/common/logging.h"
 #include "hand_shadow.h"
 #include "servo/runtime.h"
 #include "Ti5_socketcan.h"
@@ -102,6 +104,10 @@ void observe(int hand) {
         obs.neighbor_count=located.neighbors; obs.marker_corner_count=located.marker_corners;
         obs.vision_source=located.source; obs.plane_reprojection_px=located.reprojection_px;
         obs.plane_z_m=located.plane_z_m;
+        obs.tray_rois=located.rois; obs.tray_contours=located.contours;
+        obs.tray_rejected_size=located.rejected_size; obs.tray_rejected_shape=located.rejected_shape;
+        obs.tray_rejected_coverage=located.rejected_coverage; obs.tray_rejected_residual=located.rejected_residual;
+        obs.tray_skipped_occupied=located.skipped_occupied;
         if(!located.valid) {
             wrist_servo::observation_event(hand,context.session,located.reason.c_str(),obs);return;
         }
@@ -228,7 +234,7 @@ void hand_shadow_end(int hand) {
 void hand_shadow_set_descent_raw(bool enable) { save_raw.store(enable); }
 void hand_track_log(const std::string &hand,const std::string &result,const std::string &detail) {
     std::lock_guard<std::mutex> lock(legacy_log_mutex);
-    const auto path=std::filesystem::path(project_root_dir())/"logs"/"hand_track.csv";
+    const auto path=t170::logging::file("hand_track.csv");
     std::error_code ec; std::filesystem::create_directories(path.parent_path(),ec);
     std::ofstream out(path,std::ios::app);
     out << wrist_servo::monotonic_seconds() << ',' << hand << ',' << result << ',' << detail << '\n';

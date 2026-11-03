@@ -1,3 +1,5 @@
+> 当前主程序：`t170_factory`。基础组件迁移及新构建命令见 [基础组件迁移说明](docs/FOUNDATION_MIGRATION.md)。下文历史流程说明仍应结合实际源码核对。
+
 # T170C
 
 **轮式双臂圆柱件上下料**
@@ -45,7 +47,7 @@ T170C 停在待命点，等调度下发任务和工位。点位由调度给出�
 同一套检测权重区分立件、空孔和倒件。料架抓取挑选立件，成品盘放置挑选空孔。传送带第一次拍照把立件和倒件都当作可抓零件，先按窗口件数伸手。
 
 **空抓之后再看一眼**  
-夹爪报空，手臂回到准备位后再拍一张，仍看同一个窗口。确认还立着，就在窗口里再抓一次。确认是倒件，上报 `1102` 并留在原地，等现场把零件扶正。已经夹住的那只手保持闭合、不再移动，只让空着的手补抓。
+夹爪报空，手臂回到准备位后再拍一张，仍看同一个窗口。确认还立着，就在窗口里再抓一次。确认是倒件，上报 `1301` 并留在原地，等现场把零件扶正。已经夹住的那只手保持闭合、不再移动，只让空着的手补抓。
 
 **放置后再确认**  
 上料和转运放完、两手收回准备位之后，头相机再拍一张。只检查这次用过的放置点，x、y 各 ±3 cm。范围内没有倒件，才向调度发送完成。
@@ -121,15 +123,15 @@ T170Clean
 └── docs/                      流程与参数说明
 ```
 
-运行程序是 `build_robot/t170c_debug`，只接受本机 `127.0.0.1:8099` 的调试命令。
+运行程序是 `build_robot/t170_factory`，只接受本机 `127.0.0.1:8099` 的调试命令。
 
 ---
 
 ## 在机器人上运行
 
 ```bash
-cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170c_debug
-./build_robot/t170c_debug
+cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170_factory
+./build_robot/t170_factory
 ```
 
 另一个终端：
@@ -145,7 +147,7 @@ python3 tools/debug_client.py abort
 调试图：
 
 ```bash
-T170_VISION_DEBUG=1 ./build_robot/t170c_debug
+T170_VISION_DEBUG=1 ./build_robot/t170_factory
 ```
 
 头相机检测框写在 `picture_debug/head/`。手相机伸手照片写在 `picture_debug/right_hand/` 和 `picture_debug/left_hand/`。

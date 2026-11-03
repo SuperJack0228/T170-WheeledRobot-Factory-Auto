@@ -1,0 +1,381 @@
+#pragma once
+
+#include <Eigen/Dense>
+#include <string>
+#include <vector>
+#include "servo/visual_servo.h"
+
+struct ArmPosePairConfig
+{
+    Eigen::Matrix<double, 1, 6> right = Eigen::Matrix<double, 1, 6>::Zero();
+    Eigen::Matrix<double, 1, 6> left = Eigen::Matrix<double, 1, 6>::Zero();
+};
+
+struct HandXyOffsetConfig
+{
+    double offset_x = 0.0;
+    double offset_y = 0.0;
+};
+
+/** 抓取末端姿态，yaml 单位 deg。 */
+struct GraspRpyDeg
+{
+    double rx = 0.0;
+    double ry = 60.0;
+    double rz = 0.0;
+};
+
+/** 基座系平移偏置，米。+X 前，+Y 左，+Z 上。 */
+struct XyzOffsetM
+{
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+};
+
+struct TrayHeightConfig
+{
+    /** 基座系盘面 Z（卷尺/示教，向上为正）。对应量的时候那一档腰高。 */
+    double z_ref_m = -0.72;
+    /** 量 z_ref_m 时的腰 layer3.z（应与当时 home 一致）。腰升降时按差值改盘面参考。 */
+    double z_ref_waist_z_m = 0.55;
+    /** 毛坯相对盘面的典型露出高度。 */
+    double part_above_tray_m = 0.015;
+    /** 头/手相机绝对 Z 相对「参考顶面」超过该值则忽略相机高度。 */
+    double z_refine_max_m = 0.01;
+    /** 料盘位姿多帧融合帧数。1=单帧。 */
+    int fuse_frames = 5;
+};
+
+struct HeadGraspConfig
+{
+    double hover_above_m = 0.08;
+    double goal_z_base = -0.30;
+    double goal_x_offset = 0.01;
+    /** 左手示教：夹取点相对孔位（基座系）。右手用 right_goal_*，不取反。 */
+    double goal_y_offset = 0.0;
+    double goal_z_extra = 0.26;
+    double right_goal_x_offset = 0.01;
+    double right_goal_y_offset = 0.0;
+    double right_grasp_z_offset_m = 0.02;
+    double right_rx_deg = 0.0, right_ry_deg = 60.0, right_rz_deg = 45.0;
+    double left_rx_deg = 0.0, left_ry_deg = 60.0, left_rz_deg = -45.0;
+    /** 三组抓取 RPY，ready1/2/3。近远三排共用：0=row3/6，1=row2/5，2=row4。最远 row1 用 left_row6 存储的专用姿态。 */
+    GraspRpyDeg left_row_rpy_deg[3];
+    GraspRpyDeg right_row_rpy_deg[3];
+    /** 最远一行（ArUco row1）专用末端姿态。yaml: row1_rpy_deg。 */
+    GraspRpyDeg left_row6_rpy_deg;
+    GraspRpyDeg right_row6_rpy_deg;
+    /** 保留读取，运动不再分支。不用手相机停稳拍照时，抓取就是两段直线一次走完。 */
+    bool approach_nostop = false;
+    double adaptive_pitch_down_deg = 45.0;
+    double adaptive_yaw_max_deg = 55.0;
+    double adaptive_min_horiz_m = 0.05;
+    double adaptive_approach_xyz_tol_m = 0.03;
+    double adaptive_approach_rpy_tol_deg = 12.0;
+    double head_approach_z_descend = 0.05;
+    double hand_descend_z = 0.07; // 已废弃，最终高度改用手相机 object_z
+    /** 最终夹取 Z 修正，向上为正。偏深则加大，偏高则减小/改负。 */
+    double grasp_z_offset_m = 0.02;
+    /** 仅 from_robot=6（离机器人最近一排）额外 Z，叠在左右手 z_offset 上。向上为正。 */
+    double nearest_row_grasp_z_offset_m = 0.0;
+    /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
+    bool use_row_offset = false;
+    /** 按 from_robot 1..6（1=最远）。叠在整盘 goal_*_offset 上。use_row_offset 为 false 时不加入目标。 */
+    XyzOffsetM left_row_offset[6]{};
+    XyzOffsetM right_row_offset[6]{};
+    /** false：跳过手相机，XY/Z 都用孔位+盘面参考。 */
+    bool use_hand_camera = true;
+    double hand_match_xy_max_m = 0.05;
+    /** 手相机相对孔位 XY 的限幅微调；0 关闭。不覆盖 goal_x_offset。 */
+    double hand_xy_refine_max_m = 0.03;
+    HandXyOffsetConfig hand_right;
+    HandXyOffsetConfig hand_left;
+    double lift_after_grasp_z = 0.08;
+    /** 直线下降到位后，FK 实测位置/姿态超过阈值则禁止合爪。 */
+    double bezier_endpoint_xyz_tol_m = 0.003;
+    double bezier_endpoint_rpy_tol_deg = 3.0;
+    /** 到上方 / 下压 / 抬起 / 收回 的笛卡尔线速度（m/s）。 */
+    double approach_vel_m_s = 0.25;
+    double descend_vel_m_s = 0.25;
+    double lift_vel_m_s = 0.25;
+    double return_vel_m_s = 0.25;
+    /** 抓取合爪后专用上抬速度；独立于放置/旧流程 lift_vel_m_s。 */
+    double retract_lift_vel_m_s = 0.40;
+    bool rise_waist_with_lift = true;
+    double waist_lift_start_clearance_m = 0.015;
+    double retract_arrival_tolerance_m = 0.008;
+    double retract_arrival_timeout_s = 2.0;
+    /** 仅约束收手接缝，不重定时 SDK 巡航段。单位 rad/s、rad/s²、rad/s³、s。 */
+    double retract_connector_speed_rad_s = 1.5;
+    double retract_connector_accel_rad_s2 = 6.0;
+    double retract_connector_jerk_rad_s3 = 80.0;
+    double retract_connector_max_s = 0.40;
+    /** 下压到位后、合爪前等待（秒），避免还在晃就夹。 */
+    double pre_grasp_settle_sec = 0.5;
+    int hand_detect_invalid_redo_max = 10;
+};
+
+struct GraspValidConfig
+{
+    double z_min = -0.65, z_max = -0.05;
+    double x_min = 0.10, x_max = 0.80;
+    /** 工作包络。左右分列跟 ArUco 列号，不按盘心 Y + offset 拒目标。 */
+    double right_y_min = -0.50, right_y_max = 0.28;
+    double left_y_min = -0.28, left_y_max = 0.50;
+};
+
+struct GraspZoneConfig
+{
+    double y_side_split = 0.08; // 已废弃，列分区改用 column_split_y
+    /** 已不再用于选孔；包络以 grasp_valid 为准。 */
+    double y_max_abs = 0.50;
+    double x_min = 0.10, x_max = 0.80;
+    double edge_margin_frac = 0.08;
+    double cam_xy_over_z_max = 0.50;
+    /** 无料盘时 YOLO XY 回退用。料盘：同行最近、满排同时 (3-6/2-5/1-4)。 */
+    double front_row_tolerance_m = 0.025;
+    /** 仅无料盘位姿时的回退中缝（机器人 Y）。有 ArUco 盘心后改用 live 盘心 Y。 */
+    double column_split_y = 0.0;
+    double hole_pitch_m = 0.075;
+    int column_count = 6;
+    /** 同时抓最小列号差。3 表示 (1,4)(2,5)(3,6) 为最小对。 */
+    int min_simultaneous_col_delta = 3;
+    /** ArUco 行号 1=盘前方（远离机器人）。1..far_row_max 为远三排，抓前腰前伸。0=关闭。 */
+    int far_row_max = 3;
+};
+
+struct WaistConfig
+{
+    Eigen::Matrix<double, 1, 6> layer3_home = Eigen::Matrix<double, 1, 6>::Zero();
+    double stagger_step_x = 0.0556;
+    int stagger_max_steps = 0;
+    double move_settle_sec = 0.5;
+    double x_min = -0.30, x_max = 0.30;
+    double z_min = 0.35, z_max = 0.67;
+    /** 抓取时盘面 live z_ref 目标。当前不再为够到该值而继续降腰。 */
+    double grasp_object_z_min = -0.40;
+    double grasp_lower_z = 0.16;
+    /** ready/grasp 腰 TCP z（米）。home 仍用 layer3_home.z。 */
+    double ready_z_m = 0.36;
+    /** ready/grasp 起始：相对 layer3_home.x 再向前（米，+X 为机器人前方）。home 仍停在 layer3_home.x。 */
+    double ready_forward_m = 0.06;
+    /** 远三排 / waist2：相对 layer3_home.x 再向前伸的距离（米）。抓完不收回。 */
+    double far_row_forward_m = 0.15;
+};
+
+/** 传送带工位 XYZ 偏置（米，基座系）。叠在 tcp 上，右手不取反。 */
+struct ConveyorXyzOffset
+{
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+};
+
+/** 仙工底盘握手。抓好后导航到 belt_station，等到站再放置。 */
+struct ChassisConfig
+{
+    std::string host = "192.168.192.5";
+    /** 调度接入型号，只能是 T170C2.0 或 T230C。 */
+    std::string robot_type = "T170C2.0";
+    /** 调度里该组的从站号。 */
+    std::string sequence_number = "1";
+    std::string tray_station = "AP4";
+    /** 调度还没下发 standby_point 时，无任务回到这里。下发之后以 standby_point 为准。 */
+    std::string dispatch_wait_station = "AP14";
+    /** 调试指令 charge：调度未下发 charge_point 时去这里。调度 CHARGE 仍用系统下发的点。 */
+    std::string charge_station;
+    /** 调度充电结束后去这里待命（默认 AP12）。与 dispatch_wait_station（一般 AP14）分开。 */
+    std::string charge_wait_station = "AP12";
+    /** 调度充电：电量达到该百分比后汇报完成并停止充电。调试 charge 指令不等此项。 */
+    double charge_done_percent = 95.0;
+    /** 第二个料盘（空孔放置）。调试指令 tray2 / tray2ready*。 */
+    std::string tray2_station = "AP9";
+    std::string belt_station = "AP6";
+    /** 第二条传送带。cycle 第一次抓完腰回 0 后去这里再放置。 */
+    std::string out_station = "AP5";
+    /** 等站点到位超时（毫秒）。abort 可提前打断。 */
+    int nav_timeout_ms = 600000;
+};
+
+/** 料盘2空孔放置的四组 TCP 姿态。与 head_grasp ready1/2/3/6 独立，方便单独微调。 */
+struct Tray2PlaceConfig
+{
+    double retract_lift_m = 0.08;
+    double retract_lift_vel_m_s = 0.40;
+    double retract_return_vel_m_s = 0.40;
+    double pre_open_settle_sec = 0.0;
+    double open_tolerance_rad = 0.2;
+    int open_timeout_ms = 1500;
+    GraspRpyDeg left_row_rpy_deg[3];
+    GraspRpyDeg right_row_rpy_deg[3];
+    GraspRpyDeg left_row6_rpy_deg;
+    GraspRpyDeg right_row6_rpy_deg;
+    /** 相对孔位的放置偏置（基座系）。左右分开，不共用 head_grasp。 */
+    double goal_x_offset = 0.015;
+    double goal_y_offset = -0.01;
+    double grasp_z_offset_m = 0.02;
+    double right_goal_x_offset = 0.01;
+    double right_goal_y_offset = -0.01;
+    double right_grasp_z_offset_m = 0.04;
+    /** 仅 from_robot=6，叠在该手 z 上。 */
+    double nearest_row_z_offset_m = -0.01;
+    /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
+    bool use_row_offset = false;
+    /** 按 from_robot 1..6（1=最远）。与 head_grasp 的行偏置互不影响。use_row_offset 为 false 时不加入目标。 */
+    XyzOffsetM left_row_offset[6]{};
+    XyzOffsetM right_row_offset[6]{};
+    /** 远三排腰前伸，相对 layer3_home.x。不使用 waist.far_row_forward_m。 */
+    double far_row_forward_m = 0.20;
+};
+
+/** 传送带工位调试姿态。与料盘 waist/head/standby/home_tcp 独立。
+ *  `belt_ready`：腰/头 + tcp（准备）。`belt_place`：腰/头 + place_tcp（放置末端）。
+ *  `belt`：准备后认码，先右手放到码+offset再回准备，再左手；不回 home。 */
+struct ConveyorStationConfig
+{
+    double waist_x = -0.15;
+    double waist_z = 0.63;
+    double head_yaw_deg = 0.0;
+    double head_pitch_deg = 50.0;
+    double head_roll_deg = 0.0;
+    ArmPosePairConfig tcp;
+    /** 放置末端姿态。belt_place 预览整段 6D；完整 belt 只用其 RPY。 */
+    ArmPosePairConfig place_tcp;
+    /** 相对识别板系（+X 前、+Y 左、+Z 上）：放置 XYZ = 码原点 + R_识别 × offset。 */
+    ConveyorXyzOffset offset_right;
+    ConveyorXyzOffset offset_left;
+    /** 优先用哪条皮带（belt0/belt1）。该条没码则用第一条解到的。 */
+    std::string prefer_belt = "belt0";
+    /** 传送带抓取专用 RPY（deg）。XYZ 用左右各自的 grasp_offset。 */
+    GraspRpyDeg grasp_rpy_left{0.0, 45.0, -30.0};
+    GraspRpyDeg grasp_rpy_right{0.0, 45.0, 30.0};
+    /** 相对识别板系（+X 前、+Y 左、+Z 上）。不转腰，不再乘腰 Rz。 */
+    ConveyorXyzOffset grasp_offset_left;
+    ConveyorXyzOffset grasp_offset_right;
+    /** 抓取完成后回到这里。开始准备仍用 tcp。未配置则等于 tcp。 */
+    ArmPosePairConfig grasp_tcp;
+    /** 抓取点上方接近高度。0=直接落到抓取点。 */
+    double grasp_hover_above_m = 0.06;
+    /** 放置点上方接近高度。先到该高度再下降松爪。0=直接落到放置点。 */
+    double place_hover_above_m = 0.06;
+    /** 放置：上方接近再落到放置点的线速度（米/秒）。 */
+    double place_approach_vel_m_s = 0.25;
+    /** 放置：松爪后轻抬再回准备的线速度（米/秒）。 */
+    double place_retract_vel_m_s = 0.25;
+    /** 抓取：上方接近再落到抓取点的线速度（米/秒）。 */
+    double grasp_approach_vel_m_s = 0.25;
+    /** 抓取：抬起再回 grasp_tcp/准备的线速度（米/秒）。 */
+    double grasp_retract_vel_m_s = 0.25;
+    double next_hand_clearance_m = 0.050;
+    double next_hand_clearance_timeout_s = 4.0;
+    /** 叠在放置目标的基座 Z 上（米，向上为正）。0=不改。转运松手再降用负值。 */
+    double place_base_z_bias_m = 0.0;
+    /** 传送带抓取转腰（deg）。0=不转。站点更新后默认不转。 */
+    double grasp_waist_yaw_deg = 0.0;
+    /** 准备姿态夹爪闭合比例，0=全开 1=全合。减小开距，避免下探时磕皮带边。 */
+    double grasp_ready_close_ratio = 0.30;
+    /** 传送带：整图 YOLO，框中心转到码系后再做抓放门禁。false=不跑。 */
+    bool yolo_roi_enable = false;
+    /** 计入「零件」的最低置信度。 */
+    double yolo_min_conf = 0.25;
+    /** 计入零件的 class_id；空则默认 0 和 2（立件、倒件），不含空孔 1。 */
+    std::vector<int> yolo_part_class_ids;
+    /** @deprecated 旧类别门禁；若 yolo_roi_enable=false 且本项 true 则仍走旧逻辑。 */
+    bool grasp_yolo_enable = false;
+    /** @deprecated 配合 grasp_yolo_enable。 */
+    int grasp_yolo_class_id = -1;
+    /** true：码原点 Z 不用相机，改用 fixed_origin_z_m。XY 和板姿态仍用二维码。 */
+    bool use_fixed_origin_z = false;
+    /** 手臂基座系码平面高度（米，向上为正）。腰 0.63m 时传送带在基座下方 0.29m。 */
+    double fixed_origin_z_m = -0.29;
+    /** 底盘到站后，放置拍照前再等这么久（秒）。从到站时刻起算，路上已耗掉的时间会扣掉。 */
+    double photo_after_arrival_sec = 3.0;
+    /** 腰头到位后，抓取拍照前再等这么久（秒）。 */
+    double grasp_photo_settle_sec = 1.5;
+};
+
+struct StaggerConfig
+{
+    double head_x_threshold = 0.80;
+};
+
+/** 合爪后按夹爪关节角判空抓。q 越小越合，0 为全合，约 5.5 全开。 */
+struct GripperCheckConfig
+{
+    bool enable = true;
+    /** 合爪结束：q < 该值算空抓；q >= 该值算夹到件。 */
+    double empty_q_rad = 0.5;
+    /**
+     * 界面实时持件上界。夹零件约 0.8～1.6；松爪/准备态约 4.3～5.5。
+     * 仅当 empty_q_rad ≤ q ≤ hold_q_max_rad 才显示持件。
+     */
+    double hold_q_max_rad = 3.0;
+    /** 同一只手连续空抓几次后停下报错，不再重抓。 */
+    int max_empty_retry = 2;
+};
+
+struct VisionDetectConfig
+{
+    int head_grasp = 1;
+    int right_hand_grasp = 1;
+    int left_hand_grasp = 1;
+};
+
+struct CameraStreamConfig
+{
+    int width = 1280;
+    int height = 720;
+    int head_fps = 15;
+    int hand_fps = 15;
+    /** 为真时后台抽帧写 picture_debug/live，网页才能看实时画面。会和推理抢同一条 pipeline。 */
+    bool hand_live_preview = false;
+    /** 为真时，竖直下降段把锁定工件的检测框中心对齐到夹爪像素，只改尚未发出的水平位置。 */
+    bool hand_descent_correct = false;
+    /** 夹爪中点在手相机画面里的像素。左手是转过 180° 之后的图。原点在左上角。 */
+    float left_gripper_u = 602.f;
+    float left_gripper_v = 452.f;
+    float right_gripper_u = 633.f;
+    float right_gripper_v = 482.f;
+};
+
+/** 头相机标定关节角。CAN 30=偏航 32=俯仰 31=横滚。 */
+struct HeadMotorConfig
+{
+    double yaw_deg = 0.0;
+    double pitch_deg = 40.0;
+    /** 腰前伸抓远三排时的低头俯仰。 */
+    double far_pitch_deg = 60.0;
+    double roll_deg = 0.0;
+    double speed_deg_s = 25.0;
+};
+
+struct MoveBoxConfig
+{
+    ArmPosePairConfig standby;
+    ArmPosePairConfig home_tcp;
+    TrayHeightConfig tray;
+    HeadMotorConfig head;
+    HeadGraspConfig head_grasp;
+    GraspValidConfig grasp_valid;
+    GraspZoneConfig grasp_zone;
+    WaistConfig waist;
+    ConveyorStationConfig conveyor;
+    /** 第二条传送带。缺省抄 conveyor；yaml conveyor2 可单独改。 */
+    ConveyorStationConfig conveyor2;
+    Tray2PlaceConfig tray2_place;
+    ChassisConfig chassis;
+    StaggerConfig stagger;
+    VisionDetectConfig vision_detect;
+    CameraStreamConfig cameras;
+    wrist_servo::Config visual_servo;
+    GripperCheckConfig gripper_check;
+};
+
+extern MoveBoxConfig g_move_cfg;
+
+MoveBoxConfig default_move_box_config();
+std::string default_move_box_config_path();
+bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::string &err);
+void print_move_box_config(const MoveBoxConfig &cfg);
+

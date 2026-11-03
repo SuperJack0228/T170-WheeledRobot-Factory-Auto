@@ -1,3 +1,5 @@
+#include "t170/common/paths.h"
+#include "t170/common/logging.h"
 #include "dispatch_timing.h"
 
 #include "seg_pose_bridge.h"
@@ -54,12 +56,7 @@ std::string now_wall_iso()
 
 std::string now_stamp()
 {
-    const std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    localtime_r(&t, &tm);
-    char buf[32];
-    std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", &tm);
-    return buf;
+    return t170::logging::local_time("%Y%m%d_%H%M%S");
 }
 
 std::string json_escape(const std::string &s)
@@ -124,7 +121,7 @@ bool ensure_file_unlocked()
         return true;
     if (read_level_unlocked() <= 0)
         return false;
-    const std::filesystem::path dir = std::filesystem::path(project_root_dir()) / "logs";
+    const std::filesystem::path dir = t170::paths::log_directory();
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
     g_path = (dir / ("timing_" + now_stamp() + ".jsonl")).string();

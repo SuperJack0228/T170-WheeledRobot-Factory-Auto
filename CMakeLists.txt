@@ -1,67 +1,95 @@
 cmake_minimum_required(VERSION 3.16)
-project(t170c_cylinder_debug LANGUAGES CXX)
+project(t170_factory LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Hardware-independent regression tests: no Linux SDK, cameras, Python or CAN required.
-option(T170_SERVO_TESTS_ONLY "Build only wrist-servo controller tests" OFF)
+# No SDK, Python embed, CAN or camera dependencies in the foundation library.
+add_library(t170_common STATIC src/common/paths.cpp src/common/logging.cpp)
+add_library(t170::common ALIAS t170_common)
+target_include_directories(t170_common PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_compile_definitions(t170_common PRIVATE T170_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+
+# Existing controller/kinematics implementation, also used by config validation.
+add_library(t170_servo_core STATIC src/servo/visual_servo.cpp src/servo/kinematics.cpp)
+add_library(t170::servo_core ALIAS t170_servo_core)
+target_include_directories(t170_servo_core PUBLIC ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/eigen3)
+
+function(t170_add_configuration)
+    add_library(t170_configuration STATIC src/common/config.cpp src/servo/config.cpp)
+    add_library(t170::configuration ALIAS t170_configuration)
+    target_include_directories(t170_configuration PUBLIC ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/eigen3)
+    target_link_libraries(t170_configuration PUBLIC t170::common t170::servo_core)
+    if(TARGET yaml-cpp::yaml-cpp)
+        target_link_libraries(t170_configuration PUBLIC yaml-cpp::yaml-cpp)
+    else()
+        target_link_libraries(t170_configuration PUBLIC yaml-cpp)
+    endif()
+endfunction()
+
+# All offline regressions are required; missing dependencies must not silently skip tests.
+option(T170_SERVO_TESTS_ONLY "Build only hardware-independent regression tests" OFF)
+option(T170_BUILD_DIAGNOSTICS "Build optional robot-moving diagnostic tools" OFF)
 if(T170_SERVO_TESTS_ONLY)
     find_package(Threads REQUIRED)
+    find_package(yaml-cpp REQUIRED)
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d)
+    if(OpenCV_VERSION VERSION_LESS "4.7")
+        find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d aruco)
+    else()
+        find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d objdetect)
+    endif()
+    t170_add_configuration()
     enable_testing()
-    add_executable(visual_servo_test tests/visual_servo_test.cpp src/servo/visual_servo.cpp src/servo/kinematics.cpp src/servo/trace.cpp)
+    add_executable(common_paths_test tests/common_paths_test.cpp)
+    target_link_libraries(common_paths_test PRIVATE t170::common)
+    add_test(NAME common_paths_test COMMAND common_paths_test)
+    add_executable(visual_servo_test tests/visual_servo_test.cpp src/servo/trace.cpp)
     target_include_directories(visual_servo_test PRIVATE include eigen3)
-    target_link_libraries(visual_servo_test PRIVATE Threads::Threads)
+    target_link_libraries(visual_servo_test PRIVATE Threads::Threads t170::servo_core)
     add_test(NAME visual_servo_test COMMAND visual_servo_test)
     add_executable(visual_servo_runtime_test tests/visual_servo_runtime_test.cpp
-        src/servo/visual_servo.cpp src/servo/trace.cpp src/servo/runtime.cpp)
+        src/servo/trace.cpp src/servo/runtime.cpp)
     target_include_directories(visual_servo_runtime_test PRIVATE include eigen3)
-    target_link_libraries(visual_servo_runtime_test PRIVATE Threads::Threads)
+    target_link_libraries(visual_servo_runtime_test PRIVATE Threads::Threads t170::common t170::servo_core)
     add_test(NAME visual_servo_runtime_test COMMAND visual_servo_runtime_test)
     add_executable(retract_trajectory_test tests/retract_trajectory_test.cpp)
     target_include_directories(retract_trajectory_test PRIVATE include eigen3)
     add_test(NAME retract_trajectory_test COMMAND retract_trajectory_test)
+    add_executable(retreat_gate_test tests/retreat_gate_test.cpp)
+    target_include_directories(retreat_gate_test PRIVATE include)
+    target_link_libraries(retreat_gate_test PRIVATE Threads::Threads)
+    add_test(NAME retreat_gate_test COMMAND retreat_gate_test)
     add_executable(grasp_execution_test tests/grasp_execution_test.cpp src/grasp_execution.cpp)
     target_include_directories(grasp_execution_test PRIVATE include eigen3 LowerBody/include)
     target_link_libraries(grasp_execution_test PRIVATE Threads::Threads)
     add_test(NAME grasp_execution_test COMMAND grasp_execution_test)
-    find_package(yaml-cpp QUIET)
-    if(yaml-cpp_FOUND)
-        add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp
-            src/servo/config.cpp src/servo/visual_servo.cpp src/move_box_config.cpp)
-        target_include_directories(visual_servo_config_test PRIVATE include eigen3)
-        if(TARGET yaml-cpp::yaml-cpp)
-            target_link_libraries(visual_servo_config_test PRIVATE yaml-cpp::yaml-cpp)
-        else()
-            target_link_libraries(visual_servo_config_test PRIVATE yaml-cpp)
-        endif()
-        add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
-            ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml)
-        find_package(OpenCV QUIET COMPONENTS core imgproc calib3d aruco)
-        if(OpenCV_FOUND)
-            add_executable(tray_localizer_test tests/tray_localizer_test.cpp src/servo/tray_localizer.cpp)
-            target_include_directories(tray_localizer_test PRIVATE include eigen3 ${OpenCV_INCLUDE_DIRS})
-            target_link_libraries(tray_localizer_test PRIVATE ${OpenCV_LIBS})
-            if(TARGET yaml-cpp::yaml-cpp)
-                target_link_libraries(tray_localizer_test PRIVATE yaml-cpp::yaml-cpp)
-            else()
-                target_link_libraries(tray_localizer_test PRIVATE yaml-cpp)
-            endif()
-            add_test(NAME tray_localizer_test COMMAND tray_localizer_test
-                ${PROJECT_SOURCE_DIR}/board_yf100_aruco/config.yaml)
-        endif()
+    add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp)
+    target_link_libraries(visual_servo_config_test PRIVATE t170::configuration)
+    add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
+        ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml)
+    add_executable(tray_localizer_test tests/tray_localizer_test.cpp src/servo/tray_localizer.cpp)
+    target_include_directories(tray_localizer_test PRIVATE include eigen3 ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(tray_localizer_test PRIVATE ${OpenCV_LIBS})
+    if(TARGET yaml-cpp::yaml-cpp)
+        target_link_libraries(tray_localizer_test PRIVATE yaml-cpp::yaml-cpp)
+    else()
+        target_link_libraries(tray_localizer_test PRIVATE yaml-cpp)
     endif()
+    add_test(NAME tray_localizer_test COMMAND tray_localizer_test
+        ${PROJECT_SOURCE_DIR}/board_yf100_aruco/config.yaml)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME python_runtime_paths_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/runtime_paths_test.py)
     return()
 endif()
 
-add_compile_definitions(MARKET_SIMPLE_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 add_custom_target(servo_build_identity
     COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
         -DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/servo_build_identity.h
         -P ${PROJECT_SOURCE_DIR}/cmake/servo_build_identity.cmake
     BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/servo_build_identity.h
     VERBATIM)
-
 
 set(HUMAN_INTERACTION_ENV_ROOT "/home/ti5robot/anaconda3/envs/human_interaction_env" CACHE PATH
     "Conda environment containing ultralytics, OpenCV and pybind11")
@@ -90,13 +118,13 @@ if(NOT SERIALPORT_LIB)
     message(FATAL_ERROR "libserialport not found")
 endif()
 
-set(TI5_DEVICE_SDK_ROOT "/opt/ti5-device-sdk")
-set(TI5_MOTOR_CODEC_ROOT "/opt/ti5-motor-codec")
-set(TI5_SERIAL_ROOT "/opt/ti5-serial")
-set(TI5_CAN_MINI_ROOT "/opt/ti5-can-mini")
-set(TI5_ROHAND_CODEC_ROOT "/opt/ti5-rohand-codec")
-set(TI5_DEX1_CODEC_ROOT "/opt/ti5-dex1-codec")
-set(TI5_AGV_SEER_ROOT "/opt/ti5-agv-seer")
+set(TI5_DEVICE_SDK_ROOT "/opt/ti5-device-sdk" CACHE PATH "Robot SDK installation root")
+set(TI5_MOTOR_CODEC_ROOT "/opt/ti5-motor-codec" CACHE PATH "Robot SDK installation root")
+set(TI5_SERIAL_ROOT "/opt/ti5-serial" CACHE PATH "Robot SDK installation root")
+set(TI5_CAN_MINI_ROOT "/opt/ti5-can-mini" CACHE PATH "Robot SDK installation root")
+set(TI5_ROHAND_CODEC_ROOT "/opt/ti5-rohand-codec" CACHE PATH "Robot SDK installation root")
+set(TI5_DEX1_CODEC_ROOT "/opt/ti5-dex1-codec" CACHE PATH "Robot SDK installation root")
+set(TI5_AGV_SEER_ROOT "/opt/ti5-agv-seer" CACHE PATH "Robot SDK installation root")
 set(TI5_ARM_SOLVER_LIB "${PROJECT_SOURCE_DIR}/lib/Ti5_Arm_2204.so")
 set(TI5_DEVICE_SDK_LIB "${TI5_DEVICE_SDK_ROOT}/lib/libcommunication_manager.so")
 set(TI5_MOTOR_CODEC_LIB "${TI5_MOTOR_CODEC_ROOT}/lib/libti5_motor.so")
@@ -104,7 +132,7 @@ set(TI5_SERIAL_SDK_LIB "${TI5_SERIAL_ROOT}/lib/libserial_port.so")
 set(TI5_ROHAND_CODEC_LIB "${TI5_ROHAND_CODEC_ROOT}/lib/librohand_codec.so")
 set(TI5_DEX1_CODEC_LIB "${TI5_DEX1_CODEC_ROOT}/lib/libTi5_Dex1_codec.so")
 set(TI5_AGV_SEER_LIB "${TI5_AGV_SEER_ROOT}/lib/libseer.so")
-set(TI5_JINDI_CLIENT_ROOT "/opt/ti5-jindi-faactory-robot-client")
+set(TI5_JINDI_CLIENT_ROOT "/opt/ti5-jindi-faactory-robot-client" CACHE PATH "Robot SDK installation root")
 set(TI5_JINDI_CLIENT_LIB "${TI5_JINDI_CLIENT_ROOT}/lib/libti5_jindi_faactory_robot_client.so")
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
     set(UNITREE_MOTOR_LIB "${PROJECT_SOURCE_DIR}/lib/libUnitreeMotorSDK_Arm64.so")
@@ -132,8 +160,12 @@ if(NOT TARGET Eigen3::Eigen)
 endif()
 add_subdirectory(LowerBody)
 
-add_executable(t170c_debug
-    orchestrator/cpp/orch_hw_main.cpp
+t170_add_configuration()
+add_dependencies(t170_configuration servo_build_identity)
+target_include_directories(t170_configuration PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+# Compile the shared robot implementation once for the app and optional diagnostics.
+add_library(t170_runtime OBJECT
     orchestrator/cpp/robot_runtime.cpp
     orchestrator/cpp/dispatch_board.cpp
     orchestrator/cpp/dispatch_timing.cpp
@@ -141,9 +173,6 @@ add_executable(t170c_debug
     src/grasp_execution.cpp
     src/function.cpp
     src/hand_shadow.cpp
-    src/servo/visual_servo.cpp
-    src/servo/kinematics.cpp
-    src/servo/config.cpp
     src/servo/runtime.cpp
     src/servo/trace.cpp
     src/servo/tray_localizer.cpp
@@ -163,10 +192,9 @@ add_executable(t170c_debug
     src/head_cam2robot.cpp
     src/head_control.cpp
 )
-add_dependencies(t170c_debug servo_build_identity)
-target_include_directories(t170c_debug PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-
-target_include_directories(t170c_debug PRIVATE
+add_library(t170::runtime ALIAS t170_runtime)
+add_dependencies(t170_runtime servo_build_identity)
+target_include_directories(t170_runtime PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/orchestrator/cpp
@@ -179,15 +207,13 @@ target_include_directories(t170c_debug PRIVATE
     ${REALSENSE2_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/third_party/libserialport/include
 )
-
-target_compile_definitions(t170c_debug PRIVATE
+target_compile_definitions(t170_runtime PUBLIC
     SEG_POSE_CONDA_PREFIX="${HUMAN_INTERACTION_ENV_ROOT}"
 )
-
 set(TI5_DEVICE_RPATH
     "${TI5_DEVICE_SDK_ROOT}/lib:${TI5_MOTOR_CODEC_ROOT}/lib:${TI5_SERIAL_ROOT}/lib:${TI5_CAN_MINI_ROOT}/lib:${TI5_ROHAND_CODEC_ROOT}/lib:${TI5_DEX1_CODEC_ROOT}/lib:${TI5_AGV_SEER_ROOT}/lib:${TI5_JINDI_CLIENT_ROOT}/lib")
 
-target_link_directories(t170c_debug PRIVATE
+target_link_directories(t170_runtime PUBLIC
     ${PROJECT_SOURCE_DIR}/lib
     /usr/local/lib
     ${TI5_DEVICE_SDK_ROOT}/lib
@@ -199,7 +225,9 @@ target_link_directories(t170c_debug PRIVATE
     ${TI5_AGV_SEER_ROOT}/lib
     ${TI5_JINDI_CLIENT_ROOT}/lib
 )
-target_link_libraries(t170c_debug PRIVATE
+target_link_libraries(t170_runtime PUBLIC
+    t170::common
+    t170::configuration
     LowerBody::lower_body
     ${TI5_ARM_SOLVER_LIB}
     ${UNITREE_MOTOR_LIB}
@@ -221,98 +249,18 @@ target_link_libraries(t170c_debug PRIVATE
     Python3::Python
 )
 
-set_target_properties(t170c_debug PROPERTIES
+function(t170_add_robot_app target entry)
+    add_executable(${target} ${entry})
+    target_link_libraries(${target} PRIVATE t170::runtime)
+    set_target_properties(${target} PROPERTIES
     BUILD_RPATH "${PROJECT_SOURCE_DIR}/lib:${PROJECT_SOURCE_DIR}/third_party/libserialport/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
     INSTALL_RPATH "${PROJECT_SOURCE_DIR}/lib:${PROJECT_SOURCE_DIR}/third_party/libserialport/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
     BUILD_RPATH_USE_ORIGIN ON
-)
-target_link_options(t170c_debug PRIVATE "-Wl,--disable-new-dtags")
+    )
+    target_link_options(${target} PRIVATE "-Wl,--disable-new-dtags")
+endfunction()
 
-add_executable(arm_plane_repeat
-    orchestrator/cpp/arm_repeat_main.cpp
-    orchestrator/cpp/robot_runtime.cpp
-    orchestrator/cpp/dispatch_board.cpp
-    orchestrator/cpp/dispatch_timing.cpp
-    src/grasp_to_standby.cpp
-    src/grasp_execution.cpp
-    src/function.cpp
-    src/hand_shadow.cpp
-    src/servo/visual_servo.cpp
-    src/servo/kinematics.cpp
-    src/servo/config.cpp
-    src/servo/runtime.cpp
-    src/servo/trace.cpp
-    src/servo/tray_localizer.cpp
-    src/waist.cpp
-    src/Ti5_socketcan.cpp
-    src/gripper_interface.cpp
-    src/realsense_get.cpp
-    src/seg_pose_bridge.cpp
-    src/vision_debug.cpp
-    src/vision/camera.cpp
-    src/vision/dl.cpp
-    src/vision/marker.cpp
-    src/vision/pose.cpp
-    src/vision/pipeline.cpp
-    src/move_box_config.cpp
-    src/move_box_runtime.cpp
-    src/head_cam2robot.cpp
-    src/head_control.cpp
-)
-add_dependencies(arm_plane_repeat servo_build_identity)
-target_include_directories(arm_plane_repeat PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(arm_plane_repeat PRIVATE
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/orchestrator/cpp
-    ${PROJECT_SOURCE_DIR}/eigen3
-    ${PROJECT_SOURCE_DIR}/third_party/dex1/include
-    ${TI5_DEVICE_SDK_ROOT}/include
-    ${TI5_AGV_SEER_ROOT}/include
-    ${TI5_JINDI_CLIENT_ROOT}/include
-    ${JSONCPP_INCLUDE_DIRS}
-    ${REALSENSE2_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}/third_party/libserialport/include
-)
-target_compile_definitions(arm_plane_repeat PRIVATE
-    SEG_POSE_CONDA_PREFIX="${HUMAN_INTERACTION_ENV_ROOT}"
-)
-target_link_directories(arm_plane_repeat PRIVATE
-    ${PROJECT_SOURCE_DIR}/lib
-    /usr/local/lib
-    ${TI5_DEVICE_SDK_ROOT}/lib
-    ${TI5_MOTOR_CODEC_ROOT}/lib
-    ${TI5_SERIAL_ROOT}/lib
-    ${TI5_CAN_MINI_ROOT}/lib
-    ${TI5_ROHAND_CODEC_ROOT}/lib
-    ${TI5_DEX1_CODEC_ROOT}/lib
-    ${TI5_AGV_SEER_ROOT}/lib
-    ${TI5_JINDI_CLIENT_ROOT}/lib
-)
-target_link_libraries(arm_plane_repeat PRIVATE
-    LowerBody::lower_body
-    ${TI5_ARM_SOLVER_LIB}
-    ${UNITREE_MOTOR_LIB}
-    ${TI5_DEVICE_SDK_LIB}
-    ${TI5_AGV_SEER_LIB}
-    ${TI5_JINDI_CLIENT_LIB}
-    ${TI5_MOTOR_CODEC_LIB}
-    ${TI5_ROHAND_CODEC_LIB}
-    ${TI5_DEX1_CODEC_LIB}
-    ${TI5_SERIAL_SDK_LIB}
-    ${SERIALPORT_LIB}
-    Threads::Threads
-    ${CMAKE_DL_LIBS}
-    ${JSONCPP_LIBRARIES}
-    ${OpenCV_LIBS}
-    yaml-cpp
-    ${REALSENSE2_LIBRARIES}
-    pybind11::embed
-    Python3::Python
-)
-set_target_properties(arm_plane_repeat PROPERTIES
-    BUILD_RPATH "${PROJECT_SOURCE_DIR}/lib:${PROJECT_SOURCE_DIR}/third_party/libserialport/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
-    INSTALL_RPATH "${PROJECT_SOURCE_DIR}/lib:${PROJECT_SOURCE_DIR}/third_party/libserialport/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
-    BUILD_RPATH_USE_ORIGIN ON
-)
-target_link_options(arm_plane_repeat PRIVATE "-Wl,--disable-new-dtags")
+t170_add_robot_app(t170_factory apps/t170_factory_main.cpp)
+if(T170_BUILD_DIAGNOSTICS)
+    t170_add_robot_app(arm_plane_repeat tools/arm_plane_repeat.cpp)
+endif()

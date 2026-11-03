@@ -2355,7 +2355,7 @@ namespace move_box
             return false;
         for(const auto &h:tray.holes)
             if(h.in_robot && std::isfinite(h.x) && std::isfinite(h.y) && std::isfinite(h.tray_z))
-                st.tray_anchors.push_back({h.row,h.col,Eigen::Vector3d(h.x,h.y,h.tray_z)});
+                st.tray_anchors.push_back({h.row,h.col,Eigen::Vector3d(h.x,h.y,h.tray_z),h.class_id});
 
         struct Cand
         {
@@ -3504,6 +3504,11 @@ namespace move_box
             std::cerr << "[servo] 双手验证需要两侧有效目标且满足原有列间距/避让约束；本次不降级为单手\n";
             return {-34,-34};
         }
+        // 料盘抓取：hand_descent_correct 即可进伺服。
+        // 料盘放置：还需 tray_place.enabled；关则走 tray2_place offset 开环。
+        const bool use_visual_descent =
+            g_move_cfg.cameras.hand_descent_correct &&
+            (!place || g_move_cfg.visual_servo.tray_place.enabled);
         ArmLineMoveResult out;
         if (straight_descent)
         {
@@ -3515,16 +3520,19 @@ namespace move_box
             const int hand_class = g_tray_hole_task == TrayHoleTask::PlaceEmpty ? 1 : 0;
             std::cout << std::fixed << std::setprecision(2)
                       << "[descent] 直线 " << approach_mps
-                      << " m/s 接近孔正上方，随后闭环竖直 " << kDescentMps
+                      << " m/s 接近孔正上方，随后竖直 " << kDescentMps
                       << " m/s 下降。";
-            if (g_move_cfg.cameras.hand_descent_correct)
+            if (use_visual_descent)
                 std::cout << "下降段使用双轴闭环、延迟补偿与预测制动\n";
+            else if (place)
+                std::cout << "料盘放置开环偏置（tray2_place offset），不进手相机伺服\n";
             else
                 std::cout << "手相机修正已关，照头相机目标走，记录 logs/hand_eye_bias.csv\n";
             out = arm_dual_line_then_line_nostop(
                 arm_r, hover_r_arm, goal_r_arm, hs.move_r,
                 arm_l, hover_l_arm, goal_l_arm, hs.move_l,
-                approach_mps, kDescentMps, {}, false, place ? "料盘放置下降" : "下降", false, true, hand_class);
+                approach_mps, kDescentMps, {}, false, place ? "料盘放置下降" : "下降", false,
+                use_visual_descent, hand_class);
         }
         else
         {
@@ -3549,44 +3557,11 @@ namespace move_box
             return out;
         }
 
-        // The servo owns stable completion for grasp AND tray placement.
-        const bool servo_descent=straight_descent && g_move_cfg.cameras.hand_descent_correct;
-        auto prepare_retract = [&]() {
-            if (!tray2_precision_test())
-            {
-                const auto &hg = g_move_cfg.head_grasp;
-                const bool place = g_tray_hole_task == TrayHoleTask::PlaceEmpty;
-                auto start_retract_plan = [&](Robot_Arm &arm, bool is_right) {
-                    const int hand = is_right ? 1 : 0;
-                    wrist_servo::Joints held;
-                    Eigen::Matrix<double, 1, 6> mid =
-                        wrist_servo::peek_final_hold(hand, held)
-                            ? arm_tcp_from_joints(arm, held)
-                            : arm_get_tcp_pos(arm);
-                    mid(2) += place ? g_move_cfg.tray2_place.retract_lift_m : hg.lift_after_grasp_z;
-                    if (mid(2) > g_move_cfg.grasp_valid.z_max)
-                        mid(2) = g_move_cfg.grasp_valid.z_max;
-                    const Eigen::Matrix<double, 1, 6> goal =
-                        place ? (is_right ? g_move_cfg.conveyor2.tcp.right
-                                          : g_move_cfg.conveyor2.tcp.left)
-                              : (is_right ? g_move_cfg.conveyor.tcp.right
-                                          : g_move_cfg.conveyor.tcp.left);
-                    std::cout << "[retract] " << (is_right ? "右" : "左")
-                              << (place ? " 张爪同时规划收手，目标是传送带二 tcp\n"
-                                        : " 合爪同时规划收手，目标是传送带准备 tcp\n");
-                    const double up_mps = place ? g_move_cfg.tray2_place.retract_lift_vel_m_s : hg.retract_lift_vel_m_s;
-                    arm_start_line_then_line_plan(
-                        arm, mid, goal, up_mps, place ? g_move_cfg.tray2_place.retract_return_vel_m_s : hg.return_vel_m_s);
-                };
-                if (hs.move_r && out.ret_r == 0)
-                    start_retract_plan(arm_r, true);
-                if (hs.move_l && out.ret_l == 0)
-                    start_retract_plan(arm_l, false);
-            }
-        };
+        // Servo owns stable completion only when this path actually ran visual descent.
+        const bool servo_descent = straight_descent && use_visual_descent;
         if(servo_descent && !place)
             return finish_servo_grasp(g,arm_r,arm_l,hs.move_r,hs.move_l,
-                                      st.empty_grasp_r,st.empty_grasp_l,"料盘抓取",prepare_retract);
+                                      st.empty_grasp_r,st.empty_grasp_l,"料盘抓取");
         // Keep the last joint reference streaming until retract playback takes it.
         // Stopping it when the claw feedback returns leaves a gap, then the retract
         // trajectory's first sample is not that joint pose and the arm yanks.
@@ -3679,8 +3654,6 @@ namespace move_box
                 verify_final_c(arm_l, goal_l_arm, 0, "左", out.ret_l);
 
         }
-
-        prepare_retract();
 
         const int settle_ms = static_cast<int>(
             std::max(0.0, place ? g_move_cfg.tray2_place.pre_open_settle_sec : g_move_cfg.head_grasp.pre_grasp_settle_sec) * 1000.0);

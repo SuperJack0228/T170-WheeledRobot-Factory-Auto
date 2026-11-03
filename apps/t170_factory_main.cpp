@@ -1,4 +1,4 @@
-/** T170C 调试守护进程。仅监听 127.0.0.1。 */
+/** T170 工厂作业主程序。仅监听 127.0.0.1。 */
 
 #include "robot_runtime.h"
 #include "dispatch_board.h"
@@ -189,6 +189,9 @@ bool init_hardware(std::string &err)
 {
     if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
         return false;
+    std::cout << "[paths] root=" << project_root_dir()
+              << " config=" << t170::paths::config_directory()
+              << " logs=" << t170::paths::log_directory() << std::endl;
     print_move_box_config(g_move_cfg);
     vision_debug_init_from_env();
     pose_vis_set_save_debug(vision_debug_save_pairs());
@@ -228,7 +231,7 @@ bool init_hardware(std::string &err)
         return false;
 
     g_waist = std::make_unique<WaistRobot>();
-    const std::string arm_yaml = project_root_dir() + "/config/Robot_Arm_Model.yaml";
+    const std::string arm_yaml = t170::paths::config_file("Robot_Arm_Model.yaml").string();
     g_arm_r = std::make_unique<Robot_Arm>("T7", "T170", "right", arm_yaml);
     g_arm_l = std::make_unique<Robot_Arm>("T7", "T170", "left", arm_yaml);
     rev_motor_error(0);
@@ -749,6 +752,20 @@ Json::Value dispatch(const Json::Value &request)
             out["photo"] = g_session.last_debug_photo;
         return out;
     }
+    if (cmd == "cap_belt_hand" || cmd == "belt_picture")
+    {
+        std::string dir;
+        const int rc = orch::capture_right_hand_belt_pictures(dir);
+        const bool ok = rc >= 0;
+        Json::Value out = reply(ok, ok ? std::string() : ("右手拍照失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        out["scene"] = "cap_belt_hand";
+        out["count"] = ok ? rc : 0;
+        out["dir"] = dir;
+        if (!g_session.last_debug_photo.empty())
+            out["photo"] = g_session.last_debug_photo;
+        return out;
+    }
     if (cmd == "belt2_grasp")
     {
         const int rc = orch::go_belt2_grasp();
@@ -1057,7 +1074,7 @@ Json::Value dispatch(const Json::Value &request)
     g_abort.store(true);
     hardware_abort_request();
     request_app_stop();
-    std::cerr << "[t170c_debug] 正在退出，释放 CAN\n" << std::flush;
+    std::cerr << "[t170_factory] 正在退出，释放 CAN\n" << std::flush;
 
     // 持锁直到进程结束，避免已排队的客户端在 close() 之后再写电机。
     g_hw_mu.lock();
@@ -1079,7 +1096,7 @@ Json::Value dispatch(const Json::Value &request)
     }
     catch (const std::exception &ex)
     {
-        std::cerr << "[t170c_debug] 退出清理异常: " << ex.what() << "\n";
+        std::cerr << "[t170_factory] 退出清理异常: " << ex.what() << "\n";
         try
         {
             close_can_channels();
@@ -1098,7 +1115,7 @@ Json::Value dispatch(const Json::Value &request)
         {
         }
     }
-    std::cerr << "[t170c_debug] CAN 已释放\n" << std::flush;
+    std::cerr << "[t170_factory] CAN 已释放\n" << std::flush;
     _Exit(code);
 }
 
@@ -1159,7 +1176,7 @@ void start_boot_dispatch()
         {
             ~WatchEnd() { can_io_watch_end(); }
         } watch_end;
-        std::cerr << "[t170c_debug] 开机进入调度：原地 home 后待命\n" << std::flush;
+        std::cerr << "[t170_factory] 开机进入调度：原地 home 后待命\n" << std::flush;
         int rc = 0;
         try
         {
@@ -1167,17 +1184,17 @@ void start_boot_dispatch()
         }
         catch (const std::exception &ex)
         {
-            std::cerr << "[t170c_debug] 开机调度异常: " << ex.what() << "\n";
+            std::cerr << "[t170_factory] 开机调度异常: " << ex.what() << "\n";
             orch::boot_announce("failure");
             return;
         }
         catch (...)
         {
-            std::cerr << "[t170c_debug] 开机调度异常\n";
+            std::cerr << "[t170_factory] 开机调度异常\n";
             orch::boot_announce("failure");
             return;
         }
-        std::cerr << "[t170c_debug] 开机调度结束 code=" << rc << "\n" << std::flush;
+        std::cerr << "[t170_factory] 开机调度结束 code=" << rc << "\n" << std::flush;
         if (rc != 0 && rc != -4)
             orch::boot_announce("failure");
     }).detach();
@@ -1206,7 +1223,7 @@ int main(int argc, char **argv)
         std::string error;
         if (!init_hardware(error))
         {
-            std::cerr << "[t170c_debug] 初始化失败: " << error << "\n";
+            std::cerr << "[t170_factory] 初始化失败: " << error << "\n";
             orch::boot_announce("failure");
             shutdown_process(1);
         }
@@ -1220,9 +1237,9 @@ int main(int argc, char **argv)
         address.sin_family = AF_INET;
         address.sin_port = htons(static_cast<uint16_t>(port));
         inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
-        if (bind(server, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0 || listen(server, 8) != 0)
+        if (::bind(server, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0 || listen(server, 8) != 0)
         {
-            std::cerr << "[t170c_debug] 无法监听 127.0.0.1:" << port << "\n";
+            std::cerr << "[t170_factory] 无法监听 127.0.0.1:" << port << "\n";
             if (server >= 0)
                 ::close(server);
             orch::boot_announce("failure");
@@ -1230,7 +1247,7 @@ int main(int argc, char **argv)
         }
 
         orch::start_chassis_status_reporter();
-        std::cerr << "T170C_DEBUG_READY port=" << port << " chassis=" << g_move_cfg.chassis.host
+        std::cerr << "T170_FACTORY_READY port=" << port << " chassis=" << g_move_cfg.chassis.host
                   << " belt=" << g_move_cfg.chassis.belt_station
                   << " out=" << g_move_cfg.chassis.out_station
                   << (boot_dispatch ? " dispatch=boot\n" : "\n");
@@ -1248,7 +1265,7 @@ int main(int argc, char **argv)
                 {
                     if (errno == EINTR)
                         continue;
-                    std::cerr << "[t170c_debug] poll 失败\n";
+                    std::cerr << "[t170_factory] poll 失败\n";
                     break;
                 }
                 if (pr == 0 || app_stop_requested())
@@ -1263,12 +1280,12 @@ int main(int argc, char **argv)
     }
     catch (const std::exception &ex)
     {
-        std::cerr << "[t170c_debug] 未捕获异常: " << ex.what() << "\n";
+        std::cerr << "[t170_factory] 未捕获异常: " << ex.what() << "\n";
         shutdown_process(1);
     }
     catch (...)
     {
-        std::cerr << "[t170c_debug] 未捕获异常\n";
+        std::cerr << "[t170_factory] 未捕获异常\n";
         shutdown_process(1);
     }
 }

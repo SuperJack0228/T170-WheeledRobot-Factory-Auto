@@ -5,18 +5,23 @@ import hashlib
 from pathlib import Path
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
+from t170_common.paths import load_paths
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--root", type=Path, default=None)
     args = parser.parse_args()
     try:
         import yaml
     except ImportError:
         print("缺少PyYAML，请使用机器人视觉模型所在的Python环境运行本工具。", file=sys.stderr)
         return 2
-    root = args.root.resolve()
-    config = yaml.safe_load((root / "config/move_box_params.yaml").read_text())
+    paths = load_paths(args.root)
+    root = paths.root
+    config_dir = paths.config_dir
+    config = yaml.safe_load((config_dir / "move_box_params.yaml").read_text())
     vision_root = root / "feeding_cylindrical_parts_alg"
     vision = yaml.safe_load((vision_root / "config/pose_params.yaml").read_text())
     errors = []
@@ -26,9 +31,9 @@ def main():
         errors.append("旧 use_hand_camera 必须关闭，新伺服通过 hand_descent_correct 开启")
     if config.get("head_grasp", {}).get("descend_vel_m_s", 0) <= 0:
         errors.append("下降速度必须为正数")
-    resources = [root / "config/Robot_Arm_Model.yaml", root / "lib/Ti5_Arm_2204.so", root / "config/left_hand_to_base_result.yaml",
-                 root / "config/right_hand_to_base_result.yaml", root / "config/move_box_params.yaml",
-                 root / "config/realsense_cameras.yaml", vision_root / "config/pose_params.yaml"]
+    resources = [config_dir / "Robot_Arm_Model.yaml", root / "lib/Ti5_Arm_2204.so", config_dir / "left_hand_to_base_result.yaml",
+                 config_dir / "right_hand_to_base_result.yaml", config_dir / "move_box_params.yaml",
+                 config_dir / "realsense_cameras.yaml", vision_root / "config/pose_params.yaml"]
     for key in ("model", "hand_model"):
         value = vision.get("segmentation", {}).get(key)
         if not value:

@@ -62,7 +62,7 @@
 ```bash
 cmake -S . -B build_robot
 cmake --build build_robot -j4
-./build_robot/t170c_debug 2>&1 | tee startup.log
+./build_robot/t170_factory 2>&1 | tee startup.log
 ```
 
 继续使用原传送带抓取命令。现场先确认两个工位的 0 件、1 件和 2 件选择，再观察正常双手抓取的下降、合爪和收手；保留 startup 日志与当次 CSV，供分析真实节拍与衔接效果。

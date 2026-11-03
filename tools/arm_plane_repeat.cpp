@@ -1,6 +1,9 @@
+#include "t170/common/paths.h"
+#include "t170/common/logging.h"
 /** 双臂水平面重复到位测试。
  *
- *  编译：cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target arm_plane_repeat
+ *  配置：cmake -S . -B build_robot -DT170_BUILD_DIAGNOSTICS=ON
+ *  编译：cmake --build build_robot -j2 --target arm_plane_repeat
  *  运行：./build_robot/arm_plane_repeat [--cycles 5] [--span 0.04] [--vel 0.08]
  *
  *  先按现有 home 回正：头到标定角，双臂分段抬离再走到 yaml home_tcp，腰先回 x 再升到 home。
@@ -144,7 +147,7 @@ bool parse_args(int argc, char **argv, Options &opt, std::string &err)
     return true;
 }
 
-bool init_like_debug(Robot_Arm *&arm_r, Robot_Arm *&arm_l, std::string &err)
+bool init_like_factory(Robot_Arm *&arm_r, Robot_Arm *&arm_l, std::string &err)
 {
     if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
         return false;
@@ -186,7 +189,7 @@ bool init_like_debug(Robot_Arm *&arm_r, Robot_Arm *&arm_l, std::string &err)
         return false;
     }
 
-    const std::string arm_yaml = project_root_dir() + "/config/Robot_Arm_Model.yaml";
+    const std::string arm_yaml = t170::paths::config_file("Robot_Arm_Model.yaml").string();
     right = std::make_unique<Robot_Arm>("T7", "T170", "right", arm_yaml);
     left = std::make_unique<Robot_Arm>("T7", "T170", "left", arm_yaml);
     waist = std::make_unique<WaistRobot>();
@@ -447,7 +450,7 @@ int main(int argc, char **argv)
     install_app_sigint_handler();
     Robot_Arm *arm_r = nullptr;
     Robot_Arm *arm_l = nullptr;
-    if (!init_like_debug(arm_r, arm_l, err))
+    if (!init_like_factory(arm_r, arm_l, err))
     {
         std::cerr << "[repeat] 初始化失败: " << err << "\n";
         return 1;
@@ -502,7 +505,7 @@ int main(int argc, char **argv)
     localtime_r(&stamp, &tm);
     std::ostringstream name;
     name << "arm_plane_repeat_" << std::put_time(&tm, "%Y%m%d_%H%M%S") << ".csv";
-    const std::filesystem::path csv_path = std::filesystem::path(project_root_dir()) / "logs" / name.str();
+    const std::filesystem::path csv_path = t170::logging::file(name.str());
     std::error_code ec;
     std::filesystem::create_directories(csv_path.parent_path(), ec);
     std::ofstream csv(csv_path);

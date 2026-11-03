@@ -1,3 +1,5 @@
+#include "t170/common/paths.h"
+#include "t170/common/logging.h"
 #include "servo/runtime.h"
 #include "servo/trace.h"
 #include "function.h"
@@ -100,7 +102,7 @@ std::string last_failure(int hand) {
 bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,const char *tag) {
     const int hand=hand_index(arm);
     if(hand<0 || hand>1) return false;
-    if (!trace_writer().start((std::filesystem::path(project_root_dir())/"logs"/"visual_servo").string())) {
+    if (!trace_writer().start(t170::logging::file("visual_servo").string())) {
         std::cerr << "[servo] 无法创建调试日志，取消视觉动作\n"; return false;
     }
     const Config cfg=g_move_cfg.visual_servo;
@@ -141,7 +143,7 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     // Preserve on-disk model for diagnosis. It is explicitly not proof of the SDK's
     // in-memory model if someone edits the YAML after process startup.
     std::error_code copy_error;
-    std::filesystem::copy_file(std::filesystem::path(project_root_dir())/"config"/"Robot_Arm_Model.yaml",
+    std::filesystem::copy_file(t170::paths::config_file("Robot_Arm_Model.yaml"),
         prefix+".arm_model_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
     if(copy_error) std::cerr << "[servo] 模型文件备份失败: " << copy_error.message() << '\n';
     ObservationContext saved;observation_context(hand,saved);
@@ -246,18 +248,21 @@ void invalidate_result(int hand) {
 
 bool ready_for_gripper(Robot_Arm &arm) {
     const int hand=hand_index(arm); auto &slot=slots[hand];
-    Vec2 goal; Config cfg; double final_z; bool succeeded,place; Eigen::Matrix3d rotation;
+    Vec2 goal; Config cfg; double final_z; bool succeeded,place,tray_place; Eigen::Matrix3d rotation;
     { std::lock_guard<std::mutex> lock(slot.mutex);
       succeeded=slot.succeeded; goal=slot.completed_goal;
       cfg=slot.context.config; final_z=slot.context.final_z;
       rotation=slot.context.desired_rotation;
       place=slot.context.target_class==1;
+      tray_place=place && slot.context.config.tray_place.enabled && slot.context.tray_target.valid;
     }
     if(!succeeded || hardware_abort_requested() || can_io_faulted() || group_failed.load()) return false;
     double read_ms=0; const auto state=measured(arm,slot,read_ms);
-    const bool ready=(state.position.head<2>()-goal).norm()<=(place ? cfg.xy_tolerance_m : cfg.grasp_xy_accept_m) &&
-        state.position.z()>=final_z-(place ? cfg.z_tolerance_m : 0) &&
-        state.position.z()<=final_z+(place ? cfg.z_tolerance_m : cfg.grasp_z_accept_above_m) &&
+    const bool ready=(state.position.head<2>()-goal).norm()<=(place ?
+            (tray_place?cfg.place_xy_accept_m:cfg.xy_tolerance_m) : cfg.grasp_xy_accept_m) &&
+        state.position.z()>=final_z-(place ? cfg.z_tolerance_m : cfg.grasp_z_feedback_tolerance_m) &&
+        state.position.z()<=final_z+(place ?
+            (tray_place?cfg.place_z_accept_above_m:cfg.z_tolerance_m) : cfg.grasp_z_accept_above_m) &&
         Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle()<=cfg.max_orientation_error_rad;
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand;
     { std::lock_guard<std::mutex> lock(slot.mutex);
@@ -326,6 +331,15 @@ bool take_final_hold(int hand, Joints &q) {
     return q.allFinite();
 }
 
+void hold_joint_reference(int hand,const Joints &q) {
+    if(hand<0 || hand>1 || !q.allFinite() || hardware_abort_requested() || can_io_faulted()) return;
+    {
+        std::lock_guard<std::mutex> lock(slots[hand].mutex);
+        slots[hand].final_command=q; slots[hand].final_hold=true;
+    }
+    start_final_hold_repeat();
+}
+
 void handoff_event(Robot_Arm &arm,const Joints &command,const Joints &previous,const char *reason) {
     const int hand=hand_index(arm); double read_ms=0;
     const auto state=measured(arm,slots[hand],read_ms);
@@ -392,9 +406,17 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         const auto cycle=std::chrono::steady_clock::now();
         if(hardware_abort_requested()) { result=-4; break; }
         if(can_io_faulted()) { result=-2; break; }
+        const State previous_feedback=state;
         state=measured(arm,slot,read_ms);
         const double dt=state.time_s-previous_time; previous_time=state.time_s;
         if(dt<=0) continue;
+        if(std::abs(state.position.z()-previous_feedback.position.z())>std::max(.005,1.5*speed*dt)) {
+            TraceRow row;row.time_s=monotonic_seconds();row.hand=hand;row.session=context.session;
+            row.event="feedback_step";row.reason="FK_Z_step_exceeds_descent_profile";
+            row.task_tag=context.task_tag;row.target_class=context.target_class;row.final_z=goal(2);
+            row.measured=state;row.commanded=command;row.reference=reference;row.dt_ms=dt*1000;
+            row.read_ms=read_ms;trace_writer().push(std::move(row));
+        }
         const double rotation_error=Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle();
         const double lead=(reference-state.position).norm();
         const double joint_lead=(command-state.joints).cwiseAbs().maxCoeff();
@@ -490,7 +512,9 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 solver_reason="joint_acceleration_limit"; continue;
             }
             const Vec3 achieved=arm_tcp_from_joints(arm,candidate).head<3>().transpose();
-            if(achieved.z()<goal(2)+(context.target_class==0?cfg.grasp_height_margin_m:0.0)-cfg.solver_position_tolerance_m) {
+            const bool tray_place=context.target_class==1 && context.tray_target.valid && cfg.tray_place.enabled;
+            if(achieved.z()<goal(2)+(context.target_class==0?cfg.grasp_height_margin_m:
+                    (tray_place?cfg.place_height_margin_m:0.0))-cfg.solver_position_tolerance_m) {
                 solver_reason="reference_below_safe_Z"; continue;
             }
             next_reference=achieved; joint_velocity=velocity; solved=true; applied_scale=fraction;

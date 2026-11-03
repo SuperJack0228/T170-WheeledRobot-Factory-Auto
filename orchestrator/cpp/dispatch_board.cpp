@@ -1,3 +1,5 @@
+#include "t170/common/paths.h"
+#include "t170/common/logging.h"
 #include "dispatch_board.h"
 #include "dispatch_timing.h"
 
@@ -35,22 +37,12 @@ DispatchBoard g_board;
 
 std::string now_hms()
 {
-    const std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    localtime_r(&t, &tm);
-    char buf[16];
-    std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
-    return buf;
+    return t170::logging::local_time("%H:%M:%S");
 }
 
 std::string now_stamp()
 {
-    const std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    localtime_r(&t, &tm);
-    char buf[32];
-    std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", &tm);
-    return buf;
+    return t170::logging::local_time("%Y%m%d_%H%M%S");
 }
 
 struct Console
@@ -165,7 +157,7 @@ std::string console_start()
         if (v[0] != '\0' && std::strcmp(v, "0") != 0)
             return {};
     }
-    const std::filesystem::path dir = std::filesystem::path(project_root_dir()) / "logs";
+    const std::filesystem::path dir = t170::paths::log_directory();
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
     prune_logs(dir);

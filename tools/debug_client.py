@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""T170C 无底盘调试客户端。t170c_debug 默认监听 127.0.0.1:8099。"""
+"""T170 工厂应用命令客户端。t170_factory 默认监听 127.0.0.1:8099。"""
 
 import argparse
 import json
@@ -43,6 +43,8 @@ COMMANDS = {
     "cap_belt2": {"cmd": "cap_belt2"},
     "cap_tray": {"cmd": "cap_tray"},
     "cap_tray2": {"cmd": "cap_tray2"},
+    "cap_belt_hand": {"cmd": "cap_belt_hand"},
+    "belt_picture": {"cmd": "belt_picture"},
     "waist_jog": {"cmd": "waist_jog"},
     "grasp": {"cmd": "vision_grasp"},
     "grasp_image": {"cmd": "vision_grasp_image"},

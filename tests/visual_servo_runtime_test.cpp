@@ -42,12 +42,9 @@ MatrixXd TR(Matrix<double,1,6> p) {
 Matrix<double,1,6> arm_tcp_from_joints(Robot_Arm &,const Eigen::Ref<const Eigen::RowVectorXd> &q) {
     Matrix<double,1,6> p=Matrix<double,1,6>::Zero(); p.head<3>()=q.head<3>(); return p;
 }
-std::string project_root_dir() {
-    return (std::filesystem::temp_directory_path()/"t170_servo_runtime_model_test").string();
+bool load_cam2robot_matrix(const std::string &,std::array<double,16> &matrix,std::string &) {
+    matrix.fill(0);for(int i=0;i<4;++i) matrix[i*4+i]=1;return true;
 }
-std::string default_left_hand_to_robot_yaml_path() { return "unused_synthetic_test"; }
-std::string default_right_hand_to_robot_yaml_path() { return "unused_synthetic_test"; }
-bool load_cam2robot_matrix(const std::string &,std::array<double,16> &,std::string &) { return false; }
 bool hardware_abort_requested() { return abort_test.load(); }
 bool can_io_faulted() { return false; }
 
@@ -84,6 +81,9 @@ bool write_config_snapshot(const Config &,const std::string &path,std::string &)
 }
 
 int main() {
+    const auto test_root=(std::filesystem::temp_directory_path()/"t170_servo_runtime_model_test").string();
+    setenv("T170_ROOT",test_root.c_str(),1);
+    unsetenv("T170_CONFIG_DIR"); unsetenv("T170_LOG_DIR");
     using namespace wrist_servo;
     Robot_Arm left("synthetic","synthetic","left"),right("synthetic","synthetic","right");
     Robot_Arm *arms[]={&left,&right};
@@ -197,10 +197,16 @@ int main() {
     // A subsequently changed pose must not inherit the earlier permission to close.
     Joints saved;
     { std::lock_guard<std::mutex> lock(plants[0].mutex);
-      saved=plants[0].actual; plants[0].actual(2)=-.001; plants[0].command=plants[0].actual;
+      saved=plants[0].actual; plants[0].actual(2)=-.0002; plants[0].command=plants[0].actual;
+    }
+    if(!ready_for_gripper(left)) {
+        std::cerr << "runtime FAIL: gripper gate rejected bounded FK feedback noise\n";return 1;
+    }
+    { std::lock_guard<std::mutex> lock(plants[0].mutex);
+      plants[0].actual(2)=-.002;plants[0].command=plants[0].actual;
     }
     if(ready_for_gripper(left) || !group_is_failed()) {
-        std::cerr << "runtime FAIL: gripper gate accepted a pose below C\n"; return 1;
+        std::cerr << "runtime FAIL: gripper gate accepted a pose outside the C feedback tolerance\n"; return 1;
     }
     { std::lock_guard<std::mutex> lock(plants[0].mutex);
       plants[0].actual=saved; plants[0].command=saved;
@@ -221,6 +227,7 @@ int main() {
     // Both hands use class-1 virtual hole centers. The same controller must
     // converge with placement tolerances and expose a stable hold for opening.
     prepare_group(); unsafe_reference.store(false);
+    g_move_cfg.visual_servo.tray_place.enabled=true;
     for(int h=0;h<2;++h) {
         starts[h]=Joints::Zero();starts[h].head<3>()<<.45,h==0?.16:-.16,.10;
         {std::lock_guard<std::mutex> lock(plants[h].mutex);
@@ -264,7 +271,8 @@ int main() {
     if(result[0]!=0 || result[1]!=0 || !ready_for_gripper(left) || !ready_for_gripper(right)) {
         std::cerr<<"runtime FAIL: dual virtual-hole placement did not converge "<<result[0]<<','<<result[1]<<'\n';return 1;
     }
-    {std::lock_guard<std::mutex> lock(plants[0].mutex);plants[0].actual(0)+=.004;plants[0].command=plants[0].actual;}
+    {std::lock_guard<std::mutex> lock(plants[0].mutex);
+     plants[0].actual(0)+=g_move_cfg.visual_servo.place_xy_accept_m+.002;plants[0].command=plants[0].actual;}
     if(ready_for_gripper(left)) {std::cerr<<"runtime FAIL: placement inherited relaxed grasp XY gate\n";return 1;}
     std::cout << "visual_servo_runtime: dual delayed vision, bounded Z, missing vision and exclusive hold-to-retract handoff passed (synthetic adapters)\n";
     return 0;

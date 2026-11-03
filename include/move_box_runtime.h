@@ -418,7 +418,8 @@ GraspToStandbyResult run_grasp_to_standby(
     bool holding_r = false,
     bool holding_l = false,
     const std::function<void(bool did_r, bool did_l)> &on_place_retract = {},
-    bool hover_track = false);
+    bool hover_track = false,
+    bool allow_waist_rise = false);
 
 /**
  * 头相机已经分好孔。直线到工件上方后停住，不下降、不合爪。

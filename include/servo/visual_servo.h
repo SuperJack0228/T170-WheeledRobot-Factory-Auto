@@ -37,6 +37,7 @@ struct ImageProfile {
 
 struct Config {
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
+    bool belt_grasp_enabled = false; // keep belt grasp on traditional offset until accepted
     bool require_dual = false; // set by the dedicated dual-hand validation command
     TrayPlaceVisionConfig tray_place;
     double period_s = 0.01;
@@ -57,10 +58,19 @@ struct Config {
     // Positive base Z points UP: keep the reference above nominal C, not below it.
     double grasp_height_margin_m = 0.002;
     double grasp_z_accept_above_m = 0.006;
+    double grasp_z_feedback_tolerance_m = 0.001; // feedback noise, never a lower reference
     double grasp_xy_accept_m = 0.006;
     double grasp_relax_after_s = 0.35;
     double finish_speed_m_s = 0.008;
     double finish_stable_s = 0.04;
+    double place_xy_accept_m = 0.004;
+    double place_lock_height_m = 0.065;
+    double place_visibility_floor_m = 0.050;
+    double place_goal_stability_m = 0.0025;
+    int place_lock_frames = 3;
+    double place_finish_speed_m_s = 0.010;
+    double place_height_margin_m = 0.001;
+    double place_z_accept_above_m = 0.005;
     double alignment_time_margin_s = 0.12;
     double acquire_descent_m = 0.020;
     double handoff_distance_m = 0.015;
@@ -138,6 +148,8 @@ struct PixelObservation {
     bool virtual_target=false;
     int target_row=0,target_col=0,neighbor_count=0,marker_corner_count=0;
     double plane_z_m=0,plane_reprojection_px=0;
+    int tray_rois=0,tray_contours=0,tray_rejected_size=0,tray_rejected_shape=0;
+    int tray_rejected_coverage=0,tray_rejected_residual=0,tray_skipped_occupied=0;
     std::string vision_source="yolo";
 };
 
@@ -173,6 +185,8 @@ struct Output {
     double alignment_time_s = 0, available_time_s = 0;
     double reference_floor_z = 0, finish_xy_tolerance_m = 0;
     bool relaxed_grasp = false;
+    bool place_locked = false;
+    int stable_goal_frames = 0;
 };
 
 class Controller {
@@ -198,7 +212,7 @@ private:
     Vec2 velocity_ = Vec2::Zero();
     Vec3 reference_ = Vec3::Zero();
     double acquire_floor_z_ = 0, precision_floor_since_ = -1, finish_since_ = -1;
-    bool grasp_ = true, relaxed_grasp_ = false;
+    bool grasp_ = true, relaxed_grasp_ = false, continue_without_vision_ = false;
     double vz_ = 0.0, start_time_ = 0.0, final_z_ = 0.0, descent_speed_ = 0.0;
     double last_capture_ = -1.0, last_clock_uncertainty_ = 0.0;
     double commit_start_ = -1.0;
@@ -206,6 +220,8 @@ private:
     bool have_goal_ = false;
     int confirmations_ = 0;
     int close_confirmations_ = 0;
+    int stable_goal_frames_ = 0;
+    bool virtual_place_ = false;
     Phase phase_ = Phase::Acquiring;
     std::string failure_;
 };

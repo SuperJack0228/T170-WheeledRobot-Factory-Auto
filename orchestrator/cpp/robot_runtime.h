@@ -91,6 +91,12 @@ int go_belt_grasp_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l);
  * quit 回车结束。成功返回张数（≥0），失败返回负的 code。目录写入 dir_out。
  */
 int capture_head_dataset(const std::string &scene, std::string &dir_out);
+/**
+ * 右手手相机原地拍照。不使能、不移动左右手臂，也不动底盘/腰/头。
+ * 在运行 t170_factory 的终端按回车拍一张，输入 quit 后回车结束。
+ * 图片写入工程根下 belt_picture/。成功返回张数（≥0），失败返回负的 code。
+ */
+int capture_right_hand_belt_pictures(std::string &dir_out);
 /** 第一传送带放置：去 AP6 → 准备 → 认码 → 左右依次放置 → 停准备 tcp。不回 home。 */
 int go_belt();
 /** 仅放置流程（底盘已到位）。cycle 用。 */

@@ -1159,8 +1159,8 @@ std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
         const Eigen::Vector3d p=arm_tcp_from_joints(arm,q).head<3>().transpose();
         // A connector near a loaded tray must neither dip below the held TCP
         // nor turn a small IK discrepancy into a large sideways motion.
-        return p.allFinite() && p.z()>=start.z()-.001 &&
-               (p.head<2>()-start.head<2>()).norm()<=.005;
+        return p.allFinite() && p.z()>=start.z()-.002 &&
+               (p.head<2>()-start.head<2>()).norm()<=.008;
     };
 }
 
@@ -1181,7 +1181,8 @@ Eigen::MatrixXd bridge_from_hold(const Eigen::MatrixXd &src, const wrist_servo::
 } // namespace
 
 int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt = k_arm_traj_dt,
-                           Robot_Arm *retract_arm = nullptr)
+                           Robot_Arm *retract_arm = nullptr,
+                           const std::function<void(const wrist_servo::Joints &)> &observe_progress = {})
 {
     if (hand == 1 && right_arm_motors_locked()) return 0;
     if (traj_in.rows()<2 || traj_in.cols()!=7 || !traj_in.allFinite() || !std::isfinite(dt) || dt<=0)
@@ -1250,6 +1251,12 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt = k_arm_
         int motor_cmd[7] = {0};
         for (int j=0;j<7;++j) motor_cmd[j]=rad_to_encoder_cnt(traj(i,j));
         set_motor_position(motor_cmd,hand);
+        // Only staged retreats request feedback, at 20 Hz. Planning/photography never
+        // runs in this callback; it only publishes measured clearance to a waiting peer.
+        if(observe_progress && i%10==0) {
+            wrist_servo::Joints actual;
+            if(wrist_servo::read_joint_feedback(hand,actual)) observe_progress(actual);
+        }
         const Eigen::RowVectorXd v=i>0 ? Eigen::RowVectorXd((traj.row(i)-traj.row(i-1))/dt)
                                                      : Eigen::RowVectorXd::Zero(7);
         const Eigen::RowVectorXd a=(v-previous_v)/dt, jerk=(a-previous_a)/dt;
@@ -1257,7 +1264,7 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt = k_arm_
         peak_j=std::max(peak_j,jerk.cwiseAbs().maxCoeff());
         if(i>0) peak_step=std::max(peak_step,(traj.row(i)-traj.row(i-1)).cwiseAbs().maxCoeff());
         // Capture every command in the first 250 ms, then 10 Hz and the end.
-        // No feedback/CAN reads or synchronous file writes inside this loop.
+        // No synchronous file writes; only staged retreats opt into 20Hz feedback above.
         if(i<=50 || i%20==0 || i+1==traj.rows())
             trace("retract_sample","command_stream",i,cycle_ms,v,a,jerk,nullptr);
         previous_v=v; previous_a=a;
@@ -3022,8 +3029,14 @@ int plan_arm_line_from(
             std::cerr << "[retract] 竖直抬升锁冗余关节失败，改为自由冗余\n";
         ret = arm.Line_Trajectory(q_start, goal, traj);
     }
-    if (ret != 0 || traj.rows() < 2)
+    if (ret != 0 || traj.rows() < 2 || traj.cols()!=q_start.cols()) {
+        const std::string reason="SDK_code="+std::to_string(ret)+" rows="+std::to_string(traj.rows())+
+            " columns="+std::to_string(traj.cols());
+        wrist_servo::task_event(arm_hand_side(arm),"retract_sdk_failed",reason.c_str());
+        append_line_trajectory_fail_debug(arm_hand_label(arm_hand_side(arm)),ret!=0?ret:-16,
+            goal,"独立直线SDK规划",vel_m_s);
         return ret != 0 ? ret : -16;
+    }
     if (lock_redundant) {
         // Never disguise an SDK branch change by overwriting row zero alone.
         // Keep the real first rows and connect from the held reference at rest.
@@ -3038,11 +3051,91 @@ int plan_arm_line_from(
                 traj,q_start.row(0),k_arm_traj_dt,retract_connector_limits(),
                 lift_connector_validity(arm,q_start.row(0)));
         }
-        if (connected.rows()<2) return -16;
+        if (connected.rows()<2) {
+            wrist_servo::task_event(arm_hand_side(arm),"lift_connector_failed","SDK_start_does_not_join_held_reference");
+            return -16;
+        }
         traj=std::move(connected);
     }
     return 0;
 }
+
+namespace {
+void retreat_feedback(Robot_Arm &arm,const wrist_servo::Joints &q,
+                      const Eigen::Matrix<double,1,6> &goal,const char *event) {
+    const int hand=arm_hand_side(arm);wrist_servo::ObservationContext context;
+    wrist_servo::observation_context(hand,context);
+    wrist_servo::TraceRow row;row.time_s=wrist_servo::monotonic_seconds();
+    row.hand=hand;row.session=context.session;row.task_tag=context.task_tag;
+    row.target_class=context.target_class;row.final_z=context.final_z;
+    row.event=event;row.reason="measured_FK";row.joint_feedback_valid=true;
+    row.measured.joints=q;row.measured.position=arm_tcp_from_joints(arm,q).head<3>().transpose();
+    row.reference=goal.head<3>().transpose();wrist_servo::trace_writer().push(std::move(row));
+}
+
+int staged_retract_line(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,double speed,
+                        bool vertical,const std::function<void(const wrist_servo::Joints &)> &progress) {
+    const int hand=arm_hand_side(arm);
+    if(hardware_abort_requested() || can_io_faulted()) return hardware_abort_requested()?-4:-2;
+    wrist_servo::Joints start;
+    if(!wrist_servo::peek_final_hold(hand,start) && !wrist_servo::read_joint_feedback(hand,start)) {
+        wrist_servo::task_event(hand,vertical?"lift_failed":"return_failed","initial_feedback_unavailable");
+        return -32;
+    }
+    Eigen::MatrixXd trajectory;int rc=-16;
+    const char *stage=vertical?"lift_plan":"return_plan";
+    // Retry with a slower SDK profile, not an arbitrary joint interpolation or a
+    // relaxed collision boundary. No return trajectory can block the initial lift.
+    for(int attempt=0;attempt<2;++attempt) {
+        rc=plan_arm_line_from(arm,goal,speed*(attempt?.5:1.0),Eigen::MatrixXd(start),trajectory,vertical);
+        const std::string reason="attempt="+std::to_string(attempt)+" code="+std::to_string(rc)+
+            " rows="+std::to_string(trajectory.rows());
+        wrist_servo::task_event(hand,stage,reason.c_str());
+        std::cout<<"[retract] hand="<<hand<<' '<<stage<<' '<<reason<<'\n';
+        if(rc==0) break;
+        if(hardware_abort_requested() || can_io_faulted()) return hardware_abort_requested()?-4:-2;
+    }
+    if(rc!=0) {
+        const std::string reason="plan_failed code="+std::to_string(rc);
+        wrist_servo::task_event(hand,vertical?"lift_failed":"return_failed",reason.c_str());
+        return rc;
+    }
+    wrist_servo::task_event(hand,vertical?"lift_start":"return_start","independent_stage");
+    rc=execute_arm_trajectory(trajectory,hand,k_arm_traj_dt,&arm,progress);
+    if(rc!=0) {
+        const std::string reason="code="+std::to_string(rc);
+        wrist_servo::task_event(hand,vertical?"lift_failed":"return_failed",reason.c_str());
+        return rc;
+    }
+    const wrist_servo::Joints last=trajectory.bottomRows(1);
+    wrist_servo::hold_joint_reference(hand,last);
+    const auto &cfg=g_move_cfg.head_grasp;
+    const double deadline=wrist_servo::monotonic_seconds()+cfg.retract_arrival_timeout_s;
+    while(!hardware_abort_requested() && !can_io_faulted()) {
+        wrist_servo::Joints q;
+        if(wrist_servo::read_joint_feedback(hand,q)) {
+            if(progress) progress(q);
+            const auto p=arm_tcp_from_joints(arm,q);
+            const double distance=(p.head<3>()-goal.head<3>()).norm();
+            // For a lift, XY + Z are the requirements; a large wrist turn belongs
+            // exclusively to the later return stage.
+            const double angle=Eigen::AngleAxisd(TR(goal).block<3,3>(0,0)*TR(p).block<3,3>(0,0).transpose()).angle();
+            if(distance<=cfg.retract_arrival_tolerance_m && angle<=.08) {
+                retreat_feedback(arm,q,goal,vertical?"lift_arrival":"return_arrival");
+                wrist_servo::task_event(hand,vertical?"lift_done":"return_done","measured_arrival");
+                return 0;
+            }
+        }
+        if(wrist_servo::monotonic_seconds()>deadline) {
+            wrist_servo::task_event(hand,vertical?"lift_failed":"return_failed","arrival_timeout");
+            return -8;
+        }
+        hardware_abort_sleep_ms(20);
+    }
+    return hardware_abort_requested()?-4:-2;
+}
+}
+
 
 Eigen::MatrixXd stitch_cruise_lines(const Eigen::MatrixXd &first, const Eigen::MatrixXd &second)
 {
@@ -3106,8 +3199,8 @@ Eigen::MatrixXd stitch_lift_then_return(Robot_Arm &arm, const Eigen::MatrixXd &f
     };
     const auto valid=[&](const Eigen::RowVectorXd &q) {
         const Eigen::Vector3d p=arm_tcp_from_joints(arm,q).head<3>().transpose();
-        return nearly_lifted && p.allFinite() && p.z()>=std::min(a.z(),b.z())-.001 &&
-            std::min(distance_to_segment(p,a,corner),distance_to_segment(p,corner,b))<=.005;
+        return nearly_lifted && p.allFinite() && p.z()>=std::min(a.z(),b.z())-.002 &&
+            std::min(distance_to_segment(p,a,corner),distance_to_segment(p,corner,b))<=.008;
     };
     const auto bridge=wrist_servo::connect_joint_boundaries(
         wrist_servo::trajectory_boundary(first,ia,k_arm_traj_dt,false),
@@ -3264,6 +3357,35 @@ bool take_prepared_line(int hand, Eigen::MatrixXd &traj, int &ret)
 }
 
 } // namespace
+
+int arm_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
+                      const std::function<void(double)> &on_progress) {
+    const int hand=arm_hand_side(arm);
+    if(hand==1 && right_arm_motors_locked()) return 0;
+    if(!std::isfinite(lift_m) || lift_m<=0 || !std::isfinite(speed) || speed<=0) return -10;
+    arm_discard_line_then_line_plan(hand);
+    wrist_servo::Joints held,actual;
+    if(!wrist_servo::read_joint_feedback(hand,actual)) return -32;
+    if(!wrist_servo::peek_final_hold(hand,held)) held=actual;
+    const auto origin=arm_tcp_from_joints(arm,actual);
+    auto goal=arm_tcp_from_joints(arm,held);
+    goal(2)=std::min(goal(2)+lift_m,g_move_cfg.grasp_valid.z_max);
+    if(goal(2)<=origin(2)+.001) return -10;
+    const auto progress=[&](const wrist_servo::Joints &q) {
+        const auto p=arm_tcp_from_joints(arm,q);
+        retreat_feedback(arm,q,goal,"lift_feedback");
+        const double drift=(p.head<2>()-origin.head<2>()).norm();
+        if(on_progress && drift<=std::max(.015,2*g_move_cfg.head_grasp.retract_arrival_tolerance_m))
+            on_progress(p(2)-origin(2));
+    };
+    return staged_retract_line(arm,goal,speed,true,progress);
+}
+
+int arm_return_after_lift(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,double speed) {
+    if(arm_hand_side(arm)==1 && right_arm_motors_locked()) return 0;
+    if(!goal.allFinite() || !std::isfinite(speed) || speed<=0) return -10;
+    return staged_retract_line(arm,goal,speed,false,{});
+}
 
 void arm_discard_line_then_line_plan(int hand)
 {

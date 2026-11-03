@@ -12,6 +12,7 @@
 #include <Eigen/Dense>
 
 #include "realsense_get.h"
+#include "t170/common/paths.h"
 
 /** 单个检测目标的位姿结果（来自 Python CirclePoseEngine） */
 struct PoseTargetResult
@@ -276,7 +277,7 @@ private:
 
 void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
 
-/** 头相机 best1015.pt 与手相机 best1027.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
+/** 头相机 best1015.pt 与手相机 best1103.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
 constexpr int kGraspDetectClassId = 0; // workpiece，立着的工件
 constexpr int kEmptyHoleClassId = 1;   // feeding_hole / 空孔，料盘2放置用
 constexpr int kFallenClassId = 2;      // fallen / 倒件
@@ -366,21 +367,6 @@ void append_pose_records(
 
 /** 打印某一部位自己的缓存数组 */
 void print_pose_records_summary(const char *slot_title, const PoseDetectionRecords &records);
-
-/** 解析工程根目录（环境变量 MARKET_SIMPLE_ROOT，或从 build/ 向上查找） */
-std::string project_root_dir();
-std::string default_cameras_yaml_path();
-std::string default_pose_yaml_path();
-std::string default_cylinder_pose_root();
-std::string default_online_pose_root();
-std::string default_aruco_pose_yaml_path();
-std::string default_board_yf100_root();
-std::string default_board_yf100_yaml_path();
-std::string default_board_belt_root();
-std::string default_board_belt_yaml_path();
-std::string default_camera_to_robot_yaml_path();
-std::string default_left_hand_to_robot_yaml_path();
-std::string default_right_hand_to_robot_yaml_path();
 
 /** 从 config/camera_to_base_result.yaml 读取 a.matrix（yaml 平移 mm，内部转为 m） */
 bool load_cam2robot_matrix(const std::string &yaml_path, std::array<double, 16> &out, std::string &err);

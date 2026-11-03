@@ -7,7 +7,6 @@
 #include <fstream>
 
 MoveBoxConfig g_move_cfg;
-std::string project_root_dir() { return std::filesystem::current_path().string(); }
 
 void require(bool ok,const char *message) { if(!ok) throw std::runtime_error(message); }
 int main(int argc,char **argv) {
@@ -27,6 +26,11 @@ int main(int argc,char **argv) {
         changed["head_grasp"]["retract_connector_accel_rad_s2"]=4.2;
         changed["head_grasp"]["retract_connector_jerk_rad_s3"]=50;
         changed["head_grasp"]["retract_connector_max_s"]=.3;
+        changed["head_grasp"]["rise_waist_with_lift"]=false;
+        changed["head_grasp"]["waist_lift_start_clearance_m"]=.02;
+        changed["head_grasp"]["retract_arrival_tolerance_m"]=.01;
+        changed["head_grasp"]["retract_arrival_timeout_s"]=3.0;
+        changed["conveyor"]["next_hand_clearance_m"]=.04;
         { std::ofstream out(retract_config); out<<changed; }
         if(!load_move_box_config(retract_config,full,config_error)) throw std::runtime_error(config_error);
         require(full.head_grasp.retract_lift_vel_m_s==.31 &&
@@ -34,9 +38,22 @@ int main(int argc,char **argv) {
                 full.head_grasp.retract_connector_accel_rad_s2==4.2 &&
                 full.head_grasp.retract_connector_jerk_rad_s3==50 &&
                 full.head_grasp.retract_connector_max_s==.3,"external retract tuning ignored by production loader");
+        require(!full.head_grasp.rise_waist_with_lift && full.head_grasp.waist_lift_start_clearance_m==.02 &&
+                full.head_grasp.retract_arrival_tolerance_m==.01 && full.head_grasp.retract_arrival_timeout_s==3.0 &&
+                full.conveyor.next_hand_clearance_m==.04,"staged retreat/waist/peer tuning ignored by loader");
         changed["head_grasp"]["retract_lift_vel_m_s"]=0;
         { std::ofstream out(retract_config); out<<changed; }
         require(!load_move_box_config(retract_config,full,config_error),"zero retract speed silently accepted");
+        require(full.head_grasp.retract_lift_vel_m_s==.31 &&
+                full.head_grasp.retract_connector_accel_rad_s2==4.2,
+                "rejected reload replaced the previous complete configuration");
+        require(!load_move_box_config(retract_config+".missing",full,config_error) &&
+                full.head_grasp.retract_lift_vel_m_s==.31,
+                "missing file replaced live configuration with defaults");
+        { std::ofstream out(retract_config); out<<"standby: [invalid YAML\n"; }
+        require(!load_move_box_config(retract_config,full,config_error) &&
+                full.head_grasp.retract_lift_vel_m_s==.31,
+                "malformed file replaced live configuration");
         for(const char *key:{"retract_lift_vel_m_s","retract_connector_speed_rad_s",
                             "retract_connector_accel_rad_s2","retract_connector_jerk_rad_s3","retract_connector_max_s"})
             changed["head_grasp"].remove(key);
@@ -50,7 +67,10 @@ int main(int argc,char **argv) {
         c.profiles[2].reference_px=c.profiles[0].reference_px;
         c.profiles[3].reference_px=c.profiles[1].reference_px;
         wrist_servo::load_config(root["visual_servo"],c);
-        require(c.tray_place.enabled && c.tray_place.min_neighbors==2,"new tray placement mode not loaded");
+        require(c.tray_place.enabled && c.tray_place.min_neighbors==2 && c.tray_place.xy_only,
+                "tray place open-loop for hand photo run, neighbor params loaded");
+        require(c.belt_grasp_enabled && c.belt_place_enabled,
+                "belt grasp/place hand-camera servo enabled");
         require(c.period_s==.01 && c.stable_frames>=2,"actual controller parameters loaded");
         require(c.profiles[0].reference_px.x()==598 && c.profiles[1].reference_px.x()==702,"per-hand profiles loaded");
         const auto snapshot=(std::filesystem::temp_directory_path()/"t170_servo_config_roundtrip.yaml").string();
@@ -61,6 +81,12 @@ int main(int argc,char **argv) {
         require(replay.tray_place.enabled==c.tray_place.enabled &&
                 replay.tray_place.board_config==c.tray_place.board_config &&
                 replay.tray_place.association_gate_m==c.tray_place.association_gate_m,"tray vision snapshot roundtrip");
+        require(replay.place_lock_height_m==c.place_lock_height_m &&
+                replay.place_visibility_floor_m==c.place_visibility_floor_m &&
+                replay.place_xy_accept_m==c.place_xy_accept_m && replay.place_lock_frames==c.place_lock_frames &&
+                replay.tray_place.min_coverage_bins==c.tray_place.min_coverage_bins &&
+                replay.grasp_z_feedback_tolerance_m==c.grasp_z_feedback_tolerance_m,
+                "placement visibility and feedback tolerances lost in snapshot");
         require(replay.kp==c.kp && replay.kd==c.kd && replay.commit_height_m==c.commit_height_m &&
             replay.grasp_xy_accept_m==c.grasp_xy_accept_m && replay.grasp_height_margin_m==c.grasp_height_margin_m &&
             replay.hard_reference_lead_m==c.hard_reference_lead_m &&

@@ -1,5 +1,10 @@
 #include "servo/tray_localizer.h"
+#include <opencv2/core/version.hpp>
+#if CV_VERSION_MAJOR > 4 || (CV_VERSION_MAJOR == 4 && CV_VERSION_MINOR >= 7)
+#include <opencv2/objdetect/aruco_detector.hpp>
+#else
 #include <opencv2/aruco.hpp>
+#endif
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <yaml-cpp/yaml.h>
@@ -56,6 +61,32 @@ bool rigid_pose(const std::vector<cv::Point2f> &plane,const std::vector<cv::Poin
     for(const auto &p:objects) if((pose*Eigen::Vector4d(p.x,p.y,0,1)).z()<=.015) return false;
     return true;
 }
+bool translate_plane(const std::vector<cv::Point2f> &plane,const std::vector<cv::Point2f> &image,
+                     const Eigen::Matrix4d &base_camera,const Eigen::Matrix3d &k,
+                     const Eigen::Matrix4d &prior,double gate,int minimum,double max_shift,
+                     Eigen::Matrix4d &refined,double &reprojection) {
+    const auto inverse=homography(base_camera.inverse()*prior,k).inverse().eval();
+    if(!inverse.allFinite() || plane.size()<static_cast<std::size_t>(minimum)) return false;
+    std::vector<Eigen::Vector2d> shifts;std::vector<double> dx,dy;
+    for(std::size_t i=0;i<plane.size();++i) {
+        const auto p=project(inverse,{image[i].x,image[i].y});
+        if(!p.allFinite()) return false;
+        const Eigen::Vector2d d=p-Eigen::Vector2d(plane[i].x,plane[i].y);
+        shifts.push_back(d);dx.push_back(d.x());dy.push_back(d.y());
+    }
+    const Eigen::Vector2d shift(median(dx),median(dy));
+    if(shift.norm()>max_shift) return false;
+    int agree=0;Eigen::Vector2d sum=Eigen::Vector2d::Zero();
+    for(const auto &d:shifts) if((d-shift).norm()<=gate) {++agree;sum+=d;}
+    if(agree<std::max(minimum,static_cast<int>(std::ceil(shifts.size()*.6)))) return false;
+    refined=prior;
+    const Eigen::Vector3d delta=prior.block<3,3>(0,0)*Eigen::Vector3d(sum.x()/agree,sum.y()/agree,0);
+    refined(0,3)+=delta.x();refined(1,3)+=delta.y(); // never update tray Z/normal from a close-up
+    const auto h=homography(base_camera.inverse()*refined,k);double square=0;
+    for(std::size_t i=0;i<shifts.size();++i) if((shifts[i]-shift).norm()<=gate)
+        square+=(project(h,{plane[i].x,plane[i].y})-Eigen::Vector2d(image[i].x,image[i].y)).squaredNorm();
+    reprojection=std::sqrt(square/agree);return std::isfinite(reprojection);
+}
 }
 
 bool load_tray_board(const std::string &path,TrayBoardGeometry &b,std::string &error) {
@@ -104,6 +135,8 @@ bool make_tray_target(const std::vector<TrayAnchor> &anchors,const TrayBoardGeom
     target.base_from_tray.block<3,3>(0,0)=svd.matrixU()*svd.matrixV().transpose();
     target.base_from_tray.block<3,1>(0,3)=affine.row(2).transpose();
     target.board=board; target.row=row; target.col=col; target.valid=true;
+    for(const auto &a:anchors) if(a.class_id==0 || a.class_id==2)
+        target.occupied_holes.push_back(a.row*100+a.col);
     error.clear(); return true;
 }
 
@@ -114,18 +147,23 @@ struct TrayLocalizer::Impl {
     bool marker_anchored=false;
     Eigen::Vector3d identity_anchor=Eigen::Vector3d::Zero();
 #if CV_VERSION_MAJOR>4 || (CV_VERSION_MAJOR==4 && CV_VERSION_MINOR>=7)
-    cv::Ptr<cv::aruco::Dictionary> dictionary=cv::makePtr<cv::aruco::Dictionary>(cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000));
+    cv::aruco::Dictionary dictionary=cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000);
+    cv::aruco::DetectorParameters parameters;
 #else
     cv::Ptr<cv::aruco::Dictionary> dictionary=cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000);
-#endif
     cv::Ptr<cv::aruco::DetectorParameters> parameters=cv::makePtr<cv::aruco::DetectorParameters>();
+#endif
 };
 TrayLocalizer::TrayLocalizer():impl_(std::make_unique<Impl>()) {}
 TrayLocalizer::~TrayLocalizer()=default;
 void TrayLocalizer::reset(const TrayTarget &target,const TrayPlaceVisionConfig &cfg) {
     impl_->target=target; impl_->cfg=cfg; impl_->refined=target.base_from_tray;
     impl_->marker_anchored=false;
+#if CV_VERSION_MAJOR>4 || (CV_VERSION_MAJOR==4 && CV_VERSION_MINOR>=7)
+    impl_->parameters.cornerRefinementMethod=cv::aruco::CORNER_REFINE_SUBPIX;
+#else
     impl_->parameters->cornerRefinementMethod=cv::aruco::CORNER_REFINE_SUBPIX;
+#endif
 }
 
 TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen::Matrix4d &base_camera) {
@@ -140,9 +178,9 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     k(0,0)=frame.K[0]; k(1,1)=frame.K[4]; k(0,2)=frame.K[2]; k(1,2)=frame.K[5];
     if(k(0,0)<=1 || k(1,1)<=1) {out.reason="invalid_tray_intrinsics";return out;}
     const cv::Mat K=cv_matrix(k),dist(1,5,CV_64F,const_cast<double*>(frame.dist.data()));
-    cv::Mat gray,undistorted;
-    cv::cvtColor(cv::Mat(frame.height,frame.width,CV_8UC3,const_cast<unsigned char*>(frame.color_bgr.data())),gray,cv::COLOR_BGR2GRAY);
-    cv::undistort(gray,undistorted,K,dist);
+    cv::Mat gray,undistorted,color;
+    const cv::Mat bgr(frame.height,frame.width,CV_8UC3,const_cast<unsigned char*>(frame.color_bgr.data()));
+    cv::undistort(bgr,color,K,dist);cv::cvtColor(color,undistorted,cv::COLOR_BGR2GRAY);
     Eigen::Matrix4d working_base=s.refined,camera_tray=base_camera.inverse()*working_base;
     if(camera_tray(2,3)<=.015) {out.reason="tray_behind_camera";return out;}
     Eigen::Matrix3d prior=homography(camera_tray,k),inverse=prior.inverse();
@@ -153,7 +191,11 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     // Decode marker corners directly; duplicated IDs are disambiguated by the
     // head-anchored plane, NOT by inventing a unique ID per corner.
     std::vector<int> ids; std::vector<std::vector<cv::Point2f>> corners;
+#if CV_VERSION_MAJOR>4 || (CV_VERSION_MAJOR==4 && CV_VERSION_MINOR>=7)
+    cv::aruco::ArucoDetector(s.dictionary,s.parameters).detectMarkers(undistorted,corners,ids);
+#else
     cv::aruco::detectMarkers(undistorted,s.dictionary,corners,ids,s.parameters);
+#endif
     const double half=board.marker_pitch_m*.5,h=board.marker_side_m*.5;
     const std::array<Eigen::Vector2d,4> slots{{{half,half},{half,-half},{-half,half},{-half,-half}}};
     const std::array<Eigen::Vector2d,4> local{{{h,h},{h,-h},{-h,-h},{-h,h}}};
@@ -185,7 +227,16 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
         }
         out.marker_corners+=4;
     }
-    if(out.marker_corners>=4) {
+    if(out.marker_corners>=4 && cfg.xy_only) {
+        Eigen::Matrix4d candidate;double residual=0;
+        if(!translate_plane(plane_points,image_points,base_camera,k,working_base,
+                            cfg.circle_residual_m*2,3,board.marker_pitch_m*.25,candidate,residual) ||
+           residual>cfg.reprojection_gate_px) {
+            out.reason="tray_marker_xy_inconsistent";return out;
+        }
+        working_base=candidate;camera_tray=base_camera.inverse()*working_base;
+        prior=homography(camera_tray,k);inverse=prior.inverse();
+    } else if(out.marker_corners>=4) {
         cv::Mat marker_inliers;
         const auto fitted=cv::findHomography(plane_points,image_points,cv::RANSAC,cfg.reprojection_gate_px,marker_inliers);
         Eigen::Matrix4d pose;
@@ -208,36 +259,65 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     const int side=static_cast<int>(std::ceil(2*extent*scale))+1;
     for(int row=1;row<=board.rows;++row) for(int col=1;col<=board.cols;++col) {
         if(row==s.target.row && col==s.target.col) continue; // always exclude the occluded target
+        const bool occupied=std::find(s.target.occupied_holes.begin(),s.target.occupied_holes.end(),row*100+col)!=s.target.occupied_holes.end();
+        if(occupied) {
+            ++out.skipped_occupied;
+            if(!cfg.orange_rim_enabled || !cfg.occupied_orange_rims) continue;
+        }
         const Eigen::Vector2d xy=board.hole(row,col),predicted=project(prior,xy);
         if(!predicted.allFinite() || predicted.x()<0 || predicted.y()<0 || predicted.x()>=frame.width || predicted.y()>=frame.height) continue;
         Eigen::Matrix3d plane_from_roi=Eigen::Matrix3d::Identity();
         plane_from_roi(0,0)=plane_from_roi(1,1)=1/scale;
         plane_from_roi(0,2)=xy.x()-extent; plane_from_roi(1,2)=xy.y()-extent;
+        ++out.rois;
         cv::Mat patch,edges;
         cv::warpPerspective(undistorted,patch,cv_matrix(prior*plane_from_roi),{side,side},cv::INTER_LINEAR|cv::WARP_INVERSE_MAP,cv::BORDER_CONSTANT,cv::Scalar(127));
         cv::GaussianBlur(patch,patch,{3,3},.8); cv::Canny(patch,edges,35,100);
         std::vector<std::vector<cv::Point>> contours;
-        cv::findContours(edges,contours,cv::RETR_LIST,cv::CHAIN_APPROX_NONE);
+        if(!occupied) cv::findContours(edges,contours,cv::RETR_LIST,cv::CHAIN_APPROX_NONE);
+        const std::size_t gray_count=contours.size();
+        cv::Mat hsv;
+        if(cfg.orange_rim_enabled) {
+            cv::Mat rgb_patch,mask;
+            cv::warpPerspective(color,rgb_patch,cv_matrix(prior*plane_from_roi),{side,side},
+                cv::INTER_LINEAR|cv::WARP_INVERSE_MAP,cv::BORDER_CONSTANT,cv::Scalar(127,127,127));
+            cv::cvtColor(rgb_patch,hsv,cv::COLOR_BGR2HSV);
+            cv::inRange(hsv,cv::Scalar(0,85,65),cv::Scalar(28,255,255),mask);
+            cv::morphologyEx(mask,mask,cv::MORPH_CLOSE,cv::getStructuringElement(cv::MORPH_ELLIPSE,{3,3}));
+            std::vector<std::vector<cv::Point>> rims;
+            cv::findContours(mask,rims,cv::RETR_EXTERNAL,cv::CHAIN_APPROX_NONE);
+            contours.insert(contours.end(),rims.begin(),rims.end());
+        }
         double best_score=INFINITY; Eigen::Vector2d found;
-        for(const auto &contour:contours) {
+        for(std::size_t index=0;index<contours.size();++index) {
+            const auto &contour=contours[index];++out.contours;
+            const bool orange=index>=gray_count;
             if(contour.size()<30) continue;
             const auto ellipse=cv::fitEllipse(contour);
             const double ra=ellipse.size.width*.5/scale,rb=ellipse.size.height*.5/scale;
-            if(std::abs(ra/board.radius_m-1)>.22 || std::abs(rb/board.radius_m-1)>.22 ||
-               std::min(ra,rb)/std::max(ra,rb)<.8) continue;
+            const double radius=orange?.5*(ra+rb):board.radius_m;
+            if(orange ? (std::min(ra,rb)<board.radius_m*cfg.rim_min_radius_ratio ||
+                         std::max(ra,rb)>std::min(board.radius_m*cfg.rim_max_radius_ratio,board.pitch_m*.45)) :
+                        (std::abs(ra/board.radius_m-1)>.22 || std::abs(rb/board.radius_m-1)>.22)) {
+                ++out.rejected_size;continue;
+            }
+            if(std::min(ra,rb)/std::max(ra,rb)<.8) {++out.rejected_shape;continue;}
             const Eigen::Vector2d delta(ellipse.center.x/scale-extent,ellipse.center.y/scale-extent);
             if(delta.norm()>cfg.association_gate_m ||
                (xy+delta-target_xy).norm()<board.radius_m*1.5) continue;
             double residual=0; std::array<bool,16> bins{};
             for(const auto &p:contour) {
                 const double dx=(p.x-ellipse.center.x)/scale,dy=(p.y-ellipse.center.y)/scale;
-                residual+=std::pow(std::hypot(dx,dy)-board.radius_m,2);
+                residual+=std::pow(std::hypot(dx,dy)-radius,2);
                 const int bin=std::clamp(static_cast<int>((std::atan2(dy,dx)+std::acos(-1))*8/std::acos(-1)),0,15);
                 bins[bin]=true;
             }
             residual=std::sqrt(residual/contour.size());
-            if(residual>cfg.circle_residual_m || std::count(bins.begin(),bins.end(),true)<14) continue;
-            const double score=residual+.02*delta.norm();
+            if(residual>cfg.circle_residual_m) {++out.rejected_residual;continue;}
+            if(std::count(bins.begin(),bins.end(),true)<cfg.min_coverage_bins) {++out.rejected_coverage;continue;}
+            // Occupied locations contribute only the orange TRAY rim, not their raised
+            // metal workpiece edges. This keeps late, nearly full trays observable.
+            const double score=residual+.02*delta.norm()+(orange?0:.0005);
             if(score<best_score) {best_score=score;found=xy+delta;}
         }
         if(!std::isfinite(best_score)) continue;
@@ -250,9 +330,16 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     }
     Eigen::Matrix4d refined=working_base;
     bool updated=false;
+    if(cfg.xy_only) {
+        const int minimum=out.marker_corners>=4?3:cfg.min_neighbors;
+        updated=translate_plane(plane_points,image_points,base_camera,k,working_base,
+            cfg.circle_residual_m*2,minimum,cfg.max_plane_update_m,refined,out.reprojection_px) &&
+            out.reprojection_px<=cfg.reprojection_gate_px;
+        out.translation_only=updated;
+    }
     // Four noncollinear neighbor centers or a decoded marker support a full
     // homography. RANSAC rejects a mistaken rim; do not update from a single point.
-    if(plane_points.size()>=4) {
+    if(!cfg.xy_only && plane_points.size()>=4) {
         cv::Mat mask;
         const auto candidate=cv::findHomography(plane_points,image_points,cv::RANSAC,cfg.reprojection_gate_px,mask);
         if(!candidate.empty() && cv::countNonZero(mask)>=std::max(4,static_cast<int>(std::ceil(plane_points.size()*.6)))) {
@@ -273,7 +360,7 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
             }
         }
     }
-    if(!updated && neighbor_shifts.size()>=static_cast<std::size_t>(cfg.min_neighbors)) {
+    if(!cfg.xy_only && !updated && neighbor_shifts.size()>=static_cast<std::size_t>(cfg.min_neighbors)) {
         std::vector<double> dx,dy;
         for(const auto &d:neighbor_shifts) {dx.push_back(d.x());dy.push_back(d.y());}
         const Eigen::Vector2d shift(median(dx),median(dy));
@@ -309,7 +396,8 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     s.refined=refined;
     if(!s.marker_anchored && out.marker_corners>=4) {s.marker_anchored=true;s.identity_anchor=base_target.head<3>();}
     out.valid=true; out.reason="ok";
-    out.source=out.translation_only ? "neighbor_translation" : (out.marker_corners ? "marker_homography" : "neighbor_homography");
+    out.source=cfg.xy_only ? (out.marker_corners?"marker_xy":"neighbor_xy") :
+        (out.translation_only ? "neighbor_translation" : (out.marker_corners ? "marker_homography" : "neighbor_homography"));
     return out;
 }
 }
