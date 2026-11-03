@@ -39,6 +39,7 @@ void profile(const YAML::Node &n, ImageProfile &p) {
 }
 void load_config(const YAML::Node &n, Config &c) {
     read(n,"belt_place_enabled",c.belt_place_enabled);
+    read(n,"belt_grasp_enabled",c.belt_grasp_enabled);
     read(n,"require_dual",c.require_dual);
     const auto placement=n ? n["tray_place"] : YAML::Node();
 #define PLACE_READ(field) read(placement,#field,c.tray_place.field)
@@ -92,6 +93,7 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         out << YAML::Key << "build_time" << YAML::Value << __DATE__ " " __TIME__;
         out << YAML::Key << "visual_servo" << YAML::Value << YAML::BeginMap;
         out << YAML::Key << "belt_place_enabled" << YAML::Value << c.belt_place_enabled;
+        out << YAML::Key << "belt_grasp_enabled" << YAML::Value << c.belt_grasp_enabled;
         out << YAML::Key << "require_dual" << YAML::Value << c.require_dual;
         out << YAML::Key << "tray_place" << YAML::Value << YAML::BeginMap;
 #define PLACE_WRITE(field) out << YAML::Key << #field << YAML::Value << c.tray_place.field

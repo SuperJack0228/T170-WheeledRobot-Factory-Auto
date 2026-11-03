@@ -43,6 +43,8 @@ COMMANDS = {
     "cap_belt2": {"cmd": "cap_belt2"},
     "cap_tray": {"cmd": "cap_tray"},
     "cap_tray2": {"cmd": "cap_tray2"},
+    "cap_belt_hand": {"cmd": "cap_belt_hand"},
+    "belt_picture": {"cmd": "belt_picture"},
     "waist_jog": {"cmd": "waist_jog"},
     "grasp": {"cmd": "vision_grasp"},
     "grasp_image": {"cmd": "vision_grasp_image"},

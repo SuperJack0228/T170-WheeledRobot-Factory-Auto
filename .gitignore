@@ -59,6 +59,7 @@ config.txt
 # --- debug images / captures (large, machine-local) ---
 picture_debug/
 **/picture_debug/
+belt_picture/
 hand_descent_raw/
 左右手夹取/
 *.jpg
@@ -67,15 +68,9 @@ hand_descent_raw/
 *.bmp
 
 # --- YOLO / vision weights ---
-# best.pt 超过 GitHub 100MB 上限，不入库。当前使用的是 best1015.pt。
-*.pt
-!feeding_cylindrical_parts_alg/models/best1015.pt
-!feeding_cylindrical_parts_alg/models/bestlatest.pt
-*.pth
-*.onnx
-*.engine
-*.trt
-*.weights
+# best.pt 约 125MB，超过 GitHub 100MB 单文件上限，不能入库。
+# 在用的 best1015.pt、best1027.pt 不忽略。
+feeding_cylindrical_parts_alg/models/best.pt
 
 # --- archives / accidental dumps ---
 *.zip

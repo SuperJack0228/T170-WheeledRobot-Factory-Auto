@@ -644,6 +644,7 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         read_value(root["cameras"], "head_fps", cfg.cameras.head_fps);
         read_value(root["cameras"], "hand_fps", cfg.cameras.hand_fps);
         read_value(root["cameras"], "hand_live_preview", cfg.cameras.hand_live_preview);
+        read_value(root["cameras"], "hand_place_record", cfg.cameras.hand_place_record);
         read_value(root["cameras"], "hand_descent_correct", cfg.cameras.hand_descent_correct);
         read_value(root["cameras"], "left_gripper_u", cfg.cameras.left_gripper_u);
         read_value(root["cameras"], "left_gripper_v", cfg.cameras.left_gripper_v);

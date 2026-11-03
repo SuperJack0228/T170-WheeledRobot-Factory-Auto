@@ -207,7 +207,7 @@ double braking_speed(double d, double a, double delay) {
 void Controller::reset(const Config &c, const State &s, double z, double speed,
                        const Vec2 &nominal_xy, bool grasp) {
     cfg_ = c; initial_xy_ = nominal_xy; goal_xy_ = nominal_xy;
-    reference_=s.position; grasp_=grasp; relaxed_grasp_=false;
+    reference_=s.position; grasp_=grasp; relaxed_grasp_=false; continue_without_vision_=false;
     acquire_floor_z_=std::max(z+c.commit_height_m,s.position.z()-c.acquire_descent_m);
     precision_floor_since_=finish_since_=-1; close_confirmations_=0;
     velocity_ = s.velocity.head<2>(); vz_ = s.velocity.z();
@@ -289,6 +289,15 @@ Output Controller::tick(const State &s, double dt) {
                 s.velocity.head<2>().norm()<=cfg_.finish_speed_m_s;
             if(!frozen && s.position.z()-final_z_<=cfg_.freeze_height_m && (precise || usable_grasp)) {
                 phase_=Phase::Commit; commit_start_=s.time_s; relaxed_grasp_=!precise;
+                floor_z=stop_z;
+            }
+            // 抓取已经进到冻结高度且水平误差在合爪门限内时，目标短暂消失仍按最后目标下降合爪。
+            if(!frozen && grasp_ && have_goal_ && !fresh && distance<=accept &&
+               s.position.z()>=final_z_ && s.position.z()-final_z_<=cfg_.freeze_height_m) {
+                phase_=Phase::Commit;
+                if(commit_start_<0) commit_start_=s.time_s;
+                relaxed_grasp_=true;
+                continue_without_vision_=true;
                 floor_z=stop_z;
             }
             const bool committed=phase_==Phase::Commit || phase_==Phase::Settling;
@@ -376,6 +385,9 @@ Output Controller::tick(const State &s, double dt) {
     out.reference=reference_; out.reference_floor_z=floor_z; out.relaxed_grasp=relaxed_grasp_;
     out.velocity_xy=velocity_; out.velocity_z=vz_; out.phase=phase_;
     if(phase_==Phase::Failed) out.reason=failure_;
+    else if(continue_without_vision_ && phase_==Phase::Commit) out.reason="close_enough_without_vision";
+    else if(continue_without_vision_ && phase_==Phase::Settling) out.reason="holding_after_target_loss";
+    else if(continue_without_vision_ && phase_==Phase::Done) out.reason="ready_after_target_loss";
     else if(phase_==Phase::Commit) out.reason=relaxed_grasp_?"target_frozen_grasp_tolerance":"target_frozen_precise";
     else if(phase_==Phase::Settling) out.reason="holding_legal_reference";
     else if(phase_==Phase::Done) out.reason=relaxed_grasp_?"ready_grasp_tolerance":"ready_precise";

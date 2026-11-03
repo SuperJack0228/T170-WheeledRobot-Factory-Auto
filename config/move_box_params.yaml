@@ -126,7 +126,7 @@ head_grasp:
   retract_connector_speed_rad_s: 1.5
   retract_connector_accel_rad_s2: 6.0
   retract_connector_jerk_rad_s3: 80.0
-  retract_connector_max_s: 0.40
+  retract_connector_max_s: 0.50
   # 下压到位后再等这么久才合爪。
   pre_grasp_settle_sec: 0.15
   hand_detect_invalid_redo_max: 10
@@ -252,7 +252,9 @@ cameras:
   hand_fps: 15
   # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。
   hand_live_preview: false
-  # true：双轴视觉闭环；失败禁止合/松爪。参数见 visual_servo。
+  # 料盘二放置全程存左右手原图到 hand_place_picture/，约 5 张/秒。不参与伺服。
+  hand_place_record: true
+  # true：下降段允许手相机双轴闭环。各路径还要看 visual_servo 里的开关。
   hand_descent_correct: true
   # 10:30 抓准那一帧的框中心。左手图已转 180°。原点在左上角，x 向右，y 向下。
   left_gripper_u: 598
@@ -300,7 +302,7 @@ conveyor:
     right: [0, 40, 45]
   grasp_offset:
     left: { x: 0.083, y: 0.11, z: 0.015 }
-    right: { x: 0.0, y: 0.12, z: -0.001 }
+    right: { x: 0.0, y: 0.12, z: 0.005 }
   # 抓取完成后的回程姿态。开始准备仍是 tcp。
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
@@ -419,9 +421,10 @@ gripper_check:
 # V1 双手视觉伺服。单位 m / s / rad；像素坐标均为原图（左图转180度后）。
 # geometry 是基于现有手眼/平面的估计，不是实测标定。先记录双手日志，再填写 table。
 visual_servo:
-  # 传送带放置尚无已确认的空孔/特征；默认保留既有开环放置，不冒充视觉闭环。
-  # 确认有可跟踪目标且配置好放置profile后才可启用。
-  belt_place_enabled: false
+  # 传送带放置手相机闭环。false 时走码+offset 开环。
+  belt_place_enabled: true
+  # 传送带抓取手相机闭环。false 时走码+offset 开环。
+  belt_grasp_enabled: true
   period_s: 0.01
   kp: 1.5
   kd: 0.2
@@ -491,8 +494,10 @@ visual_servo:
   right_grasp: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   # 放置参考像素应示教工件轴心在正确放置高度的投影，不能用邻孔框中心代替。
   # 当前未另填 reference_px 时沿用该手现有参考像素，现场需确认。
+  # enabled=false：料盘二放置走传统 tray2_place offset 开环，不进手相机伺服。
+  # enabled=true：邻孔/标记虚拟孔心伺服（需 hand_descent_correct=true）。
   tray_place:
-    enabled: true
+    enabled: false
     board_config: board_yf100_aruco/config.yaml
     association_gate_m: 0.025
     reprojection_gate_px: 3.0

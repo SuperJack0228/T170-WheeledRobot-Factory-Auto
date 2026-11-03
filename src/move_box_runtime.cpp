@@ -3504,6 +3504,11 @@ namespace move_box
             std::cerr << "[servo] 双手验证需要两侧有效目标且满足原有列间距/避让约束；本次不降级为单手\n";
             return {-34,-34};
         }
+        // 料盘抓取：hand_descent_correct 即可进伺服。
+        // 料盘放置：还需 tray_place.enabled；关则走 tray2_place offset 开环。
+        const bool use_visual_descent =
+            g_move_cfg.cameras.hand_descent_correct &&
+            (!place || g_move_cfg.visual_servo.tray_place.enabled);
         ArmLineMoveResult out;
         if (straight_descent)
         {
@@ -3515,16 +3520,19 @@ namespace move_box
             const int hand_class = g_tray_hole_task == TrayHoleTask::PlaceEmpty ? 1 : 0;
             std::cout << std::fixed << std::setprecision(2)
                       << "[descent] 直线 " << approach_mps
-                      << " m/s 接近孔正上方，随后闭环竖直 " << kDescentMps
+                      << " m/s 接近孔正上方，随后竖直 " << kDescentMps
                       << " m/s 下降。";
-            if (g_move_cfg.cameras.hand_descent_correct)
+            if (use_visual_descent)
                 std::cout << "下降段使用双轴闭环、延迟补偿与预测制动\n";
+            else if (place)
+                std::cout << "料盘放置开环偏置（tray2_place offset），不进手相机伺服\n";
             else
                 std::cout << "手相机修正已关，照头相机目标走，记录 logs/hand_eye_bias.csv\n";
             out = arm_dual_line_then_line_nostop(
                 arm_r, hover_r_arm, goal_r_arm, hs.move_r,
                 arm_l, hover_l_arm, goal_l_arm, hs.move_l,
-                approach_mps, kDescentMps, {}, false, place ? "料盘放置下降" : "下降", false, true, hand_class);
+                approach_mps, kDescentMps, {}, false, place ? "料盘放置下降" : "下降", false,
+                use_visual_descent, hand_class);
         }
         else
         {
@@ -3549,8 +3557,8 @@ namespace move_box
             return out;
         }
 
-        // The servo owns stable completion for grasp AND tray placement.
-        const bool servo_descent=straight_descent && g_move_cfg.cameras.hand_descent_correct;
+        // Servo owns stable completion only when this path actually ran visual descent.
+        const bool servo_descent = straight_descent && use_visual_descent;
         auto prepare_retract = [&]() {
             if (!tray2_precision_test())
             {

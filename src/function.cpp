@@ -1159,8 +1159,8 @@ std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
         const Eigen::Vector3d p=arm_tcp_from_joints(arm,q).head<3>().transpose();
         // A connector near a loaded tray must neither dip below the held TCP
         // nor turn a small IK discrepancy into a large sideways motion.
-        return p.allFinite() && p.z()>=start.z()-.001 &&
-               (p.head<2>()-start.head<2>()).norm()<=.005;
+        return p.allFinite() && p.z()>=start.z()-.002 &&
+               (p.head<2>()-start.head<2>()).norm()<=.008;
     };
 }
 
@@ -3106,8 +3106,8 @@ Eigen::MatrixXd stitch_lift_then_return(Robot_Arm &arm, const Eigen::MatrixXd &f
     };
     const auto valid=[&](const Eigen::RowVectorXd &q) {
         const Eigen::Vector3d p=arm_tcp_from_joints(arm,q).head<3>().transpose();
-        return nearly_lifted && p.allFinite() && p.z()>=std::min(a.z(),b.z())-.001 &&
-            std::min(distance_to_segment(p,a,corner),distance_to_segment(p,corner,b))<=.005;
+        return nearly_lifted && p.allFinite() && p.z()>=std::min(a.z(),b.z())-.002 &&
+            std::min(distance_to_segment(p,a,corner),distance_to_segment(p,corner,b))<=.008;
     };
     const auto bridge=wrist_servo::connect_joint_boundaries(
         wrist_servo::trajectory_boundary(first,ia,k_arm_traj_dt,false),

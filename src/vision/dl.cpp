@@ -33,7 +33,7 @@ void ModelRegistry::register_defaults()
     upsert(ModelEntry{
         "hand_parts",
         "detect",
-        "models/best1027.pt",
+        "models/best1103.pt",
         2,
         "左右手下降。与 pose_params segmentation.hand_model 相同，类别号与头相机一致",
     });

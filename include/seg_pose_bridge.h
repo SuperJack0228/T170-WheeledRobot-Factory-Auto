@@ -277,7 +277,7 @@ private:
 
 void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
 
-/** 头相机 best1015.pt 与手相机 best1027.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
+/** 头相机 best1015.pt 与手相机 best1103.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
 constexpr int kGraspDetectClassId = 0; // workpiece，立着的工件
 constexpr int kEmptyHoleClassId = 1;   // feeding_hole / 空孔，料盘2放置用
 constexpr int kFallenClassId = 2;      // fallen / 倒件

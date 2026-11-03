@@ -37,6 +37,7 @@ struct ImageProfile {
 
 struct Config {
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
+    bool belt_grasp_enabled = false; // keep belt grasp on traditional offset until accepted
     bool require_dual = false; // set by the dedicated dual-hand validation command
     TrayPlaceVisionConfig tray_place;
     double period_s = 0.01;
@@ -198,7 +199,7 @@ private:
     Vec2 velocity_ = Vec2::Zero();
     Vec3 reference_ = Vec3::Zero();
     double acquire_floor_z_ = 0, precision_floor_since_ = -1, finish_since_ = -1;
-    bool grasp_ = true, relaxed_grasp_ = false;
+    bool grasp_ = true, relaxed_grasp_ = false, continue_without_vision_ = false;
     double vz_ = 0.0, start_time_ = 0.0, final_z_ = 0.0, descent_speed_ = 0.0;
     double last_capture_ = -1.0, last_clock_uncertainty_ = 0.0;
     double commit_start_ = -1.0;

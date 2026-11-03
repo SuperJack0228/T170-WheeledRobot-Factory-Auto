@@ -33,7 +33,7 @@ option(T170_BUILD_DIAGNOSTICS "Build optional robot-moving diagnostic tools" OFF
 if(T170_SERVO_TESTS_ONLY)
     find_package(Threads REQUIRED)
     find_package(yaml-cpp REQUIRED)
-    find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d aruco)
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d objdetect)
     t170_add_configuration()
     enable_testing()
     add_executable(common_paths_test tests/common_paths_test.cpp)

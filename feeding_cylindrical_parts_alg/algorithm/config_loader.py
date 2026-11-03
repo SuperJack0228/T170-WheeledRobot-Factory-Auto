@@ -201,12 +201,12 @@ def load_pose_params(config_path: str | Path | None = None) -> PoseParams:
 
     model_raw = seg_node.get("model", "models/best1015.pt")
     model_path = resolve_model_path(model_raw)
-    hand_raw = seg_node.get("hand_model", "models/best1027.pt")
+    hand_raw = seg_node.get("hand_model", "models/best1103.pt")
     hand_model_path = resolve_model_path(hand_raw)
     if not hand_model_path.is_file():
         raise FileNotFoundError(
             f"手相机 YOLO 不存在: {hand_model_path}\n"
-            f"请检查 segmentation.hand_model 或放置到 models/best1027.pt"
+            f"请检查 segmentation.hand_model 或放置到 models/best1103.pt"
         )
 
     class_ids = seg_node.get("class_ids")

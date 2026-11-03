@@ -324,6 +324,8 @@ struct CameraStreamConfig
     int hand_fps = 15;
     /** 为真时后台抽帧写 picture_debug/live，网页才能看实时画面。会和推理抢同一条 pipeline。 */
     bool hand_live_preview = false;
+    /** 为真时，料盘二放置从出发到结束把左右手彩色图写到 hand_place_picture。 */
+    bool hand_place_record = false;
     /** 为真时，竖直下降段把锁定工件的检测框中心对齐到夹爪像素，只改尚未发出的水平位置。 */
     bool hand_descent_correct = false;
     /** 夹爪中点在手相机画面里的像素。左手是转过 180° 之后的图。原点在左上角。 */

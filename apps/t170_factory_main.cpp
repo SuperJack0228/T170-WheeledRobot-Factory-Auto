@@ -752,6 +752,20 @@ Json::Value dispatch(const Json::Value &request)
             out["photo"] = g_session.last_debug_photo;
         return out;
     }
+    if (cmd == "cap_belt_hand" || cmd == "belt_picture")
+    {
+        std::string dir;
+        const int rc = orch::capture_right_hand_belt_pictures(dir);
+        const bool ok = rc >= 0;
+        Json::Value out = reply(ok, ok ? std::string() : ("右手拍照失败/中止，code=" + std::to_string(rc)));
+        out["code"] = rc;
+        out["scene"] = "cap_belt_hand";
+        out["count"] = ok ? rc : 0;
+        out["dir"] = dir;
+        if (!g_session.last_debug_photo.empty())
+            out["photo"] = g_session.last_debug_photo;
+        return out;
+    }
     if (cmd == "belt2_grasp")
     {
         const int rc = orch::go_belt2_grasp();

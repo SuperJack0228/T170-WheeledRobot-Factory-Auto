@@ -1,5 +1,10 @@
 #include "servo/tray_localizer.h"
+#include <opencv2/core/version.hpp>
+#if CV_VERSION_MAJOR > 4 || (CV_VERSION_MAJOR == 4 && CV_VERSION_MINOR >= 7)
+#include <opencv2/objdetect/aruco_detector.hpp>
+#else
 #include <opencv2/aruco.hpp>
+#endif
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <yaml-cpp/yaml.h>
@@ -114,18 +119,23 @@ struct TrayLocalizer::Impl {
     bool marker_anchored=false;
     Eigen::Vector3d identity_anchor=Eigen::Vector3d::Zero();
 #if CV_VERSION_MAJOR>4 || (CV_VERSION_MAJOR==4 && CV_VERSION_MINOR>=7)
-    cv::Ptr<cv::aruco::Dictionary> dictionary=cv::makePtr<cv::aruco::Dictionary>(cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000));
+    cv::aruco::Dictionary dictionary=cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000);
+    cv::aruco::DetectorParameters parameters;
 #else
     cv::Ptr<cv::aruco::Dictionary> dictionary=cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000);
-#endif
     cv::Ptr<cv::aruco::DetectorParameters> parameters=cv::makePtr<cv::aruco::DetectorParameters>();
+#endif
 };
 TrayLocalizer::TrayLocalizer():impl_(std::make_unique<Impl>()) {}
 TrayLocalizer::~TrayLocalizer()=default;
 void TrayLocalizer::reset(const TrayTarget &target,const TrayPlaceVisionConfig &cfg) {
     impl_->target=target; impl_->cfg=cfg; impl_->refined=target.base_from_tray;
     impl_->marker_anchored=false;
+#if CV_VERSION_MAJOR>4 || (CV_VERSION_MAJOR==4 && CV_VERSION_MINOR>=7)
+    impl_->parameters.cornerRefinementMethod=cv::aruco::CORNER_REFINE_SUBPIX;
+#else
     impl_->parameters->cornerRefinementMethod=cv::aruco::CORNER_REFINE_SUBPIX;
+#endif
 }
 
 TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen::Matrix4d &base_camera) {
@@ -153,7 +163,11 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     // Decode marker corners directly; duplicated IDs are disambiguated by the
     // head-anchored plane, NOT by inventing a unique ID per corner.
     std::vector<int> ids; std::vector<std::vector<cv::Point2f>> corners;
+#if CV_VERSION_MAJOR>4 || (CV_VERSION_MAJOR==4 && CV_VERSION_MINOR>=7)
+    cv::aruco::ArucoDetector(s.dictionary,s.parameters).detectMarkers(undistorted,corners,ids);
+#else
     cv::aruco::detectMarkers(undistorted,s.dictionary,corners,ids,s.parameters);
+#endif
     const double half=board.marker_pitch_m*.5,h=board.marker_side_m*.5;
     const std::array<Eigen::Vector2d,4> slots{{{half,half},{half,-half},{-half,half},{-half,-half}}};
     const std::array<Eigen::Vector2d,4> local{{{h,h},{h,-h},{-h,-h},{-h,h}}};
