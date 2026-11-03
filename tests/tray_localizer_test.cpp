@@ -83,7 +83,7 @@ int main(int argc,char **argv) {
         }
         TrayTarget target;require(make_tray_target(anchors,board,3,4,target,error),"head anchor fit failed");
         require((target.base_from_tray-actual).norm()<1e-9,"head row/column coordinate convention changed");
-        TrayPlaceVisionConfig cfg;cfg.enabled=true;
+        TrayPlaceVisionConfig cfg;cfg.enabled=true;cfg.xy_only=false;
         auto seed=target;seed.base_from_tray(0,3)=.010;seed.base_from_tray(1,3)=-.008;
         TrayLocalizer localizer;localizer.reset(seed,cfg);
         auto frame=render(target,actual,camera);
@@ -151,6 +151,49 @@ int main(int argc,char **argv) {
         const auto left_view=localizer.locate(flipped,camera*optical);
         require(left_view.valid && (left_view.pixel-Eigen::Vector2d(flipped.width-1-moved_pixel.x,flipped.height-1-moved_pixel.y)).norm()<2,
                 "left-camera 180-degree calibrated image convention changed");
+        // Production mode: head plane Z/normal stay fixed while camera height changes.
+        actual=Eigen::Matrix4d::Identity();camera=Eigen::Matrix4d::Identity();
+        camera(1,1)=camera(2,2)=-1;camera(2,3)=.45;
+        seed=target;seed.base_from_tray=actual;seed.base_from_tray(0,3)=.008;
+        cfg.xy_only=true;localizer.reset(seed,cfg);
+        for(double camera_z:{.45,.40,.35}) {
+            camera(2,3)=camera_z;
+            auto image=render(target,actual,camera);
+            auto fixed=localizer.locate(image,camera);
+            const auto want=pixels(image,camera,actual,{board.hole(target.row,target.col)})[0];
+            require(fixed.valid && (fixed.pixel-Eigen::Vector2d(want.x,want.y)).norm()<2,
+                    "XY-only moving-camera localization failed");
+            require(std::abs(fixed.plane_z_m)<1e-10,"XY-only localization changed tray Z");
+        }
+        // Real fixture has colored annuli, not filled black circles. Outer/inner radii
+        // deliberately disagree with the old fixed-radius gray-edge detector.
+        auto orange=blank_frame();cv::Mat orange_image(orange.height,orange.width,CV_8UC3,orange.color_bgr.data());
+        for(auto rc:std::vector<std::pair<int,int>>{{3,3},{4,4}}) {
+            const auto center=board.hole(rc.first,rc.second);
+            auto draw=[&](double ratio,cv::Scalar color) {
+                std::vector<Eigen::Vector2d> ring;
+                for(int i=0;i<180;++i) {
+                    const double a=i*2*std::acos(-1)/180;
+                    ring.push_back(center+ratio*board.radius_m*Eigen::Vector2d(std::cos(a),std::sin(a)));
+                }
+                std::vector<cv::Point> contour;
+                for(auto p:pixels(orange,camera,actual,ring)) contour.emplace_back(cvRound(p.x),cvRound(p.y));
+                cv::fillConvexPoly(orange_image,contour,color,cv::LINE_AA);
+            };
+            draw(1.35,cv::Scalar(35,105,230));draw(.65,cv::Scalar(25,25,25));
+        }
+        cv::GaussianBlur(orange_image,orange_image,{5,5},1.1);
+        localizer.reset(seed,cfg);const auto rims=localizer.locate(orange,camera);
+        const auto want=pixels(orange,camera,actual,{board.hole(target.row,target.col)})[0];
+        require(rims.valid && rims.neighbors==2 && (rims.pixel-Eigen::Vector2d(want.x,want.y)).norm()<2,
+                "orange annulus RGB localization failed");
+        seed.occupied_holes={303};localizer.reset(seed,cfg);
+        const auto occupied=localizer.locate(orange,camera);
+        require(occupied.valid && occupied.skipped_occupied==1,
+                "reliable orange tray rim at an occupied location was discarded");
+        localizer.reset(seed,cfg);
+        const auto metal_only=localizer.locate(render(target,actual,camera,false,{303,404}),camera);
+        require(!metal_only.valid,"gray metal/part edge at an occupied location became a tray landmark");
         const auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
         std::cout << "tray_localizer: hidden target, sparse support, lost features, perspective, distortion, duplicate IDs and moving camera passed; fixture suite ms=" << elapsed << '\n';
     } catch(const std::exception &ex) {std::cerr << "tray_localizer FAIL: " << ex.what() << '\n';return 1;}

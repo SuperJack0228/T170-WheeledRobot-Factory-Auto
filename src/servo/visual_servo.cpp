@@ -24,6 +24,11 @@ bool validate_config(const Config &c, std::string &error) {
        p.rectified_pixels_per_m<500 || p.rectified_pixels_per_m>4000) {
         error="invalid tray placement vision configuration";return false;
     }
+    if(!std::isfinite(p.rim_min_radius_ratio) || !std::isfinite(p.rim_max_radius_ratio) ||
+       p.rim_min_radius_ratio<.3 || p.rim_max_radius_ratio>2 ||
+       p.rim_min_radius_ratio>=p.rim_max_radius_ratio || p.min_coverage_bins<10 || p.min_coverage_bins>16) {
+        error="invalid tray rim geometry";return false;
+    }
     auto positive = [&](double x, const char *name) {
         if (!std::isfinite(x) || x <= 0) { error = std::string(name) + " must be finite and positive"; return false; }
         return true;
@@ -38,6 +43,11 @@ bool validate_config(const Config &c, std::string &error) {
         {c.grasp_z_accept_above_m,"grasp_z_accept_above_m"},{c.grasp_xy_accept_m,"grasp_xy_accept_m"},
         {c.grasp_relax_after_s,"grasp_relax_after_s"},{c.finish_speed_m_s,"finish_speed_m_s"},
         {c.finish_stable_s,"finish_stable_s"},{c.alignment_time_margin_s,"alignment_time_margin_s"},
+        {c.grasp_z_feedback_tolerance_m,"grasp_z_feedback_tolerance_m"},
+        {c.place_xy_accept_m,"place_xy_accept_m"},{c.place_lock_height_m,"place_lock_height_m"},
+        {c.place_visibility_floor_m,"place_visibility_floor_m"},{c.place_goal_stability_m,"place_goal_stability_m"},
+        {c.place_finish_speed_m_s,"place_finish_speed_m_s"},{c.place_height_margin_m,"place_height_margin_m"},
+        {c.place_z_accept_above_m,"place_z_accept_above_m"},
         {c.acquire_descent_m,"acquire_descent_m"},{c.handoff_distance_m,"handoff_distance_m"},
         {c.handoff_speed_m_s,"handoff_speed_m_s"},{c.hard_reference_lead_m,"hard_reference_lead_m"},
         {c.following_timeout_s,"following_timeout_s"},
@@ -69,6 +79,12 @@ bool validate_config(const Config &c, std::string &error) {
         c.hard_reference_lead_m <= c.max_reference_lead_m ||
         c.model_uncertainty_m >= 0.5*c.xy_tolerance_m) {
         error = "invalid controller limits, gains or time budgets"; return false;
+    }
+    if(c.place_lock_frames<2 || c.place_lock_frames>20 || c.place_xy_accept_m<c.xy_tolerance_m ||
+       c.place_xy_accept_m>.008 || c.place_visibility_floor_m<=c.commit_height_m ||
+       c.place_lock_height_m<=c.place_visibility_floor_m ||
+       c.place_z_accept_above_m<c.place_height_margin_m || c.grasp_z_feedback_tolerance_m>c.grasp_height_margin_m) {
+        error="invalid placement lock/terminal envelope";return false;
     }
     for (const auto &p : c.profiles) {
         if ((p.mode != "geometry" && p.mode != "table") || !p.reference_px.allFinite() ||
@@ -213,6 +229,7 @@ void Controller::reset(const Config &c, const State &s, double z, double speed,
     velocity_ = s.velocity.head<2>(); vz_ = s.velocity.z();
     start_time_ = s.time_s; final_z_ = z; descent_speed_ = speed;
     have_goal_ = false; last_capture_ = -1; last_frame_ = 0; confirmations_ = 0;
+    stable_goal_frames_=0; virtual_place_=false;
     commit_start_=-1;
     phase_ = Phase::Acquiring; failure_.clear();
 }
@@ -235,7 +252,12 @@ bool Controller::observe(const PixelObservation &o, const State &s, const Mappin
     if (have_goal_ && (candidate - goal_xy_).norm() > cfg_.innovation_gate_m) {
         reason = "goal_innovation_rejected"; return false;
     }
-    if(have_goal_ && o.capture_s-last_capture_>cfg_.max_observation_age_s) { confirmations_=0; close_confirmations_=0; }
+    if(have_goal_ && o.capture_s-last_capture_>cfg_.max_observation_age_s) {
+        confirmations_=0; close_confirmations_=0; stable_goal_frames_=0;
+    }
+    const bool stable=!have_goal_ || (candidate-goal_xy_).norm()<=cfg_.place_goal_stability_m;
+    stable_goal_frames_=stable ? stable_goal_frames_+1 : 0;
+    virtual_place_=!grasp_ && o.virtual_target;
     goal_xy_ = have_goal_ ? Vec2(goal_xy_ + cfg_.goal_filter_alpha * (candidate - goal_xy_)) : candidate;
     have_goal_ = true; last_capture_ = o.capture_s; last_frame_ = o.frame;
     last_clock_uncertainty_ = o.clock_uncertainty_s;
@@ -243,7 +265,7 @@ bool Controller::observe(const PixelObservation &o, const State &s, const Mappin
     const double hysteresis=1.5*cfg_.xy_tolerance_m;
     if(m.remaining_m.norm()<=cfg_.xy_tolerance_m) ++confirmations_;
     else if(m.remaining_m.norm()>hysteresis) confirmations_=0;
-    const double accept=grasp_?cfg_.grasp_xy_accept_m:cfg_.xy_tolerance_m;
+    const double accept=grasp_?cfg_.grasp_xy_accept_m:(virtual_place_?cfg_.place_xy_accept_m:cfg_.xy_tolerance_m);
     close_confirmations_=m.remaining_m.norm()<=accept?close_confirmations_+1:0;
     reason = "accepted"; return true;
 }
@@ -265,9 +287,10 @@ Output Controller::tick(const State &s, double dt) {
        s.time_s-(have_goal_?last_capture_:start_time_)>cfg_.loss_timeout_s)
         fail(have_goal_?"target_lost_timeout":"no_valid_observation_timeout");
     // The nominal visual feature plane remains C. This is only a motion clearance.
-    const double stop_z=final_z_+(grasp_?cfg_.grasp_height_margin_m:0.0);
-    const double finish_speed=grasp_?cfg_.finish_speed_m_s:cfg_.settle_speed_m_s;
-    const double accept=grasp_?cfg_.grasp_xy_accept_m:cfg_.xy_tolerance_m;
+    const double stop_z=final_z_+(grasp_?cfg_.grasp_height_margin_m:(virtual_place_?cfg_.place_height_margin_m:0.0));
+    const double finish_speed=grasp_?cfg_.finish_speed_m_s:(virtual_place_?cfg_.place_finish_speed_m_s:cfg_.settle_speed_m_s);
+    const double accept=grasp_?cfg_.grasp_xy_accept_m:(virtual_place_?cfg_.place_xy_accept_m:cfg_.xy_tolerance_m);
+    const double below_tolerance=grasp_?cfg_.grasp_z_feedback_tolerance_m:cfg_.z_tolerance_m;
     out.finish_xy_tolerance_m=accept;
     out.remaining_m=goal_xy_-s.position.head<2>();
     const double distance=out.remaining_m.norm();
@@ -275,9 +298,11 @@ Output Controller::tick(const State &s, double dt) {
         out.age_s+last_clock_uncertainty_<=cfg_.max_observation_age_s;
     const double usable_dt=(std::isfinite(dt) && dt>0)?std::min(dt,cfg_.max_tick_gap_s):cfg_.period_s;
     Vec2 target_v=Vec2::Zero(); double target_z=0;
-    double floor_z=frozen?stop_z:(have_goal_?final_z_+cfg_.commit_height_m:acquire_floor_z_);
+    const double alignment_floor=virtual_place_?cfg_.place_visibility_floor_m:cfg_.commit_height_m;
+    // Never command an upward jump if acquisition starts below this guard.
+    double floor_z=frozen?stop_z:(have_goal_?std::min(reference_.z(),final_z_+alignment_floor):acquire_floor_z_);
     if(phase_!=Phase::Failed && phase_!=Phase::Done) {
-        if(s.position.z()<final_z_-(grasp_?0.0:cfg_.z_tolerance_m)) fail("z_below_nominal_C");
+        if(s.position.z()<final_z_-below_tolerance) fail("z_below_nominal_C");
         if(phase_!=Phase::Failed) {
             const bool near_guard=reference_.z()<=final_z_+cfg_.commit_height_m+cfg_.z_tolerance_m;
             if(near_guard && precision_floor_since_<0) precision_floor_since_=s.time_s;
@@ -287,13 +312,18 @@ Output Controller::tick(const State &s, double dt) {
                 distance<=accept && near_guard && precision_floor_since_>=0 &&
                 s.time_s-precision_floor_since_>=cfg_.grasp_relax_after_s &&
                 s.velocity.head<2>().norm()<=cfg_.finish_speed_m_s;
-            if(!frozen && s.position.z()-final_z_<=cfg_.freeze_height_m && (precise || usable_grasp)) {
-                phase_=Phase::Commit; commit_start_=s.time_s; relaxed_grasp_=!precise;
+            const bool usable_place=virtual_place_ && fresh && close_confirmations_>=cfg_.place_lock_frames &&
+                stable_goal_frames_>=cfg_.place_lock_frames && distance<=accept &&
+                s.velocity.head<2>().norm()<=finish_speed;
+            const double lock_height=virtual_place_?cfg_.place_lock_height_m:cfg_.freeze_height_m;
+            if(!frozen && s.position.z()-final_z_<=lock_height &&
+               (virtual_place_?usable_place:(precise || usable_grasp))) {
+                phase_=Phase::Commit; commit_start_=s.time_s; relaxed_grasp_=grasp_ && !precise;
                 floor_z=stop_z;
             }
             // 抓取已经进到冻结高度且水平误差在合爪门限内时，目标短暂消失仍按最后目标下降合爪。
             if(!frozen && grasp_ && have_goal_ && !fresh && distance<=accept &&
-               s.position.z()>=final_z_ && s.position.z()-final_z_<=cfg_.freeze_height_m) {
+               s.position.z()>=final_z_-below_tolerance && s.position.z()-final_z_<=cfg_.freeze_height_m) {
                 phase_=Phase::Commit;
                 if(commit_start_<0) commit_start_=s.time_s;
                 relaxed_grasp_=true;
@@ -373,8 +403,9 @@ Output Controller::tick(const State &s, double dt) {
             std::abs(vz_)<1e-4 && velocity_.norm()<1e-4;
         if(reference_stopped) phase_=Phase::Settling;
         const bool ready=reference_stopped && distance<=accept &&
-            s.position.z()>=final_z_-(grasp_?0.0:cfg_.z_tolerance_m) &&
-            s.position.z()<=final_z_+(grasp_?cfg_.grasp_z_accept_above_m:cfg_.z_tolerance_m) &&
+            s.position.z()>=final_z_-below_tolerance &&
+            s.position.z()<=final_z_+(grasp_?cfg_.grasp_z_accept_above_m:
+                (virtual_place_?cfg_.place_z_accept_above_m:cfg_.z_tolerance_m)) &&
             std::abs(s.velocity.z())<=finish_speed && s.velocity.head<2>().norm()<=finish_speed;
         if(ready) { if(finish_since_<0) finish_since_=s.time_s; }
         else finish_since_=-1;
@@ -383,14 +414,18 @@ Output Controller::tick(const State &s, double dt) {
         }
     }
     out.reference=reference_; out.reference_floor_z=floor_z; out.relaxed_grasp=relaxed_grasp_;
+    out.place_locked=virtual_place_ && (phase_==Phase::Commit || phase_==Phase::Settling || phase_==Phase::Done);
+    out.stable_goal_frames=stable_goal_frames_;
     out.velocity_xy=velocity_; out.velocity_z=vz_; out.phase=phase_;
     if(phase_==Phase::Failed) out.reason=failure_;
     else if(continue_without_vision_ && phase_==Phase::Commit) out.reason="close_enough_without_vision";
     else if(continue_without_vision_ && phase_==Phase::Settling) out.reason="holding_after_target_loss";
     else if(continue_without_vision_ && phase_==Phase::Done) out.reason="ready_after_target_loss";
-    else if(phase_==Phase::Commit) out.reason=relaxed_grasp_?"target_frozen_grasp_tolerance":"target_frozen_precise";
+    else if(phase_==Phase::Commit) out.reason=virtual_place_?"target_frozen_place_visible":
+        (relaxed_grasp_?"target_frozen_grasp_tolerance":"target_frozen_precise");
     else if(phase_==Phase::Settling) out.reason="holding_legal_reference";
-    else if(phase_==Phase::Done) out.reason=relaxed_grasp_?"ready_grasp_tolerance":"ready_precise";
+    else if(phase_==Phase::Done) out.reason=virtual_place_?"ready_place_locked":
+        (relaxed_grasp_?"ready_grasp_tolerance":"ready_precise");
     return out;
 }
 } // namespace wrist_servo

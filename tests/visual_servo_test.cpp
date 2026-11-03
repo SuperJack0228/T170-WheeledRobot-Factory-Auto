@@ -268,12 +268,48 @@ void test_position_following_and_grasp_tolerance() {
     }
 }
 
+void test_place_visible_lock_and_occlusion() {
+    Config cfg;Controller c;State s=state_at(1,Vec3(0,0,.060));
+    c.reset(cfg,s,0,.10,Vec2::Zero(),false);
+    Mapping map;map.valid=true;map.remaining_m=Vec2(.003,0);
+    std::string reason;
+    for(int i=0;i<3;++i) {
+        s.time_s=1+i*.10;
+        auto o=observation_at(s.time_s,i+1);o.virtual_target=true;
+        check(c.observe(o,s,map,s.time_s+.01,reason),"placement stable frame rejected");
+        const auto out=c.tick(s,.01);
+        if(i<2) check(out.phase!=Phase::Commit,"placement locked before independent stable frames");
+        else check(out.phase==Phase::Commit && out.place_locked,
+                   "placement did not lock while landmarks were still visible at 60mm");
+    }
+    // No more images during final occlusion; an ideal following plant must finish.
+    bool done=false;
+    for(int i=0;i<500;++i) {
+        s.time_s+=.01;auto out=c.tick(s,.01);
+        check(out.reference.z()>=cfg.place_height_margin_m-1e-9,"placement reference passed C clearance");
+        if(out.phase==Phase::Done) {done=true;break;}
+        check(out.phase!=Phase::Failed,"trusted placement lock failed only because target became occluded");
+        s.position=out.reference;s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+    }
+    check(done,"placement never completed its bounded occluded terminal stroke");
+    c.reset(cfg,state_at(1,Vec3(0,0,.15)),0,.10,Vec2::Zero(),false);
+    s=state_at(3,Vec3(0,0,.13));
+    check(c.tick(s,.01).reason=="no_valid_observation_timeout","unacquired placement became a blind release");
+    // A small encoder-FK overshoot is feedback tolerance, not permission for a deeper reference.
+    c.reset(cfg,state_at(1,Vec3(0,0,.02)),0,.10);
+    s=state_at(1.1,Vec3(0,0,-.0002));
+    check(c.tick(s,.01).phase!=Phase::Failed,"0.2mm feedback noise caused an immediate abort");
+    s=state_at(1.11,Vec3(0,0,-.002));
+    check(c.tick(s,.01).reason=="z_below_nominal_C","real C-boundary excursion was ignored");
+}
+
 int main() {
     try {
         test_mapping(); test_tilted_geometry(); test_history_and_delay(); test_braking_and_loss();
         test_commit_evidence(); test_local_pose_solver();
         test_delayed_dual_arm_simulation(); test_trace_and_config();
         test_position_following_and_grasp_tolerance();
+        test_place_visible_lock_and_occlusion();
         std::cout << "visual_servo: all regression checks passed (model tests, not robot validation)\n";
         return 0;
     } catch(const std::exception &ex) { std::cerr << "FAIL: " << ex.what() << '\n'; return 1; }

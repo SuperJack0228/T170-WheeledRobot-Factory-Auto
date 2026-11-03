@@ -104,6 +104,10 @@ void observe(int hand) {
         obs.neighbor_count=located.neighbors; obs.marker_corner_count=located.marker_corners;
         obs.vision_source=located.source; obs.plane_reprojection_px=located.reprojection_px;
         obs.plane_z_m=located.plane_z_m;
+        obs.tray_rois=located.rois; obs.tray_contours=located.contours;
+        obs.tray_rejected_size=located.rejected_size; obs.tray_rejected_shape=located.rejected_shape;
+        obs.tray_rejected_coverage=located.rejected_coverage; obs.tray_rejected_residual=located.rejected_residual;
+        obs.tray_skipped_occupied=located.skipped_occupied;
         if(!located.valid) {
             wrist_servo::observation_event(hand,context.session,located.reason.c_str(),obs);return;
         }

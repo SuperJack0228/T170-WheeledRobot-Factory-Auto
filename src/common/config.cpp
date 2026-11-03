@@ -148,6 +148,11 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     read_value(node, "place_retract_vel_m_s", dst.place_retract_vel_m_s);
     read_value(node, "grasp_approach_vel_m_s", dst.grasp_approach_vel_m_s);
     read_value(node, "grasp_retract_vel_m_s", dst.grasp_retract_vel_m_s);
+    read_value(node, "next_hand_clearance_m", dst.next_hand_clearance_m);
+    read_value(node, "next_hand_clearance_timeout_s", dst.next_hand_clearance_timeout_s);
+    if (!std::isfinite(dst.next_hand_clearance_m) || dst.next_hand_clearance_m <= 0 ||
+        !std::isfinite(dst.next_hand_clearance_timeout_s) || dst.next_hand_clearance_timeout_s <= 0)
+        throw std::runtime_error("conveyor next-hand clearance/timeout must be positive");
     read_value(node, "grasp_waist_yaw_deg", dst.grasp_waist_yaw_deg);
     read_value(node, "grasp_ready_close_ratio", dst.grasp_ready_close_ratio);
     read_value(node, "yolo_roi_enable", dst.yolo_roi_enable);
@@ -536,6 +541,10 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         read_value(hg, "lift_vel_m_s", cfg.head_grasp.lift_vel_m_s);
         read_value(hg, "return_vel_m_s", cfg.head_grasp.return_vel_m_s);
         read_value(hg, "retract_lift_vel_m_s", cfg.head_grasp.retract_lift_vel_m_s);
+        read_value(hg, "rise_waist_with_lift", cfg.head_grasp.rise_waist_with_lift);
+        read_value(hg, "waist_lift_start_clearance_m", cfg.head_grasp.waist_lift_start_clearance_m);
+        read_value(hg, "retract_arrival_tolerance_m", cfg.head_grasp.retract_arrival_tolerance_m);
+        read_value(hg, "retract_arrival_timeout_s", cfg.head_grasp.retract_arrival_timeout_s);
         read_value(hg, "retract_connector_speed_rad_s", cfg.head_grasp.retract_connector_speed_rad_s);
         read_value(hg, "retract_connector_accel_rad_s2", cfg.head_grasp.retract_connector_accel_rad_s2);
         read_value(hg, "retract_connector_jerk_rad_s3", cfg.head_grasp.retract_connector_jerk_rad_s3);
@@ -546,6 +555,9 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                 throw std::runtime_error(std::string("head_grasp.")+key+" 必须为有限正数");
         };
         require_positive(cfg.head_grasp.retract_lift_vel_m_s, "retract_lift_vel_m_s");
+        require_positive(cfg.head_grasp.waist_lift_start_clearance_m, "waist_lift_start_clearance_m");
+        require_positive(cfg.head_grasp.retract_arrival_tolerance_m, "retract_arrival_tolerance_m");
+        require_positive(cfg.head_grasp.retract_arrival_timeout_s, "retract_arrival_timeout_s");
         require_positive(cfg.head_grasp.retract_connector_speed_rad_s, "retract_connector_speed_rad_s");
         require_positive(cfg.head_grasp.retract_connector_accel_rad_s2, "retract_connector_accel_rad_s2");
         require_positive(cfg.head_grasp.retract_connector_jerk_rad_s3, "retract_connector_jerk_rad_s3");
@@ -644,7 +656,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         read_value(root["cameras"], "head_fps", cfg.cameras.head_fps);
         read_value(root["cameras"], "hand_fps", cfg.cameras.hand_fps);
         read_value(root["cameras"], "hand_live_preview", cfg.cameras.hand_live_preview);
-        read_value(root["cameras"], "hand_place_record", cfg.cameras.hand_place_record);
         read_value(root["cameras"], "hand_descent_correct", cfg.cameras.hand_descent_correct);
         read_value(root["cameras"], "left_gripper_u", cfg.cameras.left_gripper_u);
         read_value(root["cameras"], "left_gripper_v", cfg.cameras.left_gripper_v);

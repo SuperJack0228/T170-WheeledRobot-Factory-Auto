@@ -53,6 +53,11 @@ def summarize(path):
             "max_marker_corner_count": max(number(r,"marker_corner_count") for r in virtual),
             "reprojection_p95_px": percentile([number(r,"plane_reprojection_px") for r in virtual],.95),
             "geometry_processing_p95_ms": percentile([number(r,"infer_ms") for r in virtual],.95),
+            "last_accepted_height_above_C_mm": 1000*number(virtual[-1],"height_m"),
+            "locked_before_occlusion": any(r.get("place_locked")=="1" for r in controls),
+            "contour_rejections": {key: sum(number(r,key) for r in rows
+                if r["event"] in {"vision","observation"}) for key in
+                ("tray_rejected_size","tray_rejected_shape","tray_rejected_coverage","tray_rejected_residual")},
         }
         ends = [r for r in rows if r["event"] == "end"]
         final = ends[-1] if ends else controls[-1] if controls else rows[-1]
@@ -108,8 +113,13 @@ def summarize(path):
             "timeline": [{"event":r["event"], "reason":r["reason"],
                 "elapsed_s":number(r,"steady_s")-start} for r in rows if r["event"] in
                 {"handoff","joint_policy","both_ready","gripper_gate","gripper_start","gripper_end",
-                 "retract_start","retract_end","retract_abort"}],
+                 "retract_start","retract_end","retract_abort","lift_plan","lift_start","lift_done","lift_failed",
+                 "return_plan","return_start","return_done","return_failed","peer_wait_clearance","peer_clearance",
+                 "waist_rise_start","waist_rise_end","retract_sdk_failed","lift_connector_failed"}],
             "retract": retract,
+            "retreat_stage_failures": [{"event":r["event"],"reason":r["reason"]} for r in rows
+                if r["event"] in {"lift_failed","return_failed","retract_sdk_failed","lift_connector_failed"}],
+            "FK_feedback_step_warnings": sum(r["event"]=="feedback_step" for r in rows),
             "placement_geometry": placement_geometry,
             "release_confirmed": any(r["event"]=="gripper_end" and r["reason"]=="open_confirmed" for r in rows),
             "release_failed": any(r["event"]=="gripper_end" and r["reason"]=="open_failed" for r in rows),

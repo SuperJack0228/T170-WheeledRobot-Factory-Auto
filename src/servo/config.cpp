@@ -46,6 +46,9 @@ void load_config(const YAML::Node &n, Config &c) {
     PLACE_READ(enabled); PLACE_READ(board_config); PLACE_READ(association_gate_m);
     PLACE_READ(reprojection_gate_px); PLACE_READ(circle_residual_m);
     PLACE_READ(max_plane_update_m); PLACE_READ(min_neighbors); PLACE_READ(rectified_pixels_per_m);
+    PLACE_READ(xy_only); PLACE_READ(orange_rim_enabled); PLACE_READ(rim_min_radius_ratio);
+    PLACE_READ(occupied_orange_rims);
+    PLACE_READ(rim_max_radius_ratio); PLACE_READ(min_coverage_bins);
 #undef PLACE_READ
 #define SERVO_READ(field) read(n, #field, c.field)
     SERVO_READ(period_s); SERVO_READ(kp); SERVO_READ(kd);
@@ -56,6 +59,10 @@ void load_config(const YAML::Node &n, Config &c) {
     SERVO_READ(commit_timeout_s);
     SERVO_READ(freeze_height_m); SERVO_READ(grasp_height_margin_m); SERVO_READ(grasp_z_accept_above_m);
     SERVO_READ(grasp_xy_accept_m); SERVO_READ(grasp_relax_after_s); SERVO_READ(finish_speed_m_s);
+    SERVO_READ(grasp_z_feedback_tolerance_m);
+    SERVO_READ(place_xy_accept_m); SERVO_READ(place_lock_height_m); SERVO_READ(place_visibility_floor_m);
+    SERVO_READ(place_goal_stability_m); SERVO_READ(place_lock_frames); SERVO_READ(place_finish_speed_m_s);
+    SERVO_READ(place_height_margin_m); SERVO_READ(place_z_accept_above_m);
     SERVO_READ(finish_stable_s); SERVO_READ(alignment_time_margin_s); SERVO_READ(acquire_descent_m);
     SERVO_READ(handoff_distance_m); SERVO_READ(handoff_speed_m_s);
     SERVO_READ(hard_reference_lead_m); SERVO_READ(following_timeout_s);
@@ -100,6 +107,9 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         PLACE_WRITE(enabled); PLACE_WRITE(board_config); PLACE_WRITE(association_gate_m);
         PLACE_WRITE(reprojection_gate_px); PLACE_WRITE(circle_residual_m);
         PLACE_WRITE(max_plane_update_m); PLACE_WRITE(min_neighbors); PLACE_WRITE(rectified_pixels_per_m);
+        PLACE_WRITE(xy_only); PLACE_WRITE(orange_rim_enabled); PLACE_WRITE(rim_min_radius_ratio);
+        PLACE_WRITE(occupied_orange_rims);
+        PLACE_WRITE(rim_max_radius_ratio); PLACE_WRITE(min_coverage_bins);
 #undef PLACE_WRITE
         out << YAML::EndMap;
         out << YAML::Key << "period_s" << YAML::Value << c.period_s;
@@ -143,6 +153,12 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         out << YAML::Key << "freeze_height_m" << YAML::Value << c.freeze_height_m;
         out << YAML::Key << "grasp_height_margin_m" << YAML::Value << c.grasp_height_margin_m;
         out << YAML::Key << "grasp_z_accept_above_m" << YAML::Value << c.grasp_z_accept_above_m;
+#define FINISH_WRITE(field) out << YAML::Key << #field << YAML::Value << c.field
+        FINISH_WRITE(grasp_z_feedback_tolerance_m); FINISH_WRITE(place_xy_accept_m);
+        FINISH_WRITE(place_lock_height_m); FINISH_WRITE(place_visibility_floor_m);
+        FINISH_WRITE(place_goal_stability_m); FINISH_WRITE(place_lock_frames); FINISH_WRITE(place_finish_speed_m_s);
+        FINISH_WRITE(place_height_margin_m); FINISH_WRITE(place_z_accept_above_m);
+#undef FINISH_WRITE
         out << YAML::Key << "grasp_xy_accept_m" << YAML::Value << c.grasp_xy_accept_m;
         out << YAML::Key << "grasp_relax_after_s" << YAML::Value << c.grasp_relax_after_s;
         out << YAML::Key << "finish_speed_m_s" << YAML::Value << c.finish_speed_m_s;

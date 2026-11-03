@@ -38,6 +38,7 @@
 #include <cerrno>
 #include <csignal>
 #include <mutex>
+#include "servo/retreat_gate.h"
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <thread>
@@ -1437,53 +1438,6 @@ bool save_raw_head_frame(RealSenseMultiCam &cameras, const std::filesystem::path
     return save_raw_camera_frame(cameras, CameraSlot::Head, dir, index, "头相机", saved);
 }
 
-struct HandPlacePhotoGuard
-{
-    std::atomic<bool> run{false};
-    std::thread worker;
-    explicit HandPlacePhotoGuard(bool enable)
-    {
-        if (!enable || g_hw == nullptr || g_hw->pipeline == nullptr)
-            return;
-        run.store(true);
-        worker = std::thread([this] {
-            const std::filesystem::path dir =
-                std::filesystem::path(project_root_dir()) / "hand_place_picture";
-            std::error_code ec;
-            std::filesystem::create_directories(dir, ec);
-            if (ec)
-            {
-                std::cerr << "[cap] 料盘放置存图目录失败 " << dir.string()
-                          << ": " << ec.message() << "\n";
-                return;
-            }
-            std::cout << "[cap] 料盘放置全程记录左右手相机，目录 " << dir.string() << "\n";
-            RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
-            int index = 0;
-            while (run.load())
-            {
-                const auto tick = std::chrono::steady_clock::now();
-                for (const auto slot : {CameraSlot::RightHand, CameraSlot::LeftHand})
-                {
-                    std::string saved;
-                    const char *tag = slot == CameraSlot::RightHand ? "右手相机" : "左手相机";
-                    if (save_raw_camera_frame(cameras, slot, dir, ++index, tag, saved))
-                        std::cout << "[cap] " << tag << " " << saved << "\n";
-                }
-                if (!run.load())
-                    break;
-                std::this_thread::sleep_until(tick + std::chrono::milliseconds(200));
-            }
-            std::cout << "[cap] 料盘放置存图结束，共尝试 " << index << " 张\n";
-        });
-    }
-    ~HandPlacePhotoGuard()
-    {
-        run.store(false);
-        if (worker.joinable())
-            worker.join();
-    }
-};
 
 } // namespace
 
@@ -2828,12 +2782,7 @@ static int go_belt_grasp_attempt(
         bool empty_r=false,empty_l=false;
         if(belt_grasp_servo) {
             const auto closed=move_box::finish_servo_grasp(
-                *g_hw->g,*g_hw->arm_r,*g_hw->arm_l,is_right,!is_right,empty_r,empty_l,name,[&] {
-                    Eigen::Matrix<double,1,6> lift,back;
-                    retract_poses(is_right,false,lift,back);
-                    arm_start_line_then_line_plan(is_right ? *g_hw->arm_r : *g_hw->arm_l,
-                        lift,back,c.grasp_retract_vel_m_s,c.grasp_retract_vel_m_s);
-                });
+                *g_hw->g,*g_hw->arm_r,*g_hw->arm_l,is_right,!is_right,empty_r,empty_l,name);
             const int code=is_right ? closed.ret_r : closed.ret_l;
             if(code!=0) return code;
         } else {
@@ -2851,7 +2800,8 @@ static int go_belt_grasp_attempt(
     };
 
     // to_ready：空抓的手回到伸手前的准备 tcp，外层从这里直接重拍重抓。
-    auto grasp_lift_and_back = [&](bool is_right, bool to_ready = false) -> int {
+    auto grasp_lift_and_back = [&](bool is_right, bool to_ready = false,
+                                   const std::function<void(double)> &progress = {}) -> int {
         if (is_right && right_arm_motors_locked())
             return 0;
         if (aborted())
@@ -2865,13 +2815,11 @@ static int go_belt_grasp_attempt(
         retract_poses(is_right,to_ready,lift,back_pose);
         if(to_ready) arm_discard_line_then_line_plan(is_right ? 1 : 0);
         const double speed=c.grasp_retract_vel_m_s;
-        std::cout<<"[orch] "<<name<<' '<<hand<<" 合爪后按料盘同一链路上抬收手，目标="<<back_name
+        std::cout<<"[orch] "<<name<<' '<<hand<<" 合爪后先竖直抬离，再规划返回，目标="<<back_name
                  <<" speed="<<speed<<"m/s\n";
-        const auto moved=arm_dual_line_then_line_nostop(
-            *g_hw->arm_r,lift,back_pose,is_right,
-            *g_hw->arm_l,lift,back_pose,!is_right,
-            speed,speed,{},true,"传送带抓取收手");
-        const int code=is_right ? moved.ret_r : moved.ret_l;
+        const double lift_height=c.grasp_hover_above_m>1e-9 ? c.grasp_hover_above_m : g_move_cfg.head_grasp.lift_after_grasp_z;
+        int code=arm_vertical_lift(arm,lift_height,speed,progress);
+        if(code==0) code=arm_return_after_lift(arm,back_pose,speed);
         if(code!=0) {
             std::cerr<<"[orch] "<<name<<' '<<hand<<" 收手失败 code="<<code<<"，保留夹爪状态\n";
             return aborted() ? -4 : code;
@@ -2969,17 +2917,27 @@ static int go_belt_grasp_attempt(
     if (right_rc != 0)
         return right_rc;
 
+    wrist_servo::RetreatClearanceGate right_clearance(c.next_hand_clearance_m);
     std::thread th_r([&]() {
-        try { right_back_rc=grasp_lift_and_back(true); }
+        try { right_back_rc=grasp_lift_and_back(true,false,
+            [&](double gain){right_clearance.measured_lift(gain);}); }
         catch(const std::exception &ex) {
             std::cerr<<"[orch] 右手收手异常: "<<ex.what()<<'\n';right_back_rc=-32;
         }
+        right_clearance.finish(right_back_rc);
     });
     struct JoinRetreat {
         std::thread &worker;
         ~JoinRetreat() {if(worker.joinable()) worker.join();}
     } join_retreat{th_r};
-    std::cout << "[orch] belt_grasp 右手已夹到，左手立刻过来（不等右手抬起回程）\n";
+    wrist_servo::task_event(1,"peer_wait_clearance","right_must_physically_lift_first");
+    const int clearance_rc=right_clearance.wait(c.next_hand_clearance_timeout_s);
+    if(clearance_rc!=0 || aborted()) {
+        std::cerr<<"[orch] 右手未确认抬离，左手禁止进入 code="<<clearance_rc<<'\n';
+        return aborted()?-4:clearance_rc;
+    }
+    wrist_servo::task_event(1,"peer_clearance","measured_vertical_clearance_reached");
+    std::cout << "[orch] belt_grasp 右手已实际抬离，左手立即进入，与右手后续返回并行\n";
     const int left_rc = grasp_one(false);
     const bool left_empty = left_rc == kBeltGraspEmpty;
     const int left_back_rc =
@@ -3575,7 +3533,8 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             engine_id,
             adaptive_approach_rpy,
             clear_tray ? false : holding_r,
-            clear_tray ? false : holding_l);
+            clear_tray ? false : holding_l,
+            {}, false, !clear_tray);
 
         if (g_load_parts_seen < 0 && r.zone_count_ok)
         {
@@ -3871,7 +3830,6 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
         ~TrayTaskGuard() { move_box::set_tray_hole_task(move_box::TrayHoleTask::GraspParts); }
     } task_guard;
     move_box::set_tray_hole_task(move_box::TrayHoleTask::PlaceEmpty);
-    HandPlacePhotoGuard place_photos(g_move_cfg.cameras.hand_place_record);
 
     board_step("去料盘二");
     const bool prep_done = g_tray2_place_prep_done;

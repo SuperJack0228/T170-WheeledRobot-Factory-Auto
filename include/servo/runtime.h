@@ -53,6 +53,8 @@ bool peek_final_hold(int hand, Joints &q);
 // Stop the repeat, wait for any in-flight seven-joint hold packet to finish,
 // then return the joints playback must start from. No old hold send can follow.
 bool take_final_hold(int hand, Joints &q);
+// Install a stopped retreat endpoint, using the same exclusive ownership as descent.
+void hold_joint_reference(int hand, const Joints &q);
 void task_event(int hand, const char *event, const char *reason);
 void handoff_event(Robot_Arm &arm, const Joints &command, const Joints &previous, const char *reason);
 void record_gripper_check(int hand, double position_rad, double torque_nm, const char *outcome);

@@ -122,6 +122,11 @@ head_grasp:
   return_vel_m_s: 0.40
   # 抓取完成后的竖直上抬，沿用当前主流程实际使用的 0.40；放置仍使用 lift_vel_m_s。
   retract_lift_vel_m_s: 0.40
+  # 本轮双手持件后，实际抬离15mm再并行升腰；只升Z，不在孔旁前后移动腰。
+  rise_waist_with_lift: true
+  waist_lift_start_clearance_m: 0.015
+  retract_arrival_tolerance_m: 0.008
+  retract_arrival_timeout_s: 2.0
   # 只约束收手交接/转弯接缝，不改变 SDK 巡航速度。现场先验证默认值。
   retract_connector_speed_rad_s: 1.5
   retract_connector_accel_rad_s2: 6.0
@@ -252,8 +257,6 @@ cameras:
   hand_fps: 15
   # 网页左右手视频流。独立空闲线程只取彩色，不读头相机、不进运动循环。
   hand_live_preview: false
-  # 料盘二放置全程存左右手原图到 hand_place_picture/，约 5 张/秒。不参与伺服。
-  hand_place_record: true
   # true：下降段允许手相机双轴闭环。各路径还要看 visual_servo 里的开关。
   hand_descent_correct: true
   # 10:30 抓准那一帧的框中心。左手图已转 180°。原点在左上角，x 向右，y 向下。
@@ -316,6 +319,9 @@ conveyor:
   place_retract_vel_m_s: 0.40
   grasp_approach_vel_m_s: 0.35
   grasp_retract_vel_m_s: 0.40
+  # 前一只手实际抬高5cm，后一只手才进入；不等待整段回程。
+  next_hand_clearance_m: 0.050
+  next_hand_clearance_timeout_s: 4.0
   # 站点已更新，传送带抓取不再转腰。0=不转。左右手可以过中轴，不卡料盘中缝。
   grasp_waist_yaw_deg: 0
   # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
@@ -375,6 +381,9 @@ conveyor2:
   place_retract_vel_m_s: 0.40
   grasp_approach_vel_m_s: 0.35
   grasp_retract_vel_m_s: 0.40
+  # 前一只手实际抬高5cm，后一只手才进入；不等待整段回程。
+  next_hand_clearance_m: 0.050
+  next_hand_clearance_timeout_s: 4.0
   grasp_waist_yaw_deg: 0
   grasp_ready_close_ratio: 0.20
   yolo_roi_enable: true
@@ -444,7 +453,9 @@ visual_servo:
   # 基座Z向上为正：参考停在原C上方2mm，视觉特征平面仍按原C计算。
   grasp_height_margin_m: 0.002
   grasp_z_accept_above_m: 0.006
-  # 2mm用于优先精对齐；抓取末段允许6mm，放置仍沿用严格xy_tolerance_m。
+  # 仅容忍编码器FK的小噪声，参考轨迹仍止于 C 上方2mm。
+  grasp_z_feedback_tolerance_m: 0.001
+  # 2mm用于优先精对齐；抓取末段允许6mm，料盘放置使用下面独立的4mm门限。
   grasp_xy_accept_m: 0.006
   grasp_relax_after_s: 0.35
   finish_speed_m_s: 0.008
@@ -497,7 +508,7 @@ visual_servo:
   # enabled=false：料盘二放置走传统 tray2_place offset 开环，不进手相机伺服。
   # enabled=true：邻孔/标记虚拟孔心伺服（需 hand_descent_correct=true）。
   tray_place:
-    enabled: false
+    enabled: true
     board_config: board_yf100_aruco/config.yaml
     association_gate_m: 0.025
     reprojection_gate_px: 3.0
@@ -505,6 +516,21 @@ visual_servo:
     max_plane_update_m: 0.030
     min_neighbors: 2
     rectified_pixels_per_m: 2000
+    xy_only: true
+    orange_rim_enabled: true
+    occupied_orange_rims: true
+    rim_min_radius_ratio: 0.55
+    rim_max_radius_ratio: 1.6
+    min_coverage_bins: 12
+  # 在邻孔仍可见时确认并锁定虚拟孔心。未对准时停留在可见区继续修正。
+  place_xy_accept_m: 0.004
+  place_lock_height_m: 0.065
+  place_visibility_floor_m: 0.050
+  place_goal_stability_m: 0.0025
+  place_lock_frames: 3
+  place_finish_speed_m_s: 0.010
+  place_height_margin_m: 0.001
+  place_z_accept_above_m: 0.005
   left_place:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   right_place: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   # 实测表的格式（不可把示例矩阵当作真实标定）：

@@ -189,6 +189,11 @@ void arm_start_line_then_line_plan(
 
 /** 等待预规划结束并丢弃结果，不下发任何电机指令。 */
 void arm_discard_line_then_line_plan(int hand);
+/** Independent retreat stages. First lift retains XYZ orientation; return is planned only
+ * after the lift completed. Progress is measured FK Z gain, never a thread-start signal. */
+int arm_vertical_lift(Robot_Arm &arm, double lift_m, double speed_m_s,
+                      const std::function<void(double)> &on_measured_lift = {});
+int arm_return_after_lift(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, double speed_m_s);
 /** 已在目标位置附近时，按关节角速度上限转到目标姿态。max_deg_s 是单个关节的上限。 */
 int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, double max_deg_s);
 

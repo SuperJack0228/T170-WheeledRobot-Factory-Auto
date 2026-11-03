@@ -8,6 +8,8 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <mutex>
+#include <thread>
 #include <sys/select.h>
 #include <unistd.h>
 
@@ -87,7 +89,8 @@ GraspToStandbyResult run_grasp_to_standby(
     bool holding_r,
     bool holding_l,
     const std::function<void(bool did_r, bool did_l)> &on_place_retract,
-    bool hover_track)
+    bool hover_track,
+    bool allow_waist_rise)
 {
     GraspToStandbyResult out;
     g_grasp_adaptive_rpy = adaptive_approach_rpy;
@@ -357,62 +360,81 @@ GraspToStandbyResult run_grasp_to_standby(
     bool lifted_l = false;
     bool retract_failed = false;
 
-    auto retract_placed_nostop = [&](bool want_r, bool want_l) -> bool {
-        if (!want_r && !want_l)
-            return true;
-        auto fill = [](Robot_Arm &arm, bool is_right,
-                       Eigen::Matrix<double, 1, 6> &mid,
-                       Eigen::Matrix<double, 1, 6> &goal) {
-            wrist_servo::Joints held;
-            const int hand = is_right ? 1 : 0;
-            mid = wrist_servo::peek_final_hold(hand, held)
-                      ? arm_tcp_from_joints(arm, held)
-                      : arm_get_tcp_pos(arm);
-            mid(2) += tray_hole_task()==TrayHoleTask::PlaceEmpty ? g_move_cfg.tray2_place.retract_lift_m
-                                                                             : g_move_cfg.head_grasp.lift_after_grasp_z;
-            if (mid(2) > g_move_cfg.grasp_valid.z_max)
-                mid(2) = g_move_cfg.grasp_valid.z_max;
-            if (tray_hole_task() == TrayHoleTask::PlaceEmpty)
-                goal = is_right ? g_move_cfg.conveyor2.tcp.right : g_move_cfg.conveyor2.tcp.left;
-            else
-                goal = is_right ? g_move_cfg.conveyor.tcp.right : g_move_cfg.conveyor.tcp.left;
+    // Two independent stages: a return-plan failure cannot prevent the safe lift.
+    auto retract_staged = [&](bool want_r, bool want_l, bool final_pair = false) -> bool {
+        const bool place = tray_hole_task() == TrayHoleTask::PlaceEmpty;
+        const auto &hg = g_move_cfg.head_grasp;
+        const double height = place ? g_move_cfg.tray2_place.retract_lift_m : hg.lift_after_grasp_z;
+        const double speed = place ? g_move_cfg.tray2_place.retract_lift_vel_m_s : hg.retract_lift_vel_m_s;
+        const bool pair_holding = (right_arm_motors_locked() || holding_r || (grasped_r && !st.empty_grasp_r)) &&
+                                  (holding_l || (grasped_l && !st.empty_grasp_l));
+        const bool rise = !place && final_pair && allow_waist_rise &&
+                          hg.rise_waist_with_lift && pair_holding;
+        std::mutex clearance_mu;
+        bool clear_r=!want_r, clear_l=!want_l, waist_started=false;
+        int waist_rc=0, lift_r=0, lift_l=0, return_r=0, return_l=0;
+        std::thread waist_worker;
+        auto publish_clearance = [&](bool right, double measured_gain) {
+            std::lock_guard<std::mutex> lock(clearance_mu);
+            if(measured_gain>=hg.waist_lift_start_clearance_m) (right ? clear_r : clear_l)=true;
+            if(!rise || !clear_r || !clear_l || waist_started || aborting(should_abort)) return;
+            waist_started=true;
+            waist_worker=std::thread([&] {
+                try {
+                    if(!sync_waist_layer3_from_encoders(waist,posup_down_3_layer,"抬手并行升腰")) {waist_rc=-5;return;}
+                    // Only Z can overlap the lift. No waist X/yaw change while parts are near holes.
+                    const double target=std::max(posup_down_3_layer(2),g_move_cfg.waist.layer3_home(2));
+                    wrist_servo::task_event(0,"waist_rise_start","both_wrists_measured_clear");
+                    waist_rc=waist_layer3_move_z_only(waist,posup_down_3_layer,target,false)?0:-5;
+                    wrist_servo::task_event(0,"waist_rise_end",waist_rc==0?"complete":"failed");
+                } catch(const std::exception &ex) {
+                    std::cerr<<"[waist] 并行升腰异常: "<<ex.what()<<'\n';waist_rc=-5;
+                }
+            });
         };
-        Eigen::Matrix<double, 1, 6> mid_r = Eigen::Matrix<double, 1, 6>::Zero();
-        Eigen::Matrix<double, 1, 6> goal_r = Eigen::Matrix<double, 1, 6>::Zero();
-        Eigen::Matrix<double, 1, 6> mid_l = Eigen::Matrix<double, 1, 6>::Zero();
-        Eigen::Matrix<double, 1, 6> goal_l = Eigen::Matrix<double, 1, 6>::Zero();
-        if (want_r)
-            fill(arm_r, true, mid_r, goal_r);
-        if (want_l)
-            fill(arm_l, false, mid_l, goal_l);
-        const double lift_mps = tray_hole_task() == TrayHoleTask::PlaceEmpty
-                                    ? g_move_cfg.tray2_place.retract_lift_vel_m_s
-                                    : g_move_cfg.head_grasp.retract_lift_vel_m_s;
-        const double return_mps = tray_hole_task()==TrayHoleTask::PlaceEmpty
-                                      ? g_move_cfg.tray2_place.retract_return_vel_m_s : g_move_cfg.head_grasp.return_vel_m_s;
-        const ArmLineMoveResult stitched = arm_dual_line_then_line_nostop(
-            arm_r, mid_r, goal_r, want_r,
-            arm_l, mid_l, goal_l, want_l,
-            lift_mps, return_mps,
-            [&]() {
-                if (on_place_retract)
-                    on_place_retract(grasped_r, grasped_l);
-            },
-            true);
-        const bool ok_r = !want_r || stitched.ret_r == 0;
-        const bool ok_l = !want_l || stitched.ret_l == 0;
-        if (ok_r && ok_l)
-            return true;
-        std::cerr << "[arm] 收手失败 右=" << stitched.ret_r
-                  << " 左=" << stitched.ret_l << "，保留夹爪状态并上报，禁止继续离开工位\n";
-        retract_failed = true;
-        return false;
+        auto lift = [&](bool right,int &rc) {
+            try {rc=arm_vertical_lift(right?arm_r:arm_l,height,speed,
+                                     [&](double gain){publish_clearance(right,gain);});}
+            catch(const std::exception &ex) {std::cerr<<"[retract] 抬升异常: "<<ex.what()<<'\n';rc=-32;}
+        };
+        std::thread right_lift;
+        if(want_r) right_lift=std::thread([&]{lift(true,lift_r);});
+        if(want_l) lift(false,lift_l);
+        if(right_lift.joinable()) right_lift.join();
+        if(!want_r && !want_l) publish_clearance(false,0);
+        if(waist_worker.joinable()) waist_worker.join();
+        if(waist_started) waist_adjusted=true;
+        if(lift_r==0 && want_r) lifted_r=true;
+        if(lift_l==0 && want_l) lifted_l=true;
+        if(lift_r!=0 || lift_l!=0 || waist_rc!=0 || aborting(should_abort)) {
+            std::cerr<<"[retract] 竖直抬升失败 右="<<lift_r<<" 左="<<lift_l<<" 腰="<<waist_rc<<'\n';
+            retract_failed=true;return false;
+        }
+        if(!want_r && !want_l) return true;
+        if(on_place_retract) on_place_retract(grasped_r,grasped_l);
+        // Both arms may stop here. Plan the turn/return only after the lift and waist ended.
+        auto back = [&](bool right,int &rc) {
+            try {
+                const auto &poses=place?g_move_cfg.conveyor2.tcp:g_move_cfg.conveyor.tcp;
+                rc=arm_return_after_lift(right?arm_r:arm_l,right?poses.right:poses.left,
+                    place?g_move_cfg.tray2_place.retract_return_vel_m_s:hg.return_vel_m_s);
+            } catch(const std::exception &ex) {std::cerr<<"[retract] 返回异常: "<<ex.what()<<'\n';rc=-32;}
+        };
+        std::thread right_return;
+        if(want_r) right_return=std::thread([&]{back(true,return_r);});
+        if(want_l) back(false,return_l);
+        if(right_return.joinable()) right_return.join();
+        if(return_r!=0 || return_l!=0) {
+            std::cerr<<"[retract] 已抬离，返回失败 右="<<return_r<<" 左="<<return_l<<'\n';
+            retract_failed=true;return false;
+        }
+        return true;
     };
 
     auto clear_after_place = [&](bool is_right) {
         if (!tray2_precision_test())
         {
-            if (!retract_placed_nostop(is_right, !is_right)) return;
+            if (!retract_staged(is_right, !is_right)) return;
             if (is_right)
                 lifted_r = true;
             else
@@ -490,11 +512,11 @@ GraspToStandbyResult run_grasp_to_standby(
         else
         {
             log_phase_banner(tray_hole_task() == TrayHoleTask::PlaceEmpty
-                                 ? "放置完成 → 竖直抬升后不停，直接直线回 home_tcp"
-                                 : "抓取完成 → 竖直抬升后不停，只把抓到的手去传送带准备 tcp");
+                                 ? "放置完成 → 先竖直抬离，再规划返回"
+                                 : "抓取完成 → 竖直抬升与升腰协调，再规划到传送带准备 tcp");
             const bool need_r = grasped_r && !lifted_r;
             const bool need_l = grasped_l && !lifted_l;
-            if ((need_r || need_l) && !retract_placed_nostop(need_r, need_l)) {
+            if (!retract_staged(need_r, need_l, true)) {
                 r.st=st;
                 r.status=hardware_abort_requested() ? GraspToStandbyStatus::Aborted
                                                    : GraspToStandbyStatus::MotionFail;
@@ -504,6 +526,7 @@ GraspToStandbyResult run_grasp_to_standby(
                 release_empty();
         }
         r.st = st;
+        r.waist_adjusted = waist_adjusted;
         r.status = GraspToStandbyStatus::Ok;
         return r;
     };

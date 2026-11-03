@@ -102,6 +102,10 @@ struct HeadGraspConfig
     double return_vel_m_s = 0.25;
     /** 抓取合爪后专用上抬速度；独立于放置/旧流程 lift_vel_m_s。 */
     double retract_lift_vel_m_s = 0.40;
+    bool rise_waist_with_lift = true;
+    double waist_lift_start_clearance_m = 0.015;
+    double retract_arrival_tolerance_m = 0.008;
+    double retract_arrival_timeout_s = 2.0;
     /** 仅约束收手接缝，不重定时 SDK 巡航段。单位 rad/s、rad/s²、rad/s³、s。 */
     double retract_connector_speed_rad_s = 1.5;
     double retract_connector_accel_rad_s2 = 6.0;
@@ -263,6 +267,8 @@ struct ConveyorStationConfig
     double grasp_approach_vel_m_s = 0.25;
     /** 抓取：抬起再回 grasp_tcp/准备的线速度（米/秒）。 */
     double grasp_retract_vel_m_s = 0.25;
+    double next_hand_clearance_m = 0.050;
+    double next_hand_clearance_timeout_s = 4.0;
     /** 叠在放置目标的基座 Z 上（米，向上为正）。0=不改。转运松手再降用负值。 */
     double place_base_z_bias_m = 0.0;
     /** 传送带抓取转腰（deg）。0=不转。站点更新后默认不转。 */
@@ -324,8 +330,6 @@ struct CameraStreamConfig
     int hand_fps = 15;
     /** 为真时后台抽帧写 picture_debug/live，网页才能看实时画面。会和推理抢同一条 pipeline。 */
     bool hand_live_preview = false;
-    /** 为真时，料盘二放置从出发到结束把左右手彩色图写到 hand_place_picture。 */
-    bool hand_place_record = false;
     /** 为真时，竖直下降段把锁定工件的检测框中心对齐到夹爪像素，只改尚未发出的水平位置。 */
     bool hand_descent_correct = false;
     /** 夹爪中点在手相机画面里的像素。左手是转过 180° 之后的图。原点在左上角。 */
