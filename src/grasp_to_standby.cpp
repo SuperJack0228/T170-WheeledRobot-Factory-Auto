@@ -1,8 +1,8 @@
 #include "move_box_runtime.h"
 #include "function.h"
 #include "servo/runtime.h"
-#include "head_control.h"
-#include "Ti5_socketcan.h"
+#include "t170/hardware/head.h"
+#include "t170/hardware/device_bus.h"
 
 #include <algorithm>
 #include <iomanip>

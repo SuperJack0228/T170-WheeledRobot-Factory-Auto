@@ -1,36 +1,11 @@
-from algorithm.config_loader import (
-    DEFAULT_ALGORITHM_ID,
-    DEFAULT_CONFIG_PATH,
-    CentroidParams,
-    ClassSpec,
-    PnpParams,
-    PoseParams,
-    SegmentationParams,
-    load_pose_params,
-)
-from algorithm.engine import DEFAULT_RADIUS_M, CirclePoseEngine
-from algorithm.types import ALGO_BOX, ALGO_CENTROID, ALGO_PNP, AlgorithmInput, AlgorithmOutput, TargetPose
-from paths import DEFAULT_SEG_MODEL, MODELS_DIR, PROJECT_ROOT, resolve_model_path
-
-__all__ = [
-    "ALGO_PNP",
-    "ALGO_CENTROID",
-    "ALGO_BOX",
-    "DEFAULT_ALGORITHM_ID",
-    "DEFAULT_CONFIG_PATH",
-    "DEFAULT_RADIUS_M",
-    "DEFAULT_SEG_MODEL",
-    "MODELS_DIR",
-    "PROJECT_ROOT",
-    "CirclePoseEngine",
-    "PoseParams",
-    "load_pose_params",
-    "ClassSpec",
-    "PnpParams",
-    "CentroidParams",
-    "SegmentationParams",
-    "AlgorithmInput",
-    "AlgorithmOutput",
-    "TargetPose",
-    "resolve_model_path",
-]
+"""Step-1 legacy entry point; implementation lives in t170_vision.detection."""
+import sys as _sys
+from pathlib import Path as _Path
+from importlib import import_module as _import_module
+_package_root = str(_Path(__file__).resolve().parents[2] / "python")
+if _package_root not in _sys.path:
+    _sys.path.insert(0, _package_root)
+_impl = _import_module("t170_vision.detection")
+__all__ = _impl.__all__
+def __getattr__(name):
+    return getattr(_impl, name)

@@ -1,5 +1,6 @@
-#include "servo/visual_servo.h"
-#include "servo/trace.h"
+#include "t170/motion/pose_solver.h"
+#include "t170/control/visual_servo.h"
+#include "t170/common/servo_trace.h"
 #include <cmath>
 #include <filesystem>
 #include <fstream>

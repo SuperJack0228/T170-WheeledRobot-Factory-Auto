@@ -16,12 +16,12 @@
 #include "robot_runtime.h"
 
 #include "function.h"
-#include "gripper_interface.hpp"
+#include "t170/hardware/gripper.hpp"
 #include "move_box_config.h"
 #include "move_box_runtime.h"
-#include "seg_pose_bridge.h"
-#include "Ti5_socketcan.h"
-#include "waist.h"
+#include "t170/vision/python_bridge.h"
+#include "t170/hardware/device_bus.h"
+#include "t170/hardware/waist.h"
 
 #include <atomic>
 #include <chrono>

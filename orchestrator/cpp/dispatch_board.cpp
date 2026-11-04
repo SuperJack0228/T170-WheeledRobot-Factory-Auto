@@ -1,9 +1,9 @@
 #include "t170/common/paths.h"
 #include "t170/common/logging.h"
 #include "dispatch_board.h"
-#include "dispatch_timing.h"
+#include "t170/common/task_timing.h"
 
-#include "seg_pose_bridge.h"
+#include "t170/vision/python_bridge.h"
 
 #include <fcntl.h>
 #include <poll.h>

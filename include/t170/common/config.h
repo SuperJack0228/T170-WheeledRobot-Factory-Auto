@@ -3,7 +3,7 @@
 #include <Eigen/Dense>
 #include <string>
 #include <vector>
-#include "servo/visual_servo.h"
+#include "t170/control/visual_servo.h"
 
 struct ArmPosePairConfig
 {

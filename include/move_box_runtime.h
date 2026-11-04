@@ -10,13 +10,13 @@
 #include <Eigen/Dense>
 
 #include "function.h"
-#include "gripper_interface.hpp"
+#include "t170/hardware/gripper.hpp"
 #include "move_box_config.h"
-#include "realsense_get.h"
-#include "seg_pose_bridge.h"
+#include "t170/vision/realsense_camera.h"
+#include "t170/vision/python_bridge.h"
 #include "Ti5_Arm.h"
-#include "vision_debug.h"
-#include "waist.h"
+#include "t170/vision/debug.h"
+#include "t170/hardware/waist.h"
 
 /** 历史名：实际读 T170_VISION_DEBUG（默认关重可视化）。见 vision_debug.h。 */
 struct DebugVisualizeFlag

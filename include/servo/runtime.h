@@ -1,25 +1,10 @@
 #pragma once
-#include "servo/visual_servo.h"
+#include "t170/vision/servo_observer_port.h"
+#include "t170/control/visual_servo.h"
 class Robot_Arm;
 
 namespace wrist_servo {
-struct ObservationContext {
-    bool active = false, descending = false;
-    bool vision_required = true;
-    std::uint64_t session = 0;
-    int target_class = -1;
-    std::string task_tag;
-    double final_z = 0;
-    Vec2 nominal_xy = Vec2::Zero();
-    State latest;
-    Vec3 camera_origin = Vec3::Zero();
-    Eigen::Matrix3d camera_rotation = Eigen::Matrix3d::Identity();
-    Eigen::Matrix3d desired_rotation = Eigen::Matrix3d::Identity();
-    ImageProfile profile;
-    Config config;
-    TrayTarget tray_target;
-    int image_width = 0, image_height = 0;
-};
+
 // Reset only selected hands: the peer may still be holding/retracting a part.
 void prepare_group(bool move_r = true, bool move_l = true);
 bool group_is_failed();
@@ -32,13 +17,10 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int ta
                    const char *task_tag = "descent");
 void sample_approach_state(Robot_Arm &arm);
 void end_session(int hand, bool success);
-bool observation_context(int hand, ObservationContext &context);
+
 void stage_tray_target(int hand,const TrayTarget &target);
 // Measured state interpolated at the frame timestamp; never command extrapolation.
-bool camera_at_capture(int hand,std::uint64_t session,double capture_s,Eigen::Matrix4d &base_camera);
-bool submit_observation(int hand, const PixelObservation &observation);
-void observation_event(int hand, std::uint64_t session, const char *reason,
-                       const PixelObservation &observation = {});
+
 int run_descent(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal,
                 const Joints &last_command, const Joints &previous_command, double descent_speed);
 bool completed_xy(int hand, double &x, double &y);

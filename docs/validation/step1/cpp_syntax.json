@@ -1,0 +1,27 @@
+{
+  "compiler": "AppleClang C++20",
+  "kind": "syntax only, no SDK linking",
+  "files": [
+    "src/hardware/waist.cpp",
+    "src/vision/camera/camera.cpp",
+    "src/vision/detection/dl.cpp",
+    "src/vision/geometry/marker.cpp",
+    "src/vision/geometry/pose.cpp",
+    "src/vision/geometry/head_transform.cpp",
+    "src/vision/pipeline.cpp",
+    "src/vision/bridge/python_bridge.cpp",
+    "src/vision/bridge/visualization.cpp",
+    "src/vision/bridge/debug.cpp",
+    "src/vision/tracking/wrist_observer.cpp",
+    "src/function.cpp",
+    "src/grasp_to_standby.cpp",
+    "src/move_box_runtime.cpp"
+  ],
+  "exit_code": 0,
+  "diagnostics": "",
+  "not_checked": [
+    "Linux CAN/device SDK implementation",
+    "RealSense SDK implementation",
+    "complete robot linker"
+  ]
+}

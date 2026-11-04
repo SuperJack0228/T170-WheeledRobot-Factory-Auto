@@ -1,12 +1,12 @@
 #include "t170/common/paths.h"
 #include "t170/common/logging.h"
 #include "servo/runtime.h"
-#include "servo/trace.h"
+#include "t170/common/servo_trace.h"
 #include "function.h"
-#include "Ti5_socketcan.h"
-#include "hand_shadow.h"
+#include "t170/hardware/device_bus.h"
+#include "t170/vision/wrist_observer.h"
 #include "move_box_config.h"
-#include "seg_pose_bridge.h"
+#include "t170/vision/python_bridge.h"
 
 #include <atomic>
 #include <chrono>

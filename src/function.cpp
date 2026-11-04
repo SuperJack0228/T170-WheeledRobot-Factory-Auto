@@ -1,3 +1,4 @@
+#include "t170/motion/pose_solver.h"
 
 #include <iostream>
 #include <fstream>
@@ -5,12 +6,12 @@
 
 #include "function.h"
 
-#include "Ti5_socketcan.h"
-#include "hand_shadow.h"
+#include "t170/hardware/device_bus.h"
+#include "t170/vision/wrist_observer.h"
 #include "servo/runtime.h"
 #include "servo/trajectory.h"
-#include "servo/trace.h"
-#include "realsense_get.h"
+#include "t170/common/servo_trace.h"
+#include "t170/vision/realsense_camera.h"
 
 #include <atomic>
 #include <chrono>
@@ -27,7 +28,7 @@
 #include <limits>
 
 #include "move_box_config.h"
-#include "seg_pose_bridge.h"
+#include "t170/vision/python_bridge.h"
 // 将沿着xyz坐标系平移运动转化为4*4矩阵
 // #define pi acos(-1)
 // const double eps = 1e-6;

@@ -1,3 +1,4 @@
+#include "t170/vision/tray_localizer.h"
 #include "move_box_runtime.h"
 #include "servo/runtime.h"
 
@@ -24,10 +25,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include "hand_shadow.h"
+#include "t170/vision/wrist_observer.h"
 #include "head.h"
-#include "head_cam2robot.h"
-#include "Ti5_socketcan.h"
+#include "t170/vision/head_transform.h"
+#include "t170/hardware/device_bus.h"
 
 namespace move_box
 {

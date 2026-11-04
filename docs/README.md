@@ -4,6 +4,7 @@
 
 | 文档 | 内容 |
 |------|------|
+| [WRIST_VISUAL_SERVO_ALGORITHM.md](WRIST_VISUAL_SERVO_ALGORITHM.md) | 当前手相机伺服算法：图像映射、延迟补偿、PD控制、下降协调、邻孔放置、运动交接与验证状态 |
 | [dispatch_flow.md](dispatch_flow.md) | 上料、转运、下料、充电的信号顺序，抓取窗口和放置 ±3 cm |
 | [vision_modules_draft.md](vision_modules_draft.md) | 相机、检测、标志、位姿、编排五层，以及检测和认码如何并行 |
 | [AI_HANDOFF.md](AI_HANDOFF.md) | 站点、速度、调试命令、手眼和偏置 |
