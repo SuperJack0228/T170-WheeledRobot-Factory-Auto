@@ -222,7 +222,7 @@ grasp_zone:
 waist:
   # LowerBody：零位站立 TCP (0,0,0.67)，姿态单位阵。
   # home z=0.55：相对直立降约 12cm。far_row 前伸时注意可达。
-  layer3_home: [0, 0, 0.63, 0, 0, 0]
+  layer3_home: [0, 0, 0.60, 0, 0, 0]
   stagger_step_x: 0.0556
   stagger_max_steps: 0  # 0=禁用抓取过程中的腰部前进
   move_settle_sec: 0.5
