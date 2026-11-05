@@ -109,8 +109,8 @@ head_grasp:
       - [0, 55, 40]
   # 最远一行（离机器人最远，正常朝向=ArUco row1）专用末端姿态。右手 rz 取反。
   row1_rpy_deg:
-    left: [0, 30, -30]
-    right: [0, 30, 30]
+    left: [0, 40, -30]
+    right: [0, 40, 30]
 
   # false：不在上方停稳拍照。抓取是两段直线一次走完：先到零件上方，再竖直下降。
   use_hand_camera: false
@@ -185,13 +185,13 @@ tray2_place:
       - { x: 0.006, y: -0.002, z: -0.001 }
   row_place_rpy_deg:
     left:
-      - [0, 45, -55]
-      - [0, 45, -50]
-      - [0, 45, -40]
+      - [0, 55, -55]
+      - [0, 55, -50]
+      - [0, 55, -40]
     right:
-      - [0, 45, 55]
-      - [0, 45, 50]
-      - [0, 45, 40]
+      - [0, 55, 55]
+      - [0, 55, 50]
+      - [0, 55, 40]
   row1_rpy_deg:
     left: [0, 45, -40]
     right: [0, 45, 40]
@@ -235,7 +235,7 @@ grasp_zone:
 waist:
   # LowerBody：零位站立 TCP (0,0,0.67)，姿态单位阵。
   # home z=0.55：相对直立降约 12cm。far_row 前伸时注意可达。
-  layer3_home: [0, 0, 0.65, 0, 0, 0]
+  layer3_home: [0, 0, 0.64, 0, 0, 0]
   stagger_step_x: 0.0556
   stagger_max_steps: 0  # 0=禁用抓取过程中的腰部前进
   move_settle_sec: 0.5
