@@ -41,6 +41,10 @@ struct PixelObservation {
     double plane_z_m=0,plane_reprojection_px=0;
     int tray_rois=0,tray_contours=0,tray_rejected_size=0,tray_rejected_shape=0;
     int tray_rejected_coverage=0,tray_rejected_residual=0,tray_skipped_occupied=0;
+    int tray_candidates=0,tray_rejected_distance=0,tray_rejected_target=0,tray_rejected_short=0;
+    int tray_global_hypotheses=0,tray_occupied_used=0,tray_partial_used=0;
+    double tray_identity_margin=0;
+    std::string tray_stage;
     std::string vision_source="yolo";
 };
 

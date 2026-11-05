@@ -270,7 +270,8 @@ void test_position_following_and_grasp_tolerance() {
 }
 
 void test_place_observe_at_B() {
-    Config cfg;Controller controller;State s=state_at(1,Vec3(0,0,.14));
+    Config cfg;cfg.tray_place.observe_recovery_lift_m=0;
+    Controller controller;State s=state_at(1,Vec3(0,0,.14));
     controller.reset(cfg,s,0,.10,Vec2::Zero(),false,true);
     controller.set_observation_z(.14);
     // Longer than the old 1.5s no-image timeout: no blind Z progress at B.
@@ -345,6 +346,57 @@ void test_place_visible_lock_and_occlusion() {
     check(c.tick(s,.01).reason=="z_below_nominal_C","real C-boundary excursion was ignored");
 }
 
+void test_place_observation_recovery() {
+    Config cfg;Controller c;State s=state_at(1,Vec3(0,0,.14));
+    c.reset(cfg,s,0,.10,Vec2::Zero(),false,true);
+    double previous_z=s.position.z();bool lifted=false;
+    for(int i=0;i<280;++i) {
+        s.time_s+=.01;const auto out=c.tick(s,.01);
+        check(out.phase!=Phase::Failed,"observation recovery timed out early");
+        check(out.reference.z()>=previous_z-1e-10,"recovery lowered before identifying a hole");
+        check(out.reference.z()<=.16000001,"recovery exceeded its single 20mm lift");
+        check(out.reference.head<2>().norm()<1e-12,"recovery moved XY without a target");
+        lifted|=out.velocity_z>0;
+        previous_z=out.reference.z();s.position=out.reference;
+        s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+    }
+    check(lifted && previous_z>.159,"bounded recovery never lifted to its observation height");
+    std::string reason;bool locked=false;
+    for(int i=0;i<80;++i) {
+        s.time_s+=.01;
+        if(i%10==0) {auto o=observation_at(s.time_s,i/10+1);o.virtual_target=true;
+            Mapping map;map.valid=true;map.remaining_m.setZero();
+            check(c.observe(o,s,map,s.time_s,reason),"recovered observation rejected");}
+        const auto out=c.tick(s,.01);s.position=out.reference;
+        s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+        if(out.place_locked) {locked=true;break;}
+    }
+    check(locked,"recovery could not transfer back to aligned descent");
+    bool done=false;
+    for(int i=0;i<700;++i) {
+        s.time_s+=.01;const auto out=c.tick(s,.01);
+        check(out.phase!=Phase::Failed && out.reference.z()>=cfg.place_height_margin_m-1e-10,
+              "recovery changed final C or failed after lock");
+        s.position=out.reference;s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+        if(out.phase==Phase::Done) {done=true;break;}
+    }
+    check(done,"recovered placement did not finish");
+    // A target lost BEFORE lock must also release its stale XY goal and recover once.
+    Controller lost;s=state_at(1,Vec3(0,0,.14));lost.reset(cfg,s,0,.1,Vec2::Zero(),false,true);
+    auto first=observation_at(1,1);first.virtual_target=true;
+    Mapping map;map.valid=true;map.remaining_m=Vec2(.015,0);
+    check(lost.observe(first,s,map,1,reason),"lost-target fixture rejected initial observation");
+    bool recovered_after_loss=false;
+    for(int i=0;i<250;++i) {
+        s.time_s+=.01;const auto out=lost.tick(s,.01);
+        if(out.reason=="place_B_recovery_lift_align_XY") recovered_after_loss=true;
+        check(!out.place_locked && out.reference.z()>=.14-1e-10,"lost uncommitted target triggered lowering");
+        s.position=out.reference;s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+    }
+    check(recovered_after_loss && !lost.has_goal(),"lost uncommitted target retained its stale XY goal");
+
+}
+
 int main() {
     try {
         test_mapping(); test_tilted_geometry(); test_history_and_delay(); test_braking_and_loss();
@@ -353,6 +405,7 @@ int main() {
         test_position_following_and_grasp_tolerance();
         test_place_observe_at_B();
         test_place_visible_lock_and_occlusion();
+        test_place_observation_recovery();
         std::cout << "visual_servo: all regression checks passed (model tests, not robot validation)\n";
         return 0;
     } catch(const std::exception &ex) { std::cerr << "FAIL: " << ex.what() << '\n'; return 1; }

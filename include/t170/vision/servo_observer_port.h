@@ -22,7 +22,8 @@ struct ObservationContext {
 };
 
 bool observation_context(int hand, ObservationContext &context);
-bool camera_at_capture(int hand,std::uint64_t session,double capture_s,Eigen::Matrix4d &base_camera);
+bool camera_at_capture(int hand,std::uint64_t session,double capture_s,Eigen::Matrix4d &base_camera,
+                       State *capture_state=nullptr);
 bool submit_observation(int hand, const PixelObservation &observation);
 void observation_event(int hand, std::uint64_t session, const char *reason,
                        const PixelObservation &observation = {});

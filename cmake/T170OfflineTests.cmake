@@ -1,10 +1,10 @@
     find_package(Threads REQUIRED)
     find_package(yaml-cpp REQUIRED)
-    find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d)
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d)
     if(OpenCV_VERSION VERSION_LESS "4.7")
-        find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d aruco)
+        find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d aruco)
     else()
-        find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d objdetect)
+        find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d objdetect)
     endif()
     t170_add_configuration()
     t170_add_observation_support()
@@ -39,6 +39,11 @@
     add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
         ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml)
     add_executable(tray_localizer_test tests/tray_localizer_test.cpp)
+    add_executable(tray_acquisition_test tests/tray_acquisition_test.cpp)
+    target_link_libraries(tray_acquisition_test PRIVATE t170::tray_geometry)
+    add_test(NAME tray_acquisition_test COMMAND tray_acquisition_test)
+    add_executable(tray_localizer_replay tools/tray_localizer_replay.cpp)
+    target_link_libraries(tray_localizer_replay PRIVATE t170::configuration t170::tray_geometry)
     target_link_libraries(tray_localizer_test PRIVATE t170::tray_geometry)
     add_test(NAME tray_localizer_test COMMAND tray_localizer_test
         ${PROJECT_SOURCE_DIR}/board_yf100_aruco/config.yaml

@@ -546,6 +546,29 @@ visual_servo:
     rim_min_radius_ratio: 0.55
     rim_max_radius_ratio: 1.6
     min_coverage_bins: 12
+    # 首次全图发现孔环，联合网格匹配；后续仍用小ROI。搜索范围不是TCP运动范围。
+    global_acquisition: true
+    boundary_enabled: true # 当前深色料盘/浅色背景；不同工位可单独关闭
+    global_search_m: 0.090
+    global_match_gate_m: 0.009
+    # 完整孔环权重1，残差扣分；要求约一个完整孔环的额外支持，不能只比拟合残差。
+    global_ambiguity_margin: 0.75
+    global_max_hypotheses: 4000
+    reacquire_after_frames: 2
+    # 短弧采用已知孔径约束；单邻孔只短时更新已确认模型的平移。
+    partial_rims: true
+    partial_min_bins: 7
+    single_neighbor_max_frames: 4
+    single_neighbor_step_m: 0.006
+    single_neighbor_budget_m: 0.010
+    single_neighbor_max_age_s: 0.6
+    # 未找到目标时只恢复一次：向上20mm换视野，不改变最终C高度。
+    observe_recovery_after_s: 1.2
+    observe_recovery_lift_m: 0.020
+    observe_recovery_speed_m_s: 0.025
+    # 本轮现场验证保存限频叠加图；后台有界队列写盘，正式运行可关闭。
+    save_debug_images: true
+    debug_image_period_s: 0.25
   # B观察模式下在B锁定；下面lock_height/visibility_floor只用于旧连续下降模式。
   place_xy_accept_m: 0.004
   place_lock_height_m: 0.065

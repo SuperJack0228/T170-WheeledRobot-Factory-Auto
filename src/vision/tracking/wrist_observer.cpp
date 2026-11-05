@@ -17,6 +17,9 @@
 #include <limits>
 #include <mutex>
 #include <thread>
+#include <optional>
+#include <sstream>
+#include <iomanip>
 
 namespace {
 struct Watch {
@@ -33,20 +36,58 @@ std::thread worker;
 wrist_servo::TrayLocalizer tray_localizers[2];
 std::uint64_t tray_sessions[2]{}; // exclusively owned by the observation worker
 
+// At most one pending frame per hand. Disk latency never blocks the observer.
+class PlaceImageWriter {
+    struct Item {std::filesystem::path path;cv::Mat overlay,raw;std::string metadata;};
+    std::mutex mutex_;std::condition_variable wake_;bool stop_=false;
+    std::array<std::optional<Item>,2> pending_;
+    std::thread worker_;
+public:
+    PlaceImageWriter():worker_([this] {
+        for(;;) {
+            std::optional<Item> item;
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                wake_.wait(lock,[&]{return stop_ || pending_[0] || pending_[1];});
+                if(stop_ && !pending_[0] && !pending_[1]) return;
+                static int next=0;
+                for(int i=0;i<2;++i) {int h=(next+i)%2;if(pending_[h]) {item=std::move(pending_[h]);pending_[h].reset();next=1-h;break;}}
+            }
+            try {
+                std::error_code ec;std::filesystem::create_directories(item->path.parent_path(),ec);
+                if(ec) {std::cerr<<"[tray_debug] directory: "<<ec.message()<<'\n';continue;}
+                if(!cv::imwrite(item->path.string(),item->overlay) ||
+                   !cv::imwrite(item->path.string()+".raw.png",item->raw))
+                    std::cerr<<"[tray_debug] image write failed\n";
+                std::ofstream meta(item->path.string()+".yaml");meta<<item->metadata;
+                if(!meta) std::cerr<<"[tray_debug] metadata write failed\n";
+            } catch(const std::exception &ex) {std::cerr<<"[tray_debug] "<<ex.what()<<'\n';}
+        }
+    }) {}
+    ~PlaceImageWriter() {{std::lock_guard<std::mutex> lock(mutex_);stop_=true;}wake_.notify_all();worker_.join();}
+    void put(int hand,const std::filesystem::path &path,cv::Mat overlay,cv::Mat raw,std::string metadata) {
+        {std::lock_guard<std::mutex> lock(mutex_);pending_[hand]=Item{path,std::move(overlay),std::move(raw),std::move(metadata)};}
+        wake_.notify_one();
+    }
+};
+
 void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
                         const CameraFrameData &frame,const wrist_servo::TrayLocalization &located,
-                        int target_row,int target_col) {
+                        const wrist_servo::ObservationContext &context,const wrist_servo::State &capture,
+                        const Eigen::Matrix4d &base_camera) {
+    const auto &target=context.tray_target;
+    const int target_row=target.row,target_col=target.col;
     if(!frame.ok || frame.width<1 || frame.height<1 ||
        frame.color_bgr.size()!=static_cast<std::size_t>(frame.width)*frame.height*3) return;
     const char *slot=hand==1?"right_hand":"left_hand";
     const auto path=std::filesystem::path(vision_debug_root_dir())/slot/
         ("place_s"+std::to_string(session)+"_f"+std::to_string(frame_id)+".jpg");
-    std::error_code ec;
-    std::filesystem::create_directories(path.parent_path(),ec);
-    if(ec) return;
     cv::Mat canvas(frame.height,frame.width,CV_8UC3,
                    const_cast<unsigned char*>(frame.color_bgr.data()));
+    cv::Mat raw=canvas.clone();
     canvas=canvas.clone();
+    for(const auto &p:located.candidate_pixels)
+        if(p.allFinite()) cv::circle(canvas,cv::Point(cvRound(p.x()),cvRound(p.y())),6,cv::Scalar(255,0,255),2,cv::LINE_AA);
     auto inside=[&](float u,float v) {
         return u>=0 && v>=0 && u<frame.width && v<frame.height;
     };
@@ -73,7 +114,7 @@ void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
         const cv::Point locked(static_cast<int>(located.pixel.x()),static_cast<int>(located.pixel.y()));
         cv::circle(canvas,locked,8,cv::Scalar(0,255,255),2,cv::LINE_AA);
     }
-    const std::string headline=std::string(hand==1?"right ":"left ")+located.reason;
+    const std::string headline=std::string(hand==1?"right ":"left ")+located.stage+" "+located.reason;
     const std::string counts="neighbors "+std::to_string(located.neighbors)+"/"+std::to_string(located.rois)+
         " reject_size "+std::to_string(located.rejected_size)+
         " shape "+std::to_string(located.rejected_shape)+
@@ -82,7 +123,33 @@ void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
     cv::rectangle(canvas,cv::Point(0,0),cv::Point(canvas.cols,46),cv::Scalar(0,0,0),cv::FILLED);
     cv::putText(canvas,headline,cv::Point(8,18),cv::FONT_HERSHEY_SIMPLEX,0.5,cv::Scalar(255,255,255),1,cv::LINE_AA);
     cv::putText(canvas,counts,cv::Point(8,38),cv::FONT_HERSHEY_SIMPLEX,0.45,cv::Scalar(255,255,255),1,cv::LINE_AA);
-    cv::imwrite(path.string(),canvas);
+    std::ostringstream metadata;metadata<<std::setprecision(17);
+    metadata<<"hand: "<<hand<<"\nsession: "<<session<<"\nwidth: "<<frame.width<<"\nheight: "<<frame.height<<"\nframe: "<<frame_id
+        <<"\ncapture_s: "<<frame.capture_steady_s<<"\ntarget_row: "<<target_row<<"\ntarget_col: "<<target_col
+        <<"\nrows: "<<target.board.rows<<"\ncols: "<<target.board.cols<<"\npitch_m: "<<target.board.pitch_m
+        <<"\nradius_m: "<<target.board.radius_m<<"\noffset_x_m: "<<target.board.offset_x_m<<"\noffset_y_m: "<<target.board.offset_y_m<<"\nK: [";
+    for(int i=0;i<9;++i) metadata<<(i?", ":"")<<frame.K[i];metadata<<"]\ndist: [";
+    for(int i=0;i<5;++i) metadata<<(i?", ":"")<<frame.dist[i];metadata<<"]\noccupied_holes: [";
+    for(std::size_t i=0;i<target.occupied_holes.size();++i) metadata<<(i?", ":"")<<target.occupied_holes[i];metadata<<"]\n";
+    auto matrix=[&](const char *name,const Eigen::Matrix4d &a) {
+        metadata<<name<<":\n";
+        for(int r=0;r<4;++r) {metadata<<"  - [";for(int c=0;c<4;++c) metadata<<(c?", ":"")<<a(r,c);metadata<<"]\n";}
+    };
+    matrix("base_from_tray",target.base_from_tray);matrix("base_from_camera",base_camera);
+    Eigen::Matrix4d tcp=Eigen::Matrix4d::Identity();tcp.block<3,3>(0,0)=capture.rotation;tcp.block<3,1>(0,3)=capture.position;
+    matrix("base_from_tcp",tcp);
+    metadata<<"final_z: "<<context.final_z<<"\nnominal_xy: ["<<context.nominal_xy.x()<<", "<<context.nominal_xy.y()<<"]\n";
+    const auto &profile=context.profile;
+    metadata<<"profile:\n  mode: "<<profile.mode<<"\n  reference_px: ["<<profile.reference_px.x()<<", "<<profile.reference_px.y()
+        <<"]\n  reference_height_m: "<<profile.reference_height_m<<"\n  feature_z_offset_m: "<<profile.feature_z_offset_m
+        <<"\n  min_depth_m: "<<profile.min_depth_m<<"\n  max_depth_m: "<<profile.max_depth_m<<"\n";
+    if(!profile.knots.empty()) {
+        metadata<<"  knots:\n";
+        for(const auto &k:profile.knots) metadata<<"    - height_m: "<<k.height_m<<"\n      reference_px: ["<<k.reference_px.x()<<", "<<k.reference_px.y()
+            <<"]\n      jacobian_px_per_m: [["<<k.image_jacobian(0,0)<<", "<<k.image_jacobian(0,1)<<"], ["
+            <<k.image_jacobian(1,0)<<", "<<k.image_jacobian(1,1)<<"]]\n";
+    }
+    static PlaceImageWriter writer;writer.put(hand,path,std::move(canvas),std::move(raw),metadata.str());
 }
 
 void rotate_left(CameraFrameData &f,int hand) {
@@ -137,12 +204,13 @@ void observe(int hand) {
     const double infer_start=wrist_servo::monotonic_seconds();
     if(context.target_class==1 && cfg.tray_place.enabled && context.tray_target.valid) {
         Eigen::Matrix4d base_camera;
-        bool have_capture=wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera);
+        wrist_servo::State capture;
+        bool have_capture=wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera,&capture);
         // A just-captured frame may precede the next 10ms feedback sample. Wait
         // only in this observer, never extrapolate a commanded camera pose.
         for(int retry=0;retry<6 && !have_capture;++retry) {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
-            have_capture=wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera);
+            have_capture=wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera,&capture);
         }
         if(!have_capture) {
             wrist_servo::observation_event(hand,context.session,"tray_capture_state_unavailable",obs);return;
@@ -151,7 +219,21 @@ void observe(int hand) {
             tray_localizers[hand].reset(context.tray_target,cfg.tray_place);
             tray_sessions[hand]=context.session;
         }
-        const auto located=tray_localizers[hand].locate(frame,base_camera);
+        const auto &target=context.tray_target;
+        const auto xy=target.board.hole(target.row,target.col);
+        const double plane_z=(target.base_from_tray*Eigen::Vector4d(xy.x(),xy.y(),0,1)).z();
+        auto profile=context.profile;profile.feature_z_offset_m=plane_z-context.final_z;
+        std::string gate_reason;
+        const auto executable=[&](const Eigen::Vector2d &pixel) {
+            auto candidate=obs;candidate.pixel=pixel;
+            const auto map=wrist_servo::map_observation(profile,candidate,capture,context.final_z,
+                base_camera.block<3,1>(0,3),base_camera.block<3,3>(0,0));
+            const bool valid=map.valid && (capture.position.head<2>()+map.remaining_m-context.nominal_xy).norm()<=cfg.max_correction_m;
+            if(!valid) gate_reason=map.valid?"outside_correction_envelope":map.reason;
+            return valid;
+        };
+        auto located=tray_localizers[hand].locate(frame,base_camera,executable);
+        if(!located.valid && !gate_reason.empty()) located.detail+=" task_hint="+gate_reason;
         obs.completed_s=wrist_servo::monotonic_seconds(); obs.infer_ms=(obs.completed_s-infer_start)*1000;
         obs.virtual_target=true; obs.target_row=context.tray_target.row; obs.target_col=context.tray_target.col;
         obs.neighbor_count=located.neighbors; obs.marker_corner_count=located.marker_corners;
@@ -161,13 +243,22 @@ void observe(int hand) {
         obs.tray_rejected_size=located.rejected_size; obs.tray_rejected_shape=located.rejected_shape;
         obs.tray_rejected_coverage=located.rejected_coverage; obs.tray_rejected_residual=located.rejected_residual;
         obs.tray_skipped_occupied=located.skipped_occupied;
-        save_place_overlay(hand,context.session,obs.frame,frame,located,
-                           context.tray_target.row,context.tray_target.col);
+        obs.tray_candidates=located.candidate_pixels.size();obs.tray_stage=located.stage;
+        obs.tray_rejected_distance=located.rejected_distance;obs.tray_rejected_target=located.rejected_target;
+        obs.tray_rejected_short=located.rejected_short;obs.tray_global_hypotheses=located.global_hypotheses;
+        obs.tray_occupied_used=located.occupied_used;obs.tray_partial_used=located.partial_used;
+        obs.tray_identity_margin=located.identity_margin;
+        static double last_image_s[2]{};
+        if(cfg.tray_place.save_debug_images && located.reason!="tray_acquire_wait_next_frame" &&
+           obs.completed_s-last_image_s[hand]>=cfg.tray_place.debug_image_period_s) {
+            save_place_overlay(hand,context.session,obs.frame,frame,located,context,capture,base_camera);
+            last_image_s[hand]=obs.completed_s;
+        }
         if(!located.valid) {
             const std::string reason=located.reason+" "+located.detail;
             wrist_servo::observation_event(hand,context.session,reason.c_str(),obs);return;
         }
-        if(obs.completed_s-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
+        if(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
             wrist_servo::observation_event(hand,context.session,"tray_geometry_frame_expired",obs);return;
         }
         obs.pixel=located.pixel;
@@ -189,7 +280,7 @@ void observe(int hand) {
     obs.completed_s=wrist_servo::monotonic_seconds();
     obs.infer_ms=(obs.completed_s-infer_start)*1000;
     if(!result.ok) { wrist_servo::observation_event(hand,context.session,"inference_failed",obs); return; }
-    if(obs.completed_s-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
+    if(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
         wrist_servo::observation_event(hand,context.session,"frame_expired_before_association",obs); return;
     }
     // Reference prediction is only for association. The motion owner maps the observation again

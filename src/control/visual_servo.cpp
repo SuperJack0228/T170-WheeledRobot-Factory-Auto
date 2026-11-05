@@ -34,6 +34,20 @@ bool validate_config(const Config &c, std::string &error) {
        p.rim_min_radius_ratio>=p.rim_max_radius_ratio || p.min_coverage_bins<10 || p.min_coverage_bins>16) {
         error="invalid tray rim geometry";return false;
     }
+    if(!std::isfinite(p.global_search_m) || p.global_search_m<=p.association_gate_m || p.global_search_m>.10 ||
+       !std::isfinite(p.global_match_gate_m) || p.global_match_gate_m<=0 || p.global_match_gate_m>.015 ||
+       !std::isfinite(p.global_ambiguity_margin) || p.global_ambiguity_margin<=0 ||
+       p.global_max_hypotheses<100 || p.global_max_hypotheses>10000 || p.reacquire_after_frames<1 || p.reacquire_after_frames>10 ||
+       p.partial_min_bins<6 || p.partial_min_bins>p.min_coverage_bins || p.single_neighbor_max_frames<0 || p.single_neighbor_max_frames>8 ||
+       !std::isfinite(p.single_neighbor_step_m) || p.single_neighbor_step_m<=0 || p.single_neighbor_step_m>.010 ||
+       !std::isfinite(p.single_neighbor_budget_m) || p.single_neighbor_budget_m<p.single_neighbor_step_m || p.single_neighbor_budget_m>.020 ||
+       !std::isfinite(p.single_neighbor_max_age_s) || p.single_neighbor_max_age_s<=0 || p.single_neighbor_max_age_s>1 ||
+       !std::isfinite(p.observe_recovery_after_s) || p.observe_recovery_after_s<=0 || p.observe_recovery_after_s>=p.observe_timeout_s ||
+       !std::isfinite(p.observe_recovery_lift_m) || p.observe_recovery_lift_m<0 || p.observe_recovery_lift_m>.030 ||
+       !std::isfinite(p.observe_recovery_speed_m_s) || p.observe_recovery_speed_m_s<=0 || p.observe_recovery_speed_m_s>.04 ||
+       !std::isfinite(p.debug_image_period_s) || p.debug_image_period_s<.1) {
+        error="invalid tray acquisition/recovery configuration";return false;
+    }
     auto positive = [&](double x, const char *name) {
         if (!std::isfinite(x) || x <= 0) { error = std::string(name) + " must be finite and positive"; return false; }
         return true;
@@ -228,6 +242,7 @@ void Controller::reset(const Config &c, const State &s, double z, double speed,
     have_goal_ = false; last_capture_ = -1; last_frame_ = 0; confirmations_ = 0;
     stable_goal_frames_=0;
     staged_place_=!grasp && observe_at_B;
+    observation_recovery_=false;
     observe_z_=s.position.z();
     virtual_place_=staged_place_;
     commit_start_=-1;
@@ -283,6 +298,15 @@ Output Controller::tick(const State &s, double dt) {
        !s.position.allFinite() || !s.velocity.allFinite()) fail("invalid_state_or_tick_gap");
     if(s.time_s-start_time_>cfg_.task_timeout_s) fail("task_timeout");
     const bool frozen=phase_==Phase::Commit || phase_==Phase::Settling;
+    if(staged_place_ && !frozen && phase_!=Phase::Failed && phase_!=Phase::Done &&
+       !observation_recovery_ && cfg_.tray_place.observe_recovery_lift_m>0 &&
+       s.time_s-(have_goal_?last_capture_:start_time_)>=cfg_.tray_place.observe_recovery_after_s) {
+        observation_recovery_=true;
+        observe_z_+=cfg_.tray_place.observe_recovery_lift_m;
+        // A lost, uncommitted target is not authorization to continue XY motion.
+        goal_xy_=reference_.head<2>();have_goal_=false;
+        confirmations_=close_confirmations_=stable_goal_frames_=0;
+    }
     if(frozen && s.time_s-commit_start_>cfg_.commit_timeout_s) fail("commit_timeout");
     const double vision_budget=staged_place_?cfg_.tray_place.observe_timeout_s:cfg_.loss_timeout_s;
     if(staged_place_ && !frozen && s.time_s-start_time_>cfg_.tray_place.observe_timeout_s)
@@ -374,6 +398,11 @@ Output Controller::tick(const State &s, double dt) {
                     (cfg_.hard_reference_lead_m-cfg_.max_reference_lead_m),0.0,1.0);
                 target_v*=governor;
                 target_z=-std::min(speed,braking_speed(travel,cfg_.max_z_accel_m_s2,cfg_.brake_delay_s))*governor;
+                if(staged_place_ && !committed && observation_recovery_) {
+                    const double up=std::max(0.0,observe_z_-reference_.z());
+                    target_z=std::min(cfg_.tray_place.observe_recovery_speed_m_s,
+                        braking_speed(up,cfg_.max_z_accel_m_s2,cfg_.brake_delay_s))*governor;
+                }
                 out.descent_scale=descent_speed_>0?-target_z/descent_speed_:0;
                 if(!committed) phase_=have_goal_?(staged_place_?Phase::Aligning:Phase::Descending):Phase::Acquiring;
             } else { phase_=Phase::Hold; out.reason="waiting_fresh_vision"; }
@@ -392,7 +421,9 @@ Output Controller::tick(const State &s, double dt) {
         increment.head<2>()*=reference_remaining.squaredNorm()/increment.head<2>().dot(reference_remaining);
     // Constrain reference progression, never snap the reference to the measured state.
     // This also prevents a nominally stopped motor from chasing a point below C.
-    if(reference_.z()+increment.z()<floor_z) increment.z()=std::min(0.0,floor_z-reference_.z());
+    if(increment.z()<0 && reference_.z()+increment.z()<floor_z) increment.z()=std::min(0.0,floor_z-reference_.z());
+    if(staged_place_ && observation_recovery_ && phase_!=Phase::Commit && phase_!=Phase::Settling &&
+       increment.z()>0) increment.z()=std::min(increment.z(),std::max(0.0,observe_z_-reference_.z()));
     const Vec3 lead=reference_-s.position;
     if((lead+increment).norm()>cfg_.hard_reference_lead_m) {
         double scale=0;
@@ -426,7 +457,7 @@ Output Controller::tick(const State &s, double dt) {
     out.velocity_xy=velocity_; out.velocity_z=vz_; out.phase=phase_;
     if(phase_==Phase::Failed) out.reason=failure_;
     else if(staged_place_ && phase_!=Phase::Commit && phase_!=Phase::Settling && phase_!=Phase::Done)
-        out.reason="place_B_observe_align_XY";
+        out.reason=observation_recovery_?"place_B_recovery_lift_align_XY":"place_B_observe_align_XY";
     else if(continue_without_vision_ && phase_==Phase::Commit) out.reason="close_enough_without_vision";
     else if(continue_without_vision_ && phase_==Phase::Settling) out.reason="holding_after_target_loss";
     else if(continue_without_vision_ && phase_==Phase::Done) out.reason="ready_after_target_loss";

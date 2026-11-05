@@ -155,6 +155,7 @@ private:
     int close_confirmations_ = 0;
     int stable_goal_frames_ = 0;
     bool virtual_place_ = false, staged_place_ = false;
+    bool observation_recovery_=false;
     double observe_z_ = 0;
     Phase phase_ = Phase::Acquiring;
     std::string failure_;

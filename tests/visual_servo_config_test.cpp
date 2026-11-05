@@ -117,6 +117,14 @@ int main(int argc,char **argv) {
                 replay.grasp_z_feedback_tolerance_m==c.grasp_z_feedback_tolerance_m,
                 "placement visibility and feedback tolerances lost in snapshot");
         auto invalid_affine=c;invalid_affine.tray_place.affine_min_scale=1.1;
+        require(replay.tray_place.global_acquisition && replay.tray_place.global_search_m==c.tray_place.global_search_m &&
+                replay.tray_place.global_max_hypotheses==c.tray_place.global_max_hypotheses &&
+                replay.tray_place.single_neighbor_max_age_s==c.tray_place.single_neighbor_max_age_s &&
+                replay.tray_place.observe_recovery_lift_m==c.tray_place.observe_recovery_lift_m &&
+                replay.tray_place.save_debug_images==c.tray_place.save_debug_images,
+                "acquisition/recovery parameters lost in snapshot");
+        auto invalid_recovery=c;invalid_recovery.tray_place.observe_recovery_lift_m=.20;
+        require(!wrist_servo::validate_config(invalid_recovery,error),"unbounded recovery lift accepted");
         require(!wrist_servo::validate_config(invalid_affine,error),"invalid affine scale accepted");
         auto invalid_observe=c;invalid_observe.tray_place.observe_timeout_s=c.task_timeout_s;
         require(!wrist_servo::validate_config(invalid_observe,error),"unbounded B wait accepted");

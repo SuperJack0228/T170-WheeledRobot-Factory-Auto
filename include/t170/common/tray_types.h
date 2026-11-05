@@ -25,6 +25,20 @@ struct TrayPlaceVisionConfig {
     bool occupied_orange_rims=true; // use tray rim, never the raised metal edge of an occupied hole
     double rim_min_radius_ratio=.55, rim_max_radius_ratio=1.6;
     int min_coverage_bins=12; // 270 degrees; incomplete half-circles remain invalid
+    // Acquisition is independent of the tight, per-hole tracking ROIs.
+    bool global_acquisition=true;
+    bool boundary_enabled=true; // dark tray / bright background evidence; disable for another fixture
+    double global_search_m=.090, global_match_gate_m=.009;
+    double global_ambiguity_margin=.75; // one full rim advantage, allowing its residual penalty
+    int global_max_hypotheses=4000, reacquire_after_frames=2;
+    bool partial_rims=true;
+    int partial_min_bins=7, single_neighbor_max_frames=4;
+    double single_neighbor_step_m=.006, single_neighbor_budget_m=.010;
+    double single_neighbor_max_age_s=.6;
+    double observe_recovery_after_s=1.2, observe_recovery_lift_m=.020;
+    double observe_recovery_speed_m_s=.025;
+    bool save_debug_images=false;
+    double debug_image_period_s=.25;
 };
 
 struct TrayBoardGeometry {

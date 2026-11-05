@@ -138,7 +138,7 @@ int main(int argc,char **argv) {
         }
         TrayTarget target;require(make_tray_target(anchors,board,3,4,target,error),"head anchor fit failed");
         require((target.base_from_tray-actual).norm()<1e-9,"head row/column coordinate convention changed");
-        TrayPlaceVisionConfig cfg;cfg.enabled=true;cfg.xy_only=false;
+        TrayPlaceVisionConfig cfg;cfg.enabled=true;cfg.xy_only=false;cfg.global_acquisition=false;cfg.partial_rims=false;
         auto seed=target;seed.base_from_tray(0,3)=.010;seed.base_from_tray(1,3)=-.008;
         TrayLocalizer localizer;localizer.reset(seed,cfg);
         auto frame=render(target,actual,camera);

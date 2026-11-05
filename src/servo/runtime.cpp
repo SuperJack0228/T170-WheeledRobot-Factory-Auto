@@ -202,7 +202,7 @@ void stage_tray_target(int hand,const TrayTarget &target) {
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     slots[hand].staged_tray_target=target;
 }
-bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera) {
+bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera,State *capture_state) {
     if(hand<0 || hand>1) return false;
     auto &slot=slots[hand]; std::lock_guard<std::mutex> lock(slot.mutex);
     State capture;
@@ -210,7 +210,9 @@ bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4
        !slot.history.interpolate(time,slot.context.config.max_state_gap_s,capture)) return false;
     Eigen::Matrix4d tcp=Eigen::Matrix4d::Identity();
     tcp.block<3,3>(0,0)=capture.rotation; tcp.block<3,1>(0,3)=capture.position;
-    base_camera=tcp*slot.tcp_to_camera; return base_camera.allFinite();
+    base_camera=tcp*slot.tcp_to_camera;
+    if(capture_state) *capture_state=capture;
+    return base_camera.allFinite();
 }
 
 bool submit_observation(int hand, const PixelObservation &o) {
@@ -409,6 +411,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     int failures=0; Phase previous_phase=Phase::Acquiring;
     PixelObservation last_observation; Mapping last_map;
     int result=-31;
+    bool recovery_logged=false;
     while(true) {
         const auto cycle=std::chrono::steady_clock::now();
         if(hardware_abort_requested()) { result=-4; break; }
@@ -486,6 +489,10 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(controller.has_goal() && pair_too_close(hand,state,controller.goal_xy(),cfg.pair_clearance_m))
             controller.fail("dual_arm_clearance");
         Output output=controller.tick(state,dt);
+        if(staged_place && !recovery_logged && output.reason=="place_B_recovery_lift_align_XY") {
+            task_event(hand,"place_observation_recovery","bounded_vertical_lift_final_C_unchanged");
+            recovery_logged=true;
+        }
         if(staged_place && output.phase==Phase::Commit && previous_phase!=Phase::Commit)
             task_event(hand,"place_XY_locked","lower_to_fixed_C_without_new_vision");
         if(output.phase==Phase::Commit || output.phase==Phase::Settling || output.phase==Phase::Done || output.phase==Phase::Failed) {
