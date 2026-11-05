@@ -1,0 +1,95 @@
+{
+  "name": "(empty)",
+  "tests": "14",
+  "failures": "0",
+  "disabled": "0",
+  "time": "12",
+  "timestamp": "2026-11-04T00:28:57",
+  "kind": "hardware-independent CTest checks; no robot execution",
+  "cases": [
+    {
+      "name": "common_paths_test",
+      "status": "run",
+      "time": "0.00561433",
+      "failed": false
+    },
+    {
+      "name": "visual_servo_test",
+      "status": "run",
+      "time": "0.0470862",
+      "failed": false
+    },
+    {
+      "name": "visual_servo_runtime_test",
+      "status": "run",
+      "time": "9.36959",
+      "failed": false
+    },
+    {
+      "name": "retract_trajectory_test",
+      "status": "run",
+      "time": "0.0473089",
+      "failed": false
+    },
+    {
+      "name": "retreat_gate_test",
+      "status": "run",
+      "time": "0.0383364",
+      "failed": false
+    },
+    {
+      "name": "grasp_execution_test",
+      "status": "run",
+      "time": "0.00409563",
+      "failed": false
+    },
+    {
+      "name": "visual_servo_config_test",
+      "status": "run",
+      "time": "0.101581",
+      "failed": false
+    },
+    {
+      "name": "tray_localizer_test",
+      "status": "run",
+      "time": "0.799052",
+      "failed": false
+    },
+    {
+      "name": "python_runtime_paths_test",
+      "status": "run",
+      "time": "0.932295",
+      "failed": false
+    },
+    {
+      "name": "lower_body_self_test",
+      "status": "run",
+      "time": "0.00791567",
+      "failed": false
+    },
+    {
+      "name": "public_module_headers_test",
+      "status": "run",
+      "time": "0.010654",
+      "failed": false
+    },
+    {
+      "name": "model_registry_test",
+      "status": "run",
+      "time": "0.00254937",
+      "failed": false
+    },
+    {
+      "name": "python_vision_package_test",
+      "status": "run",
+      "time": "0.903491",
+      "failed": false
+    },
+    {
+      "name": "module_boundaries_test",
+      "status": "run",
+      "time": "0.0400755",
+      "failed": false
+    }
+  ]
+}

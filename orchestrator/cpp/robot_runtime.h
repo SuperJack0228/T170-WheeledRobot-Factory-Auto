@@ -3,9 +3,9 @@
 /** 无底盘调试运行时：仅保留圆柱抓取、头相机 ArUco 与安全归位。 */
 
 #include "Ti5_Arm.h"
-#include "gripper_interface.hpp"
-#include "seg_pose_bridge.h"
-#include "waist.h"
+#include "t170/hardware/gripper.hpp"
+#include "t170/vision/python_bridge.h"
+#include "t170/hardware/waist.h"
 
 #include <array>
 #include <atomic>

@@ -1,18 +1,18 @@
 #include "robot_runtime.h"
 
 #include "dispatch_board.h"
-#include "dispatch_timing.h"
+#include "t170/common/task_timing.h"
 #include "function.h"
-#include "hand_shadow.h"
+#include "t170/vision/wrist_observer.h"
 #include "servo/runtime.h"
-#include "head_cam2robot.h"
-#include "head_control.h"
+#include "t170/vision/head_transform.h"
+#include "t170/hardware/head.h"
 #include "move_box_config.h"
 #include "move_box_runtime.h"
-#include "seg_pose_bridge.h"
-#include "vision/dl.h"
-#include "vision_debug.h"
-#include "Ti5_socketcan.h"
+#include "t170/vision/python_bridge.h"
+#include "t170/vision/dl.h"
+#include "t170/vision/debug.h"
+#include "t170/hardware/device_bus.h"
 #include "Ti5_Seer.hpp"
 #include "robot_client.hpp"
 
@@ -223,17 +223,19 @@ void apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfi
     if (!c.use_fixed_origin_z || !det.in_robot || !std::isfinite(det.origin_z))
         return;
     const double cam_z = det.origin_z;
-    const double dz = c.fixed_origin_z_m - cam_z;
-    det.origin_z = c.fixed_origin_z_m;
+    const double plane_z = c.fixed_plane_z();
+    const double dz = plane_z - cam_z;
+    det.origin_z = plane_z;
     if (det.have_grasp_l && std::isfinite(det.grasp_lz))
         det.grasp_lz += dz;
     if (det.have_grasp_r && std::isfinite(det.grasp_rz))
         det.grasp_rz += dz;
     std::cout << std::fixed << std::setprecision(4)
               << "[orch] " << tag << " 码平面 Z 不用相机：相机=" << cam_z
-              << "m 固定=" << c.fixed_origin_z_m
-              << "m（腰高 " << c.waist_z << "m，基座到传送带 "
-              << std::abs(c.fixed_origin_z_m) << "m）ΔZ=" << dz << "m\n";
+              << "m 固定=" << plane_z
+              << "m（标定腰 " << c.fixed_origin_ref_waist_z_m
+              << "m 时 " << c.fixed_origin_z_m
+              << "m，当前腰 " << c.waist_z << "m）ΔZ=" << dz << "m\n";
 }
 
 int conveyor_waist_and_head(const ConveyorStationConfig &c, const char *tag)
@@ -451,6 +453,66 @@ bool ensure_chassis()
     return true;
 }
 
+const std::filesystem::path kDispatchMapDir{"/opt/ti5-jindi-factory-robot-client/map"};
+
+/** 连接调度前，把底盘当前地图名放进金帝地图目录。库连上后只上报这里的文件名。 */
+bool stage_dispatch_map_name()
+{
+    if (!ensure_chassis())
+        return false;
+    std::string current;
+    std::string md5;
+    std::vector<std::string> maps;
+    std::vector<std::string> names;
+    std::vector<std::string> sizes;
+    std::vector<std::string> times;
+    const int rc = chassis_seer().GetMapInfo(current, maps, md5, names, sizes, times);
+    if (rc != 0 || current.empty())
+    {
+        std::cerr << "[dispatch] 读底盘当前地图名失败 code=" << rc << " "
+                  << chassis_seer().LastMessage() << "\n";
+        board_error("读底盘当前地图名失败，不连接调度");
+        return false;
+    }
+    const std::string map_name = std::filesystem::path(current).filename().string();
+    if (map_name.empty() || map_name == "." || map_name == "..")
+    {
+        std::cerr << "[dispatch] 底盘地图名无效: " << current << "\n";
+        return false;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(kDispatchMapDir, ec);
+    if (ec)
+    {
+        std::cerr << "[dispatch] 地图目录不可用 " << kDispatchMapDir.string()
+                  << ": " << ec.message() << "\n";
+        return false;
+    }
+    std::vector<std::filesystem::path> stale;
+    for (const std::filesystem::directory_entry &ent :
+         std::filesystem::directory_iterator(kDispatchMapDir, ec))
+    {
+        if (ec || !ent.is_regular_file() || ent.path().filename() == map_name)
+            continue;
+        stale.push_back(ent.path());
+    }
+    for (const std::filesystem::path &path : stale)
+        std::filesystem::remove(path, ec);
+    const std::filesystem::path named = kDispatchMapDir / map_name;
+    if (!std::filesystem::is_regular_file(named))
+    {
+        std::ofstream out(named);
+        if (!out)
+        {
+            std::cerr << "[dispatch] 写地图名文件失败 " << named.string() << "\n";
+            return false;
+        }
+    }
+    std::cout << "[dispatch] 连接调度前上报底盘地图名 " << map_name << "\n";
+    board_note("info", "地图检查：上报底盘当前地图名 " + map_name);
+    return true;
+}
+
 /** 调度下发新地图后 is_map_updated 为真。载入底盘成功后由本程序改回假。 */
 bool load_dispatch_map_if_updated()
 {
@@ -459,11 +521,12 @@ bool load_dispatch_map_if_updated()
         std::cout << "[dispatch] 调度地图未变化\n";
         return true;
     }
-    const std::filesystem::path dir{"/opt/ti5-jindi-factory-robot-client/map"};
+    const std::filesystem::path &dir = kDispatchMapDir;
     std::error_code ec;
     if (!std::filesystem::is_directory(dir, ec))
     {
         std::cerr << "[dispatch] 调度已下发新地图，目录不存在: " << dir << "\n";
+        board_error("地图更新失败：调度地图目录不存在");
         return false;
     }
     std::filesystem::path chosen;
@@ -477,6 +540,7 @@ bool load_dispatch_map_if_updated()
     if (chosen.empty())
     {
         std::cerr << "[dispatch] 调度已下发新地图，目录里没有文件\n";
+        board_error("地图更新失败：调度地图目录里没有文件");
         return false;
     }
     std::ifstream in(chosen);
@@ -485,6 +549,7 @@ bool load_dispatch_map_if_updated()
     if (!in || body.str().empty())
     {
         std::cerr << "[dispatch] 读地图失败 " << chosen << "\n";
+        board_error("地图更新失败：读不到调度下发的地图");
         return false;
     }
     if (!ensure_chassis())
@@ -494,10 +559,87 @@ bool load_dispatch_map_if_updated()
     {
         std::cerr << "[dispatch] 上传并载入地图失败 code=" << rc << " "
                   << chassis_seer().LastMessage() << "\n";
+        board_error("地图更新失败：上传并载入底盘失败 code=" + std::to_string(rc));
+        return false;
+    }
+    std::cout << "[dispatch] 已载入调度地图 " << chosen.filename().string() << "\n";
+    board_note("info", "地图更新：已载入 " + chosen.filename().string());
+    return true;
+}
+
+/** 连调度前先记下当前地图下的位姿。地图没变则不用；新图载入后用它重定位。 */
+bool read_pose_before_dispatch(double &x, double &y, double &angle)
+{
+    if (!ensure_chassis())
+        return false;
+    std::string station;
+    std::string last;
+    double confidence = 0;
+    int loc_state = 0;
+    bool forbidden = false;
+    const int rc = chassis_seer().GetLocation(
+        x, y, angle, station, last, confidence, loc_state, forbidden);
+    if (rc != 0 || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(angle))
+    {
+        std::cerr << "[dispatch] 读底盘当前坐标失败 code=" << rc << " "
+                  << chassis_seer().LastMessage() << "\n";
+        board_error("读底盘当前坐标失败，不连接调度");
+        return false;
+    }
+    std::ostringstream line;
+    line << std::fixed << std::setprecision(4)
+         << "调度前坐标 x=" << x << " y=" << y << " angle=" << angle;
+    if (!station.empty())
+        line << " 站点=" << station;
+    std::cout << "[dispatch] 连接调度前记录当前地图位姿 " << line.str() << "\n";
+    board_note("info", line.str());
+    return true;
+}
+
+/** 地图更新或重定位失败时上报 1401。调度点了处理结果后，本次仍不进入任务。 */
+void report_dispatch_map_fault(RobotClient &client, const char *what)
+{
+    std::cerr << "[dispatch] " << what << "，向调度上报 1401，等待处理\n";
+    board_error(std::string(what) + "，上报 1401，等待调度处理");
+    const bool resolved = client.report_exception(RobotClient::InitFailed);
+    const std::string done = resolved ? "1401 调度已解决，本次仍不进入调度"
+                                      : "1401 调度未解决，不进入调度";
+    std::cout << "[dispatch] " << done << "\n";
+    board_note(resolved ? "info" : "warn", done);
+}
+
+/** 地图已是最新则直接进入调度。新图载入后，用更新前坐标重定位，成功才清标志。 */
+bool finish_dispatch_map(RobotClient &client, double x, double y, double angle)
+{
+    if (!RobotClient::is_map_updated)
+    {
+        std::cout << "[dispatch] 地图已是最新，本次不重定位\n";
+        board_note("info", "地图检查：已是最新，本次不重定位");
+        return true;
+    }
+    std::cout << "[dispatch] 地图检查：调度下发了新地图，开始载入\n";
+    board_note("info", "地图检查：调度下发了新地图，开始载入");
+    if (!load_dispatch_map_if_updated())
+    {
+        report_dispatch_map_fault(client, "地图更新失败");
+        return false;
+    }
+    std::ostringstream pose;
+    pose << std::fixed << std::setprecision(4)
+         << "重定位：用更新前坐标 x=" << x << " y=" << y << " angle=" << angle;
+    std::cout << "[dispatch] " << pose.str() << "\n";
+    board_note("info", pose.str());
+    const int rc = chassis_seer().DoRelocate(x, y, angle);
+    if (rc != 0)
+    {
+        std::cerr << "[dispatch] 新地图重定位失败 code=" << rc << " "
+                  << chassis_seer().LastMessage() << "，不进入调度\n";
+        report_dispatch_map_fault(client, "重定位失败");
         return false;
     }
     RobotClient::is_map_updated = false;
-    std::cout << "[dispatch] 已载入调度地图 " << chosen.filename().string() << "\n";
+    std::cout << "[dispatch] 新地图重定位成功，进入调度\n";
+    board_note("info", "重定位成功，进入调度");
     return true;
 }
 
@@ -2705,25 +2847,11 @@ static int go_belt_grasp_attempt(
             return -4;
     }
 
-    const bool back_to_belt_ready =
-        station_name_matches(station, g_move_cfg.chassis.belt_station);
-    const bool back_to_tray_ready =
-        station_name_matches(station, g_move_cfg.chassis.out_station);
-    const char *back_name_default = back_to_belt_ready ? "传送带准备 tcp"
-                                    : back_to_tray_ready ? "料盘放置准备"
-                                                         : "grasp_tcp";
-    auto retract_poses = [&](bool is_right,bool to_ready,
-                             Eigen::Matrix<double,1,6> &lift,Eigen::Matrix<double,1,6> &back_pose) {
-        Robot_Arm &arm=is_right ? *g_hw->arm_r : *g_hw->arm_l;
-        wrist_servo::Joints held;
-        lift=wrist_servo::peek_final_hold(is_right ? 1 : 0,held)
-                 ? arm_tcp_from_joints(arm,held) : arm_get_tcp_pos(arm);
-        lift(2)+=c.grasp_hover_above_m>1e-9 ? c.grasp_hover_above_m : g_move_cfg.head_grasp.lift_after_grasp_z;
-        lift(2)=std::min(lift(2),g_move_cfg.grasp_valid.z_max);
-        back_pose=is_right ? c.grasp_tcp.right : c.grasp_tcp.left;
-        if(back_to_belt_ready || to_ready) back_pose=is_right ? c.tcp.right : c.tcp.left;
-        else if(back_to_tray_ready) back_pose=is_right ? g_move_cfg.standby.right : g_move_cfg.standby.left;
-    };
+    const char *back_name_default = "固定关节中转准备位";
+    // Empty grasp returns to the measured pre-approach configuration for a retry.
+    wrist_servo::Joints retry_ready[2];
+    const bool retry_ready_ok[2]={wrist_servo::read_joint_feedback(0,retry_ready[0]),
+                                  right_arm_motors_locked() || wrist_servo::read_joint_feedback(1,retry_ready[1])};
     const int grasp_hand_sel = hand;
     auto depart_if_last = [&](bool is_right) {
         if (depart_after_right.empty() || !(is_right ? g_hw->last_grasped_r : g_hw->last_grasped_l))
@@ -2808,18 +2936,22 @@ static int go_belt_grasp_attempt(
             return -4;
         Robot_Arm &arm = is_right ? *g_hw->arm_r : *g_hw->arm_l;
         const char *hand = is_right ? "右手" : "左手";
-        const char *back_name = to_ready ? "传送带准备 tcp（空抓）" : back_name_default;
+        const char *back_name = to_ready ? "伸手前实测关节（空抓）" : back_name_default;
         if (aborted())
             return -4;
-        Eigen::Matrix<double,1,6> lift,back_pose;
-        retract_poses(is_right,to_ready,lift,back_pose);
         if(to_ready) arm_discard_line_then_line_plan(is_right ? 1 : 0);
         const double speed=c.grasp_retract_vel_m_s;
         std::cout<<"[orch] "<<name<<' '<<hand<<" 合爪后先竖直抬离，再规划返回，目标="<<back_name
                  <<" speed="<<speed<<"m/s\n";
         const double lift_height=c.grasp_hover_above_m>1e-9 ? c.grasp_hover_above_m : g_move_cfg.head_grasp.lift_after_grasp_z;
         int code=arm_vertical_lift(arm,lift_height,speed,progress);
-        if(code==0) code=arm_return_after_lift(arm,back_pose,speed);
+        if(code==0) {
+            if(to_ready && !retry_ready_ok[is_right?1:0]) return -32;
+            const auto &m=g_move_cfg.retract_motion;
+            const wrist_servo::Joints ready=to_ready?retry_ready[is_right?1:0]:
+                (is_right?m.ready_right:m.ready_left);
+            code=arm_return_after_lift(arm,ready);
+        }
         if(code!=0) {
             std::cerr<<"[orch] "<<name<<' '<<hand<<" 收手失败 code="<<code<<"，保留夹爪状态\n";
             return aborted() ? -4 : code;
@@ -6489,11 +6621,21 @@ static int run_dispatch_mode_body()
               << " 型号 " << ch.robot_type << " 编号 " << ch.sequence_number
               << "。底盘点位由系统下发。无任务时去调度 standby_point，还没有则去 "
               << dispatch_idle_station() << "\n";
+    // 先记当前地图下的坐标，再上报地图名。库连上后才知道要不要换图。
+    double map_x = 0;
+    double map_y = 0;
+    double map_angle = 0;
+    if (!read_pose_before_dispatch(map_x, map_y, map_angle))
+        return -1;
+    if (!stage_dispatch_map_name())
+        return -1;
+    std::cout << "[dispatch] 正在连接调度并核对地图\n";
+    board_note("info", "正在连接调度并核对地图");
     // client 必须活过 inbox 线程；退出时先拆连接，apply_mission 才会返回，否则 join 卡死、
     // board_end 迟迟不跑，网页一直显示「调度中」。
     auto client_holder = std::make_unique<RobotClient>(ch.robot_type, ch.sequence_number);
     RobotClient &client = *client_holder;
-    if (!load_dispatch_map_if_updated())
+    if (!finish_dispatch_map(client, map_x, map_y, map_angle))
         return -1;
     struct BodyMotorRestore
     {

@@ -1,4 +1,4 @@
-#include "servo/tray_localizer.h"
+#include "t170/vision/tray_localizer.h"
 #include <opencv2/core/version.hpp>
 #if CV_VERSION_MAJOR > 4 || (CV_VERSION_MAJOR == 4 && CV_VERSION_MINOR >= 7)
 #include <opencv2/objdetect/aruco_detector.hpp>
@@ -8,6 +8,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <chrono>
+#include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <set>
 #include <stdexcept>
@@ -71,9 +72,63 @@ CameraFrameData render(const TrayTarget &target,const Eigen::Matrix4d &actual,co
     }
     return f;
 }
+void test_logged_affine_correspondences() {
+    TrayPlaceVisionConfig cfg;
+    TrayBoardGeometry board;
+    const std::vector<std::pair<int,int>> rc{{3,1},{3,2},{4,1},{4,2},{5,1}};
+    const std::vector<Eigen::Vector2d> shifts{{-.01511,-.00729},{-.01976,-.01447},
+        {-.00657,-.01083},{-.01222,-.01818},{.00221,-.01422}};
+    std::vector<Eigen::Vector2d> from,to;
+    for(std::size_t i=0;i<rc.size();++i) {
+        from.push_back(board.hole(rc[i].first,rc[i].second));to.push_back(from.back()+shifts[i]);
+    }
+    auto fit=fit_neighbor_grid(from,to,board.hole(2,1),board.pitch_m,cfg);
+    require(fit.valid && fit.model=="neighbor_affine" && fit.inliers.size()==5,
+            "11/05 logged correspondence set still rejected as a translation");
+    // Analytic known affine fixture with one bad association; independent of fitter.
+    from.clear();to.clear();
+    Eigen::Matrix2d transform;transform<<.89,-.06,.045,.90;
+    Eigen::Vector2d shift(.002,-.003);
+    for(int r=2;r<=4;++r) for(int c=2;c<=4;++c) {
+        auto p=board.hole(r,c);from.push_back(p);to.push_back(transform*p+shift);
+    }
+    to.back()+=Eigen::Vector2d(.040,-.035);
+    const auto goal=board.hole(3,3);
+    fit=fit_neighbor_grid(from,to,goal,board.pitch_m,cfg);
+    require(fit.valid && fit.model=="neighbor_affine" && fit.inliers.size()==8 &&
+            (fit.target-(transform*goal+shift)).norm()<1e-5,"affine outlier/target accuracy regression");
+    std::vector<Eigen::Vector2d> line{{-.075,0},{0,0},{.075,0}},observed;
+    for(auto p:line) observed.push_back(.9*p+shift);
+    fit=fit_neighbor_grid(line,observed,{0,.05},board.pitch_m,cfg);
+    require(fit.valid && fit.model=="neighbor_similarity","collinear points produced unsupported affine");
+    observed.clear();for(auto p:from) observed.push_back(1.9*p);
+    require(!fit_neighbor_grid(from,observed,goal,board.pitch_m,cfg).valid,"implausible scale accepted");
+}
+
+void test_field_correspondence_replay(const std::string &path) {
+    const auto root=YAML::LoadFile(path);TrayBoardGeometry board;TrayPlaceVisionConfig cfg;
+    int accepted=0,rejected=0;
+    for(const auto &frame:root["frames"]) {
+        std::vector<Eigen::Vector2d> from,to;
+        for(const auto &p:frame["pairs"]) {
+            from.push_back(board.hole(p["row"].as<int>(),p["col"].as<int>()));
+            to.push_back(from.back()+Eigen::Vector2d(p["dx_m"].as<double>(),p["dy_m"].as<double>()));
+        }
+        const auto target=board.hole(frame["target_row"].as<int>(),frame["target_col"].as<int>());
+        const auto fit=fit_neighbor_grid(from,to,target,board.pitch_m,cfg);
+        if(fit.valid) ++accepted;
+        else {++rejected;std::cout<<"field pair reject session="<<frame["session"]<<" "<<fit.detail<<'\n';}
+    }
+    std::cout<<"11/05 logged candidate replay accepted="<<accepted<<" rejected="<<rejected<<'\n';
+    // This is candidate-model coverage, NOT a raw-image or physical placement score.
+    require(accepted>=30,"structured field candidate model recovery regressed");
+}
+
 int main(int argc,char **argv) {
     try {
-        require(argc==2,"board path required");
+        require(argc==3,"board and logged fixture paths required");
+        test_field_correspondence_replay(argv[2]);
+        test_logged_affine_correspondences();
         TrayBoardGeometry board;std::string error;require(load_tray_board(argv[1],board,error),"actual board did not load");
         Eigen::Matrix4d actual=Eigen::Matrix4d::Identity(),camera=Eigen::Matrix4d::Identity();
         camera(1,1)=camera(2,2)=-1;camera(2,3)=.5;
@@ -122,18 +177,19 @@ int main(int argc,char **argv) {
         std::cout << "perspective=" << perspective.reason << " n=" << perspective.neighbors << '\n';
         require(perspective.valid && (perspective.pixel-Eigen::Vector2d(true_pixel.x,true_pixel.y)).norm()<2,
                 "rectified-circle perspective/distortion correction failed");
-        // Duplicate marker IDs and a whole-tray 180 degree rotation.
+        // Visible markers must not participate or veto neighbor-only wrist localization.
         actual.block<3,3>(0,0)=Eigen::AngleAxisd(std::acos(-1),Eigen::Vector3d::UnitZ()).toRotationMatrix();
-        seed=target;seed.base_from_tray=actual;seed.base_from_tray(0,3)+=.040;
+        seed=target;seed.base_from_tray=actual;seed.base_from_tray(0,3)+=.010;
         localizer.reset(seed,cfg);auto marked=render(target,actual,camera,true);
         auto decoded=localizer.locate(marked,camera);
         std::cout << "markers=" << decoded.reason << " corners=" << decoded.marker_corners << '\n';
-        require(decoded.valid && decoded.marker_corners>=8,"duplicate IDs/rotated tray markers failed");
+        require(decoded.valid && decoded.marker_corners==0 && decoded.neighbors>=4,
+                "visible markers interfered with neighbor-only localization");
         localizer.reset(seed,cfg);
         auto markers_only=render(target,actual,camera,true,{999});
         auto marker_pose=localizer.locate(markers_only,camera);
-        require(marker_pose.valid && marker_pose.neighbors==0 && marker_pose.marker_corners>=8,
-                "marker-only occlusion handling failed");
+        require(!marker_pose.valid && marker_pose.marker_corners==0,
+                "wrist marker-only frame substituted for neighbor evidence");
         // Camera moves continuously; the same physical hole identity remains locked.
         camera(0,3)=.012;camera(2,3)=.42;
         auto moved=render(target,actual,camera,true);
@@ -165,6 +221,29 @@ int main(int argc,char **argv) {
                     "XY-only moving-camera localization failed");
             require(std::abs(fixed.plane_z_m)<1e-10,"XY-only localization changed tray Z");
         }
+        // Biased coarse depth/yaw must not require a translation-only fit.
+        auto biased=target;biased.base_from_tray=Eigen::Matrix4d::Identity();
+        biased.base_from_tray(2,3)=.040;
+        biased.base_from_tray.block<3,3>(0,0)=Eigen::AngleAxisd(.05,Eigen::Vector3d::UnitZ()).toRotationMatrix();
+        localizer.reset(biased,cfg);
+        for(double x:{0.0,.006,.012}) {
+            camera(0,3)=x;
+            auto view=render(target,actual,camera);
+            auto corrected=localizer.locate(view,camera);
+            auto truth=pixels(view,camera,actual,{board.hole(target.row,target.col)})[0];
+            require(corrected.valid && corrected.source=="neighbor_affine" &&
+                (corrected.pixel-Eigen::Vector2d(truth.x,truth.y)).norm()<2.5,
+                "affine image localization failed with biased coarse depth/yaw or camera XY motion");
+        }
+        camera(0,3)=0;
+        // A rejected fit must explain its limit and log individual neighbor shifts.
+        auto diagnostic_cfg=cfg;diagnostic_cfg.affine_enabled=false;diagnostic_cfg.max_plane_update_m=.0001;
+        localizer.reset(seed,diagnostic_cfg);
+        const auto rejected=localizer.locate(render(target,actual,camera),camera);
+        require(!rejected.valid && rejected.reason=="tray_neighbor_fit_rejected" &&
+                rejected.detail.find("shift_limit")!=std::string::npos &&
+                rejected.detail.find("_shift_mm=")!=std::string::npos,
+                "neighbor fit rejection lost actionable diagnostics");
         // Real fixture has colored annuli, not filled black circles. Outer/inner radii
         // deliberately disagree with the old fixed-radius gray-edge detector.
         auto orange=blank_frame();cv::Mat orange_image(orange.height,orange.width,CV_8UC3,orange.color_bgr.data());
@@ -195,6 +274,6 @@ int main(int argc,char **argv) {
         const auto metal_only=localizer.locate(render(target,actual,camera,false,{303,404}),camera);
         require(!metal_only.valid,"gray metal/part edge at an occupied location became a tray landmark");
         const auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
-        std::cout << "tray_localizer: hidden target, sparse support, lost features, perspective, distortion, duplicate IDs and moving camera passed; fixture suite ms=" << elapsed << '\n';
+        std::cout << "tray_localizer: hidden target, sparse support, lost features, perspective, distortion, marker independence and moving camera passed; fixture suite ms=" << elapsed << '\n';
     } catch(const std::exception &ex) {std::cerr << "tray_localizer FAIL: " << ex.what() << '\n';return 1;}
 }

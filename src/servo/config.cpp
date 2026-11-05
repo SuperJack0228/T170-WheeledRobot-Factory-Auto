@@ -1,4 +1,4 @@
-#include "servo/visual_servo.h"
+#include "t170/control/visual_servo.h"
 #include <yaml-cpp/yaml.h>
 #include <stdexcept>
 #include <fstream>
@@ -46,6 +46,9 @@ void load_config(const YAML::Node &n, Config &c) {
     PLACE_READ(enabled); PLACE_READ(board_config); PLACE_READ(association_gate_m);
     PLACE_READ(reprojection_gate_px); PLACE_READ(circle_residual_m);
     PLACE_READ(max_plane_update_m); PLACE_READ(min_neighbors); PLACE_READ(rectified_pixels_per_m);
+    PLACE_READ(affine_enabled); PLACE_READ(observe_at_B); PLACE_READ(observe_timeout_s);
+    PLACE_READ(affine_min_scale); PLACE_READ(affine_max_scale); PLACE_READ(affine_max_rotation_rad);
+    PLACE_READ(max_extrapolation_pitches);
     PLACE_READ(xy_only); PLACE_READ(orange_rim_enabled); PLACE_READ(rim_min_radius_ratio);
     PLACE_READ(occupied_orange_rims);
     PLACE_READ(rim_max_radius_ratio); PLACE_READ(min_coverage_bins);
@@ -107,6 +110,9 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         PLACE_WRITE(enabled); PLACE_WRITE(board_config); PLACE_WRITE(association_gate_m);
         PLACE_WRITE(reprojection_gate_px); PLACE_WRITE(circle_residual_m);
         PLACE_WRITE(max_plane_update_m); PLACE_WRITE(min_neighbors); PLACE_WRITE(rectified_pixels_per_m);
+        PLACE_WRITE(affine_enabled); PLACE_WRITE(observe_at_B); PLACE_WRITE(observe_timeout_s);
+        PLACE_WRITE(affine_min_scale); PLACE_WRITE(affine_max_scale); PLACE_WRITE(affine_max_rotation_rad);
+        PLACE_WRITE(max_extrapolation_pitches);
         PLACE_WRITE(xy_only); PLACE_WRITE(orange_rim_enabled); PLACE_WRITE(rim_min_radius_ratio);
         PLACE_WRITE(occupied_orange_rims);
         PLACE_WRITE(rim_max_radius_ratio); PLACE_WRITE(min_coverage_bins);

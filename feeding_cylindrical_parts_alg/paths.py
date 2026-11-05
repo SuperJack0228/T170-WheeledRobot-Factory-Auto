@@ -1,17 +1,9 @@
-"""工程根路径与默认模型位置。"""
-
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-MODELS_DIR = PROJECT_ROOT / "models"
-DEFAULT_SEG_MODEL = MODELS_DIR / "best1015.pt"
-
-
-def resolve_model_path(model_path: str | Path | None = None) -> Path:
-    """未指定时使用工程内 models/best1015.pt。"""
-    if model_path is None or str(model_path).strip() == "":
-        return DEFAULT_SEG_MODEL
-    p = Path(model_path)
-    if not p.is_absolute():
-        p = PROJECT_ROOT / p
-    return p.resolve()
+"""Step-1 legacy entry point; implementation lives in t170_vision.detection.paths."""
+import sys as _sys
+from pathlib import Path as _Path
+from importlib import import_module as _import_module
+_package_root = str(_Path(__file__).resolve().parents[1] / "python")
+if _package_root not in _sys.path:
+    _sys.path.insert(0, _package_root)
+_impl = _import_module("t170_vision.detection.paths")
+_sys.modules[__name__] = _impl

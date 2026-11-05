@@ -1,0 +1,458 @@
+{
+  "baseline": "e205e9e49e4efe650a8dd140528ab29add9c12bb",
+  "configuration": [
+    {
+      "file": "board_belt_aruco/config.yaml",
+      "byte_identical": true,
+      "sha256": "0d8ef2bdb8445fd24e4f390c1aa5396db5bc6d34329a5815d2051a583dd1065c"
+    },
+    {
+      "file": "board_yf100_aruco/config.yaml",
+      "byte_identical": true,
+      "sha256": "d9ab527cbe553333b7dfd239a9b01c307855e1a8a5ae1924b76fbea13c26e5c6"
+    },
+    {
+      "file": "config/Robot_Arm_Model.yaml",
+      "byte_identical": true,
+      "sha256": "19986606a9f4116aa399f9c73ab0ae2412c90a5bdb40e471b60f4ffaf7589fc9"
+    },
+    {
+      "file": "config/camera_profile_d405.yaml",
+      "byte_identical": true,
+      "sha256": "7e74a158444f9211fc09416c3ef1168114dfedc4e6f41f609553b9583fade232"
+    },
+    {
+      "file": "config/camera_profile_d435i.yaml",
+      "byte_identical": true,
+      "sha256": "5e177e8af57944b2cd650a7530f49e5e88af3e710d294e568ab4ebe433b19923"
+    },
+    {
+      "file": "config/camera_to_base_result.yaml",
+      "byte_identical": true,
+      "sha256": "c002016b8a3dededac279411f706c08bb4dacfffabe869fe60574b64b907b28e"
+    },
+    {
+      "file": "config/devices.json",
+      "byte_identical": true,
+      "sha256": "906522f2b5cd3d0538553b1f43d18a6eb9cf93cd28f2e318ec8907312136009d"
+    },
+    {
+      "file": "config/left_hand_to_base_result.yaml",
+      "byte_identical": true,
+      "sha256": "c94a10d75063f65d4408e7ed6f68d5dabb8cb98414835547c2beace3ef075db1"
+    },
+    {
+      "file": "config/move_box_params.yaml",
+      "byte_identical": true,
+      "sha256": "b2915be11d788fca4ffcfcacbe5c5ed3806b332f1a3206604c1f7b5ba4e29938"
+    },
+    {
+      "file": "config/offsets_backup_20261010.yaml",
+      "byte_identical": true,
+      "sha256": "5745f3554a765d38d1cec6238980abcbb53b541405556b19f15988c5b36de0a4"
+    },
+    {
+      "file": "config/realsense_cameras.yaml",
+      "byte_identical": true,
+      "sha256": "bc23f6c3eaee0ac57d484fced04cde5ee4ff324a3484d69794a64df1e12e9817"
+    },
+    {
+      "file": "config/right_hand_to_base_result.yaml",
+      "byte_identical": true,
+      "sha256": "cab2f252e1179aabd72316caf57677129500c80f6fc79b6d3ce2f673525e7738"
+    },
+    {
+      "file": "feeding_cylindrical_parts_alg/config/pose_params.yaml",
+      "byte_identical": true,
+      "sha256": "85347437915462100c4353a7d1c6233ce41d0ecd77594779529479feadb4e438"
+    },
+    {
+      "file": "free_calib/config/camera_to_head_connector_result.yaml",
+      "byte_identical": true,
+      "sha256": "171694329fe9489464124eb1dabb92d5455547b7d3b8fe8e255330b251961681"
+    },
+    {
+      "file": "free_calib/config/head_params.yaml",
+      "byte_identical": true,
+      "sha256": "6d034d5054364f2330613e8d9b98e626b013b9caa882f80275401ef30e299847"
+    },
+    {
+      "file": "online_pose/config.yaml",
+      "byte_identical": true,
+      "sha256": "53f3b049166459852a8475acabd331ee0c2b57a041f7cf4556cc62ee6d45f469"
+    }
+  ],
+  "cpp": [
+    {
+      "source": "src/servo/visual_servo.cpp",
+      "current": "src/control/visual_servo.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/servo/kinematics.cpp",
+      "current": "src/motion/pose_solver.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/servo/trace.cpp",
+      "current": "src/common/servo_trace.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/servo/tray_localizer.cpp",
+      "current": "src/vision/geometry/tray_localizer.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/Ti5_socketcan.cpp",
+      "current": "src/hardware/device_bus.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/gripper_interface.cpp",
+      "current": "src/hardware/gripper.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/head_control.cpp",
+      "current": "src/hardware/head.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/waist.cpp",
+      "current": "src/hardware/waist.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/realsense_get.cpp",
+      "current": "src/vision/camera/realsense_camera.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/hand_shadow.cpp",
+      "current": "src/vision/tracking/wrist_observer.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/vision_debug.cpp",
+      "current": "src/vision/bridge/debug.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/head_cam2robot.cpp",
+      "current": "src/vision/geometry/head_transform.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/vision/camera.cpp",
+      "current": "src/vision/camera/camera.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/vision/dl.cpp",
+      "current": "src/vision/detection/dl.cpp",
+      "scope": "inference/conversion/routing; registry metadata binding separately tested",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/vision/marker.cpp",
+      "current": "src/vision/geometry/marker.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/vision/pose.cpp",
+      "current": "src/vision/geometry/pose.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "orchestrator/cpp/dispatch_timing.cpp",
+      "current": "src/common/task_timing.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "LowerBody/examples/self_test.cpp",
+      "current": "libs/lower_body/examples/self_test.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "LowerBody/examples/traj_print.cpp",
+      "current": "libs/lower_body/examples/traj_print.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "LowerBody/src/LowerBody.cpp",
+      "current": "libs/lower_body/src/LowerBody.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/function.cpp",
+      "current": "src/function.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/grasp_to_standby.cpp",
+      "current": "src/grasp_to_standby.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/grasp_execution.cpp",
+      "current": "src/grasp_execution.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/move_box_runtime.cpp",
+      "current": "src/move_box_runtime.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/move_box_config.cpp",
+      "current": "src/move_box_config.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "src/servo/runtime.cpp",
+      "current": "src/servo/runtime.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    },
+    {
+      "source": "orchestrator/cpp/robot_runtime.cpp",
+      "current": "orchestrator/cpp/robot_runtime.cpp",
+      "scope": "all non-include tokens",
+      "same_noninclude_tokens": true
+    }
+  ],
+  "python": [
+    {
+      "source": "feeding_cylindrical_parts_alg/algorithm/pose_box.py",
+      "destination": "python/t170_vision/detection/pose_box.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/algorithm/config_loader.py",
+      "destination": "python/t170_vision/detection/config_loader.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/algorithm/types.py",
+      "destination": "python/t170_vision/detection/types.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/algorithm/engine.py",
+      "destination": "python/t170_vision/detection/engine.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/algorithm/segmentation_yolo.py",
+      "destination": "python/t170_vision/detection/segmentation_yolo.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/algorithm/pose_centroid.py",
+      "destination": "python/t170_vision/detection/pose_centroid.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/algorithm/pose_pnp.py",
+      "destination": "python/t170_vision/detection/pose_pnp.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/paths.py",
+      "destination": "python/t170_vision/detection/paths.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "feeding_cylindrical_parts_alg/visualization.py",
+      "destination": "python/t170_vision/visualization/detection.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "board_yf100_aruco/online.py",
+      "destination": "python/t170_vision/geometry/tray/detector.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "board_yf100_aruco/tray_detect_api.py",
+      "destination": "python/t170_vision/geometry/tray/api.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "board_yf100_aruco/tray_fusion.py",
+      "destination": "python/t170_vision/geometry/tray/fusion.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "board_belt_aruco/online.py",
+      "destination": "python/t170_vision/geometry/conveyor/detector.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "board_belt_aruco/belt_detect_api.py",
+      "destination": "python/t170_vision/geometry/conveyor/api.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "online_pose/aruco_detect_api.py",
+      "destination": "python/t170_vision/geometry/marker/api.py",
+      "same_algorithm_AST": true
+    },
+    {
+      "source": "free_calib/head_camera_to_base.py",
+      "destination": "python/t170_vision/calibration/head_transform.py",
+      "same_algorithm_AST": true
+    }
+  ],
+  "types": [
+    {
+      "type": "enum class CameraSlot",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct CameraFrameData",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct State {",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct PixelObservation",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct Mapping",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "enum class Phase",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct Output",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct MapKnot",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct ImageProfile",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct Config",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "class StateHistory",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "class Controller",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct TrayPlaceVisionConfig",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct TrayBoardGeometry",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct TrayAnchor",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct TrayTarget",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct PoseTargetResult",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct PoseRunResult",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct PoseDetectionRecord",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "enum class SegEngineId",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct ArucoMarkerResult",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct ArucoDetectResult",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct TrayHoleResult",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct TrayDetectResult",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct BeltDetectResult",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct PerceiveTrayOptions",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct HeadTrayPerception",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct HeadBeltPerception",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct HeadHandAssignZones",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct PoseVisPanel",
+      "same_definition_tokens": true
+    },
+    {
+      "type": "struct PoseVisLayout",
+      "same_definition_tokens": true
+    }
+  ],
+  "failures": []
+}

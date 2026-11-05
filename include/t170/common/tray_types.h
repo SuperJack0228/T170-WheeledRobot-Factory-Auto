@@ -1,0 +1,50 @@
+#pragma once
+#include <Eigen/Dense>
+#include <string>
+#include <vector>
+
+namespace wrist_servo {
+struct TrayPlaceVisionConfig {
+    bool enabled=false;
+    std::string board_config="board_yf100_aruco/config.yaml";
+    double association_gate_m=.025;
+    double reprojection_gate_px=3.0;
+    double circle_residual_m=.0015;
+    double max_plane_update_m=.030;
+    int min_neighbors=2;
+    double rectified_pixels_per_m=2000;
+    // Physical station plane is fixed; image registration can still scale/rotate.
+    bool xy_only=true; // only TCP XY is corrected; image registration may scale/rotate
+    bool affine_enabled=true;
+    bool observe_at_B=true;
+    double observe_timeout_s=6.0;
+    double affine_min_scale=.65, affine_max_scale=1.5;
+    double affine_max_rotation_rad=.35;
+    double max_extrapolation_pitches=2.5;
+    bool orange_rim_enabled=true;
+    bool occupied_orange_rims=true; // use tray rim, never the raised metal edge of an occupied hole
+    double rim_min_radius_ratio=.55, rim_max_radius_ratio=1.6;
+    int min_coverage_bins=12; // 270 degrees; incomplete half-circles remain invalid
+};
+
+struct TrayBoardGeometry {
+    int rows=6,cols=6;
+    double pitch_m=.075,radius_m=.019,offset_x_m=0,offset_y_m=0;
+    double marker_pitch_m=.30,marker_side_m=.0312;
+    std::vector<int> marker_ids;
+    Eigen::Vector2d hole(int row,int col) const {
+        return {((rows+1)*.5-row)*pitch_m+offset_x_m,
+                (col-(cols+1)*.5)*pitch_m+offset_y_m};
+    }
+};
+
+struct TrayAnchor { int row=0,col=0; Eigen::Vector3d base=Eigen::Vector3d::Zero(); int class_id=-1; };
+
+struct TrayTarget {
+    bool valid=false;
+    int row=0,col=0;
+    TrayBoardGeometry board;
+    Eigen::Matrix4d base_from_tray=Eigen::Matrix4d::Identity();
+    std::vector<int> occupied_holes; // row*100+col; unknown class stays usable
+};
+}

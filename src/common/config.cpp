@@ -169,6 +169,7 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     read_value(node, "grasp_yolo_class_id", dst.grasp_yolo_class_id);
     read_value(node, "use_fixed_origin_z", dst.use_fixed_origin_z);
     read_value(node, "fixed_origin_z_m", dst.fixed_origin_z_m);
+    read_value(node, "fixed_origin_ref_waist_z_m", dst.fixed_origin_ref_waist_z_m);
     read_value(node, "photo_after_arrival_sec", dst.photo_after_arrival_sec);
     read_value(node, "grasp_photo_settle_sec", dst.grasp_photo_settle_sec);
     if (dst.photo_after_arrival_sec < 0.0)
@@ -227,7 +228,8 @@ void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
               << " min_conf=" << c.yolo_min_conf
               << " legacy_yolo=" << (c.grasp_yolo_enable ? "on" : "off")
               << " fixed_z=" << (c.use_fixed_origin_z ? "on" : "off")
-              << " " << c.fixed_origin_z_m << "m"
+              << " 标定 " << c.fixed_origin_z_m << "m@腰" << c.fixed_origin_ref_waist_z_m
+              << "m 当前 " << c.fixed_plane_z() << "m"
               << " 到站放置等=" << c.photo_after_arrival_sec
               << "s 抓取拍照等=" << c.grasp_photo_settle_sec << "s\n";
 }
@@ -299,6 +301,36 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
     try
     {
         const YAML::Node root = YAML::LoadFile(path);
+        {
+            const auto node=root["retract_motion"];
+            auto &c=cfg.retract_motion;
+            auto joints=[&](const char *key,Eigen::Matrix<double,1,7> &out) {
+                if(!node || !node[key]) return;
+                const auto values=node[key];
+                if(!values.IsSequence() || values.size()!=7)
+                    throw std::runtime_error(std::string("retract_motion.")+key+" 必须有7个电机角");
+                for(int j=0;j<7;++j) {
+                    const double value=values[j].as<double>();
+                    if(!std::isfinite(value)) throw std::runtime_error("nonfinite retract joint");
+                    out(j)=value*kDegToRad;
+                }
+            };
+            joints("ready_right_deg",c.ready_right); joints("ready_left_deg",c.ready_left);
+            read_value(node,"max_joint_velocity_rad_s",c.max_joint_velocity_rad_s);
+            read_value(node,"max_joint_acceleration_rad_s2",c.max_joint_acceleration_rad_s2);
+            read_value(node,"max_joint_jerk_rad_s3",c.max_joint_jerk_rad_s3);
+            read_value(node,"arrival_joint_tolerance_rad",c.arrival_joint_tolerance_rad);
+            read_value(node,"settle_timeout_s",c.settle_timeout_s);
+            read_value(node,"feedback_timeout_s",c.feedback_timeout_s);
+            read_value(node,"stable_samples",c.stable_samples);
+            for(double value:{c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,
+                              c.max_joint_jerk_rad_s3,c.arrival_joint_tolerance_rad,
+                              c.settle_timeout_s,c.feedback_timeout_s})
+                if(!std::isfinite(value) || value<=0)
+                    throw std::runtime_error("retract_motion 参数必须是有限正数");
+            if(c.stable_samples<1 || c.stable_samples>50)
+                throw std::runtime_error("retract_motion.stable_samples 必须在1..50内");
+        }
         if (!read_pose(root["standby"]["right"], cfg.standby.right) ||
             !read_pose(root["standby"]["left"], cfg.standby.left))
             throw std::runtime_error("standby.left/right 必须各有 6 个数");
@@ -745,6 +777,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[cfg] retract_motion fixed_ready_motor_rad right="<<cfg.retract_motion.ready_right
+             <<" left="<<cfg.retract_motion.ready_left<<" limits_v_a_j="
+             <<cfg.retract_motion.max_joint_velocity_rad_s<<","<<cfg.retract_motion.max_joint_acceleration_rad_s2
+             <<","<<cfg.retract_motion.max_joint_jerk_rad_s3<<" arrival_rad="
+             <<cfg.retract_motion.arrival_joint_tolerance_rad<<" timeout_s="<<cfg.retract_motion.settle_timeout_s<<"\n";
     std::cout << "[cfg] standby right=" << cfg.standby.right << "\n"
               << "[cfg] standby left=" << cfg.standby.left << "\n"
               << "[cfg] home_tcp right=" << cfg.home_tcp.right << "\n"

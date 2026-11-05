@@ -1,7 +1,7 @@
-#include "vision/pipeline.h"
+#include "t170/vision/pipeline.h"
 
-#include "Ti5_socketcan.h"
-#include "seg_pose_bridge.h"
+#include "t170/hardware/device_bus.h"
+#include "t170/vision/python_bridge.h"
 
 #include <chrono>
 #include <iostream>

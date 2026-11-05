@@ -1,12 +1,12 @@
 #include "t170/common/paths.h"
 #include "t170/common/logging.h"
 #include "servo/runtime.h"
-#include "servo/trace.h"
+#include "t170/common/servo_trace.h"
 #include "function.h"
-#include "Ti5_socketcan.h"
-#include "hand_shadow.h"
+#include "t170/hardware/device_bus.h"
+#include "t170/vision/wrist_observer.h"
 #include "move_box_config.h"
-#include "seg_pose_bridge.h"
+#include "t170/vision/python_bridge.h"
 
 #include <atomic>
 #include <chrono>
@@ -391,11 +391,18 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     const Eigen::Matrix3d rotation=TR(goal).block<3,3>(0,0);
     double read_ms=0;
     State state=measured(arm,slot,read_ms);
-    Controller controller; controller.reset(cfg,state,goal(2),speed,goal.head<2>().transpose(),context.target_class==0);
+    const bool staged_place=context.target_class==1 && context.tray_target.valid &&
+        cfg.tray_place.enabled && cfg.tray_place.observe_at_B;
+    Controller controller; controller.reset(cfg,state,goal(2),speed,goal.head<2>().transpose(),
+        context.target_class==0,staged_place);
     Joints command=last_command, joint_velocity=(last_command-previous_command)/0.005;
     Vec3 reference=arm_tcp_from_joints(arm,command).head<3>().transpose();
     const Vec3 incoming_velocity=(reference-arm_tcp_from_joints(arm,previous_command).head<3>().transpose())/0.005;
     controller.feedback_reference(reference,incoming_velocity);
+    if(staged_place) {
+        controller.set_observation_z(reference.z());
+        task_event(hand,"place_B_observe","hold_height_align_XY_then_lower");
+    }
     { std::lock_guard<std::mutex> lock(slot.mutex); slot.context.descending=true; }
     double previous_time=state.time_s, last_log=0, fault_since=-1, fault_mark=-1;
     double mark_lead=0, mark_joint=0, mark_rot=0;
@@ -479,6 +486,8 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(controller.has_goal() && pair_too_close(hand,state,controller.goal_xy(),cfg.pair_clearance_m))
             controller.fail("dual_arm_clearance");
         Output output=controller.tick(state,dt);
+        if(staged_place && output.phase==Phase::Commit && previous_phase!=Phase::Commit)
+            task_event(hand,"place_XY_locked","lower_to_fixed_C_without_new_vision");
         if(output.phase==Phase::Commit || output.phase==Phase::Settling || output.phase==Phase::Done || output.phase==Phase::Failed) {
             std::lock_guard<std::mutex> lock(slot.mutex); slot.context.vision_required=false;
         }

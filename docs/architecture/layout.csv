@@ -1,0 +1,66 @@
+directory,migration_step,responsibility
+apps,2,应用入口，仅组装组件和选择运行模式
+include/t170/app,2,应用服务与生命周期接口
+include/t170/common,1,坐标/时间/结果等公共基础类型与日志路径
+include/t170/config,2,部署配置、类型和快照接口
+include/t170/vision,1,视觉输入输出与感知接口
+include/t170/control,1,纯控制器与约束接口
+include/t170/motion,2,规划、播放、反馈和伺服执行接口
+include/t170/hardware,1,设备适配与设备状态接口
+include/t170/skills,2,料盘及传送带抓放技能接口
+include/t170/tasks,2,上料、转运、下料和充电任务接口
+include/t170/integration,2,外部调度通信接口
+src/app,2,命令服务与硬件/线程生命周期
+src/common,1,通用路径、日志、坐标和时间工具
+src/config,2,配置合并、校验、标定索引和不可变快照
+src/vision/camera,1,RealSense RGB/深度取帧、时间戳和相机接口
+src/vision/detection,1,检测模型注册与检测结果适配
+src/vision/geometry,1,码、平面、孔网、邻孔和坐标变换
+src/vision/tracking,1,手相机目标关联与观测发布
+src/vision/bridge,1,C++ 嵌入 Python 及算法适配
+src/control,1,像素映射、PD、预测制动和下降协调等纯控制
+src/motion,2,规划、关节播放、反馈、局部求解和保位交接
+src/hardware,1,手臂、夹爪、头、腰、底盘和设备总线适配
+src/skills/common,2,共用接近/抓放/撤离动作编排
+src/skills/tray,2,料盘选孔、行列规则和抓放技能
+src/skills/conveyor,2,传送带计数、抓取窗口和抓放技能
+src/tasks,2,任务顺序、持件状态、恢复与完成语义
+src/integration/dispatch,2,调度协议、申请/上报与连接生命周期
+python/t170_common,1,Python 工具公共路径与基础支持
+python/t170_vision/detection,1,YOLO 引擎、检测结果和位姿估计
+python/t170_vision/geometry,1,料盘/传送带/单码定位与多帧融合
+python/t170_vision/calibration,1,标定变换的计算与读取
+python/t170_vision/visualization,1,视觉调试绘图
+config/defaults,2,算法、动作和运行策略默认参数
+config/robot_models/t170,2,同型号运动学、工具与硬件规格
+config/sites,2,每个工厂/工位的几何、站点和流程参数
+config/robots/TH-T170C-0124,2,当前实际机器人身份、相机和设备绑定
+config/calibration/TH-T170C-0124,2,当前机器人头/手眼/TCP 等经核实的标定
+config/deployments,2,显式选择型号、工位、机器人和标定版本
+config/schemas,2,配置格式、字段归属、版本和校验规则
+assets/models,3,模型清单、版本/哈希和受控分发资源
+assets/audio,3,运行时提示音
+libs/lower_body,1,现有 LowerBody 独立运动学库
+third_party/eigen,3,现有 Eigen 固定版本
+third_party/ti5_arm,3,随项目交付的手臂求解器与接口
+third_party/ti5_device,3,设备 SDK 接口/版本记录，安装依赖仍明确区分
+third_party/ti5_seer,3,仙工 SDK 接口及依赖记录
+third_party/unitree,3,宇树电机 SDK 及相关原有头文件
+third_party/libserialport,3,现有串口依赖
+tests/unit,1,不连接硬件的算法与配置回归
+tests/integration,2,模块边界、配置、命令和动作交接集成检查
+tests/fixtures,2,精选小型离线输入与预期结果
+tools/diagnostics,3,显式启用的真实硬件诊断工具
+tools/calibration,3,标定导入、检查和辅助工具
+tools/analysis,3,日志分析和验收统计工具
+deploy/scripts,3,统一运行、停止及部署辅助入口
+deploy/systemd,3,正式服务模板及启动策略
+packaging/cpack,3,CMake 安装/归档包/DEB 打包规则
+packaging/deb,3,DEB 元数据及配置升级策略
+docs/architecture,0,目标目录、模块迁移表和三步验收计划
+docs/deployment,3,环境准备、安装、配置、升级和回滚说明
+docs/validation,3,版本验收范围与现场记录索引
+docs/archive,3,保留的历史设计、问题和过期说明
+tools/dev,3,不参与运行交付的开发辅助
+tools/web_debug,3,网页调试服务及静态资源
+.github/workflows,3,离线回归及匹配 SDK 的构建工作流

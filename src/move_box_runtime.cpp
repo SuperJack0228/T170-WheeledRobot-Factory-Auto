@@ -1,3 +1,4 @@
+#include "t170/vision/tray_localizer.h"
 #include "move_box_runtime.h"
 #include "servo/runtime.h"
 
@@ -24,10 +25,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include "hand_shadow.h"
+#include "t170/vision/wrist_observer.h"
 #include "head.h"
-#include "head_cam2robot.h"
-#include "Ti5_socketcan.h"
+#include "t170/vision/head_transform.h"
+#include "t170/hardware/device_bus.h"
 
 namespace move_box
 {
@@ -3479,7 +3480,14 @@ namespace move_box
             }
             auto prepare=[&](int hand,int row,int col) {
                 wrist_servo::TrayTarget target;
-                if(!wrist_servo::make_tray_target(st.tray_anchors,board,row,col,target,error)) return false;
+                auto fixed_plane_anchors=st.tray_anchors;
+                for(auto &anchor:fixed_plane_anchors) anchor.base.z()=tray_z_ref_now();
+                if(!wrist_servo::make_tray_target(fixed_plane_anchors,board,row,col,target,error)) return false;
+                // The factory tray is horizontal. Keep head XY/yaw for identity,
+                // but use the calibrated station plane instead of head vision Z/tilt.
+                const double yaw=std::atan2(target.base_from_tray(1,0),target.base_from_tray(0,0));
+                target.base_from_tray.block<3,3>(0,0)=Eigen::AngleAxisd(yaw,Eigen::Vector3d::UnitZ()).toRotationMatrix();
+                target.base_from_tray(2,3)=tray_z_ref_now();
                 const Eigen::Matrix3d r=rot_y(g_waist_pitch_rad)*rot_x(g_waist_roll_rad)*rot_z(g_waist_yaw_rad);
                 Eigen::Matrix4d current_from_upright=Eigen::Matrix4d::Identity();
                 current_from_upright.block<3,3>(0,0)=r.transpose();
@@ -3489,7 +3497,8 @@ namespace move_box
                 target.base_from_tray=current_from_upright*target.base_from_tray;
                 wrist_servo::stage_tray_target(hand,target);
                 std::cout << "[tray_place] hand=" << hand << " fixed row=" << row << " col=" << col
-                          << " RGB neighbor/marker tracking; no nearest-box fallback\n";
+                          << " RGB affine-neighbor B-observation; fixed plane_z="
+                          <<target.base_from_tray(2,3)<<" no head depth/normal\n";
                 return true;
             };
             if((hs.move_r && !prepare(1,st.row_aruco_r,st.col_aruco_r)) ||

@@ -1,8 +1,8 @@
 #include "move_box_runtime.h"
 #include "function.h"
 #include "servo/runtime.h"
-#include "head_control.h"
-#include "Ti5_socketcan.h"
+#include "t170/hardware/head.h"
+#include "t170/hardware/device_bus.h"
 
 #include <algorithm>
 #include <iomanip>
@@ -415,9 +415,8 @@ GraspToStandbyResult run_grasp_to_standby(
         // Both arms may stop here. Plan the turn/return only after the lift and waist ended.
         auto back = [&](bool right,int &rc) {
             try {
-                const auto &poses=place?g_move_cfg.conveyor2.tcp:g_move_cfg.conveyor.tcp;
-                rc=arm_return_after_lift(right?arm_r:arm_l,right?poses.right:poses.left,
-                    place?g_move_cfg.tray2_place.retract_return_vel_m_s:hg.return_vel_m_s);
+                const auto &motion=g_move_cfg.retract_motion;
+                rc=arm_return_after_lift(right?arm_r:arm_l,right?motion.ready_right:motion.ready_left);
             } catch(const std::exception &ex) {std::cerr<<"[retract] 返回异常: "<<ex.what()<<'\n';rc=-32;}
         };
         std::thread right_return;

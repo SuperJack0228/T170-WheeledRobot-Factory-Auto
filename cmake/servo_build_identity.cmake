@@ -7,6 +7,7 @@ execute_process(COMMAND git diff HEAD -- WORKING_DIRECTORY "${SOURCE_DIR}"
     OUTPUT_VARIABLE changes ERROR_QUIET)
 string(SHA256 diff_hash "${changes}\n${status}")
 file(GLOB_RECURSE inputs LIST_DIRECTORIES false
+    "${SOURCE_DIR}/libs/*.cpp" "${SOURCE_DIR}/libs/*.h" "${SOURCE_DIR}/libs/CMakeLists.txt"
     "${SOURCE_DIR}/src/*.cpp" "${SOURCE_DIR}/include/*.h" "${SOURCE_DIR}/include/*.hpp"
     "${SOURCE_DIR}/apps/*.cpp" "${SOURCE_DIR}/tools/*.cpp"
     "${SOURCE_DIR}/python/*.py" "${SOURCE_DIR}/tools/*.py" "${SOURCE_DIR}/web_debug/*.py"

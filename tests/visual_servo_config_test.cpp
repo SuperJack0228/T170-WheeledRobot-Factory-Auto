@@ -1,4 +1,4 @@
-#include "servo/visual_servo.h"
+#include "t170/control/visual_servo.h"
 #include "move_box_config.h"
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
@@ -19,8 +19,28 @@ int main(int argc,char **argv) {
         require(full.head_grasp.retract_lift_vel_m_s==.4,"grasp lift configuration not loaded");
         require(full.tray2_place.retract_lift_vel_m_s==.4 && full.tray2_place.pre_open_settle_sec==0,
                 "tray placement motion configuration not loaded");
+        require(std::abs(full.retract_motion.ready_right(1)-root["retract_motion"]["ready_right_deg"][1].as<double>()*M_PI/180)<1e-9,
+                "fixed ready joints not converted from degrees");
+        require(full.retract_motion.max_joint_velocity_rad_s==root["retract_motion"]["max_joint_velocity_rad_s"].as<double>() &&
+                full.retract_motion.stable_samples==root["retract_motion"]["stable_samples"].as<int>(),
+                "joint motion limits not loaded");
         const auto retract_config=(std::filesystem::temp_directory_path()/"t170_retract_config_test.yaml").string();
         auto changed=YAML::Clone(root);
+        changed["retract_motion"]["ready_left_deg"]=std::vector<double>{1,2,3};
+        { std::ofstream out(retract_config);out<<changed; }
+        require(!load_move_box_config(retract_config,full,config_error),"short joint target accepted");
+        changed=YAML::Clone(root);
+        changed["retract_motion"]["max_joint_jerk_rad_s3"]=0;
+        { std::ofstream out(retract_config);out<<changed; }
+        require(!load_move_box_config(retract_config,full,config_error),"zero jerk accepted");
+        changed=YAML::Clone(root);
+        changed["retract_motion"]["ready_right_deg"][0]=12.5;
+        changed["retract_motion"]["max_joint_velocity_rad_s"]=.7;
+        { std::ofstream out(retract_config);out<<changed; }
+        require(load_move_box_config(retract_config,full,config_error),"valid retract override rejected");
+        require(std::abs(full.retract_motion.ready_right(0)-12.5*M_PI/180)<1e-9 &&
+                full.retract_motion.max_joint_velocity_rad_s==.7,"retract override ignored");
+        changed=YAML::Clone(root);
         changed["head_grasp"]["retract_lift_vel_m_s"]=.31;
         changed["head_grasp"]["retract_connector_speed_rad_s"]=.9;
         changed["head_grasp"]["retract_connector_accel_rad_s2"]=4.2;
@@ -69,8 +89,9 @@ int main(int argc,char **argv) {
         wrist_servo::load_config(root["visual_servo"],c);
         require(c.tray_place.enabled && c.tray_place.min_neighbors==2 && c.tray_place.xy_only,
                 "tray place open-loop for hand photo run, neighbor params loaded");
-        require(c.belt_grasp_enabled && c.belt_place_enabled,
-                "belt grasp/place hand-camera servo enabled");
+        require(c.belt_grasp_enabled==root["visual_servo"]["belt_grasp_enabled"].as<bool>() &&
+                c.belt_place_enabled==root["visual_servo"]["belt_place_enabled"].as<bool>(),
+                "belt grasp/place servo switches differ from YAML");
         require(c.period_s==.01 && c.stable_frames>=2,"actual controller parameters loaded");
         require(c.profiles[0].reference_px.x()==598 && c.profiles[1].reference_px.x()==702,"per-hand profiles loaded");
         const auto snapshot=(std::filesystem::temp_directory_path()/"t170_servo_config_roundtrip.yaml").string();
@@ -81,12 +102,24 @@ int main(int argc,char **argv) {
         require(replay.tray_place.enabled==c.tray_place.enabled &&
                 replay.tray_place.board_config==c.tray_place.board_config &&
                 replay.tray_place.association_gate_m==c.tray_place.association_gate_m,"tray vision snapshot roundtrip");
+        require(replay.tray_place.affine_enabled==c.tray_place.affine_enabled &&
+                replay.tray_place.observe_at_B==c.tray_place.observe_at_B &&
+                replay.tray_place.observe_timeout_s==c.tray_place.observe_timeout_s &&
+                replay.tray_place.affine_min_scale==c.tray_place.affine_min_scale &&
+                replay.tray_place.affine_max_scale==c.tray_place.affine_max_scale &&
+                replay.tray_place.affine_max_rotation_rad==c.tray_place.affine_max_rotation_rad &&
+                replay.tray_place.max_extrapolation_pitches==c.tray_place.max_extrapolation_pitches,
+                "B-observation / affine parameters lost in snapshot");
         require(replay.place_lock_height_m==c.place_lock_height_m &&
                 replay.place_visibility_floor_m==c.place_visibility_floor_m &&
                 replay.place_xy_accept_m==c.place_xy_accept_m && replay.place_lock_frames==c.place_lock_frames &&
                 replay.tray_place.min_coverage_bins==c.tray_place.min_coverage_bins &&
                 replay.grasp_z_feedback_tolerance_m==c.grasp_z_feedback_tolerance_m,
                 "placement visibility and feedback tolerances lost in snapshot");
+        auto invalid_affine=c;invalid_affine.tray_place.affine_min_scale=1.1;
+        require(!wrist_servo::validate_config(invalid_affine,error),"invalid affine scale accepted");
+        auto invalid_observe=c;invalid_observe.tray_place.observe_timeout_s=c.task_timeout_s;
+        require(!wrist_servo::validate_config(invalid_observe,error),"unbounded B wait accepted");
         require(replay.kp==c.kp && replay.kd==c.kd && replay.commit_height_m==c.commit_height_m &&
             replay.grasp_xy_accept_m==c.grasp_xy_accept_m && replay.grasp_height_margin_m==c.grasp_height_margin_m &&
             replay.hard_reference_lead_m==c.hard_reference_lead_m &&

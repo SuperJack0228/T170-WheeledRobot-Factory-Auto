@@ -3,7 +3,7 @@
 #include <Eigen/Dense>
 #include <string>
 #include <vector>
-#include "servo/visual_servo.h"
+#include "t170/control/visual_servo.h"
 
 struct ArmPosePairConfig
 {
@@ -285,10 +285,17 @@ struct ConveyorStationConfig
     bool grasp_yolo_enable = false;
     /** @deprecated 配合 grasp_yolo_enable。 */
     int grasp_yolo_class_id = -1;
-    /** true：码原点 Z 不用相机，改用 fixed_origin_z_m。XY 和板姿态仍用二维码。 */
+    /** true：码原点 Z 不用相机，改用随腰高变化的固定平面。XY 和板姿态仍用二维码。 */
     bool use_fixed_origin_z = false;
-    /** 手臂基座系码平面高度（米，向上为正）。腰 0.63m 时传送带在基座下方 0.29m。 */
+    /** 标定时的手臂基座系码平面高度（米，向上为正）。对应下面的参考腰高。 */
     double fixed_origin_z_m = -0.29;
+    /** fixed_origin_z_m 对应的腰高（米）。腰每升高 1cm，实际平面 Z 降低 1cm。 */
+    double fixed_origin_ref_waist_z_m = 0.63;
+    /** 当前 waist_z 下的码平面 Z。腰升高时手在基座里更低，空间高度不变。 */
+    double fixed_plane_z() const
+    {
+        return fixed_origin_z_m - (waist_z - fixed_origin_ref_waist_z_m);
+    }
     /** 底盘到站后，放置拍照前再等这么久（秒）。从到站时刻起算，路上已耗掉的时间会扣掉。 */
     double photo_after_arrival_sec = 3.0;
     /** 腰头到位后，抓取拍照前再等这么久（秒）。 */
@@ -350,6 +357,26 @@ struct HeadMotorConfig
     double speed_deg_s = 25.0;
 };
 
+/** 固定收手关节为电机角，内部 rad；YAML ready_*_deg 使用度。 */
+struct RetractMotionConfig
+{
+    Eigen::Matrix<double,1,7> ready_right, ready_left;
+    double max_joint_velocity_rad_s = 0.9;
+    double max_joint_acceleration_rad_s2 = 2.5;
+    double max_joint_jerk_rad_s3 = 20.0;
+    double arrival_joint_tolerance_rad = 0.12;
+    double settle_timeout_s = 4.0;
+    double feedback_timeout_s = 0.5;
+    int stable_samples = 3;
+    RetractMotionConfig() {
+        // 实测来源：servo_1793782920594052_120317.csv，左右手 begin。
+        ready_right << 35.697327,22.876282,-30.734253,82.654266,38.968506,-38.936920,47.971802;
+        ready_left << -32.018280,-25.883789,23.377533,-82.766876,-32.677460,41.103973,-51.726379;
+        ready_right *= 0.017453292519943295;
+        ready_left *= 0.017453292519943295;
+    }
+};
+
 struct MoveBoxConfig
 {
     ArmPosePairConfig standby;
@@ -357,6 +384,7 @@ struct MoveBoxConfig
     TrayHeightConfig tray;
     HeadMotorConfig head;
     HeadGraspConfig head_grasp;
+    RetractMotionConfig retract_motion;
     GraspValidConfig grasp_valid;
     GraspZoneConfig grasp_zone;
     WaistConfig waist;

@@ -1,7 +1,7 @@
 #include "move_box_runtime.h"
 #include "servo/runtime.h"
-#include "hand_shadow.h"
-#include "Ti5_socketcan.h"
+#include "t170/vision/wrist_observer.h"
+#include "t170/hardware/device_bus.h"
 #include <iostream>
 #include <thread>
 

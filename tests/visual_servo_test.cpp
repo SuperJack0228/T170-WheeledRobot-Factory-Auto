@@ -1,5 +1,6 @@
-#include "servo/visual_servo.h"
-#include "servo/trace.h"
+#include "t170/motion/pose_solver.h"
+#include "t170/control/visual_servo.h"
+#include "t170/common/servo_trace.h"
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -268,6 +269,47 @@ void test_position_following_and_grasp_tolerance() {
     }
 }
 
+void test_place_observe_at_B() {
+    Config cfg;Controller controller;State s=state_at(1,Vec3(0,0,.14));
+    controller.reset(cfg,s,0,.10,Vec2::Zero(),false,true);
+    controller.set_observation_z(.14);
+    // Longer than the old 1.5s no-image timeout: no blind Z progress at B.
+    for(int i=0;i<180;++i) {
+        s.time_s+=.01;auto out=controller.tick(s,.01);
+        check(out.phase!=Phase::Failed,"B observation inherited descent loss timeout");
+        near(out.reference.z(),.14,1e-12,"place descended before any valid observation");
+    }
+    const Vec2 target(.009,-.006);bool locked=false;
+    std::string reason;
+    for(int i=0;i<400;++i) {
+        if(i%10==0) {
+            auto o=observation_at(s.time_s,i/10+1);o.virtual_target=true;
+            Mapping map;map.valid=true;map.remaining_m=target-s.position.head<2>();
+            check(controller.observe(o,s,map,s.time_s,reason),"B virtual hole rejected");
+        }
+        const auto out=controller.tick(s,.01);
+        if(out.place_locked) {locked=true;break;}
+        near(out.reference.z(),.14,1e-12,"place lowered while XY still aligning");
+        s.position=out.reference;s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+        s.time_s+=.01;
+    }
+    check(locked,"place did not lock at B above old 65mm lock height");
+    bool done=false;
+    for(int i=0;i<700;++i) {
+        s.time_s+=.01;const auto out=controller.tick(s,.01);
+        check(out.phase!=Phase::Failed,"B-locked place required images during final occlusion");
+        check(out.reference.z()>=cfg.place_height_margin_m-1e-9,"B-locked place passed fixed C");
+        if(out.phase==Phase::Done) {done=true;break;}
+        s.position=out.reference;s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+    }
+    check(done,"B-locked place failed to complete blind descent");
+    Controller missing;s=state_at(1,Vec3(0,0,.14));cfg.tray_place.observe_timeout_s=.7;
+    missing.reset(cfg,s,0,.1,Vec2::Zero(),false,true);
+    for(int i=0;i<90;++i) {s.time_s+=.01;auto out=missing.tick(s,.01);
+        near(out.reference.z(),.14,1e-12,"missing features caused blind lowering");}
+    check(missing.phase()==Phase::Failed,"B observation never timed out");
+}
+
 void test_place_visible_lock_and_occlusion() {
     Config cfg;Controller c;State s=state_at(1,Vec3(0,0,.060));
     c.reset(cfg,s,0,.10,Vec2::Zero(),false);
@@ -309,6 +351,7 @@ int main() {
         test_commit_evidence(); test_local_pose_solver();
         test_delayed_dual_arm_simulation(); test_trace_and_config();
         test_position_following_and_grasp_tolerance();
+        test_place_observe_at_B();
         test_place_visible_lock_and_occlusion();
         std::cout << "visual_servo: all regression checks passed (model tests, not robot validation)\n";
         return 0;
