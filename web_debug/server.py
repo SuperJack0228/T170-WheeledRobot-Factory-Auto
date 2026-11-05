@@ -35,7 +35,7 @@ import yaml
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
 WEB_API_VERSION = 4
-UI_VERSION = "1.1.13"
+UI_VERSION = "1.1.14"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from t170_common.paths import load_paths
@@ -62,7 +62,7 @@ CONFIG_NOTES = {
 MANUAL_TASKS = {
     "load": ["vision_grasp", "belt"],
     "transfer": ["belt_grasp", "belt2"],
-    "unload": ["belt2_grasp", "tray2"],
+    "unload": ["belt2_grasp", "tray2_auto"],
 }
 MANUAL_LABELS = {"load": "上料", "transfer": "转运", "unload": "下料"}
 
@@ -136,7 +136,8 @@ FIELD_GROUPS = {
             ("conveyor.grasp_approach_vel_m_s", "抓取伸手速度", "米/秒"),
             ("conveyor.grasp_retract_vel_m_s", "抓取收手速度", "米/秒"),
             ("conveyor.grasp_ready_close_ratio", "下去前夹爪合上的程度，0 全开 1 全合", ""),
-            ("conveyor.fixed_origin_z_m", "码平面在基座下的固定高度", "米"),
+            ("conveyor.fixed_origin_z_m", "腰在标定高度时，码平面在基座下的高度。实际高度随腰高变化", "米"),
+            ("conveyor.fixed_origin_ref_waist_z_m", "上面这个高度对应的腰高，一般保持 0.63", "米"),
             ("conveyor.photo_after_arrival_sec", "到站后放置拍照前再等", "秒"),
             ("conveyor.grasp_photo_settle_sec", "腰头到位后抓取拍照前再等", "秒"),
             ("conveyor.offset.right.x", "右手放置前后", "米"),
@@ -162,7 +163,8 @@ FIELD_GROUPS = {
             ("conveyor2.place_retract_vel_m_s", "放置收手速度", "米/秒"),
             ("conveyor2.grasp_approach_vel_m_s", "抓取伸手速度", "米/秒"),
             ("conveyor2.grasp_retract_vel_m_s", "抓取收手速度", "米/秒"),
-            ("conveyor2.fixed_origin_z_m", "码平面固定高度，要勾上使用才生效", "米"),
+            ("conveyor2.fixed_origin_z_m", "腰在标定高度时，码平面在基座下的高度。实际高度随腰高变化", "米"),
+            ("conveyor2.fixed_origin_ref_waist_z_m", "上面这个高度对应的腰高，一般保持 0.63", "米"),
             ("conveyor2.photo_after_arrival_sec", "到站后放置拍照前再等", "秒"),
             ("conveyor2.grasp_photo_settle_sec", "腰头到位后抓取拍照前再等", "秒"),
             ("conveyor2.offset.right.x", "右手放置前后", "米"),
@@ -408,6 +410,7 @@ ALLOWED_COMMANDS = {
     "tray2ready3",
     "tray2ready6",
     "tray2",
+    "tray2_auto",
     "tray2_place",
     "tray2_precision",
     "tray2test",

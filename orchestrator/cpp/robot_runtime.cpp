@@ -223,17 +223,19 @@ void apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfi
     if (!c.use_fixed_origin_z || !det.in_robot || !std::isfinite(det.origin_z))
         return;
     const double cam_z = det.origin_z;
-    const double dz = c.fixed_origin_z_m - cam_z;
-    det.origin_z = c.fixed_origin_z_m;
+    const double plane_z = c.fixed_plane_z();
+    const double dz = plane_z - cam_z;
+    det.origin_z = plane_z;
     if (det.have_grasp_l && std::isfinite(det.grasp_lz))
         det.grasp_lz += dz;
     if (det.have_grasp_r && std::isfinite(det.grasp_rz))
         det.grasp_rz += dz;
     std::cout << std::fixed << std::setprecision(4)
               << "[orch] " << tag << " 码平面 Z 不用相机：相机=" << cam_z
-              << "m 固定=" << c.fixed_origin_z_m
-              << "m（腰高 " << c.waist_z << "m，基座到传送带 "
-              << std::abs(c.fixed_origin_z_m) << "m）ΔZ=" << dz << "m\n";
+              << "m 固定=" << plane_z
+              << "m（标定腰 " << c.fixed_origin_ref_waist_z_m
+              << "m 时 " << c.fixed_origin_z_m
+              << "m，当前腰 " << c.waist_z << "m）ΔZ=" << dz << "m\n";
 }
 
 int conveyor_waist_and_head(const ConveyorStationConfig &c, const char *tag)

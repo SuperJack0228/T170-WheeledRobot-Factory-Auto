@@ -6,12 +6,11 @@ standby:
   right: [0.45, -0.30, -0.25, 0, 45, 40]
   left:  [0.45,  0.30, -0.25, 0, 45, -40]
 
-# 合爪抬升/返回共用。固定电机关节准备位，来源为11/04日志 begin 实测。
-# 这是手臂基座上的通用中转构型；不声称等于 conveyor.tcp，下一动作从反馈重新规划。
-# 持件返回路径待真机验证；单机零位/夹具改变后需重新验证示教角。
+# 合爪后第二阶段收回的固定电机角。2026-11-05 传送带准备位实测（id 16–22 右，23–29 左）。
+# 度，加载时转为弧度。不是 conveyor.tcp 的在线逆解。
 retract_motion:
-  ready_right_deg: [35.697327, 22.876282, -30.734253, 82.654266, 38.968506, -38.936920, 47.971802]
-  ready_left_deg: [-32.018280, -25.883789, 23.377533, -82.766876, -32.677460, 41.103973, -51.726379]
+  ready_right_deg: [52.843897, 18.116925, -48.351908, 101.694279, 74.685049, -52.637633, 8.101623]
+  ready_left_deg: [-45.257936, -20.867123, 37.820944, -101.671361, -69.992524, 56.470720, -10.164271]
   max_joint_velocity_rad_s: 0.9
   max_joint_acceleration_rad_s2: 2.5
   max_joint_jerk_rad_s3: 20.0
@@ -236,7 +235,7 @@ grasp_zone:
 waist:
   # LowerBody：零位站立 TCP (0,0,0.67)，姿态单位阵。
   # home z=0.55：相对直立降约 12cm。far_row 前伸时注意可达。
-  layer3_home: [0, 0, 0.60, 0, 0, 0]
+  layer3_home: [0, 0, 0.65, 0, 0, 0]
   stagger_step_x: 0.0556
   stagger_max_steps: 0  # 0=禁用抓取过程中的腰部前进
   move_settle_sec: 0.5
@@ -292,7 +291,7 @@ cameras:
 # 第一传送带站是 AP6；第二传送带站是 AP5，参数在 conveyor2，调试用 belt2_ready / belt2_place / belt2_grasp。
 conveyor:
   waist_x: 0.15
-  waist_z: 0.63
+  waist_z: 0.65
   head_yaw_deg: 0
   head_pitch_deg: 38
   head_roll_deg: 0
@@ -349,11 +348,11 @@ conveyor:
   # 旧：全图按类别门禁（仅当 yolo_roi_enable=false 时生效）
   grasp_yolo_enable: false
   grasp_yolo_class_id: 0
-  # 腰高 waist_z=0.63m 时，手臂基座到传送带（码平面）29cm。基座 Z 向上，传送带在下方，所以是 -0.29。
+  # 码平面 Z 跟腰高绑定。腰在 0.63m 时基座下 0.29m；腰每升高 1cm，这个 Z 降低 1cm。
   # 只替换码原点的 Z。XY、板朝向仍用二维码；放置/抓取 offset 和 hover 仍叠在这个高度上。
-  # 第二传送带先保持相机高度，方便和这条固定高度对比。
   use_fixed_origin_z: true
   fixed_origin_z_m: -0.29
+  fixed_origin_ref_waist_z_m: 0.63
   # 底盘到站后，放置拍照前再等这么久（秒）。从到站起算，路上已耗掉的时间会扣掉。
   photo_after_arrival_sec: 2.0
   # 腰头到位后，抓取拍照前再等这么久（秒）。
@@ -365,7 +364,7 @@ conveyor:
 # belt2_grasp：去站 → 准备 → 抓取（不转腰）→ 回 grasp_tcp。
 conveyor2:
   waist_x: 0.15
-  waist_z: 0.63
+  waist_z: 0.65
   head_yaw_deg: 0
   head_pitch_deg: 38
   head_roll_deg: 0
@@ -405,9 +404,10 @@ conveyor2:
   yolo_part_class_ids: [0, 2]   # 立件和倒件都算零件；1=空孔不计入
   grasp_yolo_enable: false
   grasp_yolo_class_id: 0
-  # 先保持相机读出的码平面高度，和第一传送带的固定 -0.29m 对比。
-  use_fixed_origin_z: false
+  # 与第一传送带同一套：腰 0.63m 时基座下 0.29m，腰升高则手臂目标等量降低。
+  use_fixed_origin_z: true
   fixed_origin_z_m: -0.29
+  fixed_origin_ref_waist_z_m: 0.63
   photo_after_arrival_sec: 2.0
   grasp_photo_settle_sec: 1.0
 
@@ -444,8 +444,8 @@ gripper_check:
 # V1 双手视觉伺服。单位 m / s / rad；像素坐标均为原图（左图转180度后）。
 # geometry 是基于现有手眼/平面的估计，不是实测标定。先记录双手日志，再填写 table。
 visual_servo:
-  # 传送带放置手相机闭环。false 时走码+offset 开环。
-  belt_place_enabled: true
+  # 传送带放置不进手相机。false：码+offset 开环下降后松爪。
+  belt_place_enabled: false
   # 传送带抓取手相机闭环。false 时走码+offset 开环。
   belt_grasp_enabled: true
   period_s: 0.01
