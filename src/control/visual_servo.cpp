@@ -14,6 +14,13 @@ const ImageProfile &profile_for(const Config &c, int hand, int cls) {
 
 bool validate_config(const Config &c, std::string &error) {
     const auto &p=c.tray_place;
+    if(!std::isfinite(p.observe_timeout_s) || p.observe_timeout_s<=0 || p.observe_timeout_s>=c.task_timeout_s ||
+       !std::isfinite(p.affine_min_scale) || !std::isfinite(p.affine_max_scale) ||
+       p.affine_min_scale<.4 || p.affine_max_scale>2 || p.affine_min_scale>=1 || p.affine_max_scale<=1 ||
+       !std::isfinite(p.affine_max_rotation_rad) || p.affine_max_rotation_rad<=0 || p.affine_max_rotation_rad>.8 ||
+       !std::isfinite(p.max_extrapolation_pitches) || p.max_extrapolation_pitches<=0 || p.max_extrapolation_pitches>4) {
+        error="invalid tray observation/affine configuration";return false;
+    }
     if(p.board_config.empty() || !std::isfinite(p.association_gate_m) || p.association_gate_m<=0 ||
        !std::isfinite(p.reprojection_gate_px) || p.reprojection_gate_px<=0 ||
        !std::isfinite(p.circle_residual_m) || p.circle_residual_m<=0 ||
@@ -211,7 +218,7 @@ double braking_speed(double d, double a, double delay) {
 }
 
 void Controller::reset(const Config &c, const State &s, double z, double speed,
-                       const Vec2 &nominal_xy, bool grasp) {
+                       const Vec2 &nominal_xy, bool grasp, bool observe_at_B) {
     cfg_ = c; initial_xy_ = nominal_xy; goal_xy_ = nominal_xy;
     reference_=s.position; grasp_=grasp; relaxed_grasp_=false; continue_without_vision_=false;
     acquire_floor_z_=std::max(z+c.commit_height_m,s.position.z()-c.acquire_descent_m);
@@ -219,7 +226,10 @@ void Controller::reset(const Config &c, const State &s, double z, double speed,
     velocity_ = s.velocity.head<2>(); vz_ = s.velocity.z();
     start_time_ = s.time_s; final_z_ = z; descent_speed_ = speed;
     have_goal_ = false; last_capture_ = -1; last_frame_ = 0; confirmations_ = 0;
-    stable_goal_frames_=0; virtual_place_=false;
+    stable_goal_frames_=0;
+    staged_place_=!grasp && observe_at_B;
+    observe_z_=s.position.z();
+    virtual_place_=staged_place_;
     commit_start_=-1;
     phase_ = Phase::Acquiring; failure_.clear();
 }
@@ -227,6 +237,7 @@ void Controller::reset(const Config &c, const State &s, double z, double speed,
 bool Controller::observe(const PixelObservation &o, const State &s, const Mapping &m,
                          double now, std::string &reason) {
     if (phase_ == Phase::Commit || phase_ == Phase::Settling || phase_ == Phase::Done || phase_ == Phase::Failed) { reason = "session_not_accepting"; return false; }
+    if(staged_place_ && !o.virtual_target) {reason="place_requires_neighbor_target";return false;}
     if (!m.valid) { reason = m.reason; return false; }
     if (o.frame <= last_frame_ || o.capture_s <= last_capture_) { reason = "duplicate_or_out_of_order"; return false; }
     if (!std::isfinite(o.capture_s) || !std::isfinite(o.clock_uncertainty_s) ||
@@ -273,8 +284,11 @@ Output Controller::tick(const State &s, double dt) {
     if(s.time_s-start_time_>cfg_.task_timeout_s) fail("task_timeout");
     const bool frozen=phase_==Phase::Commit || phase_==Phase::Settling;
     if(frozen && s.time_s-commit_start_>cfg_.commit_timeout_s) fail("commit_timeout");
+    const double vision_budget=staged_place_?cfg_.tray_place.observe_timeout_s:cfg_.loss_timeout_s;
+    if(staged_place_ && !frozen && s.time_s-start_time_>cfg_.tray_place.observe_timeout_s)
+        fail("place_B_alignment_timeout");
     if(!frozen && phase_!=Phase::Done && phase_!=Phase::Failed &&
-       s.time_s-(have_goal_?last_capture_:start_time_)>cfg_.loss_timeout_s)
+       s.time_s-(have_goal_?last_capture_:start_time_)>vision_budget)
         fail(have_goal_?"target_lost_timeout":"no_valid_observation_timeout");
     // The nominal visual feature plane remains C. This is only a motion clearance.
     const double stop_z=final_z_+(grasp_?cfg_.grasp_height_margin_m:(virtual_place_?cfg_.place_height_margin_m:0.0));
@@ -290,7 +304,8 @@ Output Controller::tick(const State &s, double dt) {
     Vec2 target_v=Vec2::Zero(); double target_z=0;
     const double alignment_floor=virtual_place_?cfg_.place_visibility_floor_m:cfg_.commit_height_m;
     // Never command an upward jump if acquisition starts below this guard.
-    double floor_z=frozen?stop_z:(have_goal_?std::min(reference_.z(),final_z_+alignment_floor):acquire_floor_z_);
+    double floor_z=frozen?stop_z:(staged_place_?observe_z_:
+        (have_goal_?std::min(reference_.z(),final_z_+alignment_floor):acquire_floor_z_));
     if(phase_!=Phase::Failed && phase_!=Phase::Done) {
         if(s.position.z()<final_z_-below_tolerance) fail("z_below_nominal_C");
         if(phase_!=Phase::Failed) {
@@ -306,7 +321,9 @@ Output Controller::tick(const State &s, double dt) {
                 stable_goal_frames_>=cfg_.place_lock_frames && distance<=accept &&
                 s.velocity.head<2>().norm()<=finish_speed;
             const double lock_height=virtual_place_?cfg_.place_lock_height_m:cfg_.freeze_height_m;
-            if(!frozen && s.position.z()-final_z_<=lock_height &&
+            const bool height_ready=staged_place_ ? std::abs(s.position.z()-observe_z_)<=.010 :
+                s.position.z()-final_z_<=lock_height;
+            if(!frozen && height_ready &&
                (virtual_place_?usable_place:(precise || usable_grasp))) {
                 phase_=Phase::Commit; commit_start_=s.time_s; relaxed_grasp_=grasp_ && !precise;
                 floor_z=stop_z;
@@ -358,7 +375,7 @@ Output Controller::tick(const State &s, double dt) {
                 target_v*=governor;
                 target_z=-std::min(speed,braking_speed(travel,cfg_.max_z_accel_m_s2,cfg_.brake_delay_s))*governor;
                 out.descent_scale=descent_speed_>0?-target_z/descent_speed_:0;
-                if(!committed) phase_=have_goal_?Phase::Descending:Phase::Acquiring;
+                if(!committed) phase_=have_goal_?(staged_place_?Phase::Aligning:Phase::Descending):Phase::Acquiring;
             } else { phase_=Phase::Hold; out.reason="waiting_fresh_vision"; }
         }
     }
@@ -408,6 +425,8 @@ Output Controller::tick(const State &s, double dt) {
     out.stable_goal_frames=stable_goal_frames_;
     out.velocity_xy=velocity_; out.velocity_z=vz_; out.phase=phase_;
     if(phase_==Phase::Failed) out.reason=failure_;
+    else if(staged_place_ && phase_!=Phase::Commit && phase_!=Phase::Settling && phase_!=Phase::Done)
+        out.reason="place_B_observe_align_XY";
     else if(continue_without_vision_ && phase_==Phase::Commit) out.reason="close_enough_without_vision";
     else if(continue_without_vision_ && phase_==Phase::Settling) out.reason="holding_after_target_loss";
     else if(continue_without_vision_ && phase_==Phase::Done) out.reason="ready_after_target_loss";

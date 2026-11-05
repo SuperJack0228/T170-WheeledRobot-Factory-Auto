@@ -102,12 +102,24 @@ int main(int argc,char **argv) {
         require(replay.tray_place.enabled==c.tray_place.enabled &&
                 replay.tray_place.board_config==c.tray_place.board_config &&
                 replay.tray_place.association_gate_m==c.tray_place.association_gate_m,"tray vision snapshot roundtrip");
+        require(replay.tray_place.affine_enabled==c.tray_place.affine_enabled &&
+                replay.tray_place.observe_at_B==c.tray_place.observe_at_B &&
+                replay.tray_place.observe_timeout_s==c.tray_place.observe_timeout_s &&
+                replay.tray_place.affine_min_scale==c.tray_place.affine_min_scale &&
+                replay.tray_place.affine_max_scale==c.tray_place.affine_max_scale &&
+                replay.tray_place.affine_max_rotation_rad==c.tray_place.affine_max_rotation_rad &&
+                replay.tray_place.max_extrapolation_pitches==c.tray_place.max_extrapolation_pitches,
+                "B-observation / affine parameters lost in snapshot");
         require(replay.place_lock_height_m==c.place_lock_height_m &&
                 replay.place_visibility_floor_m==c.place_visibility_floor_m &&
                 replay.place_xy_accept_m==c.place_xy_accept_m && replay.place_lock_frames==c.place_lock_frames &&
                 replay.tray_place.min_coverage_bins==c.tray_place.min_coverage_bins &&
                 replay.grasp_z_feedback_tolerance_m==c.grasp_z_feedback_tolerance_m,
                 "placement visibility and feedback tolerances lost in snapshot");
+        auto invalid_affine=c;invalid_affine.tray_place.affine_min_scale=1.1;
+        require(!wrist_servo::validate_config(invalid_affine,error),"invalid affine scale accepted");
+        auto invalid_observe=c;invalid_observe.tray_place.observe_timeout_s=c.task_timeout_s;
+        require(!wrist_servo::validate_config(invalid_observe,error),"unbounded B wait accepted");
         require(replay.kp==c.kp && replay.kd==c.kd && replay.commit_height_m==c.commit_height_m &&
             replay.grasp_xy_accept_m==c.grasp_xy_accept_m && replay.grasp_height_margin_m==c.grasp_height_margin_m &&
             replay.hard_reference_lead_m==c.hard_reference_lead_m &&

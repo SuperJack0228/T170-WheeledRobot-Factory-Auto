@@ -41,7 +41,8 @@
     add_executable(tray_localizer_test tests/tray_localizer_test.cpp)
     target_link_libraries(tray_localizer_test PRIVATE t170::tray_geometry)
     add_test(NAME tray_localizer_test COMMAND tray_localizer_test
-        ${PROJECT_SOURCE_DIR}/board_yf100_aruco/config.yaml)
+        ${PROJECT_SOURCE_DIR}/board_yf100_aruco/config.yaml
+        ${PROJECT_SOURCE_DIR}/tests/fixtures/tray_neighbor_correspondences_20261105.json)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     add_test(NAME python_runtime_paths_test COMMAND ${Python3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/runtime_paths_test.py)

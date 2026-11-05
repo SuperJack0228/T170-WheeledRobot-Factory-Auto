@@ -239,7 +239,7 @@ int main() {
         ObservationContext ctx;observation_context(h,ctx);
         if(!ctx.tray_target.valid || ctx.tray_target.row!=3) return 1;
     }
-    std::atomic<bool> place_done{false};
+    std::atomic<bool> place_done{false},place_lowered_before_lock{false};
     std::thread place_vision([&] {
         struct Pending {int hand;double ready;PixelObservation observation;};
         std::deque<Pending> pending;std::uint64_t frame[2]{};int hand=0;double next=0;
@@ -252,6 +252,8 @@ int main() {
                     o.capture_s=ctx.latest.time_s;o.completed_s=now+.08;o.confidence=.95;
                     o.pixel=Vec2(640,360)-10000*(ctx.latest.position.head<2>()-targets[hand]);
                     o.fx=o.fy=800;o.cx=640;o.cy=360;o.virtual_target=true;
+                    if(std::abs(ctx.latest.position.z()-starts[hand](2))>.005)
+                        place_lowered_before_lock.store(true);
                     o.target_row=3;o.target_col=ctx.tray_target.col;o.neighbor_count=2;o.vision_source="neighbor_translation";
                     pending.push_back({hand,now+.08,o});
                 }
@@ -268,6 +270,7 @@ int main() {
         end_session(h,result[h]==0);
     });
     for(auto &thread:workers) thread.join();place_done.store(true);place_vision.join();
+    if(place_lowered_before_lock.load()) {std::cerr<<"runtime FAIL: tray lowered before B alignment lock\n";return 1;}
     if(result[0]!=0 || result[1]!=0 || !ready_for_gripper(left) || !ready_for_gripper(right)) {
         std::cerr<<"runtime FAIL: dual virtual-hole placement did not converge "<<result[0]<<','<<result[1]<<'\n';return 1;
     }

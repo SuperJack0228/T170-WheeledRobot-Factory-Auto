@@ -117,6 +117,7 @@ void observe(int hand) {
         }
         obs.pixel=located.pixel;
         obs.confidence=.98/(1+located.reprojection_px/cfg.tray_place.reprojection_gate_px);
+        wrist_servo::observation_event(hand,context.session,("tray_neighbor_model "+located.detail).c_str(),obs);
         if(!wrist_servo::submit_observation(hand,obs))
             wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
         if(save_raw.load()) {

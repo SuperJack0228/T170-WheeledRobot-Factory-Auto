@@ -524,19 +524,29 @@ visual_servo:
   tray_place:
     enabled: true
     board_config: board_yf100_aruco/config.yaml
-    association_gate_m: 0.025
+    # 邻孔搜索半径30mm，小于75mm孔距的一半；不是最终放置误差。
+    association_gate_m: 0.030
     reprojection_gate_px: 3.0
     circle_residual_m: 0.0015
     max_plane_update_m: 0.030
     min_neighbors: 2
     rectified_pixels_per_m: 2000
     xy_only: true
+    # 图像拟合可旋转/缩放/剪切；TCP仍只修XY。高度/法向采用工位参考。
+    affine_enabled: true
+    # 到原B点结束SDK进给，保持高度完成XY闭环后再下放；6秒是上限，不是固定等待。
+    observe_at_B: true
+    observe_timeout_s: 6.0
+    affine_min_scale: 0.65
+    affine_max_scale: 1.5
+    affine_max_rotation_rad: 0.35
+    max_extrapolation_pitches: 2.5
     orange_rim_enabled: true
     occupied_orange_rims: true
     rim_min_radius_ratio: 0.55
     rim_max_radius_ratio: 1.6
     min_coverage_bins: 12
-  # 在邻孔仍可见时确认并锁定虚拟孔心。未对准时停留在可见区继续修正。
+  # B观察模式下在B锁定；下面lock_height/visibility_floor只用于旧连续下降模式。
   place_xy_accept_m: 0.004
   place_lock_height_m: 0.065
   place_visibility_floor_m: 0.050

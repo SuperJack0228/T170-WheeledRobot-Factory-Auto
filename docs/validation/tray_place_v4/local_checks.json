@@ -1,0 +1,94 @@
+{
+  "date": "2026-11-05",
+  "baseline": "3731df2",
+  "environment": "macOS offline; no robot connected",
+  "ctest": {
+    "name": "(empty)",
+    "tests": "15",
+    "failures": "0",
+    "disabled": "0",
+    "skipped": "0",
+    "hostname": "",
+    "time": "17",
+    "timestamp": "2026-11-05T16:12:13"
+  },
+  "cases": [
+    {
+      "name": "common_paths_test",
+      "passed": true
+    },
+    {
+      "name": "visual_servo_test",
+      "passed": true
+    },
+    {
+      "name": "visual_servo_runtime_test",
+      "passed": true
+    },
+    {
+      "name": "retract_trajectory_test",
+      "passed": true
+    },
+    {
+      "name": "retreat_gate_test",
+      "passed": true
+    },
+    {
+      "name": "grasp_execution_test",
+      "passed": true
+    },
+    {
+      "name": "visual_servo_config_test",
+      "passed": true
+    },
+    {
+      "name": "tray_localizer_test",
+      "passed": true
+    },
+    {
+      "name": "python_runtime_paths_test",
+      "passed": true
+    },
+    {
+      "name": "lower_body_self_test",
+      "passed": true
+    },
+    {
+      "name": "public_module_headers_test",
+      "passed": true
+    },
+    {
+      "name": "model_registry_test",
+      "passed": true
+    },
+    {
+      "name": "python_vision_package_test",
+      "passed": true
+    },
+    {
+      "name": "module_boundaries_test",
+      "passed": true
+    },
+    {
+      "name": "joint_motion_test",
+      "passed": true
+    }
+  ],
+  "syntax_checked": [
+    "src/function.cpp",
+    "src/move_box_runtime.cpp",
+    "src/vision/tracking/wrist_observer.cpp"
+  ],
+  "candidate_replay": {
+    "total": 40,
+    "accepted": 35,
+    "identity_budget_rejected": 5,
+    "scope": "candidate pairs only; not RGB replay or physical success"
+  },
+  "pending": [
+    "Linux ARM64 SDK full compile/link",
+    "B view and specular hole-ring detection on real images",
+    "placement reference pixel and station plane validation",
+    "actual lower/open/lift/return chain"
+  ]
+}

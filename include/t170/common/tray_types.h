@@ -13,8 +13,14 @@ struct TrayPlaceVisionConfig {
     double max_plane_update_m=.030;
     int min_neighbors=2;
     double rectified_pixels_per_m=2000;
-    // Static tray / fixed wrist: retain the head plane Z and normal; estimate XY only.
-    bool xy_only=true;
+    // Physical station plane is fixed; image registration can still scale/rotate.
+    bool xy_only=true; // only TCP XY is corrected; image registration may scale/rotate
+    bool affine_enabled=true;
+    bool observe_at_B=true;
+    double observe_timeout_s=6.0;
+    double affine_min_scale=.65, affine_max_scale=1.5;
+    double affine_max_rotation_rad=.35;
+    double max_extrapolation_pitches=2.5;
     bool orange_rim_enabled=true;
     bool occupied_orange_rims=true; // use tray rim, never the raised metal edge of an occupied hole
     double rim_min_radius_ratio=.55, rim_max_radius_ratio=1.6;

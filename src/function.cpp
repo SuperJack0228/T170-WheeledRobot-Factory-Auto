@@ -3638,6 +3638,10 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
         int hand; bool success=false;
         ~Guard() { wrist_servo::end_session(hand,success); }
     } guard{hand};
+    wrist_servo::ObservationContext place_context;
+    wrist_servo::observation_context(hand,place_context);
+    const bool stop_at_B=target_class==1 && place_context.tray_target.valid &&
+        place_context.config.tray_place.enabled && place_context.config.tray_place.observe_at_B;
     wrist_servo::Joints previous=traj.row(0), command=previous;
     double last_sample=0;
     for(int i=0;i<descent_row;++i) {
@@ -3654,7 +3658,7 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
         std::this_thread::sleep_until(cycle+std::chrono::microseconds(5000));
         // B is a guide, not an exact stop. Transfer during the SDK deceleration
         // when the remaining guide distance and joint/Cartesian speed are bounded.
-        if(i>=2 && i+1<descent_row) {
+        if(!stop_at_B && i>=2 && i+1<descent_row) {
             const auto &cfg=g_move_cfg.visual_servo;
             const auto pose=arm_tcp_from_joints(arm,command);
             const auto prior=arm_tcp_from_joints(arm,previous);
@@ -3671,7 +3675,8 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
                 break;
             }
         }
-        if(i+1==descent_row) wrist_servo::handoff_event(arm,command,previous,"SDK_endpoint_fallback");
+        if(i+1==descent_row) wrist_servo::handoff_event(arm,command,previous,
+            stop_at_B?"place_stop_at_B":"SDK_endpoint_fallback");
     }
     g_servo_joint_origin[hand]=command;
     wrist_servo::task_event(hand,"joint_policy",g_move_cfg.visual_servo.enforce_sdk_joint_limits?

@@ -20,6 +20,17 @@ struct TrayLocalization {
     int rejected_coverage=0,rejected_residual=0,skipped_occupied=0;
     std::string source,reason,detail;
 };
+struct NeighborGridFit {
+    bool valid=false;
+    Eigen::Matrix3d transform=Eigen::Matrix3d::Identity();
+    Eigen::Vector2d target=Eigen::Vector2d::Zero();
+    std::vector<int> inliers;
+    std::string model,detail;
+};
+// Pure 2D registration in the coarse rectified plane. Does not estimate robot Z.
+NeighborGridFit fit_neighbor_grid(const std::vector<Eigen::Vector2d> &nominal,
+    const std::vector<Eigen::Vector2d> &observed,const Eigen::Vector2d &target,
+    double pitch,const TrayPlaceVisionConfig &config);
 // RGB-only observer. No robot commands, depth image, Python or YOLO dependency.
 // The target row/column is immutable for the lifetime of one servo session.
 class TrayLocalizer {
