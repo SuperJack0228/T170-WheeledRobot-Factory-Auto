@@ -20,7 +20,7 @@ add_library(t170::control ALIAS t170_control)
 target_include_directories(t170_control PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(t170_control PUBLIC t170::common)
 
-add_library(t170_motion_math STATIC src/motion/pose_solver.cpp)
+add_library(t170_motion_math STATIC src/motion/pose_solver.cpp src/motion/joint_motion.cpp)
 add_library(t170::motion_math ALIAS t170_motion_math)
 target_include_directories(t170_motion_math PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(t170_motion_math PUBLIC t170::control)

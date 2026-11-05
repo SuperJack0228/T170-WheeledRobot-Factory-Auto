@@ -56,3 +56,7 @@
         ${PROJECT_SOURCE_DIR}/tests/python_vision_package_test.py)
     add_test(NAME module_boundaries_test COMMAND ${Python3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/module_boundaries_test.py)
+
+    add_executable(joint_motion_test tests/joint_motion_test.cpp)
+    target_link_libraries(joint_motion_test PRIVATE t170::motion_math Threads::Threads)
+    add_test(NAME joint_motion_test COMMAND joint_motion_test)

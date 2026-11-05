@@ -6,6 +6,20 @@ standby:
   right: [0.45, -0.30, -0.25, 0, 45, 40]
   left:  [0.45,  0.30, -0.25, 0, 45, -40]
 
+# 合爪抬升/返回共用。固定电机关节准备位，来源为11/04日志 begin 实测。
+# 这是手臂基座上的通用中转构型；不声称等于 conveyor.tcp，下一动作从反馈重新规划。
+# 持件返回路径待真机验证；单机零位/夹具改变后需重新验证示教角。
+retract_motion:
+  ready_right_deg: [35.697327, 22.876282, -30.734253, 82.654266, 38.968506, -38.936920, 47.971802]
+  ready_left_deg: [-32.018280, -25.883789, 23.377533, -82.766876, -32.677460, 41.103973, -51.726379]
+  max_joint_velocity_rad_s: 0.9
+  max_joint_acceleration_rad_s2: 2.5
+  max_joint_jerk_rad_s3: 20.0
+  arrival_joint_tolerance_rad: 0.12
+  settle_timeout_s: 4.0
+  feedback_timeout_s: 0.5
+  stable_samples: 3
+
 # home 专用末端（基座系）。与 standby 独立。XYZ=0、RPY=0 即 TCP 在原点、姿态为单位阵。
 home_tcp:
   right: [0.45, -0.35, -0.10, 0, 0, 0]

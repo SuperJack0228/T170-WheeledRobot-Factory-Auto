@@ -299,6 +299,36 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
     try
     {
         const YAML::Node root = YAML::LoadFile(path);
+        {
+            const auto node=root["retract_motion"];
+            auto &c=cfg.retract_motion;
+            auto joints=[&](const char *key,Eigen::Matrix<double,1,7> &out) {
+                if(!node || !node[key]) return;
+                const auto values=node[key];
+                if(!values.IsSequence() || values.size()!=7)
+                    throw std::runtime_error(std::string("retract_motion.")+key+" 必须有7个电机角");
+                for(int j=0;j<7;++j) {
+                    const double value=values[j].as<double>();
+                    if(!std::isfinite(value)) throw std::runtime_error("nonfinite retract joint");
+                    out(j)=value*kDegToRad;
+                }
+            };
+            joints("ready_right_deg",c.ready_right); joints("ready_left_deg",c.ready_left);
+            read_value(node,"max_joint_velocity_rad_s",c.max_joint_velocity_rad_s);
+            read_value(node,"max_joint_acceleration_rad_s2",c.max_joint_acceleration_rad_s2);
+            read_value(node,"max_joint_jerk_rad_s3",c.max_joint_jerk_rad_s3);
+            read_value(node,"arrival_joint_tolerance_rad",c.arrival_joint_tolerance_rad);
+            read_value(node,"settle_timeout_s",c.settle_timeout_s);
+            read_value(node,"feedback_timeout_s",c.feedback_timeout_s);
+            read_value(node,"stable_samples",c.stable_samples);
+            for(double value:{c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,
+                              c.max_joint_jerk_rad_s3,c.arrival_joint_tolerance_rad,
+                              c.settle_timeout_s,c.feedback_timeout_s})
+                if(!std::isfinite(value) || value<=0)
+                    throw std::runtime_error("retract_motion 参数必须是有限正数");
+            if(c.stable_samples<1 || c.stable_samples>50)
+                throw std::runtime_error("retract_motion.stable_samples 必须在1..50内");
+        }
         if (!read_pose(root["standby"]["right"], cfg.standby.right) ||
             !read_pose(root["standby"]["left"], cfg.standby.left))
             throw std::runtime_error("standby.left/right 必须各有 6 个数");
@@ -745,6 +775,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[cfg] retract_motion fixed_ready_motor_rad right="<<cfg.retract_motion.ready_right
+             <<" left="<<cfg.retract_motion.ready_left<<" limits_v_a_j="
+             <<cfg.retract_motion.max_joint_velocity_rad_s<<","<<cfg.retract_motion.max_joint_acceleration_rad_s2
+             <<","<<cfg.retract_motion.max_joint_jerk_rad_s3<<" arrival_rad="
+             <<cfg.retract_motion.arrival_joint_tolerance_rad<<" timeout_s="<<cfg.retract_motion.settle_timeout_s<<"\n";
     std::cout << "[cfg] standby right=" << cfg.standby.right << "\n"
               << "[cfg] standby left=" << cfg.standby.left << "\n"
               << "[cfg] home_tcp right=" << cfg.home_tcp.right << "\n"

@@ -19,8 +19,28 @@ int main(int argc,char **argv) {
         require(full.head_grasp.retract_lift_vel_m_s==.4,"grasp lift configuration not loaded");
         require(full.tray2_place.retract_lift_vel_m_s==.4 && full.tray2_place.pre_open_settle_sec==0,
                 "tray placement motion configuration not loaded");
+        require(std::abs(full.retract_motion.ready_right(1)-root["retract_motion"]["ready_right_deg"][1].as<double>()*M_PI/180)<1e-9,
+                "fixed ready joints not converted from degrees");
+        require(full.retract_motion.max_joint_velocity_rad_s==root["retract_motion"]["max_joint_velocity_rad_s"].as<double>() &&
+                full.retract_motion.stable_samples==root["retract_motion"]["stable_samples"].as<int>(),
+                "joint motion limits not loaded");
         const auto retract_config=(std::filesystem::temp_directory_path()/"t170_retract_config_test.yaml").string();
         auto changed=YAML::Clone(root);
+        changed["retract_motion"]["ready_left_deg"]=std::vector<double>{1,2,3};
+        { std::ofstream out(retract_config);out<<changed; }
+        require(!load_move_box_config(retract_config,full,config_error),"short joint target accepted");
+        changed=YAML::Clone(root);
+        changed["retract_motion"]["max_joint_jerk_rad_s3"]=0;
+        { std::ofstream out(retract_config);out<<changed; }
+        require(!load_move_box_config(retract_config,full,config_error),"zero jerk accepted");
+        changed=YAML::Clone(root);
+        changed["retract_motion"]["ready_right_deg"][0]=12.5;
+        changed["retract_motion"]["max_joint_velocity_rad_s"]=.7;
+        { std::ofstream out(retract_config);out<<changed; }
+        require(load_move_box_config(retract_config,full,config_error),"valid retract override rejected");
+        require(std::abs(full.retract_motion.ready_right(0)-12.5*M_PI/180)<1e-9 &&
+                full.retract_motion.max_joint_velocity_rad_s==.7,"retract override ignored");
+        changed=YAML::Clone(root);
         changed["head_grasp"]["retract_lift_vel_m_s"]=.31;
         changed["head_grasp"]["retract_connector_speed_rad_s"]=.9;
         changed["head_grasp"]["retract_connector_accel_rad_s2"]=4.2;

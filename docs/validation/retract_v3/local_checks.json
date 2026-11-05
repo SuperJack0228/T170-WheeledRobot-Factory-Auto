@@ -1,0 +1,88 @@
+{
+  "date": "2026-11-05",
+  "baseline": "a8e22f3",
+  "host": "macOS; no robot hardware",
+  "ctest": {
+    "name": "(empty)",
+    "tests": "15",
+    "failures": "0",
+    "disabled": "0",
+    "skipped": "0",
+    "hostname": "",
+    "time": "13",
+    "timestamp": "2026-11-05T10:02:07"
+  },
+  "cases": [
+    {
+      "name": "common_paths_test",
+      "passed": true
+    },
+    {
+      "name": "visual_servo_test",
+      "passed": true
+    },
+    {
+      "name": "visual_servo_runtime_test",
+      "passed": true
+    },
+    {
+      "name": "retract_trajectory_test",
+      "passed": true
+    },
+    {
+      "name": "retreat_gate_test",
+      "passed": true
+    },
+    {
+      "name": "grasp_execution_test",
+      "passed": true
+    },
+    {
+      "name": "visual_servo_config_test",
+      "passed": true
+    },
+    {
+      "name": "tray_localizer_test",
+      "passed": true
+    },
+    {
+      "name": "python_runtime_paths_test",
+      "passed": true
+    },
+    {
+      "name": "lower_body_self_test",
+      "passed": true
+    },
+    {
+      "name": "public_module_headers_test",
+      "passed": true
+    },
+    {
+      "name": "model_registry_test",
+      "passed": true
+    },
+    {
+      "name": "python_vision_package_test",
+      "passed": true
+    },
+    {
+      "name": "module_boundaries_test",
+      "passed": true
+    },
+    {
+      "name": "joint_motion_test",
+      "passed": true
+    }
+  ],
+  "syntax": [
+    "src/function.cpp full translation unit",
+    "src/grasp_to_standby.cpp full translation unit",
+    "robot_runtime motion prefix only; minimal dispatch declarations; not SDK validation"
+  ],
+  "not_validated": [
+    "matching Linux ARM64 SDK full build/link",
+    "real motor following and held-part return clearance",
+    "tray placement and conveyor field execution"
+  ],
+  "sanitizer": "Not established: even a trivial ASAN smoke executable timed out before producing output in this host execution environment; not counted as passing."
+}

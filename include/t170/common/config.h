@@ -350,6 +350,26 @@ struct HeadMotorConfig
     double speed_deg_s = 25.0;
 };
 
+/** 固定收手关节为电机角，内部 rad；YAML ready_*_deg 使用度。 */
+struct RetractMotionConfig
+{
+    Eigen::Matrix<double,1,7> ready_right, ready_left;
+    double max_joint_velocity_rad_s = 0.9;
+    double max_joint_acceleration_rad_s2 = 2.5;
+    double max_joint_jerk_rad_s3 = 20.0;
+    double arrival_joint_tolerance_rad = 0.12;
+    double settle_timeout_s = 4.0;
+    double feedback_timeout_s = 0.5;
+    int stable_samples = 3;
+    RetractMotionConfig() {
+        // 实测来源：servo_1793782920594052_120317.csv，左右手 begin。
+        ready_right << 35.697327,22.876282,-30.734253,82.654266,38.968506,-38.936920,47.971802;
+        ready_left << -32.018280,-25.883789,23.377533,-82.766876,-32.677460,41.103973,-51.726379;
+        ready_right *= 0.017453292519943295;
+        ready_left *= 0.017453292519943295;
+    }
+};
+
 struct MoveBoxConfig
 {
     ArmPosePairConfig standby;
@@ -357,6 +377,7 @@ struct MoveBoxConfig
     TrayHeightConfig tray;
     HeadMotorConfig head;
     HeadGraspConfig head_grasp;
+    RetractMotionConfig retract_motion;
     GraspValidConfig grasp_valid;
     GraspZoneConfig grasp_zone;
     WaistConfig waist;
