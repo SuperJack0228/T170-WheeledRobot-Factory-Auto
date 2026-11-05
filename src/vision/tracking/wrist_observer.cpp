@@ -3,6 +3,7 @@
 #include "t170/vision/wrist_observer.h"
 #include "t170/vision/servo_observer_port.h"
 #include "t170/vision/tray_localizer.h"
+#include "t170/vision/debug.h"
 #include "t170/common/abort_query.h"
 #include "t170/vision/python_bridge.h"
 #include <opencv2/imgcodecs.hpp>
@@ -31,6 +32,58 @@ std::atomic<bool> running{false}, save_raw{false};
 std::thread worker;
 wrist_servo::TrayLocalizer tray_localizers[2];
 std::uint64_t tray_sessions[2]{}; // exclusively owned by the observation worker
+
+void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
+                        const CameraFrameData &frame,const wrist_servo::TrayLocalization &located,
+                        int target_row,int target_col) {
+    if(!frame.ok || frame.width<1 || frame.height<1 ||
+       frame.color_bgr.size()!=static_cast<std::size_t>(frame.width)*frame.height*3) return;
+    const char *slot=hand==1?"right_hand":"left_hand";
+    const auto path=std::filesystem::path(vision_debug_root_dir())/slot/
+        ("place_s"+std::to_string(session)+"_f"+std::to_string(frame_id)+".jpg");
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(),ec);
+    if(ec) return;
+    cv::Mat canvas(frame.height,frame.width,CV_8UC3,
+                   const_cast<unsigned char*>(frame.color_bgr.data()));
+    canvas=canvas.clone();
+    auto inside=[&](float u,float v) {
+        return u>=0 && v>=0 && u<frame.width && v<frame.height;
+    };
+    for(const auto &mark:located.marks) {
+        if(!inside(mark.predicted_u,mark.predicted_v)) continue;
+        const cv::Point predicted(static_cast<int>(mark.predicted_u),static_cast<int>(mark.predicted_v));
+        const cv::Scalar color=mark.occupied?cv::Scalar(0,140,255):cv::Scalar(255,255,0);
+        cv::circle(canvas,predicted,10,color,1,cv::LINE_AA);
+        if(mark.accepted && inside(mark.observed_u,mark.observed_v)) {
+            const cv::Point observed(static_cast<int>(mark.observed_u),static_cast<int>(mark.observed_v));
+            cv::line(canvas,predicted,observed,cv::Scalar(0,255,0),1,cv::LINE_AA);
+            cv::circle(canvas,observed,5,cv::Scalar(0,255,0),-1,cv::LINE_AA);
+        }
+        cv::putText(canvas,"r"+std::to_string(mark.row)+"c"+std::to_string(mark.col),
+                    predicted+cv::Point(8,-8),cv::FONT_HERSHEY_SIMPLEX,0.4,color,1,cv::LINE_AA);
+    }
+    if(inside(located.target_u,located.target_v)) {
+        const cv::Point target(static_cast<int>(located.target_u),static_cast<int>(located.target_v));
+        cv::drawMarker(canvas,target,cv::Scalar(0,0,255),cv::MARKER_CROSS,22,2,cv::LINE_AA);
+        cv::putText(canvas,"target r"+std::to_string(target_row)+"c"+std::to_string(target_col),
+                    target+cv::Point(12,16),cv::FONT_HERSHEY_SIMPLEX,0.5,cv::Scalar(0,0,255),1,cv::LINE_AA);
+    }
+    if(located.valid && inside(static_cast<float>(located.pixel.x()),static_cast<float>(located.pixel.y()))) {
+        const cv::Point locked(static_cast<int>(located.pixel.x()),static_cast<int>(located.pixel.y()));
+        cv::circle(canvas,locked,8,cv::Scalar(0,255,255),2,cv::LINE_AA);
+    }
+    const std::string headline=std::string(hand==1?"right ":"left ")+located.reason;
+    const std::string counts="neighbors "+std::to_string(located.neighbors)+"/"+std::to_string(located.rois)+
+        " reject_size "+std::to_string(located.rejected_size)+
+        " shape "+std::to_string(located.rejected_shape)+
+        " residual "+std::to_string(located.rejected_residual)+
+        " occupied "+std::to_string(located.skipped_occupied);
+    cv::rectangle(canvas,cv::Point(0,0),cv::Point(canvas.cols,46),cv::Scalar(0,0,0),cv::FILLED);
+    cv::putText(canvas,headline,cv::Point(8,18),cv::FONT_HERSHEY_SIMPLEX,0.5,cv::Scalar(255,255,255),1,cv::LINE_AA);
+    cv::putText(canvas,counts,cv::Point(8,38),cv::FONT_HERSHEY_SIMPLEX,0.45,cv::Scalar(255,255,255),1,cv::LINE_AA);
+    cv::imwrite(path.string(),canvas);
+}
 
 void rotate_left(CameraFrameData &f,int hand) {
     if(hand!=0) return;
@@ -108,6 +161,8 @@ void observe(int hand) {
         obs.tray_rejected_size=located.rejected_size; obs.tray_rejected_shape=located.rejected_shape;
         obs.tray_rejected_coverage=located.rejected_coverage; obs.tray_rejected_residual=located.rejected_residual;
         obs.tray_skipped_occupied=located.skipped_occupied;
+        save_place_overlay(hand,context.session,obs.frame,frame,located,
+                           context.tray_target.row,context.tray_target.col);
         if(!located.valid) {
             const std::string reason=located.reason+" "+located.detail;
             wrist_servo::observation_event(hand,context.session,reason.c_str(),obs);return;

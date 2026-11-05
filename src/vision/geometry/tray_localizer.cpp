@@ -253,7 +253,19 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     if(cfg.affine_enabled && cfg.xy_only) prior=seed_projection*s.image_correction;
     Eigen::Matrix3d inverse=prior.inverse();
     if(!inverse.allFinite()) {out.reason="singular_tray_prior";return out;}
+    auto to_raw=[&](const Eigen::Vector2d &undistorted_px)->Eigen::Vector2d {
+        if(!undistorted_px.allFinite()) return {-1,-1};
+        const Eigen::Vector3d ray=k.inverse()*Eigen::Vector3d(undistorted_px.x(),undistorted_px.y(),1);
+        std::vector<cv::Point2d> distorted;
+        cv::projectPoints(std::vector<cv::Point3d>{{ray.x(),ray.y(),1}},cv::Vec3d(0,0,0),
+                          cv::Vec3d(0,0,0),K,dist,distorted);
+        if(distorted.empty()) return {-1,-1};
+        return {distorted[0].x,distorted[0].y};
+    };
     const auto target_xy=board.hole(s.target.row,s.target.col);
+    const auto target_raw=to_raw(project(prior,target_xy));
+    out.target_u=static_cast<float>(target_raw.x());
+    out.target_v=static_cast<float>(target_raw.y());
     std::vector<cv::Point2f> plane_points,image_points;
     std::vector<Eigen::Vector2d> neighbor_shifts,nominal_points,observed_points;
     // Wrist placement uses visible hole rims only. Head perception owns board
@@ -273,6 +285,11 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
         }
         const Eigen::Vector2d xy=board.hole(row,col),predicted=project(prior,xy);
         if(!predicted.allFinite() || predicted.x()<0 || predicted.y()<0 || predicted.x()>=frame.width || predicted.y()>=frame.height) continue;
+        const auto predicted_raw=to_raw(predicted);
+        TrayImageMark mark;
+        mark.row=row; mark.col=col; mark.occupied=occupied;
+        mark.predicted_u=static_cast<float>(predicted_raw.x());
+        mark.predicted_v=static_cast<float>(predicted_raw.y());
         Eigen::Matrix3d plane_from_roi=Eigen::Matrix3d::Identity();
         plane_from_roi(0,0)=plane_from_roi(1,1)=1/scale;
         plane_from_roi(0,2)=xy.x()-extent; plane_from_roi(1,2)=xy.y()-extent;
@@ -333,8 +350,13 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
             const double score=residual+.02*delta.norm()+(orange?0:.0005);
             if(score<best_score) {best_score=score;found=xy+delta;}
         }
-        if(!std::isfinite(best_score)) continue;
+        if(!std::isfinite(best_score)) { out.marks.push_back(mark); continue; }
         const auto observed=project(prior,found);
+        const auto observed_raw=to_raw(observed);
+        mark.accepted=true;
+        mark.observed_u=static_cast<float>(observed_raw.x());
+        mark.observed_v=static_cast<float>(observed_raw.y());
+        out.marks.push_back(mark);
         plane_points.emplace_back(xy.x(),xy.y()); image_points.emplace_back(observed.x(),observed.y());
         nominal_points.push_back(xy);observed_points.push_back(project(seed_inverse,observed));
         neighbor_shifts.push_back(found-xy); ++out.neighbors;

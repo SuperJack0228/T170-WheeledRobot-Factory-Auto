@@ -11,6 +11,12 @@ namespace wrist_servo {
 bool load_tray_board(const std::string &path,TrayBoardGeometry &board,std::string &error);
 bool make_tray_target(const std::vector<TrayAnchor> &anchors,const TrayBoardGeometry &board,
                       int row,int col,TrayTarget &target,std::string &error);
+struct TrayImageMark {
+    int row=0,col=0;
+    float predicted_u=0,predicted_v=0;
+    float observed_u=-1,observed_v=-1;
+    bool accepted=false,occupied=false;
+};
 struct TrayLocalization {
     bool valid=false,translation_only=false;
     Eigen::Vector2d pixel=Eigen::Vector2d::Zero();
@@ -18,6 +24,8 @@ struct TrayLocalization {
     int neighbors=0,marker_corners=0;
     int rois=0,contours=0,rejected_size=0,rejected_shape=0;
     int rejected_coverage=0,rejected_residual=0,skipped_occupied=0;
+    float target_u=-1,target_v=-1;
+    std::vector<TrayImageMark> marks;
     std::string source,reason,detail;
 };
 struct NeighborGridFit {
