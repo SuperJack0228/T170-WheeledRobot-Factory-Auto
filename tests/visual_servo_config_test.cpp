@@ -89,8 +89,9 @@ int main(int argc,char **argv) {
         wrist_servo::load_config(root["visual_servo"],c);
         require(c.tray_place.enabled && c.tray_place.min_neighbors==2 && c.tray_place.xy_only,
                 "tray place open-loop for hand photo run, neighbor params loaded");
-        require(c.belt_grasp_enabled && c.belt_place_enabled,
-                "belt grasp/place hand-camera servo enabled");
+        require(c.belt_grasp_enabled==root["visual_servo"]["belt_grasp_enabled"].as<bool>() &&
+                c.belt_place_enabled==root["visual_servo"]["belt_place_enabled"].as<bool>(),
+                "belt grasp/place servo switches differ from YAML");
         require(c.period_s==.01 && c.stable_frames>=2,"actual controller parameters loaded");
         require(c.profiles[0].reference_px.x()==598 && c.profiles[1].reference_px.x()==702,"per-hand profiles loaded");
         const auto snapshot=(std::filesystem::temp_directory_path()/"t170_servo_config_roundtrip.yaml").string();

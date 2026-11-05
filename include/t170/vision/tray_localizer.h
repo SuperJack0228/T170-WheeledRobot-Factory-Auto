@@ -18,7 +18,7 @@ struct TrayLocalization {
     int neighbors=0,marker_corners=0;
     int rois=0,contours=0,rejected_size=0,rejected_shape=0;
     int rejected_coverage=0,rejected_residual=0,skipped_occupied=0;
-    std::string source,reason;
+    std::string source,reason,detail;
 };
 // RGB-only observer. No robot commands, depth image, Python or YOLO dependency.
 // The target row/column is immutable for the lifetime of one servo session.

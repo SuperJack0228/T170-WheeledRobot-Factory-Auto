@@ -520,7 +520,7 @@ visual_servo:
   # 放置参考像素应示教工件轴心在正确放置高度的投影，不能用邻孔框中心代替。
   # 当前未另填 reference_px 时沿用该手现有参考像素，现场需确认。
   # enabled=false：料盘二放置走传统 tray2_place offset 开环，不进手相机伺服。
-  # enabled=true：邻孔/标记虚拟孔心伺服（需 hand_descent_correct=true）。
+  # enabled=true：纯邻孔虚拟孔心伺服（手相机不识别标记）（需 hand_descent_correct=true）。
   tray_place:
     enabled: true
     board_config: board_yf100_aruco/config.yaml

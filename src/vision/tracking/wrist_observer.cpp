@@ -109,7 +109,8 @@ void observe(int hand) {
         obs.tray_rejected_coverage=located.rejected_coverage; obs.tray_rejected_residual=located.rejected_residual;
         obs.tray_skipped_occupied=located.skipped_occupied;
         if(!located.valid) {
-            wrist_servo::observation_event(hand,context.session,located.reason.c_str(),obs);return;
+            const std::string reason=located.reason+" "+located.detail;
+            wrist_servo::observation_event(hand,context.session,reason.c_str(),obs);return;
         }
         if(obs.completed_s-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
             wrist_servo::observation_event(hand,context.session,"tray_geometry_frame_expired",obs);return;

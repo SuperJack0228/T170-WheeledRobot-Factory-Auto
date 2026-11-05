@@ -122,18 +122,19 @@ int main(int argc,char **argv) {
         std::cout << "perspective=" << perspective.reason << " n=" << perspective.neighbors << '\n';
         require(perspective.valid && (perspective.pixel-Eigen::Vector2d(true_pixel.x,true_pixel.y)).norm()<2,
                 "rectified-circle perspective/distortion correction failed");
-        // Duplicate marker IDs and a whole-tray 180 degree rotation.
+        // Visible markers must not participate or veto neighbor-only wrist localization.
         actual.block<3,3>(0,0)=Eigen::AngleAxisd(std::acos(-1),Eigen::Vector3d::UnitZ()).toRotationMatrix();
-        seed=target;seed.base_from_tray=actual;seed.base_from_tray(0,3)+=.040;
+        seed=target;seed.base_from_tray=actual;seed.base_from_tray(0,3)+=.010;
         localizer.reset(seed,cfg);auto marked=render(target,actual,camera,true);
         auto decoded=localizer.locate(marked,camera);
         std::cout << "markers=" << decoded.reason << " corners=" << decoded.marker_corners << '\n';
-        require(decoded.valid && decoded.marker_corners>=8,"duplicate IDs/rotated tray markers failed");
+        require(decoded.valid && decoded.marker_corners==0 && decoded.neighbors>=4,
+                "visible markers interfered with neighbor-only localization");
         localizer.reset(seed,cfg);
         auto markers_only=render(target,actual,camera,true,{999});
         auto marker_pose=localizer.locate(markers_only,camera);
-        require(marker_pose.valid && marker_pose.neighbors==0 && marker_pose.marker_corners>=8,
-                "marker-only occlusion handling failed");
+        require(!marker_pose.valid && marker_pose.marker_corners==0,
+                "wrist marker-only frame substituted for neighbor evidence");
         // Camera moves continuously; the same physical hole identity remains locked.
         camera(0,3)=.012;camera(2,3)=.42;
         auto moved=render(target,actual,camera,true);
@@ -165,6 +166,14 @@ int main(int argc,char **argv) {
                     "XY-only moving-camera localization failed");
             require(std::abs(fixed.plane_z_m)<1e-10,"XY-only localization changed tray Z");
         }
+        // A rejected fit must explain its limit and log individual neighbor shifts.
+        auto diagnostic_cfg=cfg;diagnostic_cfg.max_plane_update_m=.0001;
+        localizer.reset(seed,diagnostic_cfg);
+        const auto rejected=localizer.locate(render(target,actual,camera),camera);
+        require(!rejected.valid && rejected.reason=="tray_neighbor_fit_rejected" &&
+                rejected.detail.find("shift_limit")!=std::string::npos &&
+                rejected.detail.find("_shift_mm=")!=std::string::npos,
+                "neighbor fit rejection lost actionable diagnostics");
         // Real fixture has colored annuli, not filled black circles. Outer/inner radii
         // deliberately disagree with the old fixed-radius gray-edge detector.
         auto orange=blank_frame();cv::Mat orange_image(orange.height,orange.width,CV_8UC3,orange.color_bgr.data());
@@ -195,6 +204,6 @@ int main(int argc,char **argv) {
         const auto metal_only=localizer.locate(render(target,actual,camera,false,{303,404}),camera);
         require(!metal_only.valid,"gray metal/part edge at an occupied location became a tray landmark");
         const auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
-        std::cout << "tray_localizer: hidden target, sparse support, lost features, perspective, distortion, duplicate IDs and moving camera passed; fixture suite ms=" << elapsed << '\n';
+        std::cout << "tray_localizer: hidden target, sparse support, lost features, perspective, distortion, marker independence and moving camera passed; fixture suite ms=" << elapsed << '\n';
     } catch(const std::exception &ex) {std::cerr << "tray_localizer FAIL: " << ex.what() << '\n';return 1;}
 }

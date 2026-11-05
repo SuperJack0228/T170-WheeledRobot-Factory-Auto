@@ -3490,7 +3490,7 @@ namespace move_box
                 target.base_from_tray=current_from_upright*target.base_from_tray;
                 wrist_servo::stage_tray_target(hand,target);
                 std::cout << "[tray_place] hand=" << hand << " fixed row=" << row << " col=" << col
-                          << " RGB neighbor/marker tracking; no nearest-box fallback\n";
+                          << " RGB neighbor-only tracking; no wrist marker detection\n";
                 return true;
             };
             if((hs.move_r && !prepare(1,st.row_aruco_r,st.col_aruco_r)) ||
