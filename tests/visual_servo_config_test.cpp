@@ -121,6 +121,7 @@ int main(int argc,char **argv) {
                 replay.tray_place.global_max_hypotheses==c.tray_place.global_max_hypotheses &&
                 replay.tray_place.single_neighbor_max_age_s==c.tray_place.single_neighbor_max_age_s &&
                 replay.tray_place.observe_recovery_lift_m==c.tray_place.observe_recovery_lift_m &&
+                replay.tray_place.observation_age_s==c.tray_place.observation_age_s &&
                 replay.tray_place.save_debug_images==c.tray_place.save_debug_images,
                 "acquisition/recovery parameters lost in snapshot");
         auto invalid_recovery=c;invalid_recovery.tray_place.observe_recovery_lift_m=.20;

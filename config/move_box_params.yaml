@@ -537,6 +537,8 @@ visual_servo:
     # 到原B点结束SDK进给，保持高度完成XY闭环后再下放；6秒是上限，不是固定等待。
     observe_at_B: true
     observe_timeout_s: 6.0
+    # 仅B点放置观察。抓取下降仍用上面的 max_observation_age_s。
+    observation_age_s: 0.6
     affine_min_scale: 0.65
     affine_max_scale: 1.5
     affine_max_rotation_rad: 0.35

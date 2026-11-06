@@ -45,6 +45,7 @@ bool validate_config(const Config &c, std::string &error) {
        !std::isfinite(p.observe_recovery_after_s) || p.observe_recovery_after_s<=0 || p.observe_recovery_after_s>=p.observe_timeout_s ||
        !std::isfinite(p.observe_recovery_lift_m) || p.observe_recovery_lift_m<0 || p.observe_recovery_lift_m>.030 ||
        !std::isfinite(p.observe_recovery_speed_m_s) || p.observe_recovery_speed_m_s<=0 || p.observe_recovery_speed_m_s>.04 ||
+       !std::isfinite(p.observation_age_s) || p.observation_age_s<=c.max_clock_uncertainty_s || p.observation_age_s>=p.observe_timeout_s ||
        !std::isfinite(p.debug_image_period_s) || p.debug_image_period_s<.1) {
         error="invalid tray acquisition/recovery configuration";return false;
     }
@@ -257,7 +258,8 @@ bool Controller::observe(const PixelObservation &o, const State &s, const Mappin
     if (o.frame <= last_frame_ || o.capture_s <= last_capture_) { reason = "duplicate_or_out_of_order"; return false; }
     if (!std::isfinite(o.capture_s) || !std::isfinite(o.clock_uncertainty_s) ||
         o.clock_uncertainty_s < 0 || o.clock_uncertainty_s > cfg_.max_clock_uncertainty_s ||
-        now < o.capture_s || now - o.capture_s + o.clock_uncertainty_s > cfg_.max_observation_age_s) {
+        now < o.capture_s || now - o.capture_s + o.clock_uncertainty_s >
+            (staged_place_ ? cfg_.tray_place.observation_age_s : cfg_.max_observation_age_s)) {
         reason = "stale_or_uncertain_timestamp"; return false;
     }
     if (!std::isfinite(o.confidence) || o.confidence < cfg_.min_confidence) { reason = "low_confidence"; return false; }
@@ -268,7 +270,8 @@ bool Controller::observe(const PixelObservation &o, const State &s, const Mappin
     if (have_goal_ && (candidate - goal_xy_).norm() > cfg_.innovation_gate_m) {
         reason = "goal_innovation_rejected"; return false;
     }
-    if(have_goal_ && o.capture_s-last_capture_>cfg_.max_observation_age_s) {
+    const double age_limit=staged_place_?cfg_.tray_place.observation_age_s:cfg_.max_observation_age_s;
+    if(have_goal_ && o.capture_s-last_capture_>age_limit) {
         confirmations_=0; close_confirmations_=0; stable_goal_frames_=0;
     }
     const bool stable=!have_goal_ || (candidate-goal_xy_).norm()<=cfg_.place_goal_stability_m;
@@ -322,8 +325,9 @@ Output Controller::tick(const State &s, double dt) {
     out.finish_xy_tolerance_m=accept;
     out.remaining_m=goal_xy_-s.position.head<2>();
     const double distance=out.remaining_m.norm();
+    const double fresh_limit=staged_place_?cfg_.tray_place.observation_age_s:cfg_.max_observation_age_s;
     const bool fresh=have_goal_ && out.age_s>=0 &&
-        out.age_s+last_clock_uncertainty_<=cfg_.max_observation_age_s;
+        out.age_s+last_clock_uncertainty_<=fresh_limit;
     const double usable_dt=(std::isfinite(dt) && dt>0)?std::min(dt,cfg_.max_tick_gap_s):cfg_.period_s;
     Vec2 target_v=Vec2::Zero(); double target_z=0;
     const double alignment_floor=virtual_place_?cfg_.place_visibility_floor_m:cfg_.commit_height_m;

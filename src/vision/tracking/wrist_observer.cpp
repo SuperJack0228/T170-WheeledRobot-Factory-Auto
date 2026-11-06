@@ -258,7 +258,7 @@ void observe(int hand) {
             const std::string reason=located.reason+" "+located.detail;
             wrist_servo::observation_event(hand,context.session,reason.c_str(),obs);return;
         }
-        if(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
+        if(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s>cfg.tray_place.observation_age_s) {
             wrist_servo::observation_event(hand,context.session,"tray_geometry_frame_expired",obs);return;
         }
         obs.pixel=located.pixel;

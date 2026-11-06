@@ -18,6 +18,8 @@ struct TrayPlaceVisionConfig {
     bool affine_enabled=true;
     bool observe_at_B=true;
     double observe_timeout_s=6.0;
+    // B is stationary. A place fix may be older than a grasp frame and still name the same hole.
+    double observation_age_s=0.6;
     double affine_min_scale=.65, affine_max_scale=1.5;
     double affine_max_rotation_rad=.35;
     double max_extrapolation_pitches=2.5;
