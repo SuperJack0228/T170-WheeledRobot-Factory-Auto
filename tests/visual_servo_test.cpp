@@ -351,7 +351,8 @@ void test_place_observation_recovery() {
     c.reset(cfg,s,0,.10,Vec2::Zero(),false,true);
     double previous_z=s.position.z();bool lifted=false;
     for(int i=0;i<280;++i) {
-        s.time_s+=.01;const auto out=c.tick(s,.01);
+        s.time_s+=.01;if(i%10==0) c.tray_view_status(s.time_s,true);
+        const auto out=c.tick(s,.01);
         check(out.phase!=Phase::Failed,"observation recovery timed out early");
         check(out.reference.z()>=previous_z-1e-10,"recovery lowered before identifying a hole");
         check(out.reference.z()<=.16000001,"recovery exceeded its single 20mm lift");
@@ -381,7 +382,7 @@ void test_place_observation_recovery() {
         if(out.phase==Phase::Done) {done=true;break;}
     }
     check(done,"recovered placement did not finish");
-    // A target lost BEFORE lock must also release its stale XY goal and recover once.
+    // Missing/late observations alone are not evidence that the camera needs to lift.
     Controller lost;s=state_at(1,Vec3(0,0,.14));lost.reset(cfg,s,0,.1,Vec2::Zero(),false,true);
     auto first=observation_at(1,1);first.virtual_target=true;
     Mapping map;map.valid=true;map.remaining_m=Vec2(.015,0);
@@ -393,7 +394,7 @@ void test_place_observation_recovery() {
         check(!out.place_locked && out.reference.z()>=.14-1e-10,"lost uncommitted target triggered lowering");
         s.position=out.reference;s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
     }
-    check(recovered_after_loss && !lost.has_goal(),"lost uncommitted target retained its stale XY goal");
+    check(!recovered_after_loss && lost.has_goal(),"late observations were misclassified as a lost view");
 
 }
 

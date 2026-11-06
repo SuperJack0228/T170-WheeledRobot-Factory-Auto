@@ -1,0 +1,222 @@
+{
+  "source": "servo_1793935479343615_18507.csv",
+  "scope": "Recorded accepted-observation arrival/capture timing only. New synthetic plant feedback is used; NOT physical trajectory replay.",
+  "sessions": [
+    {
+      "session": 1,
+      "hand": 0,
+      "events": [
+        {
+          "arrival_s": 1.6153037290000611,
+          "capture_s": 1.1478573219999362,
+          "uncertainty_s": 0.059477039333,
+          "frame": 377
+        },
+        {
+          "arrival_s": 2.0686074289999397,
+          "capture_s": 1.814439130999972,
+          "uncertainty_s": 0.059351363333,
+          "frame": 387
+        },
+        {
+          "arrival_s": 2.5360994899999696,
+          "capture_s": 2.281036309000001,
+          "uncertainty_s": 0.060408304333,
+          "frame": 394
+        },
+        {
+          "arrival_s": 3.106070198999987,
+          "capture_s": 2.8142895319999752,
+          "uncertainty_s": 0.059519661833000004,
+          "frame": 402
+        },
+        {
+          "arrival_s": 3.5999168749999626,
+          "capture_s": 3.2808811170000354,
+          "uncertainty_s": 0.059372658833000004,
+          "frame": 409
+        },
+        {
+          "arrival_s": 4.648015299000008,
+          "capture_s": 4.347382899999957,
+          "uncertainty_s": 0.059398146333,
+          "frame": 425
+        },
+        {
+          "arrival_s": 5.152433406,
+          "capture_s": 4.880642077999937,
+          "uncertainty_s": 0.059446352333000003,
+          "frame": 433
+        },
+        {
+          "arrival_s": 5.697895366000012,
+          "capture_s": 5.413884053999936,
+          "uncertainty_s": 0.059383986333,
+          "frame": 441
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "hand": 1,
+      "events": [
+        {
+          "arrival_s": 1.2158919700000297,
+          "capture_s": 0.8141366130000733,
+          "uncertainty_s": 0.059473439833,
+          "frame": 394
+        },
+        {
+          "arrival_s": 3.361873514000081,
+          "capture_s": 3.080595368000104,
+          "uncertainty_s": 0.060267621333,
+          "frame": 428
+        },
+        {
+          "arrival_s": 4.3994421110000985,
+          "capture_s": 4.080432113000143,
+          "uncertainty_s": 0.059817236333,
+          "frame": 443
+        },
+        {
+          "arrival_s": 4.914745870000161,
+          "capture_s": 4.613672340999983,
+          "uncertainty_s": 0.059964527333,
+          "frame": 451
+        },
+        {
+          "arrival_s": 5.438781726000116,
+          "capture_s": 5.080259592999937,
+          "uncertainty_s": 0.059683944333,
+          "frame": 458
+        },
+        {
+          "arrival_s": 5.993522739000127,
+          "capture_s": 5.680157738000162,
+          "uncertainty_s": 0.059865106333,
+          "frame": 467
+        },
+        {
+          "arrival_s": 6.295206327999949,
+          "capture_s": 5.946780979000096,
+          "uncertainty_s": 0.059867650333,
+          "frame": 471
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "hand": 0,
+      "events": [
+        {
+          "arrival_s": 0.45839823200003593,
+          "capture_s": 0.04198834299995724,
+          "uncertainty_s": 0.059510750333,
+          "frame": 478
+        },
+        {
+          "arrival_s": 1.0440149969999766,
+          "capture_s": 0.7752546499998516,
+          "uncertainty_s": 0.059322996333,
+          "frame": 489
+        },
+        {
+          "arrival_s": 1.498382612999876,
+          "capture_s": 1.2418624089998502,
+          "uncertainty_s": 0.059338579833,
+          "frame": 496
+        },
+        {
+          "arrival_s": 1.9716751379999096,
+          "capture_s": 1.7084453129998565,
+          "uncertainty_s": 0.059382466833000004,
+          "frame": 503
+        },
+        {
+          "arrival_s": 2.5590683279999666,
+          "capture_s": 2.2416829070000404,
+          "uncertainty_s": 0.059366963333000004,
+          "frame": 511
+        },
+        {
+          "arrival_s": 3.1040024479998465,
+          "capture_s": 2.774921220999886,
+          "uncertainty_s": 0.059310836833,
+          "frame": 519
+        },
+        {
+          "arrival_s": 3.629238181999881,
+          "capture_s": 3.3748158869998406,
+          "uncertainty_s": 0.059396689833000005,
+          "frame": 528
+        },
+        {
+          "arrival_s": 4.133596561999866,
+          "capture_s": 3.8414009079999687,
+          "uncertainty_s": 0.059412673833,
+          "frame": 535
+        }
+      ]
+    },
+    {
+      "session": 4,
+      "hand": 1,
+      "events": [
+        {
+          "arrival_s": 0.8241815530000167,
+          "capture_s": 0.4376981529999284,
+          "uncertainty_s": 0.059423280833,
+          "frame": 506
+        },
+        {
+          "arrival_s": 2.3209461779999856,
+          "capture_s": 1.9040998850000506,
+          "uncertainty_s": 0.059344563833000005,
+          "frame": 528
+        },
+        {
+          "arrival_s": 2.845334641999898,
+          "capture_s": 2.5039917510000578,
+          "uncertainty_s": 0.059446992333,
+          "frame": 537
+        },
+        {
+          "arrival_s": 3.389498675999903,
+          "capture_s": 3.037232253999946,
+          "uncertainty_s": 0.059445408333,
+          "frame": 545
+        },
+        {
+          "arrival_s": 3.8935092910001003,
+          "capture_s": 3.570471494000003,
+          "uncertainty_s": 0.059399025833,
+          "frame": 553
+        },
+        {
+          "arrival_s": 4.408926665000081,
+          "capture_s": 4.10371843300004,
+          "uncertainty_s": 0.059400881833,
+          "frame": 561
+        },
+        {
+          "arrival_s": 5.01478897700008,
+          "capture_s": 4.636965247000035,
+          "uncertainty_s": 0.059408049833,
+          "frame": 569
+        },
+        {
+          "arrival_s": 5.297177790999967,
+          "capture_s": 4.970246300000099,
+          "uncertainty_s": 0.059426433332999996,
+          "frame": 574
+        },
+        {
+          "arrival_s": 5.912904706000063,
+          "capture_s": 5.570150839000007,
+          "uncertainty_s": 0.059464623833,
+          "frame": 583
+        }
+      ]
+    }
+  ]
+}

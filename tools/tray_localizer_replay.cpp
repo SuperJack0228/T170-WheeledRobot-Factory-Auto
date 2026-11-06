@@ -80,6 +80,8 @@ int main(int argc,char **argv) {
             std::cout<<"frame="<<frame.frame_number<<" valid="<<located.valid<<" stage="<<located.stage
                      <<" reason="<<located.reason<<" n="<<located.neighbors<<" uv="<<located.pixel.transpose()
                      <<" elapsed_ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()
+                     <<" rois="<<located.rois<<" arc_calls="<<located.partial_calls<<" arc_ms="<<located.partial_ms
+                     <<" prepare_ms="<<located.prepare_ms<<" roi_ms="<<located.roi_ms<<" fit_ms="<<located.fit_ms
                      <<" "<<located.detail<<'\n';
         }
     } catch(const std::exception &e) {std::cerr<<e.what()<<'\n';return 2;}

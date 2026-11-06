@@ -4,6 +4,7 @@
 
 | 文档 | 内容 |
 |------|------|
+| [ARM_SDK_UPGRADE_REQUIREMENTS_20261106.md](ARM_SDK_UPGRADE_REQUIREMENTS_20261106.md) | 双臂 SDK 连续路径、冗余与肘姿态优化需求、公开方案对照及验收用例 |
 | [WRIST_VISUAL_SERVO_ALGORITHM.md](WRIST_VISUAL_SERVO_ALGORITHM.md) | 当前手相机伺服算法：图像映射、延迟补偿、PD控制、下降协调、邻孔放置、运动交接与验证状态 |
 | [dispatch_flow.md](dispatch_flow.md) | 上料、转运、下料、充电的信号顺序，抓取窗口和放置 ±3 cm |
 | [vision_modules_draft.md](vision_modules_draft.md) | 相机、检测、标志、位姿、编排五层，以及检测和认码如何并行 |

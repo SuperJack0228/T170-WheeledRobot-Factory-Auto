@@ -539,6 +539,12 @@ visual_servo:
     observe_timeout_s: 6.0
     # 仅B点放置观察。抓取下降仍用上面的 max_observation_age_s。
     observation_age_s: 0.6
+    # 已确认静态目标可驱动短段XY纠偏；锁定下放仍需新帧复核。
+    target_hold_s: 1.2
+    alignment_extension_s: 2.0 # 接近目标且有进展时，仅一次延长；绝对上限8秒
+    confirm_stable_s: 0.08
+    tracking_max_neighbors: 6
+    tracking_scan_limit: 12
     affine_min_scale: 0.65
     affine_max_scale: 1.5
     affine_max_rotation_rad: 0.35
@@ -576,7 +582,7 @@ visual_servo:
   place_lock_height_m: 0.065
   place_visibility_floor_m: 0.050
   place_goal_stability_m: 0.0025
-  place_lock_frames: 3
+  place_lock_frames: 2
   place_finish_speed_m_s: 0.010
   place_height_margin_m: 0.001
   place_z_accept_above_m: 0.005

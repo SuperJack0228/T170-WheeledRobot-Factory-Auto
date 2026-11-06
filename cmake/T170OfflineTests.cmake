@@ -40,6 +40,11 @@
         ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml)
     add_executable(tray_localizer_test tests/tray_localizer_test.cpp)
     add_executable(tray_acquisition_test tests/tray_acquisition_test.cpp)
+    add_executable(tray_place_latency_test tests/tray_place_latency_test.cpp)
+    target_link_libraries(tray_place_latency_test PRIVATE t170::configuration t170::servo_core)
+    add_test(NAME tray_place_latency_test COMMAND tray_place_latency_test
+        ${PROJECT_SOURCE_DIR}/config/move_box_params.yaml
+        ${PROJECT_SOURCE_DIR}/tests/fixtures/tray_place_latency_20261106.json)
     target_link_libraries(tray_acquisition_test PRIVATE t170::tray_geometry)
     add_test(NAME tray_acquisition_test COMMAND tray_acquisition_test)
     add_executable(tray_localizer_replay tools/tray_localizer_replay.cpp)

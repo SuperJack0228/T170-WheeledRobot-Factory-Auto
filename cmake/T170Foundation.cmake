@@ -32,6 +32,7 @@ target_link_libraries(t170_servo_core INTERFACE t170::motion_math)
 
 function(t170_add_configuration)
     add_library(t170_configuration STATIC src/common/config.cpp src/servo/config.cpp)
+    target_compile_definitions(t170_configuration PRIVATE T170_BUILD_CONFIGURATION="${CMAKE_BUILD_TYPE}")
     add_library(t170::configuration ALIAS t170_configuration)
     target_include_directories(t170_configuration PUBLIC ${PROJECT_SOURCE_DIR}/include)
     target_link_libraries(t170_configuration PUBLIC t170::common t170::control)

@@ -215,6 +215,7 @@ void observe(int hand) {
         if(!have_capture) {
             wrist_servo::observation_event(hand,context.session,"tray_capture_state_unavailable",obs);return;
         }
+        obs.clock_uncertainty_s+=capture.sampling_uncertainty_s;obs.capture_timing_accounted=true;
         if(tray_sessions[hand]!=context.session) {
             tray_localizers[hand].reset(context.tray_target,cfg.tray_place);
             tray_sessions[hand]=context.session;
@@ -235,6 +236,11 @@ void observe(int hand) {
         auto located=tray_localizers[hand].locate(frame,base_camera,executable);
         if(!located.valid && !gate_reason.empty()) located.detail+=" task_hint="+gate_reason;
         obs.completed_s=wrist_servo::monotonic_seconds(); obs.infer_ms=(obs.completed_s-infer_start)*1000;
+        if(located.reason!="tray_acquire_wait_next_frame") {
+            const bool insufficient=located.reason=="tray_acquire_no_rims" ||
+                located.reason=="tray_acquire_insufficient_rims" || located.reason=="tray_insufficient_visible_neighbors";
+            wrist_servo::report_tray_view(hand,context.session,obs.completed_s,insufficient);
+        }
         obs.virtual_target=true; obs.target_row=context.tray_target.row; obs.target_col=context.tray_target.col;
         obs.neighbor_count=located.neighbors; obs.marker_corner_count=located.marker_corners;
         obs.vision_source=located.source; obs.plane_reprojection_px=located.reprojection_px;
@@ -248,24 +254,32 @@ void observe(int hand) {
         obs.tray_rejected_short=located.rejected_short;obs.tray_global_hypotheses=located.global_hypotheses;
         obs.tray_occupied_used=located.occupied_used;obs.tray_partial_used=located.partial_used;
         obs.tray_identity_margin=located.identity_margin;
-        static double last_image_s[2]{};
-        if(cfg.tray_place.save_debug_images && located.reason!="tray_acquire_wait_next_frame" &&
-           obs.completed_s-last_image_s[hand]>=cfg.tray_place.debug_image_period_s) {
-            save_place_overlay(hand,context.session,obs.frame,frame,located,context,capture,base_camera);
-            last_image_s[hand]=obs.completed_s;
-        }
+        obs.tray_undistort_ms=located.undistort_ms;obs.tray_acquisition_ms=located.acquisition_ms;
+        obs.tray_prepare_ms=located.prepare_ms;obs.tray_roi_ms=located.roi_ms;
+        obs.tray_partial_ms=located.partial_ms;obs.tray_fit_ms=located.fit_ms;
+        obs.tray_partial_calls=located.partial_calls;obs.tray_pruned_neighbors=located.pruned_neighbors;
+        auto save_debug=[&] {
+            static double last_image_s[2]{};
+            if(cfg.tray_place.save_debug_images && located.reason!="tray_acquire_wait_next_frame" &&
+               obs.completed_s-last_image_s[hand]>=cfg.tray_place.debug_image_period_s) {
+                save_place_overlay(hand,context.session,obs.frame,frame,located,context,capture,base_camera);
+                last_image_s[hand]=obs.completed_s;
+            }
+        };
         if(!located.valid) {
             const std::string reason=located.reason+" "+located.detail;
-            wrist_servo::observation_event(hand,context.session,reason.c_str(),obs);return;
+            wrist_servo::observation_event(hand,context.session,reason.c_str(),obs);save_debug();return;
         }
-        if(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s>cfg.tray_place.observation_age_s) {
-            wrist_servo::observation_event(hand,context.session,"tray_geometry_frame_expired",obs);return;
+        obs.submit_age_ms=(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s)*1000;
+        if(obs.submit_age_ms>cfg.tray_place.observation_age_s*1000) {
+            wrist_servo::observation_event(hand,context.session,"tray_geometry_frame_expired",obs);save_debug();return;
         }
         obs.pixel=located.pixel;
         obs.confidence=.98/(1+located.reprojection_px/cfg.tray_place.reprojection_gate_px);
         wrist_servo::observation_event(hand,context.session,("tray_neighbor_model "+located.detail).c_str(),obs);
         if(!wrist_servo::submit_observation(hand,obs))
             wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
+        save_debug(); // Valid observations reach the controller before overlay construction.
         if(save_raw.load()) {
             const auto directory=std::filesystem::path(project_root_dir())/"hand_descent_raw";
             std::error_code ec;std::filesystem::create_directories(directory,ec);

@@ -33,6 +33,8 @@ struct TrayLocalization {
     int rejected_distance=0,rejected_target=0,rejected_short=0;
     int global_hypotheses=0,occupied_used=0,partial_used=0;
     double identity_margin=0;
+    double undistort_ms=0,acquisition_ms=0,prepare_ms=0,roi_ms=0,partial_ms=0,fit_ms=0;
+    int partial_calls=0,pruned_neighbors=0;
     std::string stage;
     std::string source,reason,detail;
 };

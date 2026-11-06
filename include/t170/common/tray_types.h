@@ -20,6 +20,10 @@ struct TrayPlaceVisionConfig {
     double observe_timeout_s=6.0;
     // B is stationary. A place fix may be older than a grasp frame and still name the same hole.
     double observation_age_s=0.6;
+    double target_hold_s=1.2; // bounded motion toward an already measured static XY goal
+    double alignment_extension_s=2.0;
+    double confirm_stable_s=.08;
+    int tracking_max_neighbors=6, tracking_scan_limit=12;
     double affine_min_scale=.65, affine_max_scale=1.5;
     double affine_max_rotation_rad=.35;
     double max_extrapolation_pitches=2.5;

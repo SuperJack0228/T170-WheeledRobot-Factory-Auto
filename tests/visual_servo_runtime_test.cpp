@@ -252,6 +252,9 @@ int main() {
                     o.capture_s=ctx.latest.time_s;o.completed_s=now+.08;o.confidence=.95;
                     o.pixel=Vec2(640,360)-10000*(ctx.latest.position.head<2>()-targets[hand]);
                     o.fx=o.fy=800;o.cx=640;o.cy=360;o.virtual_target=true;
+                    // Already includes capture-state uncertainty. Adding it again
+                    // would exceed the 0.12s limit and reject every left-hand frame.
+                    if(hand==0) {o.clock_uncertainty_s=.115;o.capture_timing_accounted=true;}
                     if(std::abs(ctx.latest.position.z()-starts[hand](2))>.005)
                         place_lowered_before_lock.store(true);
                     o.target_row=3;o.target_col=ctx.tray_target.col;o.neighbor_count=2;o.vision_source="neighbor_translation";

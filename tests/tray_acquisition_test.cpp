@@ -44,6 +44,9 @@ int main() {
         std::cout<<"large bias: "<<out.reason<<" "<<out.detail<<'\n';
         const auto truth=pixel(target.board.hole(3,3),camera);
         check(out.valid && out.neighbors>=4 && (out.pixel-truth).norm()<2,"50mm bootstrap or absolute grid identity failed");
+        check(out.neighbors<=cfg.tracking_max_neighbors && out.rois<=cfg.tracking_scan_limit,
+              "normal tracking ignored the bounded feature budget");
+        check(out.partial_calls==0,"complete rings still paid for partial-arc RANSAC");
         auto distant=seed;distant.base_from_tray(0,3)=.080;
         TrayLocalizer wide;wide.reset(distant,cfg);const auto wide_result=wide.locate(f,camera);
         check(wide_result.valid && (wide_result.pixel-truth).norm()<2,

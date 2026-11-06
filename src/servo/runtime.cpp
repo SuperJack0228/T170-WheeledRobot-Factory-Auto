@@ -27,6 +27,7 @@ struct Runtime {
     ObservationContext context;
     StateHistory history;
     std::optional<PixelObservation> pending;
+    std::optional<std::pair<double,bool>> pending_view;
     Eigen::Matrix4d tcp_to_camera = Eigen::Matrix4d::Identity();
     bool succeeded = false;
     bool final_hold = false;
@@ -121,7 +122,7 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     Runtime &slot=slots[hand];
     {
         std::lock_guard<std::mutex> lock(slot.mutex);
-        slot.context={}; slot.history.clear(); slot.pending.reset(); slot.succeeded=false;
+        slot.context={}; slot.history.clear(); slot.pending.reset();slot.pending_view.reset(); slot.succeeded=false;
         slot.failure_reason.clear();
         slot.context.active=true; slot.context.session=next_session.fetch_add(1);
         slot.context.desired_rotation=TR(goal).block<3,3>(0,0);
@@ -185,7 +186,7 @@ void end_session(int hand, bool success) {
     if(hand<0 || hand>1) return;
     auto &slot=slots[hand];
     std::lock_guard<std::mutex> lock(slot.mutex);
-    slot.context.active=false; slot.context.descending=false; slot.pending.reset();
+    slot.context.active=false; slot.context.descending=false; slot.pending.reset();slot.pending_view.reset();
     slot.succeeded=success;
     if(!success && slot.failure_reason.empty()) slot.failure_reason="approach_or_execution_failed";
     if(!success) group_failed.store(true);
@@ -222,6 +223,14 @@ bool submit_observation(int hand, const PixelObservation &o) {
        o.session!=slot.context.session) return false;
     if(slot.pending && o.capture_s<=slot.pending->capture_s) return false;
     slot.pending=o; return true;
+}
+
+void report_tray_view(int hand,std::uint64_t session,double completed_s,bool insufficient_view) {
+    if(hand<0 || hand>1 || !std::isfinite(completed_s)) return;
+    auto &slot=slots[hand];std::lock_guard<std::mutex> lock(slot.mutex);
+    if(!slot.context.active || !slot.context.descending || !slot.context.vision_required || slot.context.session!=session) return;
+    if(slot.pending_view && slot.pending_view->first>completed_s) return;
+    slot.pending_view=std::make_pair(completed_s,insufficient_view);
 }
 
 void observation_event(int hand,std::uint64_t session,const char *reason,const PixelObservation &o) {
@@ -412,6 +421,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     PixelObservation last_observation; Mapping last_map;
     int result=-31;
     bool recovery_logged=false;
+    bool extension_logged=false;
     while(true) {
         const auto cycle=std::chrono::steady_clock::now();
         if(hardware_abort_requested()) { result=-4; break; }
@@ -458,13 +468,17 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(group_failed.load()) controller.fail("peer_arm_failed");
         if(!trace_writer().healthy()) controller.fail("trace_write_failed");
         std::optional<PixelObservation> observation;
+        std::optional<std::pair<double,bool>> view_status;
         State capture; bool history_ok=false;
         { std::lock_guard<std::mutex> lock(slot.mutex);
           observation=slot.pending; slot.pending.reset();
+          view_status=slot.pending_view;slot.pending_view.reset();
           if(observation) history_ok=slot.history.interpolate(observation->capture_s,cfg.max_state_gap_s,capture);
         }
+        if(view_status) controller.tray_view_status(view_status->first,view_status->second);
         if(observation) {
-            if(history_ok) observation->clock_uncertainty_s+=capture.sampling_uncertainty_s;
+            if(history_ok && !observation->capture_timing_accounted)
+                observation->clock_uncertainty_s+=capture.sampling_uncertainty_s;
             std::string reason="capture_state_unavailable";
             Mapping map;
             bool accepted=false;
@@ -489,6 +503,9 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(controller.has_goal() && pair_too_close(hand,state,controller.goal_xy(),cfg.pair_clearance_m))
             controller.fail("dual_arm_clearance");
         Output output=controller.tick(state,dt);
+        if(output.alignment_extended && !extension_logged) {
+            task_event(hand,"place_alignment_extension","near_target_progress_bounded_extension");extension_logged=true;
+        }
         if(staged_place && !recovery_logged && output.reason=="place_B_recovery_lift_align_XY") {
             task_event(hand,"place_observation_recovery","bounded_vertical_lift_final_C_unchanged");
             recovery_logged=true;

@@ -25,6 +25,8 @@ bool observation_context(int hand, ObservationContext &context);
 bool camera_at_capture(int hand,std::uint64_t session,double capture_s,Eigen::Matrix4d &base_camera,
                        State *capture_state=nullptr);
 bool submit_observation(int hand, const PixelObservation &observation);
+// Visibility is independent of whether a geometrically valid result arrived in time.
+void report_tray_view(int hand,std::uint64_t session,double completed_s,bool insufficient_view);
 void observation_event(int hand, std::uint64_t session, const char *reason,
                        const PixelObservation &observation = {});
 }

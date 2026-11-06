@@ -48,6 +48,8 @@ void load_config(const YAML::Node &n, Config &c) {
     PLACE_READ(max_plane_update_m); PLACE_READ(min_neighbors); PLACE_READ(rectified_pixels_per_m);
     PLACE_READ(affine_enabled); PLACE_READ(observe_at_B); PLACE_READ(observe_timeout_s);
     PLACE_READ(observation_age_s);
+    PLACE_READ(target_hold_s); PLACE_READ(alignment_extension_s); PLACE_READ(confirm_stable_s);
+    PLACE_READ(tracking_max_neighbors); PLACE_READ(tracking_scan_limit);
     PLACE_READ(affine_min_scale); PLACE_READ(affine_max_scale); PLACE_READ(affine_max_rotation_rad);
     PLACE_READ(max_extrapolation_pitches);
     PLACE_READ(xy_only); PLACE_READ(orange_rim_enabled); PLACE_READ(rim_min_radius_ratio);
@@ -119,6 +121,9 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
 #else
         out << YAML::Key << "build_revision" << YAML::Value << "unknown";
 #endif
+#ifdef T170_BUILD_CONFIGURATION
+        out << YAML::Key << "build_configuration" << YAML::Value << T170_BUILD_CONFIGURATION;
+#endif
         out << YAML::Key << "build_time" << YAML::Value << __DATE__ " " __TIME__;
         out << YAML::Key << "visual_servo" << YAML::Value << YAML::BeginMap;
         out << YAML::Key << "belt_place_enabled" << YAML::Value << c.belt_place_enabled;
@@ -131,6 +136,8 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         PLACE_WRITE(max_plane_update_m); PLACE_WRITE(min_neighbors); PLACE_WRITE(rectified_pixels_per_m);
         PLACE_WRITE(affine_enabled); PLACE_WRITE(observe_at_B); PLACE_WRITE(observe_timeout_s);
         PLACE_WRITE(observation_age_s);
+        PLACE_WRITE(target_hold_s); PLACE_WRITE(alignment_extension_s); PLACE_WRITE(confirm_stable_s);
+        PLACE_WRITE(tracking_max_neighbors); PLACE_WRITE(tracking_scan_limit);
         PLACE_WRITE(affine_min_scale); PLACE_WRITE(affine_max_scale); PLACE_WRITE(affine_max_rotation_rad);
         PLACE_WRITE(max_extrapolation_pitches);
         PLACE_WRITE(xy_only); PLACE_WRITE(orange_rim_enabled); PLACE_WRITE(rim_min_radius_ratio);

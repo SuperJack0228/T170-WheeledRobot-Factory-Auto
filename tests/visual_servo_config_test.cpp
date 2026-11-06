@@ -116,6 +116,14 @@ int main(int argc,char **argv) {
                 replay.tray_place.min_coverage_bins==c.tray_place.min_coverage_bins &&
                 replay.grasp_z_feedback_tolerance_m==c.grasp_z_feedback_tolerance_m,
                 "placement visibility and feedback tolerances lost in snapshot");
+        require(replay.tray_place.target_hold_s==c.tray_place.target_hold_s &&
+                replay.tray_place.alignment_extension_s==c.tray_place.alignment_extension_s &&
+                replay.tray_place.confirm_stable_s==c.tray_place.confirm_stable_s &&
+                replay.tray_place.tracking_max_neighbors==c.tray_place.tracking_max_neighbors &&
+                replay.tray_place.tracking_scan_limit==c.tray_place.tracking_scan_limit,
+                "fast tracking or static-goal budget lost in snapshot");
+        auto invalid_hold=c;invalid_hold.tray_place.target_hold_s=.1;
+        require(!wrist_servo::validate_config(invalid_hold,error),"target lifetime shorter than image freshness was accepted");
         auto invalid_affine=c;invalid_affine.tray_place.affine_min_scale=1.1;
         require(replay.tray_place.global_acquisition && replay.tray_place.global_search_m==c.tray_place.global_search_m &&
                 replay.tray_place.global_max_hypotheses==c.tray_place.global_max_hypotheses &&
