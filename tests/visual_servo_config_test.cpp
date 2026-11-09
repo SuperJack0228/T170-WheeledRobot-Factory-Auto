@@ -93,7 +93,7 @@ int main(int argc,char **argv) {
                 c.belt_place_enabled==root["visual_servo"]["belt_place_enabled"].as<bool>(),
                 "belt grasp/place servo switches differ from YAML");
         require(c.period_s==.01 && c.stable_frames>=2,"actual controller parameters loaded");
-        require(c.profiles[0].reference_px.x()==598 && c.profiles[1].reference_px.x()==702,"per-hand profiles loaded");
+        require(c.profiles[0].reference_px.x()==583 && c.profiles[1].reference_px.x()==717,"per-hand profiles loaded");
         const auto snapshot=(std::filesystem::temp_directory_path()/"t170_servo_config_roundtrip.yaml").string();
         std::string error;
         require(wrist_servo::write_config_snapshot(c,snapshot,error),"snapshot written");
@@ -116,7 +116,24 @@ int main(int argc,char **argv) {
                 replay.tray_place.min_coverage_bins==c.tray_place.min_coverage_bins &&
                 replay.grasp_z_feedback_tolerance_m==c.grasp_z_feedback_tolerance_m,
                 "placement visibility and feedback tolerances lost in snapshot");
+        require(replay.tray_place.target_hold_s==c.tray_place.target_hold_s &&
+                replay.tray_place.alignment_extension_s==c.tray_place.alignment_extension_s &&
+                replay.tray_place.confirm_stable_s==c.tray_place.confirm_stable_s &&
+                replay.tray_place.tracking_max_neighbors==c.tray_place.tracking_max_neighbors &&
+                replay.tray_place.tracking_scan_limit==c.tray_place.tracking_scan_limit,
+                "fast tracking or static-goal budget lost in snapshot");
+        auto invalid_hold=c;invalid_hold.tray_place.target_hold_s=.1;
+        require(!wrist_servo::validate_config(invalid_hold,error),"target lifetime shorter than image freshness was accepted");
         auto invalid_affine=c;invalid_affine.tray_place.affine_min_scale=1.1;
+        require(replay.tray_place.global_acquisition && replay.tray_place.global_search_m==c.tray_place.global_search_m &&
+                replay.tray_place.global_max_hypotheses==c.tray_place.global_max_hypotheses &&
+                replay.tray_place.single_neighbor_max_age_s==c.tray_place.single_neighbor_max_age_s &&
+                replay.tray_place.observe_recovery_lift_m==c.tray_place.observe_recovery_lift_m &&
+                replay.tray_place.observation_age_s==c.tray_place.observation_age_s &&
+                replay.tray_place.save_debug_images==c.tray_place.save_debug_images,
+                "acquisition/recovery parameters lost in snapshot");
+        auto invalid_recovery=c;invalid_recovery.tray_place.observe_recovery_lift_m=.20;
+        require(!wrist_servo::validate_config(invalid_recovery,error),"unbounded recovery lift accepted");
         require(!wrist_servo::validate_config(invalid_affine,error),"invalid affine scale accepted");
         auto invalid_observe=c;invalid_observe.tray_place.observe_timeout_s=c.task_timeout_s;
         require(!wrist_servo::validate_config(invalid_observe,error),"unbounded B wait accepted");

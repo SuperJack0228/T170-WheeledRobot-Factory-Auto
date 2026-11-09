@@ -46,6 +46,16 @@ def summarize(path):
         rejected = collections.Counter(r["reason"] for r in rows if r["event"] == "observation" and r["reason"] != "accepted")
         vision_events = collections.Counter(r["reason"] for r in rows if r["event"] == "vision")
         virtual = [r for r in accepted if r.get("virtual_target") == "1"]
+        tray_frames = [r for r in rows if r["event"] == "vision" and r.get("virtual_target") == "1"]
+        acquisition = {
+            "stages": dict(collections.Counter(r.get("tray_stage", "legacy") for r in tray_frames)),
+            "frame_reasons": dict(collections.Counter(r["reason"].split()[0] for r in tray_frames if r["reason"].split())),
+            "candidates_max": max((number(r,"tray_candidates") for r in tray_frames), default=0),
+            "rejected_distance": sum(number(r,"tray_rejected_distance") for r in tray_frames),
+            "occupied_used_max": max((number(r,"tray_occupied_used") for r in tray_frames), default=0),
+            "partial_used_max": max((number(r,"tray_partial_used") for r in tray_frames), default=0),
+            "observation_recoveries": sum(r["event"] == "place_observation_recovery" for r in rows),
+        }
         placement_geometry = None if not virtual else {
             "sources": dict(collections.Counter(r.get("vision_source","unknown") for r in virtual)),
             "target_identities": sorted({(int(number(r,"target_row")),int(number(r,"target_col"))) for r in virtual}),
@@ -112,14 +122,18 @@ def summarize(path):
                 ("command_vx_m_s","command_vy_m_s","command_vz_m_s"))) if ends else None,
             "timeline": [{"event":r["event"], "reason":r["reason"],
                 "elapsed_s":number(r,"steady_s")-start} for r in rows if r["event"] in
-                {"handoff","joint_policy","both_ready","gripper_gate","gripper_start","gripper_end",
+                {"handoff","joint_policy","place_B_observe","place_observation_recovery","place_XY_locked","place_alignment_extension",
+                 "both_ready","gripper_gate","gripper_start","gripper_end",
                  "retract_start","retract_end","retract_abort","lift_plan","lift_start","lift_done","lift_failed",
                  "return_plan","return_start","return_done","return_failed","peer_wait_clearance","peer_clearance",
                  "waist_rise_start","waist_rise_end","retract_sdk_failed","lift_connector_failed"}],
             "retract": retract,
             "retreat_stage_failures": [{"event":r["event"],"reason":r["reason"]} for r in rows
                 if r["event"] in {"lift_failed","return_failed","retract_sdk_failed","lift_connector_failed"}],
+            "place_lock_blockers": dict(collections.Counter(r.get("place_lock_blocker") for r in controls if r.get("place_lock_blocker"))),
+            "static_goal_motion_ticks": sum(r.get("static_goal_motion")=="1" for r in controls),
             "FK_feedback_step_warnings": sum(r["event"]=="feedback_step" for r in rows),
+            "tray_acquisition": acquisition,
             "placement_geometry": placement_geometry,
             "release_confirmed": any(r["event"]=="gripper_end" and r["reason"]=="open_confirmed" for r in rows),
             "release_failed": any(r["event"]=="gripper_end" and r["reason"]=="open_failed" for r in rows),

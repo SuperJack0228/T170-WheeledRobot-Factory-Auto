@@ -132,6 +132,7 @@ public:
                  double now, std::string &reason);
     Output tick(const State &state, double dt);
     void fail(const std::string &reason);
+    void tray_view_status(double completed_s,bool insufficient_view);
     void feedback_reference(const Vec3 &reference, const Vec3 &velocity) {
         reference_=reference; velocity_=velocity.head<2>(); vz_=velocity.z();
     }
@@ -155,7 +156,11 @@ private:
     int close_confirmations_ = 0;
     int stable_goal_frames_ = 0;
     bool virtual_place_ = false, staged_place_ = false;
+    bool observation_recovery_=false;
     double observe_z_ = 0;
+    double view_bad_since_=-1,view_status_s_=-1,place_stable_since_=-1;
+    double place_deadline_s_=0,progress_error_=1e9,last_progress_s_=-1;
+    bool alignment_extended_=false;
     Phase phase_ = Phase::Acquiring;
     std::string failure_;
 };

@@ -45,6 +45,10 @@ bool TraceWriter::start(const std::string &dir) {
     file_ << ",trajectory_row,joint_feedback_valid,command_step_rad,command_speed_rad_s,command_accel_rad_s2,command_jerk_rad_s3,hold_release_wait_ms";
     file_ << ",vision_source,virtual_target,target_row,target_col,neighbor_count,marker_corner_count,plane_reprojection_px,observed_plane_z_m";
     file_ << ",place_locked,stable_goal_frames,tray_rois,tray_contours,tray_rejected_size,tray_rejected_shape,tray_rejected_coverage,tray_rejected_residual,tray_skipped_occupied";
+    file_ << ",tray_stage,tray_candidates,tray_global_hypotheses,tray_identity_margin,tray_rejected_distance,tray_rejected_target,tray_rejected_short,tray_occupied_used,tray_partial_used";
+    file_ << ",tray_undistort_ms,tray_acquisition_ms,tray_prepare_ms,tray_roi_ms,tray_partial_ms,tray_fit_ms,tray_partial_calls,tray_pruned_neighbors";
+    file_ << ",place_close_frames,static_goal_motion,place_elapsed_s,place_deadline_s,place_alignment_extended,place_lock_blocker";
+    file_ << ",capture_timing_accounted,submit_age_ms";
     file_ << '\n'; file_.flush();
     if(!file_) return false;
     healthy_.store(true);
@@ -108,6 +112,15 @@ void TraceWriter::run() {
               << ',' << o.tray_rois << ',' << o.tray_contours << ',' << o.tray_rejected_size
               << ',' << o.tray_rejected_shape << ',' << o.tray_rejected_coverage
               << ',' << o.tray_rejected_residual << ',' << o.tray_skipped_occupied;
+        file_ << ',' << cell(o.tray_stage) << ',' << o.tray_candidates << ',' << o.tray_global_hypotheses
+              << ',' << o.tray_identity_margin << ',' << o.tray_rejected_distance << ',' << o.tray_rejected_target
+              << ',' << o.tray_rejected_short << ',' << o.tray_occupied_used << ',' << o.tray_partial_used;
+        file_ << ',' << o.tray_undistort_ms << ',' << o.tray_acquisition_ms << ',' << o.tray_prepare_ms
+              << ',' << o.tray_roi_ms << ',' << o.tray_partial_ms << ',' << o.tray_fit_ms
+              << ',' << o.tray_partial_calls << ',' << o.tray_pruned_neighbors;
+        file_ << ',' << c.close_confirmations << ',' << c.static_goal_motion << ',' << c.place_elapsed_s
+              << ',' << c.place_deadline_s << ',' << c.alignment_extended << ',' << cell(c.lock_blocker);
+        file_ << ',' << o.capture_timing_accounted << ',' << o.submit_age_ms;
         file_ << '\n';
         if(++since_flush>=20 || r.event=="end" || r.event=="reject") { file_.flush(); since_flush=0; }
         if(!file_ && healthy_.exchange(false)) std::cerr << "[servo] 调试日志写入失败 " << path_ << '\n';

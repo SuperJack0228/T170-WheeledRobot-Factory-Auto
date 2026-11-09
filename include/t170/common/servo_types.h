@@ -32,6 +32,8 @@ struct PixelObservation {
     int timestamp_source = 0;
     double grab_ms = 0.0;
     double infer_ms = 0.0;
+    bool capture_timing_accounted=false;
+    double submit_age_ms=0;
     Vec2 pixel = Vec2::Zero();
     double confidence = 0.0;
     double fx = 0.0, fy = 0.0, cx = 0.0, cy = 0.0;
@@ -41,6 +43,12 @@ struct PixelObservation {
     double plane_z_m=0,plane_reprojection_px=0;
     int tray_rois=0,tray_contours=0,tray_rejected_size=0,tray_rejected_shape=0;
     int tray_rejected_coverage=0,tray_rejected_residual=0,tray_skipped_occupied=0;
+    int tray_candidates=0,tray_rejected_distance=0,tray_rejected_target=0,tray_rejected_short=0;
+    int tray_global_hypotheses=0,tray_occupied_used=0,tray_partial_used=0;
+    double tray_identity_margin=0;
+    std::string tray_stage;
+    double tray_undistort_ms=0,tray_acquisition_ms=0,tray_prepare_ms=0,tray_roi_ms=0,tray_partial_ms=0,tray_fit_ms=0;
+    int tray_partial_calls=0,tray_pruned_neighbors=0;
     std::string vision_source="yolo";
 };
 
@@ -71,5 +79,9 @@ struct Output {
     bool relaxed_grasp = false;
     bool place_locked = false;
     int stable_goal_frames = 0;
+    int close_confirmations=0;
+    bool static_goal_motion=false,alignment_extended=false;
+    double place_elapsed_s=0,place_deadline_s=0;
+    std::string lock_blocker;
 };
 }

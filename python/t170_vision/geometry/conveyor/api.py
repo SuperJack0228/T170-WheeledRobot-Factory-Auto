@@ -1,4 +1,4 @@
-"""Head-camera conveyor ArUco API (DICT_6X6). Independent of tray 5x5.
+"""Head-camera conveyor ArUco API (DICT_5X5). Independent of the tray board.
 
 Uses the package-relative conveyor detector, independent of the tray detector.
 Legacy board_belt_aruco entry points only forward to this implementation.
@@ -129,7 +129,7 @@ def detect_frame(
     grasp_offset_left=None,
     grasp_offset_right=None,
 ) -> dict[str, Any]:
-    """Detect conveyor 6x6 markers. Does not use tray 5x5 or YOLO.
+    """Detect conveyor 5x5 markers. Does not use the tray board or YOLO.
 
     grasp_offset[_left/_right]: 识别板系 (x前, y左, z上)，米。Y+ 向左横跨皮带。
     """
@@ -202,7 +202,7 @@ def detect_frame(
 
     out: dict[str, Any] = {
         "ok": chosen is not None,
-        "message": "ok" if chosen is not None else "未检测到传送带 6x6 码",
+        "message": "ok" if chosen is not None else "未检测到传送带 5x5 码",
         "name": chosen["name"] if chosen else "",
         "used_ids": list(chosen["used_ids"]) if chosen else [],
         "reproj_px": float(chosen["reproj_px"]) if chosen else -1.0,

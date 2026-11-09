@@ -47,11 +47,32 @@ void load_config(const YAML::Node &n, Config &c) {
     PLACE_READ(reprojection_gate_px); PLACE_READ(circle_residual_m);
     PLACE_READ(max_plane_update_m); PLACE_READ(min_neighbors); PLACE_READ(rectified_pixels_per_m);
     PLACE_READ(affine_enabled); PLACE_READ(observe_at_B); PLACE_READ(observe_timeout_s);
+    PLACE_READ(observation_age_s);
+    PLACE_READ(target_hold_s); PLACE_READ(alignment_extension_s); PLACE_READ(confirm_stable_s);
+    PLACE_READ(tracking_max_neighbors); PLACE_READ(tracking_scan_limit);
     PLACE_READ(affine_min_scale); PLACE_READ(affine_max_scale); PLACE_READ(affine_max_rotation_rad);
     PLACE_READ(max_extrapolation_pitches);
     PLACE_READ(xy_only); PLACE_READ(orange_rim_enabled); PLACE_READ(rim_min_radius_ratio);
     PLACE_READ(occupied_orange_rims);
     PLACE_READ(rim_max_radius_ratio); PLACE_READ(min_coverage_bins);
+    PLACE_READ(global_acquisition);
+    PLACE_READ(boundary_enabled);
+    PLACE_READ(global_search_m);
+    PLACE_READ(global_match_gate_m);
+    PLACE_READ(global_ambiguity_margin);
+    PLACE_READ(global_max_hypotheses);
+    PLACE_READ(reacquire_after_frames);
+    PLACE_READ(partial_rims);
+    PLACE_READ(partial_min_bins);
+    PLACE_READ(single_neighbor_max_frames);
+    PLACE_READ(single_neighbor_step_m);
+    PLACE_READ(single_neighbor_budget_m);
+    PLACE_READ(single_neighbor_max_age_s);
+    PLACE_READ(observe_recovery_after_s);
+    PLACE_READ(observe_recovery_lift_m);
+    PLACE_READ(observe_recovery_speed_m_s);
+    PLACE_READ(save_debug_images);
+    PLACE_READ(debug_image_period_s);
 #undef PLACE_READ
 #define SERVO_READ(field) read(n, #field, c.field)
     SERVO_READ(period_s); SERVO_READ(kp); SERVO_READ(kd);
@@ -100,6 +121,9 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
 #else
         out << YAML::Key << "build_revision" << YAML::Value << "unknown";
 #endif
+#ifdef T170_BUILD_CONFIGURATION
+        out << YAML::Key << "build_configuration" << YAML::Value << T170_BUILD_CONFIGURATION;
+#endif
         out << YAML::Key << "build_time" << YAML::Value << __DATE__ " " __TIME__;
         out << YAML::Key << "visual_servo" << YAML::Value << YAML::BeginMap;
         out << YAML::Key << "belt_place_enabled" << YAML::Value << c.belt_place_enabled;
@@ -111,11 +135,32 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         PLACE_WRITE(reprojection_gate_px); PLACE_WRITE(circle_residual_m);
         PLACE_WRITE(max_plane_update_m); PLACE_WRITE(min_neighbors); PLACE_WRITE(rectified_pixels_per_m);
         PLACE_WRITE(affine_enabled); PLACE_WRITE(observe_at_B); PLACE_WRITE(observe_timeout_s);
+        PLACE_WRITE(observation_age_s);
+        PLACE_WRITE(target_hold_s); PLACE_WRITE(alignment_extension_s); PLACE_WRITE(confirm_stable_s);
+        PLACE_WRITE(tracking_max_neighbors); PLACE_WRITE(tracking_scan_limit);
         PLACE_WRITE(affine_min_scale); PLACE_WRITE(affine_max_scale); PLACE_WRITE(affine_max_rotation_rad);
         PLACE_WRITE(max_extrapolation_pitches);
         PLACE_WRITE(xy_only); PLACE_WRITE(orange_rim_enabled); PLACE_WRITE(rim_min_radius_ratio);
         PLACE_WRITE(occupied_orange_rims);
         PLACE_WRITE(rim_max_radius_ratio); PLACE_WRITE(min_coverage_bins);
+        PLACE_WRITE(global_acquisition);
+        PLACE_WRITE(boundary_enabled);
+        PLACE_WRITE(global_search_m);
+        PLACE_WRITE(global_match_gate_m);
+        PLACE_WRITE(global_ambiguity_margin);
+        PLACE_WRITE(global_max_hypotheses);
+        PLACE_WRITE(reacquire_after_frames);
+        PLACE_WRITE(partial_rims);
+        PLACE_WRITE(partial_min_bins);
+        PLACE_WRITE(single_neighbor_max_frames);
+        PLACE_WRITE(single_neighbor_step_m);
+        PLACE_WRITE(single_neighbor_budget_m);
+        PLACE_WRITE(single_neighbor_max_age_s);
+        PLACE_WRITE(observe_recovery_after_s);
+        PLACE_WRITE(observe_recovery_lift_m);
+        PLACE_WRITE(observe_recovery_speed_m_s);
+        PLACE_WRITE(save_debug_images);
+        PLACE_WRITE(debug_image_period_s);
 #undef PLACE_WRITE
         out << YAML::EndMap;
         out << YAML::Key << "period_s" << YAML::Value << c.period_s;

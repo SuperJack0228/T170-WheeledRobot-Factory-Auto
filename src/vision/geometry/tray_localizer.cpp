@@ -1,4 +1,5 @@
 #include "t170/vision/tray_localizer.h"
+#include "tray_registration.h"
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <yaml-cpp/yaml.h>
@@ -9,9 +10,11 @@
 #include <set>
 #include <sstream>
 #include <iomanip>
+#include <chrono>
 
 namespace wrist_servo {
 namespace {
+double now_ms() {return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 cv::Mat cv_matrix(const Eigen::Matrix3d &m) {
     cv::Mat out(3,3,CV_64F);
     for(int i=0;i<3;++i) for(int j=0;j<3;++j) out.at<double>(i,j)=m(i,j);
@@ -98,7 +101,7 @@ bool translate_plane(const std::vector<cv::Point2f> &plane,const std::vector<cv:
 
 NeighborGridFit fit_neighbor_grid(const std::vector<Eigen::Vector2d> &nominal,
     const std::vector<Eigen::Vector2d> &observed,const Eigen::Vector2d &target,
-    double pitch,const TrayPlaceVisionConfig &cfg) {
+    double pitch,const TrayPlaceVisionConfig &cfg,bool identity_resolved) {
     NeighborGridFit out;
     if(nominal.size()!=observed.size() || nominal.size()<static_cast<std::size_t>(cfg.min_neighbors) ||
        !target.allFinite() || !std::isfinite(pitch) || pitch<=0) {out.detail="insufficient_pairs";return out;}
@@ -141,7 +144,8 @@ NeighborGridFit fit_neighbor_grid(const std::vector<Eigen::Vector2d> &nominal,
            svd.singularValues()(0)>cfg.affine_max_scale ||
            svd.singularValues()(0)/svd.singularValues()(1)>1.8 || angle>cfg.affine_max_rotation_rad) continue;
         const Eigen::Vector2d predicted=project(a,target);
-        if((predicted-target).norm()>=pitch*.45) {out.detail="target_identity_budget";continue;}
+        const double budget=identity_resolved?cfg.global_search_m:pitch*.45;
+        if((predicted-target).norm()>=budget) {out.detail="target_identity_budget";continue;}
         std::vector<cv::Point2f> support,hull;
         for(int i:ids) support.push_back(from[i]);
         if(support.size()>=3) cv::convexHull(support,hull);
@@ -222,15 +226,25 @@ struct TrayLocalizer::Impl {
     TrayPlaceVisionConfig cfg;
     Eigen::Matrix4d refined=Eigen::Matrix4d::Identity();
     Eigen::Matrix3d image_correction=Eigen::Matrix3d::Identity();
+    bool registered=false;
+    cv::Mat undistort_map1,undistort_map2;
+    std::array<double,9> cached_k{};std::array<double,5> cached_dist{};
+    int cached_width=0,cached_height=0;
+    std::vector<int> support;
+    int misses=0, acquisition_frames=0, single_frames=0;
+    double full_capture_s=0,single_travel=0;
 };
 TrayLocalizer::TrayLocalizer():impl_(std::make_unique<Impl>()) {}
 TrayLocalizer::~TrayLocalizer()=default;
 void TrayLocalizer::reset(const TrayTarget &target,const TrayPlaceVisionConfig &cfg) {
     impl_->target=target; impl_->cfg=cfg; impl_->refined=target.base_from_tray;
     impl_->image_correction.setIdentity();
+    impl_->registered=false;impl_->misses=impl_->acquisition_frames=impl_->single_frames=0;
+    impl_->single_travel=0;impl_->full_capture_s=0;impl_->support.clear();
 }
 
-TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen::Matrix4d &base_camera) {
+TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen::Matrix4d &base_camera,
+                                     const TrayPixelGate &executable_target) {
     auto &s=*impl_; const auto &board=s.target.board; const auto &cfg=s.cfg;
     TrayLocalization out;out.source=cfg.xy_only?"neighbor_xy":"neighbor_geometry";
     if(cfg.association_gate_m>=board.pitch_m*.45) {out.reason="tray_association_gate_exceeds_half_pitch";return out;}
@@ -242,9 +256,18 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     k(0,0)=frame.K[0]; k(1,1)=frame.K[4]; k(0,2)=frame.K[2]; k(1,2)=frame.K[5];
     if(k(0,0)<=1 || k(1,1)<=1) {out.reason="invalid_tray_intrinsics";return out;}
     const cv::Mat K=cv_matrix(k),dist(1,5,CV_64F,const_cast<double*>(frame.dist.data()));
-    cv::Mat gray,undistorted,color;
+    cv::Mat undistorted,color;
     const cv::Mat bgr(frame.height,frame.width,CV_8UC3,const_cast<unsigned char*>(frame.color_bgr.data()));
-    cv::undistort(bgr,color,K,dist);cv::cvtColor(color,undistorted,cv::COLOR_BGR2GRAY);
+    const double undistort_start=now_ms();
+    if(std::all_of(frame.dist.begin(),frame.dist.end(),[](double x){return x==0;})) color=bgr;
+    else {
+        if(s.cached_width!=frame.width || s.cached_height!=frame.height || s.cached_k!=frame.K || s.cached_dist!=frame.dist) {
+            cv::initUndistortRectifyMap(K,dist,cv::Mat(),K,{frame.width,frame.height},CV_16SC2,s.undistort_map1,s.undistort_map2);
+            s.cached_width=frame.width;s.cached_height=frame.height;s.cached_k=frame.K;s.cached_dist=frame.dist;
+        }
+        cv::remap(bgr,color,s.undistort_map1,s.undistort_map2,cv::INTER_LINEAR);
+    }
+    out.undistort_ms=now_ms()-undistort_start;
     Eigen::Matrix4d working_base=s.refined,camera_tray=base_camera.inverse()*working_base;
     if(camera_tray(2,3)<=.015) {out.reason="tray_behind_camera";return out;}
     const Eigen::Matrix3d seed_projection=homography(camera_tray,k);
@@ -263,6 +286,37 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
         return {distorted[0].x,distorted[0].y};
     };
     const auto target_xy=board.hole(s.target.row,s.target.col);
+    out.stage=s.registered?"tracking":"acquiring";
+    std::string acquisition_detail;
+    if(cfg.xy_only && cfg.affine_enabled && cfg.global_acquisition && !s.registered) {
+        const bool attempt=(s.acquisition_frames++%cfg.reacquire_after_frames)==0;
+        if(!attempt) {out.reason="tray_acquire_wait_next_frame";return out;}
+        const double acquisition_start=now_ms();
+        const auto scene=tray_registration::discover(color,seed_projection,board,cfg);
+        for(const auto &rim:scene.rims) out.candidate_pixels.push_back(to_raw(project(seed_projection,rim.point)));
+        TrayPixelGate plane_gate;
+        if(executable_target) plane_gate=[&](const Eigen::Vector2d &p) {return executable_target(to_raw(project(seed_projection,p)));};
+        const auto acquired=tray_registration::acquire(scene,s.target,cfg,plane_gate);
+        out.acquisition_ms=now_ms()-acquisition_start;
+        out.global_hypotheses=acquired.hypotheses;out.identity_margin=acquired.margin;
+        out.detail=acquired.detail;
+        if(!acquired.valid) {
+            out.reason=acquired.reason;
+            const auto raw=to_raw(project(prior,target_xy));out.target_u=raw.x();out.target_v=raw.y();
+            for(int r=1;r<=board.rows;++r) for(int c=1;c<=board.cols;++c) {
+                if(r==s.target.row && c==s.target.col) continue;
+                const auto p=to_raw(project(prior,board.hole(r,c)));
+                TrayImageMark mark;mark.row=r;mark.col=c;mark.predicted_u=p.x();mark.predicted_v=p.y();
+                mark.occupied=std::find(s.target.occupied_holes.begin(),s.target.occupied_holes.end(),r*100+c)!=s.target.occupied_holes.end();
+                out.marks.push_back(mark);
+            }
+            return out;
+        }
+        // This update is an image-model correction, never a commanded TCP displacement.
+        s.image_correction=acquired.fit.transform;s.registered=true;s.misses=0;
+        prior=seed_projection*s.image_correction;inverse=prior.inverse();
+        out.stage="acquired_refining";acquisition_detail=acquired.detail+" ";
+    }
     const auto target_raw=to_raw(project(prior,target_xy));
     out.target_u=static_cast<float>(target_raw.x());
     out.target_v=static_cast<float>(target_raw.y());
@@ -272,110 +326,206 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
     // identity; a missing, partial or inconsistent marker cannot veto neighbors.
     std::ostringstream neighbor_detail;
     neighbor_detail<<std::fixed<<std::setprecision(2);
-    // Rectify EACH visible neighbor ROI into the tray plane before circle fitting.
-    // Neither a detection-box center nor a raw-image ellipse center is a hole center.
+    const bool fast=cfg.xy_only && cfg.affine_enabled;
+    const double prepare_start=now_ms();
     const double scale=cfg.rectified_pixels_per_m,extent=board.radius_m+cfg.association_gate_m;
     const int side=static_cast<int>(std::ceil(2*extent*scale))+1;
+    struct Candidate {int row,col;bool occupied;Eigen::Vector2d xy,predicted;};
+    std::vector<Candidate> candidates;
     for(int row=1;row<=board.rows;++row) for(int col=1;col<=board.cols;++col) {
-        if(row==s.target.row && col==s.target.col) continue; // always exclude the occluded target
+        if(row==s.target.row && col==s.target.col) continue;
         const bool occupied=std::find(s.target.occupied_holes.begin(),s.target.occupied_holes.end(),row*100+col)!=s.target.occupied_holes.end();
-        if(occupied) {
-            ++out.skipped_occupied;
-            if(!cfg.orange_rim_enabled || !cfg.occupied_orange_rims) continue;
-        }
-        const Eigen::Vector2d xy=board.hole(row,col),predicted=project(prior,xy);
+        if(occupied) {++out.skipped_occupied;if(!cfg.orange_rim_enabled || !cfg.occupied_orange_rims) continue;}
+        const auto xy=board.hole(row,col),predicted=project(prior,xy);
         if(!predicted.allFinite() || predicted.x()<0 || predicted.y()<0 || predicted.x()>=frame.width || predicted.y()>=frame.height) continue;
-        const auto predicted_raw=to_raw(predicted);
-        TrayImageMark mark;
-        mark.row=row; mark.col=col; mark.occupied=occupied;
-        mark.predicted_u=static_cast<float>(predicted_raw.x());
-        mark.predicted_v=static_cast<float>(predicted_raw.y());
-        Eigen::Matrix3d plane_from_roi=Eigen::Matrix3d::Identity();
-        plane_from_roi(0,0)=plane_from_roi(1,1)=1/scale;
-        plane_from_roi(0,2)=xy.x()-extent; plane_from_roi(1,2)=xy.y()-extent;
-        ++out.rois;
-        cv::Mat patch,edges;
-        cv::warpPerspective(undistorted,patch,cv_matrix(prior*plane_from_roi),{side,side},cv::INTER_LINEAR|cv::WARP_INVERSE_MAP,cv::BORDER_CONSTANT,cv::Scalar(127));
-        cv::GaussianBlur(patch,patch,{3,3},.8); cv::Canny(patch,edges,35,100);
-        std::vector<std::vector<cv::Point>> contours;
-        if(!occupied) cv::findContours(edges,contours,cv::RETR_LIST,cv::CHAIN_APPROX_NONE);
-        const std::size_t gray_count=contours.size();
-        cv::Mat hsv;
-        if(cfg.orange_rim_enabled) {
-            cv::Mat rgb_patch,mask;
-            cv::warpPerspective(color,rgb_patch,cv_matrix(prior*plane_from_roi),{side,side},
-                cv::INTER_LINEAR|cv::WARP_INVERSE_MAP,cv::BORDER_CONSTANT,cv::Scalar(127,127,127));
-            cv::cvtColor(rgb_patch,hsv,cv::COLOR_BGR2HSV);
-            cv::inRange(hsv,cv::Scalar(0,85,65),cv::Scalar(28,255,255),mask);
-            cv::morphologyEx(mask,mask,cv::MORPH_CLOSE,cv::getStructuringElement(cv::MORPH_ELLIPSE,{3,3}));
-            std::vector<std::vector<cv::Point>> rims;
-            cv::findContours(mask,rims,cv::RETR_EXTERNAL,cv::CHAIN_APPROX_NONE);
-            contours.insert(contours.end(),rims.begin(),rims.end());
+        candidates.push_back({row,col,occupied,xy,predicted});
+    }
+    if(fast) {
+        auto rank=[&](const Candidate &c) {
+            const bool known=std::find(s.support.begin(),s.support.end(),c.row*100+c.col)!=s.support.end();
+            return (c.xy-target_xy).norm()-(known?.025:0);
+        };
+        std::stable_sort(candidates.begin(),candidates.end(),[&](const auto &a,const auto &b){return rank(a)<rank(b);});
+        // Round-robin quadrants keep the near-target support spatially distributed.
+        std::array<std::vector<Candidate>,4> sectors;
+        for(const auto &c:candidates) {
+            const Eigen::Vector2d d=c.xy-target_xy;
+            const int sector=(d.x()<0?2:0)+(d.y()<0?1:0);sectors[sector].push_back(c);
         }
-        double best_score=INFINITY; Eigen::Vector2d found;
-        for(std::size_t index=0;index<contours.size();++index) {
-            const auto &contour=contours[index];++out.contours;
-            const bool orange=index>=gray_count;
-            if(contour.size()<30) continue;
+        candidates.clear();
+        for(std::size_t i=0;candidates.size()<static_cast<std::size_t>(cfg.tracking_scan_limit);++i) {
+            bool more=false;
+            for(auto &sector:sectors) if(i<sector.size()) {candidates.push_back(sector[i]);more=true;
+                if(candidates.size()==static_cast<std::size_t>(cfg.tracking_scan_limit)) break;}
+            if(!more) break;
+        }
+    }
+    cv::Mat orange_source,rectified_mask;
+    Eigen::Vector2d rectified_origin=Eigen::Vector2d::Zero();
+    if(cfg.orange_rim_enabled) {
+        cv::Mat hsv;cv::cvtColor(color,hsv,cv::COLOR_BGR2HSV);
+        cv::inRange(hsv,cv::Scalar(0,85,65),cv::Scalar(28,255,255),orange_source);
+        cv::morphologyEx(orange_source,orange_source,cv::MORPH_CLOSE,cv::getStructuringElement(cv::MORPH_ELLIPSE,{3,3}));
+        if(fast && !candidates.empty()) {
+            Eigen::Vector2d low=candidates[0].xy,high=low;
+            for(const auto &c:candidates) {low=low.cwiseMin(c.xy);high=high.cwiseMax(c.xy);}
+            low.array()-=extent;high.array()+=extent;
+            const int width=int(std::ceil((high.x()-low.x())*scale))+3,height=int(std::ceil((high.y()-low.y())*scale))+3;
+            if(width<=2048 && height<=2048) {
+                Eigen::Matrix3d plane_from_patch=Eigen::Matrix3d::Identity();
+                plane_from_patch(0,0)=plane_from_patch(1,1)=1/scale;plane_from_patch.block<2,1>(0,2)=low;
+                cv::warpPerspective(orange_source,rectified_mask,cv_matrix(prior*plane_from_patch),{width,height},
+                    cv::INTER_LINEAR|cv::WARP_INVERSE_MAP,cv::BORDER_CONSTANT,cv::Scalar(0));
+                cv::threshold(rectified_mask,rectified_mask,127,255,cv::THRESH_BINARY);rectified_origin=low;
+            }
+        }
+    }
+    out.prepare_ms=now_ms()-prepare_start;
+    const double roi_start=now_ms();
+    std::vector<int> pair_ids;
+    for(const auto &candidate:candidates) {
+        if(fast && out.neighbors>=cfg.tracking_max_neighbors) break;
+        const int row=candidate.row,col=candidate.col;
+        const bool occupied=candidate.occupied;
+        const auto &xy=candidate.xy;const auto &predicted=candidate.predicted;
+        const auto predicted_raw=to_raw(predicted);
+        TrayImageMark mark;mark.row=row;mark.col=col;mark.occupied=occupied;
+        mark.predicted_u=predicted_raw.x();mark.predicted_v=predicted_raw.y();
+        Eigen::Vector2d roi_origin=xy-Eigen::Vector2d::Constant(extent);
+        cv::Mat mask;
+        if(!rectified_mask.empty()) {
+            const int x=cvRound((roi_origin.x()-rectified_origin.x())*scale),y=cvRound((roi_origin.y()-rectified_origin.y())*scale);
+            mask=rectified_mask(cv::Rect(x,y,side,side));roi_origin=rectified_origin+Eigen::Vector2d(x/scale,y/scale);
+        } else if(!orange_source.empty()) {
+            Eigen::Matrix3d transform=Eigen::Matrix3d::Identity();transform(0,0)=transform(1,1)=1/scale;
+            transform.block<2,1>(0,2)=roi_origin;
+            cv::warpPerspective(orange_source,mask,cv_matrix(prior*transform),{side,side},
+                cv::INTER_LINEAR|cv::WARP_INVERSE_MAP,cv::BORDER_CONSTANT,cv::Scalar(0));
+            cv::threshold(mask,mask,127,255,cv::THRESH_BINARY);
+        }
+        ++out.rois;
+        double best_score=INFINITY;Eigen::Vector2d found;bool best_partial=false;
+        auto full_rim=[&](const std::vector<cv::Point> &contour,bool orange) {
+            ++out.contours;
+            if(contour.size()<30) {++out.rejected_short;return;}
             const auto ellipse=cv::fitEllipse(contour);
             const double ra=ellipse.size.width*.5/scale,rb=ellipse.size.height*.5/scale;
             const double radius=orange?.5*(ra+rb):board.radius_m;
             if(orange ? (std::min(ra,rb)<board.radius_m*cfg.rim_min_radius_ratio ||
                          std::max(ra,rb)>std::min(board.radius_m*cfg.rim_max_radius_ratio,board.pitch_m*.45)) :
                         (std::abs(ra/board.radius_m-1)>(cfg.affine_enabled?.35:.22) ||
-                         std::abs(rb/board.radius_m-1)>(cfg.affine_enabled?.35:.22))) {
-                ++out.rejected_size;continue;
-            }
-            if(std::min(ra,rb)/std::max(ra,rb)<(cfg.affine_enabled?.65:.8)) {++out.rejected_shape;continue;}
-            const Eigen::Vector2d delta(ellipse.center.x/scale-extent,ellipse.center.y/scale-extent);
-            if(delta.norm()>cfg.association_gate_m ||
-               (xy+delta-target_xy).norm()<board.radius_m*1.5) continue;
-            double residual=0; std::array<bool,16> bins{};
+                         std::abs(rb/board.radius_m-1)>(cfg.affine_enabled?.35:.22))) {++out.rejected_size;return;}
+            if(std::min(ra,rb)/std::max(ra,rb)<(cfg.affine_enabled?.65:.8)) {++out.rejected_shape;return;}
+            const Eigen::Vector2d point=roi_origin+Eigen::Vector2d(ellipse.center.x/scale,ellipse.center.y/scale),delta=point-xy;
+            if(delta.norm()>cfg.association_gate_m) {++out.rejected_distance;return;}
+            if((point-target_xy).norm()<board.radius_m*1.5) {++out.rejected_target;return;}
+            double residual=0;std::array<bool,16> bins{};
+            const double theta=ellipse.angle*std::acos(-1)/180,cs=std::cos(theta),sn=std::sin(theta);
             for(const auto &p:contour) {
                 const double dx=(p.x-ellipse.center.x)/scale,dy=(p.y-ellipse.center.y)/scale;
-                const double theta=ellipse.angle*std::acos(-1)/180;
-                const double ex=(std::cos(theta)*dx+std::sin(theta)*dy)/ra;
-                const double ey=(-std::sin(theta)*dx+std::cos(theta)*dy)/rb;
-                residual+=cfg.affine_enabled ? std::pow((std::hypot(ex,ey)-1)*.5*(ra+rb),2) :
-                                              std::pow(std::hypot(dx,dy)-radius,2);
-                const double coverage_angle=cfg.affine_enabled?std::atan2(ey,ex):std::atan2(dy,dx);
-                const int bin=std::clamp(static_cast<int>((coverage_angle+std::acos(-1))*8/std::acos(-1)),0,15);
-                bins[bin]=true;
+                const double ex=(cs*dx+sn*dy)/ra,ey=(-sn*dx+cs*dy)/rb;
+                residual+=cfg.affine_enabled?std::pow((std::hypot(ex,ey)-1)*.5*(ra+rb),2):std::pow(std::hypot(dx,dy)-radius,2);
+                const double angle=cfg.affine_enabled?std::atan2(ey,ex):std::atan2(dy,dx);
+                bins[std::clamp(int((angle+std::acos(-1))*8/std::acos(-1)),0,15)]=true;
             }
             residual=std::sqrt(residual/contour.size());
-            if(residual>cfg.circle_residual_m) {++out.rejected_residual;continue;}
-            if(std::count(bins.begin(),bins.end(),true)<cfg.min_coverage_bins) {++out.rejected_coverage;continue;}
-            // Occupied locations contribute only the orange TRAY rim, not their raised
-            // metal workpiece edges. This keeps late, nearly full trays observable.
+            if(residual>cfg.circle_residual_m) {++out.rejected_residual;return;}
+            if(std::count(bins.begin(),bins.end(),true)<cfg.min_coverage_bins) {++out.rejected_coverage;return;}
             const double score=residual+.02*delta.norm()+(orange?0:.0005);
-            if(score<best_score) {best_score=score;found=xy+delta;}
+            if(score<best_score) {best_score=score;found=point;best_partial=false;}
+        };
+        if(!mask.empty()) {
+            std::vector<std::vector<cv::Point>> rims;cv::findContours(mask,rims,cv::RETR_EXTERNAL,cv::CHAIN_APPROX_NONE);
+            for(const auto &contour:rims) full_rim(contour,true);
+            // Complete rims terminate the fast path. Partial fitting is reserved for
+            // plausible, unresolved orange contours (at most two per selected hole).
+            if(!std::isfinite(best_score) && cfg.partial_rims && s.registered) {
+                std::sort(rims.begin(),rims.end(),[](const auto &a,const auto &b){return a.size()>b.size();});
+                int attempts=0;
+                for(const auto &contour:rims) {
+                    if(contour.size()<30) continue;
+                    const auto box=cv::boundingRect(contour);const double diameter=std::max(box.width,box.height)/scale;
+                    if(diameter<board.radius_m*.8 || diameter>board.radius_m*3.5) continue;
+                    if(attempts++>=2) break;
+                    const double partial_start=now_ms();++out.partial_calls;cv::Point2d center;
+                    const bool valid=tray_registration::fit_partial_rim(contour,mask,scale,board.radius_m,cfg,center);
+                    out.partial_ms+=now_ms()-partial_start;
+                    if(!valid) continue;
+                    const Eigen::Vector2d point=roi_origin+Eigen::Vector2d(center.x/scale,center.y/scale),delta=point-xy;
+                    if(delta.norm()>std::min(cfg.association_gate_m,.010) || (point-target_xy).norm()<board.radius_m*1.5) continue;
+                    const double score=cfg.circle_residual_m+.02*delta.norm()+.001;
+                    if(score<best_score) {best_score=score;found=point;best_partial=true;}
+                }
+            }
         }
-        if(!std::isfinite(best_score)) { out.marks.push_back(mark); continue; }
-        const auto observed=project(prior,found);
-        const auto observed_raw=to_raw(observed);
-        mark.accepted=true;
-        mark.observed_u=static_cast<float>(observed_raw.x());
-        mark.observed_v=static_cast<float>(observed_raw.y());
-        out.marks.push_back(mark);
-        plane_points.emplace_back(xy.x(),xy.y()); image_points.emplace_back(observed.x(),observed.y());
+        if(!std::isfinite(best_score) && !occupied) {
+            if(undistorted.empty()) cv::cvtColor(color,undistorted,cv::COLOR_BGR2GRAY);
+            Eigen::Matrix3d transform=Eigen::Matrix3d::Identity();transform(0,0)=transform(1,1)=1/scale;transform.block<2,1>(0,2)=roi_origin;
+            cv::Mat patch,edges;cv::warpPerspective(undistorted,patch,cv_matrix(prior*transform),{side,side},
+                cv::INTER_LINEAR|cv::WARP_INVERSE_MAP,cv::BORDER_CONSTANT,cv::Scalar(127));
+            cv::GaussianBlur(patch,patch,{3,3},.8);cv::Canny(patch,edges,35,100);
+            std::vector<std::vector<cv::Point>> contours;cv::findContours(edges,contours,cv::RETR_LIST,cv::CHAIN_APPROX_NONE);
+            for(const auto &contour:contours) full_rim(contour,false);
+        }
+        if(!std::isfinite(best_score)) {out.marks.push_back(mark);continue;}
+        const auto observed=project(prior,found),observed_raw=to_raw(observed);
+        mark.accepted=true;mark.observed_u=observed_raw.x();mark.observed_v=observed_raw.y();out.marks.push_back(mark);
+        plane_points.emplace_back(xy.x(),xy.y());image_points.emplace_back(observed.x(),observed.y());
         nominal_points.push_back(xy);observed_points.push_back(project(seed_inverse,observed));
-        neighbor_shifts.push_back(found-xy); ++out.neighbors;
-        neighbor_detail<<" r"<<row<<"c"<<col<<"_shift_mm="<<(found.x()-xy.x())*1000
-                       <<":"<<(found.y()-xy.y())*1000;
+        neighbor_shifts.push_back(found-xy);pair_ids.push_back(row*100+col);++out.neighbors;
+        if(occupied) ++out.occupied_used;if(best_partial) ++out.partial_used;
+        neighbor_detail<<" r"<<row<<"c"<<col<<"_shift_mm="<<(found.x()-xy.x())*1000<<":"<<(found.y()-xy.y())*1000;
     }
-    if(out.neighbors<cfg.min_neighbors) {
-        out.reason="tray_insufficient_visible_neighbors";out.detail=neighbor_detail.str();return out;
+    out.roi_ms=now_ms()-roi_start;
+    NeighborGridFit single;
+    if(out.neighbors==1 && s.registered && s.single_frames<cfg.single_neighbor_max_frames &&
+       frame.capture_steady_s>0 && s.full_capture_s>0 && frame.capture_steady_s>=s.full_capture_s &&
+       frame.capture_steady_s-s.full_capture_s<=cfg.single_neighbor_max_age_s) {
+        const Eigen::Vector2d shift=observed_points[0]-project(s.image_correction,nominal_points[0]);
+        if(shift.norm()<=cfg.single_neighbor_step_m && s.single_travel+shift.norm()<=cfg.single_neighbor_budget_m) {
+            single.transform=s.image_correction;single.transform.block<2,1>(0,2)+=shift;
+            single.target=project(single.transform,target_xy);
+            single.valid=(single.target-target_xy).norm()<cfg.global_search_m;
+            single.inliers={0};single.model="neighbor_translation_tracked";
+            single.detail="single_neighbor_prior_only frames="+std::to_string(s.single_frames+1);
+            if(single.valid) {++s.single_frames;s.single_travel+=shift.norm();out.stage="sparse_tracking";}
+        }
+    }
+    auto miss=[&]() {
+        if(++s.misses>=cfg.reacquire_after_frames) {s.registered=false;s.acquisition_frames=0;}
+    };
+    if(out.neighbors<cfg.min_neighbors && !single.valid) {
+        miss();out.reason="tray_insufficient_visible_neighbors";
+        out.detail=acquisition_detail+neighbor_detail.str();return out;
     }
     if(cfg.xy_only && cfg.affine_enabled) {
-        const auto fit=fit_neighbor_grid(nominal_points,observed_points,target_xy,board.pitch_m,cfg);
-        out.detail=fit.detail+neighbor_detail.str();
-        if(!fit.valid) {out.reason="tray_neighbor_registration_rejected";return out;}
+        const double fit_start=now_ms();
+        NeighborGridFit fit;
+        std::vector<int> active;for(int i=0;i<out.neighbors;++i) active.push_back(i);
+        for(int attempt=0;attempt<3;++attempt) {
+            if(single.valid) fit=single;
+            else {
+                std::vector<Eigen::Vector2d> from,to;
+                for(int i:active) {from.push_back(nominal_points[i]);to.push_back(observed_points[i]);}
+                fit=fit_neighbor_grid(from,to,target_xy,board.pitch_m,cfg,s.registered);
+                for(auto &i:fit.inliers) i=active[i];
+            }
+            if(!fit.valid) break;
+            const Eigen::Matrix3d model=seed_projection*fit.transform;
+            double error=0,worst_error=-1;int worst=-1;
+            for(int i:fit.inliers) {
+                const double e=(project(model,nominal_points[i])-Eigen::Vector2d(image_points[i].x,image_points[i].y)).squaredNorm();
+                error+=e;if(e>worst_error) {worst_error=e;worst=i;}
+            }
+            out.reprojection_px=std::sqrt(error/fit.inliers.size());
+            if(out.reprojection_px<=cfg.reprojection_gate_px || single.valid || attempt==2 || fit.inliers.size()<=4) break;
+            active=fit.inliers;active.erase(std::remove(active.begin(),active.end(),worst),active.end());++out.pruned_neighbors;
+        }
+        out.fit_ms=now_ms()-fit_start;
+        out.detail=acquisition_detail+fit.detail+" pruned="+std::to_string(out.pruned_neighbors)+neighbor_detail.str();
+        if(!fit.valid) {miss();out.reason="tray_neighbor_registration_rejected";return out;}
         const Eigen::Matrix3d image_model=seed_projection*fit.transform;
-        double error=0;
-        for(int i:fit.inliers) error+=(project(image_model,nominal_points[i])-
-            Eigen::Vector2d(image_points[i].x,image_points[i].y)).squaredNorm();
-        out.reprojection_px=std::sqrt(error/fit.inliers.size());
-        if(out.reprojection_px>cfg.reprojection_gate_px) {out.reason="tray_affine_reprojection_gate";return out;}
+        if(out.reprojection_px>cfg.reprojection_gate_px) {miss();out.reason="tray_affine_reprojection_gate";return out;}
         const auto undistorted_target=project(image_model,target_xy);
         const Eigen::Vector3d ray=k.inverse()*Eigen::Vector3d(undistorted_target.x(),undistorted_target.y(),1);
         std::vector<cv::Point2d> distorted;
@@ -387,7 +537,13 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
             out.reason="virtual_target_outside_image";return out;
         }
         out.plane_z_m=(s.target.base_from_tray*Eigen::Vector4d(target_xy.x(),target_xy.y(),0,1)).z();
+        if(executable_target && !executable_target(out.pixel)) {
+            miss();out.reason="tray_target_outside_tcp_envelope";return out;
+        }
         s.image_correction=fit.transform;
+        s.misses=0;
+        s.support.clear();for(int i:fit.inliers) s.support.push_back(pair_ids[i]);
+        if(!single.valid) {s.single_frames=0;s.single_travel=0;s.full_capture_s=frame.capture_steady_s;}
         out.valid=true;out.reason="ok";out.source=fit.model;return out;
     }
     Eigen::Matrix4d refined=working_base;

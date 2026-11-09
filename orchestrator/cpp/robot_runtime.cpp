@@ -2199,7 +2199,7 @@ int go_belt_station(
                (g_hw && g_hw->abort && g_hw->abort->load()) || can_io_faulted();
     };
 
-    std::cout << "[orch] " << name << "：准备tcp → 识别传送带6x6 → "
+    std::cout << "[orch] " << name << "：准备tcp → 识别传送带5x5 → "
                  "右手放下松爪后，左手立刻过来；右手同时抬起回准备（不回 home）\n";
 
     if (skip_ready)
@@ -2929,7 +2929,8 @@ static int go_belt_grasp_attempt(
 
     // to_ready：空抓的手回到伸手前的准备 tcp，外层从这里直接重拍重抓。
     auto grasp_lift_and_back = [&](bool is_right, bool to_ready = false,
-                                   const std::function<void(double)> &progress = {}) -> int {
+                                   const std::function<void(double)> &progress = {},
+                                   const std::function<void()> &on_return = {}) -> int {
         if (is_right && right_arm_motors_locked())
             return 0;
         if (aborted())
@@ -2950,7 +2951,7 @@ static int go_belt_grasp_attempt(
             const auto &m=g_move_cfg.retract_motion;
             const wrist_servo::Joints ready=to_ready?retry_ready[is_right?1:0]:
                 (is_right?m.ready_right:m.ready_left);
-            code=arm_return_after_lift(arm,ready);
+            code=arm_return_after_lift(arm,ready,on_return);
         }
         if(code!=0) {
             std::cerr<<"[orch] "<<name<<' '<<hand<<" 收手失败 code="<<code<<"，保留夹爪状态\n";
@@ -3051,8 +3052,7 @@ static int go_belt_grasp_attempt(
 
     wrist_servo::RetreatClearanceGate right_clearance(c.next_hand_clearance_m);
     std::thread th_r([&]() {
-        try { right_back_rc=grasp_lift_and_back(true,false,
-            [&](double gain){right_clearance.measured_lift(gain);}); }
+        try { right_back_rc=grasp_lift_and_back(true,false,{},[&]{right_clearance.release();}); }
         catch(const std::exception &ex) {
             std::cerr<<"[orch] 右手收手异常: "<<ex.what()<<'\n';right_back_rc=-32;
         }
@@ -3062,14 +3062,14 @@ static int go_belt_grasp_attempt(
         std::thread &worker;
         ~JoinRetreat() {if(worker.joinable()) worker.join();}
     } join_retreat{th_r};
-    wrist_servo::task_event(1,"peer_wait_clearance","right_must_physically_lift_first");
+    wrist_servo::task_event(1,"peer_wait_clearance","right_return_must_start_first");
     const int clearance_rc=right_clearance.wait(c.next_hand_clearance_timeout_s);
     if(clearance_rc!=0 || aborted()) {
-        std::cerr<<"[orch] 右手未确认抬离，左手禁止进入 code="<<clearance_rc<<'\n';
+        std::cerr<<"[orch] 右手未进入回程，左手禁止进入 code="<<clearance_rc<<'\n';
         return aborted()?-4:clearance_rc;
     }
-    wrist_servo::task_event(1,"peer_clearance","measured_vertical_clearance_reached");
-    std::cout << "[orch] belt_grasp 右手已实际抬离，左手立即进入，与右手后续返回并行\n";
+    wrist_servo::task_event(1,"peer_clearance","right_return_started");
+    std::cout << "[orch] belt_grasp 右手开始回程，左手进入，与右手回程并行\n";
     const int left_rc = grasp_one(false);
     const bool left_empty = left_rc == kBeltGraspEmpty;
     const int left_back_rc =
