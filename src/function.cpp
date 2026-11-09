@@ -2777,196 +2777,6 @@ namespace
 {
 
 
-constexpr double kCornerBlendM = 0.06;
-constexpr double kCornerMaxStepRad = 8.0 * M_PI / 180.0;
-constexpr double kCornerCruiseFrac = 0.65;
-
-Eigen::Vector3d corner_fk_xyz(Robot_Arm &arm, const Eigen::Ref<const Eigen::RowVectorXd> &q)
-{
-    return arm.Forward_Kinematics(q).block<3, 1>(0, 3);
-}
-
-int plan_rounded_corner(
-    Robot_Arm &arm,
-    Eigen::Matrix<double, 1, 6> hover,
-    Eigen::Matrix<double, 1, 6> final_pose,
-    double cruise_mps,
-    Eigen::MatrixXd &traj_out)
-{
-    traj_out.resize(0, 0);
-    const int hand = arm_hand_side(arm);
-    if (hand == 1 && right_arm_motors_locked())
-        return 0;
-    if (hardware_abort_requested())
-        return -4;
-    if (can_io_faulted())
-        return -2;
-    if (!hover.allFinite() || !final_pose.allFinite() || !(cruise_mps > 0.0))
-        return -10;
-
-    clamp_cart_goal_z(hover, "抹角B");
-    clamp_cart_goal_z(final_pose, "抹角C");
-    Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
-    if (q_start.rows() != 1 || q_start.cols() < 6 || !q_start.allFinite())
-        return -10;
-
-    const double cruise = std::max(0.02, cruise_mps);
-    arm.Cart_Linear_Velocity = cruise;
-    Eigen::Matrix<double, 1, 6> goal_b = hover;
-    Eigen::MatrixXd traj_ab;
-    const int rc_ab = arm.Line_Trajectory(q_start, goal_b, traj_ab);
-    if (rc_ab != 0 || traj_ab.rows() < 2)
-    {
-        append_line_trajectory_fail_debug(
-            arm_hand_label(hand), rc_ab != 0 ? rc_ab : -16, hover, "抹角 A→B", cruise);
-        return rc_ab != 0 ? rc_ab : -16;
-    }
-
-    Eigen::MatrixXd q_b(1, traj_ab.cols());
-    q_b.row(0) = traj_ab.row(traj_ab.rows() - 1);
-    Eigen::Matrix<double, 1, 6> goal_c = final_pose;
-    Eigen::MatrixXd traj_bc;
-    const int rc_bc = arm.Line_Trajectory(q_b, goal_c, traj_bc);
-    if (rc_bc != 0 || traj_bc.rows() < 2 || traj_bc.cols() != traj_ab.cols())
-    {
-        append_line_trajectory_fail_debug(
-            arm_hand_label(hand), rc_bc != 0 ? rc_bc : -16, final_pose, "抹角 B→C", cruise);
-        return rc_bc != 0 ? rc_bc : -16;
-    }
-
-    const int n_ab = static_cast<int>(traj_ab.rows());
-    const Eigen::Vector3d b_xyz(hover(0), hover(1), hover(2));
-    const Eigen::Vector3d c_xyz(final_pose(0), final_pose(1), final_pose(2));
-    std::vector<Eigen::Vector3d> tail_p(static_cast<size_t>(n_ab));
-    std::vector<char> have(static_cast<size_t>(n_ab), 0);
-    int fk_count = 0;
-    auto pos_at = [&](int i) -> const Eigen::Vector3d & {
-        if (!have[static_cast<size_t>(i)])
-        {
-            tail_p[static_cast<size_t>(i)] = corner_fk_xyz(arm, traj_ab.row(i));
-            have[static_cast<size_t>(i)] = 1;
-            ++fk_count;
-        }
-        return tail_p[static_cast<size_t>(i)];
-    };
-
-    int leave = 0;
-    int fast = 0;
-    bool got_leave = false;
-    double back = 0.0;
-    for (int i = n_ab - 1; i > 0; --i)
-    {
-        const double seg = (pos_at(i) - pos_at(i - 1)).norm();
-        const double spd = seg / k_arm_traj_dt;
-        back += seg;
-        if (!got_leave && back >= kCornerBlendM)
-        {
-            leave = i - 1;
-            got_leave = true;
-            if (spd >= kCornerCruiseFrac * cruise)
-            {
-                fast = leave;
-                break;
-            }
-        }
-        if (got_leave && spd >= kCornerCruiseFrac * cruise)
-        {
-            fast = i - 1;
-            break;
-        }
-        if (got_leave && back > kCornerBlendM + 0.12)
-        {
-            fast = i - 1;
-            break;
-        }
-    }
-    if (!got_leave)
-    {
-        leave = 0;
-        fast = 0;
-        (void)pos_at(0);
-    }
-    if (fast > leave)
-        fast = leave;
-
-    const Eigen::RowVectorXd q_c = traj_bc.row(traj_bc.rows() - 1);
-    const double leave_to_b = (pos_at(leave) - b_xyz).norm();
-    const double join_to_b = (c_xyz - b_xyz).norm();
-    const double chord = std::max(1e-4, (pos_at(leave) - c_xyz).norm());
-
-    std::vector<Eigen::RowVectorXd> rows;
-    rows.reserve(static_cast<size_t>(fast + 8) + 160);
-    for (int i = 0; i <= fast; ++i)
-        rows.push_back(traj_ab.row(i));
-
-    double tail_arc = 0.0;
-    if (fast < leave)
-    {
-        std::vector<double> cum(static_cast<size_t>(leave - fast + 1), 0.0);
-        for (int i = fast + 1; i <= leave; ++i)
-        {
-            tail_arc += (pos_at(i) - pos_at(i - 1)).norm();
-            cum[static_cast<size_t>(i - fast)] = tail_arc;
-        }
-        const int n_tail = std::max(1, static_cast<int>(std::ceil(tail_arc / cruise / k_arm_traj_dt)));
-        for (int k = 1; k <= n_tail; ++k)
-        {
-            const double s = tail_arc * (static_cast<double>(k) / static_cast<double>(n_tail));
-            int seg = fast;
-            while (seg < leave && cum[static_cast<size_t>(seg - fast + 1)] < s)
-                ++seg;
-            const double s0 = cum[static_cast<size_t>(seg - fast)];
-            const double s1 = cum[static_cast<size_t>(std::min(seg + 1, leave) - fast)];
-            const double den = std::max(1e-12, s1 - s0);
-            const double t = std::clamp((s - s0) / den, 0.0, 1.0);
-            const int i1 = std::min(seg + 1, leave);
-            rows.push_back(traj_ab.row(seg) + t * (traj_ab.row(i1) - traj_ab.row(seg)));
-        }
-    }
-
-    const double blend_T = std::max(0.20, 2.0 * chord / cruise);
-    const int n_blend = std::max(2, static_cast<int>(std::ceil(blend_T / k_arm_traj_dt)));
-    const Eigen::RowVectorXd q_leave = rows.back();
-    for (int k = 1; k <= n_blend; ++k)
-    {
-        const double u = static_cast<double>(k) / static_cast<double>(n_blend);
-        const double s = u * (2.0 - u);
-        rows.push_back(q_leave + s * (q_c - q_leave));
-    }
-
-    const int dof = static_cast<int>(rows.front().cols());
-    traj_out.resize(static_cast<Eigen::Index>(rows.size()), dof);
-    traj_out.row(0) = rows.front();
-    double max_step = 0.0;
-    for (size_t i = 1; i < rows.size(); ++i)
-    {
-        traj_out.row(static_cast<Eigen::Index>(i)) = rows[i];
-        max_step = std::max(
-            max_step, (traj_out.row(static_cast<Eigen::Index>(i)) - traj_out.row(static_cast<Eigen::Index>(i - 1)))
-                          .cwiseAbs()
-                          .maxCoeff());
-    }
-    if (max_step > kCornerMaxStepRad)
-    {
-        std::cerr << std::fixed << std::setprecision(2)
-                  << "[corner] " << arm_hand_label(hand)
-                  << " 抹角后单步关节 " << (max_step * 180.0 / M_PI)
-                  << "°，拒绝下发\n";
-        traj_out.resize(0, 0);
-        return -12;
-    }
-
-    const double prefix_s = static_cast<double>(fast) * k_arm_traj_dt;
-    std::cout << std::fixed << std::setprecision(3)
-              << "[corner] " << arm_hand_label(hand)
-              << " 原样 " << prefix_s << " s 到切点，离开B " << leave_to_b
-              << " m，接入距B " << join_to_b
-              << " m，抹角 " << std::setprecision(2) << blend_T
-              << " s，巡航 " << cruise
-              << " m/s，规划点 AB=" << n_ab << " BC=" << traj_bc.rows()
-              << " FK=" << fk_count << "\n";
-    return 0;
-}
 
 double traj_joint_step(const Eigen::MatrixXd &traj, int i)
 {
@@ -3272,7 +3082,8 @@ int play_seeded_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
     return execute_staged_motion(arm,path,"lift",progress,clearance);
 }
 
-int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready)
+int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready,
+                      const std::function<void()> &on_started = {})
 {
     const int hand=arm_hand_side(arm);
     wrist_servo::Joints start;
@@ -3286,49 +3097,22 @@ int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready)
     std::cout<<"[retract] hand="<<hand<<" fixed_ready_motor_rad="<<ready
              <<" duration_s="<<(path.rows()-1)*k_arm_traj_dt<<'\n';
     wrist_servo::task_event(hand,"return_plan","fixed_motor_joints_no_IK");
+    if(on_started) on_started();
     return execute_staged_motion(arm,path,"return");
 }
 }
 
 
-Eigen::MatrixXd stitch_cruise_lines(const Eigen::MatrixXd &first, const Eigen::MatrixXd &second)
+Eigen::MatrixXd concat_full_lines(const Eigen::MatrixXd &first, const Eigen::MatrixXd &second)
 {
-    const int ia = last_cruise_row(first);
-    const int ib = first_cruise_row(second);
-    const Eigen::RowVectorXd qa = first.row(ia);
-    const Eigen::RowVectorXd qb = second.row(ib);
-    const int dof = static_cast<int>(qa.cols());
-    // 只用抬升段的巡航步长。回程段里腕子的大步不能拿来缩短接缝，否则整条手臂会抽一下。
-    double step = (ia >= 1) ? traj_joint_step(first, ia) : 1e-3;
-    step = std::max(step, 1e-4);
-    const double dist = (qa - qb).norm();
-    int n_bridge = 1;
-    if (std::isfinite(dist) && std::isfinite(step) && step > 0.0)
-        n_bridge = std::max(1, static_cast<int>(std::ceil(dist / step)));
-    const double max_joint = (qa - qb).cwiseAbs().maxCoeff();
-    // 接缝单个关节不超过 25°/s。原先 8°/5ms 约合 1600°/s，腕子和收臂都会抽。
-    const double max_step = 25.0 * M_PI / 180.0 * k_arm_traj_dt;
-    if (std::isfinite(max_joint) && max_joint > max_step * static_cast<double>(n_bridge))
-        n_bridge = std::max(1, static_cast<int>(std::ceil(max_joint / max_step)));
-    if (n_bridge > 2000)
-        n_bridge = 2000;
-
-    const int n_tail = static_cast<int>(second.rows()) - ib;
-    if (n_tail < 0 || ia < 0)
+    if (first.rows() < 2 || second.rows() < 2 || first.cols() != second.cols())
         return Eigen::MatrixXd();
-    const int n = ia + n_bridge + n_tail;
+    const int n = static_cast<int>(first.rows() + second.rows() - 1);
     if (n <= 0 || n > 20000)
         return Eigen::MatrixXd();
-    Eigen::MatrixXd out(n, dof);
-    for (int i = 0; i <= ia; ++i)
-        out.row(i) = first.row(i);
-    for (int k = 1; k < n_bridge; ++k)
-    {
-        const double u = static_cast<double>(k) / static_cast<double>(n_bridge);
-        out.row(ia + k) = qa + u * (qb - qa);
-    }
-    for (int j = 0; j < n_tail; ++j)
-        out.row(ia + n_bridge + j) = second.row(ib + j);
+    Eigen::MatrixXd out(n, first.cols());
+    out.topRows(first.rows()) = first;
+    out.bottomRows(second.rows() - 1) = second.bottomRows(second.rows() - 1);
     return out;
 }
 
@@ -3435,10 +3219,10 @@ int plan_line_then_line(
     const int rc_goal = plan_arm_line_from(arm, goal, vel_second_m_s, q_mid, traj_goal);
     if (rc_goal != 0)
         return rc_goal;
-    const int ib = lift_then_retract ? 0 : first_cruise_row(traj_goal);
+    const int ib = lift_then_retract ? 0 : 1;
     const int n_tail = static_cast<int>(traj_goal.rows()) - ib;
     traj_out = lift_then_retract ? stitch_lift_then_return(arm, traj_mid, traj_goal)
-                                 : stitch_cruise_lines(traj_mid, traj_goal);
+                                 : concat_full_lines(traj_mid, traj_goal);
     if (traj_out.rows() < 2)
         return -16;
     int descent = static_cast<int>(traj_out.rows()) - n_tail;
@@ -3449,7 +3233,7 @@ int plan_line_then_line(
     if (hand >= 0 && hand <= 1)
         g_planned_descent_row[hand] = descent;
     std::cout << "[" << (tag != nullptr ? tag : "line") << "] " << arm_hand_label(hand)
-              << (lift_then_retract ? " 竖直抬升后衔接收手" : " 两段直线中间不停")
+              << (lift_then_retract ? " 竖直抬升后衔接收手" : " 两段完整直线")
               << " 点=" << traj_out.rows()
               << " 第一段=" << traj_mid.rows()
               << " 第二段=" << traj_goal.rows()
@@ -3522,12 +3306,13 @@ int arm_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
     return play_seeded_vertical_lift(arm, lift_m, speed, on_progress);
 }
 
-int arm_return_after_lift(Robot_Arm &arm,const Eigen::Matrix<double,1,7> &ready) {
+int arm_return_after_lift(Robot_Arm &arm,const Eigen::Matrix<double,1,7> &ready,
+                          const std::function<void()> &on_started) {
     if(arm_hand_side(arm)==1 && right_arm_motors_locked()) return 0;
     if(!ready.allFinite()) return -10;
     arm_discard_line_then_line_plan(arm_hand_side(arm));
     std::lock_guard<std::mutex> owner(g_staged_motion_mu[arm_hand_side(arm)]);
-    return play_joint_return(arm,ready);
+    return play_joint_return(arm,ready,on_started);
 }
 
 void arm_discard_line_then_line_plan(int hand)
@@ -3854,57 +3639,6 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     if (move_l && out.ret_l == 0) arrival(arm_l,goal_l);
     return out;
 }
-
-ArmLineMoveResult arm_dual_rounded_corner_move_selective(
-    Robot_Arm &arm_r,
-    const Matrix<double, 1, 6> &hover_r,
-    const Matrix<double, 1, 6> &final_r,
-    const bool move_r,
-    Robot_Arm &arm_l,
-    const Matrix<double, 1, 6> &hover_l,
-    const Matrix<double, 1, 6> &final_l,
-    const bool move_l,
-    const double cruise_mps)
-{
-    ArmLineMoveResult out;
-    Eigen::MatrixXd traj_r, traj_l;
-    if (move_r)
-        out.ret_r = plan_rounded_corner(arm_r, hover_r, final_r, cruise_mps, traj_r);
-    if (move_l)
-        out.ret_l = plan_rounded_corner(arm_l, hover_l, final_l, cruise_mps, traj_l);
-    if ((move_r && out.ret_r != 0) || (move_l && out.ret_l != 0))
-    {
-        if (move_r && out.ret_r == 0)
-            out.ret_r = -14;
-        if (move_l && out.ret_l == 0)
-            out.ret_l = -14;
-        std::cerr << "[corner] 抹角规划失败，不回退分段直线。右=" << out.ret_r
-                  << " 左=" << out.ret_l << '\n';
-        return out;
-    }
-
-    auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj, int &ret) {
-        const int hand = arm_hand_side(arm);
-        ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
-    };
-    if (move_r && move_l)
-    {
-        std::thread th_r([&]() { run_one(arm_r, traj_r, out.ret_r); });
-        std::thread th_l([&]() { run_one(arm_l, traj_l, out.ret_l); });
-        th_r.join();
-        th_l.join();
-    }
-    else if (move_r)
-        run_one(arm_r, traj_r, out.ret_r);
-    else if (move_l)
-        run_one(arm_l, traj_l, out.ret_l);
-    if (move_r && out.ret_r == 0)
-        record_arm_cartesian_arrival(arm_r, final_r, "抹角C");
-    if (move_l && out.ret_l == 0)
-        record_arm_cartesian_arrival(arm_l, final_l, "抹角C");
-    return out;
-}
-
 
 int arm_transfer_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
 {

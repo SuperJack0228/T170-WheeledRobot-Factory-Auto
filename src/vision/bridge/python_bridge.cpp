@@ -1639,7 +1639,7 @@ bool PosePipeline::init(std::string &err)
     }
 
     std::string berr;
-    std::cout << "[5] 初始化传送带 ArUco (board_belt_aruco 6x6，独立于料盘) ... ";
+    std::cout << "[5] 初始化传送带 ArUco (board_belt_aruco 5x5，独立于料盘) ... ";
     if (!bridge_->init_belt_engine(default_board_belt_yaml_path(), berr))
     {
         std::cout << "跳过\n";

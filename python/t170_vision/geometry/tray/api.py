@@ -63,6 +63,15 @@ _tray2_slot_to_id: dict[str, int] | None = None
 _grasp_code: dict[str, Any] | None = None
 
 
+def _id_span(ids) -> str:
+    vals = sorted(int(v) for v in ids)
+    if not vals:
+        return "[]"
+    if vals == list(range(vals[0], vals[-1] + 1)):
+        return f"{vals[0]}-{vals[-1]}"
+    return str(vals)
+
+
 def _load_grasp_code(raw: dict, pitch_m: float) -> dict[str, Any]:
     """统一料盘码。四角都用来定位，信息码 ID 不限制。"""
     block = raw.get("tray_grasp_code")
@@ -87,8 +96,9 @@ def _load_grasp_code(raw: dict, pitch_m: float) -> dict[str, Any]:
     bit_cells = int(block.get("bit_cells", 0))
     if dictionary != "DICT_5X5_1000" or bit_cells != 5:
         raise ValueError("tray_grasp_code 必须是 5×5")
-    if abs(print_m - 0.04) > 1e-6 or abs(black_m - 0.0312) > 1e-6:
-        raise ValueError("tray_grasp_code 打印边长须 40 mm，黑框须 31.2 mm")
+    expected_black = 0.04 * 7.0 / 9.0
+    if abs(print_m - 0.04) > 1e-6 or abs(black_m - expected_black) > 1e-6:
+        raise ValueError("tray_grasp_code 打印边长须 40 mm，黑框须 31.111 mm（40×7/9）")
     pitch = float(block.get("pitch_xy_m", pitch_m))
     if pitch <= 0.0:
         raise ValueError("tray_grasp_code.pitch_xy_m 必须 > 0")
@@ -142,7 +152,7 @@ def init(config_path: str | Path | None = None) -> str:
         f"ids={sorted(_cfg.slot_to_id.values())} "
         f"tray2=5x5 pitch={_tray2_pitch_m:.3f}m black={_tray2_black_m * 1000:.2f}mm "
         f"grasp_code=locate:{_grasp_code['locate_id']} "
-        f"info:{sorted(_grasp_code['info_ids'])} "
+        f"info:{_id_span(_grasp_code['info_ids'])} "
         f"enabled:{_grasp_code['enabled']}"
     )
 
@@ -162,7 +172,7 @@ def set_active_board(board: str) -> str:
     cfg = _board_cfg()
     if _active_board in ("grasp_code", "tray2") and _grasp_code is not None:
         extra = (
-            f"locate={_grasp_code['locate_id']} info={sorted(_grasp_code['info_ids'])} "
+            f"locate={_grasp_code['locate_id']} info={_id_span(_grasp_code['info_ids'])} "
             f"pitch={cfg.pitch_xy_m:.3f}m"
         )
     else:

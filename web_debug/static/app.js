@@ -9,7 +9,7 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
 const WEB_API = 4;
-const UI_VERSION = "1.1.14";
+const UI_VERSION = "1.1.15";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -403,6 +403,18 @@ $("fileTabs").addEventListener("click", (event) => {
   if (!id) return;
   configFile = id;
   loadConfig().catch((error) => toast(error.message));
+});
+$("reloadRobot").addEventListener("click", async () => {
+  const btn = $("reloadRobot");
+  btn.disabled = true;
+  try {
+    const result = await api("/api/command", { method: "POST", body: { cmd: "reload_config" } });
+    toast(result.ok ? "已 reload" : (result.error || "reload 没有完成"));
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    btn.disabled = false;
+  }
 });
 $("reloadConfig").addEventListener("click", () => loadConfig().catch((error) => toast(error.message)));
 $("saveConfig").addEventListener("click", async () => {

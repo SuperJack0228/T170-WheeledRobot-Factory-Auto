@@ -24,7 +24,7 @@
 
 /** 料盘孔：ArUco 几何 XY + YOLO 类别 + 头相机顶面 z（检测-only） */
 
-/** 传送带 6×6：原点=两码中点，基座系坐标。与料盘 TrayDetectResult 分开。 */
+/** 传送带 5×5：原点=两码中点，基座系坐标。与料盘 TrayDetectResult 分开。 */
 
 /**
  * pybind11 内嵌 Python：加载 t170_vision 包中的 CirclePoseEngine。
@@ -57,7 +57,7 @@ public:
     bool init_tray_engine(const std::string &config_path, std::string &err);
     bool tray_engine_ready() const;
 
-    /** board_belt_aruco 传送带 6×6（独立引擎，不覆盖料盘 5×5） */
+    /** board_belt_aruco 传送带 5×5（独立引擎，不覆盖料盘号段） */
     bool init_belt_engine(const std::string &config_path, std::string &err);
     bool belt_engine_ready() const;
 

@@ -177,9 +177,7 @@ ArmLineMoveResult arm_dual_line_move_hold_redundant_selective(
     bool move_l,
     double cart_linear_velocity);
 
-/** 料盘抓取抹角：A→B 按巡航速度规划后原样下发到 B 前 6 cm，末段收到 C。
- *  不在 B 停车。规划失败则整段失败，不退回分段直线。 */
-/** 后台规划两段直线衔接。手臂停在起点时调用，可与合爪重叠。 */
+/** 后台规划两段直线。手臂停在起点时调用，可与合爪重叠。 */
 void arm_start_line_then_line_plan(
     Robot_Arm &arm,
     const Eigen::Matrix<double, 1, 6> &mid,
@@ -193,12 +191,14 @@ void arm_discard_line_then_line_plan(int hand);
  *  进度是实测竖直抬高。返回规划仍在抬完之后单独进行。 */
 int arm_vertical_lift(Robot_Arm &arm, double lift_m, double speed_m_s,
                       const std::function<void(double)> &on_measured_lift = {});
-/** 抬完后的关节收手：固定电机角(rad)，不调用SDK逆解，成功表示实测关节到位。 */
-int arm_return_after_lift(Robot_Arm &arm, const Eigen::Matrix<double,1,7> &ready);
+/** 抬完后的关节收手：固定电机角(rad)，不调用SDK逆解，成功表示实测关节到位。
+ *  on_started 在回程轨迹开始下发时调用一次。 */
+int arm_return_after_lift(Robot_Arm &arm, const Eigen::Matrix<double,1,7> &ready,
+                          const std::function<void()> &on_started = {});
 /** 已在目标位置附近时，按关节角速度上限转到目标姿态。max_deg_s 是单个关节的上限。 */
 int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, double max_deg_s);
 
-/** 两段直线一次下发：第一段去掉末尾减速到 0，第二段去掉开头从 0 加速，中间不停车。
+/** 两段完整直线：先走到中点并停住，再从中点走到终点。
  *  若该臂已有 arm_start_line_then_line_plan 且关节仍在起点，直接下发不再规划。
  *  correct_descent 且手相机修正打开时，第二段由独立二维闭环接管。失败禁止继续夹爪操作。 */
 ArmLineMoveResult arm_dual_line_then_line_nostop(
@@ -231,17 +231,6 @@ bool arm_camera_axes_in_base(
     Eigen::Vector3d &axis_x,
     Eigen::Vector3d &axis_y,
     Eigen::Vector3d &axis_z);
-
-ArmLineMoveResult arm_dual_rounded_corner_move_selective(
-    Robot_Arm &arm_r,
-    const Eigen::Matrix<double, 1, 6> &hover_r,
-    const Eigen::Matrix<double, 1, 6> &final_r,
-    bool move_r,
-    Robot_Arm &arm_l,
-    const Eigen::Matrix<double, 1, 6> &hover_l,
-    const Eigen::Matrix<double, 1, 6> &final_l,
-    bool move_l,
-    double cruise_mps);
 
 /** 与 arm_line_move 相同（笛卡尔直线到目标）。 */
 int arm_transfer_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity);

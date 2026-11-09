@@ -14,6 +14,11 @@ public:
         if(std::isfinite(gain_m) && gain_m>=clearance_) clear_=true;
         cv_.notify_all();
     }
+    void release() {
+        std::lock_guard<std::mutex> lock(mu_);
+        clear_=true;
+        cv_.notify_all();
+    }
     void finish(int code) {
         std::lock_guard<std::mutex> lock(mu_);
         finished_=true;code_=code;cv_.notify_all();

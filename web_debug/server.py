@@ -35,7 +35,7 @@ import yaml
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
 WEB_API_VERSION = 4
-UI_VERSION = "1.1.14"
+UI_VERSION = "1.1.15"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from t170_common.paths import load_paths
@@ -981,7 +981,7 @@ class DebugHandler(BaseHTTPRequestHandler):
                 if cmd in DANGEROUS_COMMANDS and payload.pop("confirm", "") != cmd:
                     self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "危险动作缺少二次确认"})
                     return
-                if cmd not in {"abort", "dispatch_exit"} and not self.state.begin_action(cmd):
+                if cmd not in {"abort", "dispatch_exit", "reload_config"} and not self.state.begin_action(cmd):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "已有动作在执行"})
                     return
                 try:
@@ -990,7 +990,7 @@ class DebugHandler(BaseHTTPRequestHandler):
                         payload, timeout=None if cmd == "dispatch" else 1800.0
                     )
                 finally:
-                    if cmd not in {"abort", "dispatch_exit"}:
+                    if cmd not in {"abort", "dispatch_exit", "reload_config"}:
                         self.state.end_action()
                 self.state.log(f"命令 {cmd}: {json.dumps(result, ensure_ascii=False)}", "command")
                 self._json(HTTPStatus.OK, result)

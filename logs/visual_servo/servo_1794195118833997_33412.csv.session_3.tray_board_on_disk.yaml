@@ -1,0 +1,86 @@
+# 工程: board_yf100_aruco
+# NT26-P90-YF-1001 毛坯定位板（太阳轮）在线定位。
+# ArUco 5 码联合（四角+中心）。当前字典 5×5，可在下方切换 4×4 / 6×6。
+# 打印 40 mm（含白边）。检测用黑框边长写在 tray.black_side_m（31.2 mm），不再按格数比例推。
+#
+# 料盘一，2026-10-08 现场照片 tray_yolo_20261008_165419_631。
+# 字典仍是 5×5。四个角码，没有中心码。每个码的「上」朝料盘 +X（前）。
+# 原点在四角中心：+X 前、+Y 左、+Z 上。
+# 照片里码的「上」指向画面下方，所以画面下方是前（+X），画面右是左（+Y）。
+# 近三行 / 远三行不跟这个前后走，抓取时按基座 X 重排。
+#
+#        前 (+X)          照片下方
+#   ID2 前左         ID5 前右
+# 左(+Y)                      右(-Y)
+#   ID6 后左         ID7 后右
+#        后 (-X)          照片上方
+
+aruco:
+  # dictionary: DICT_4X4_1000     # 改 4×4 时用这个，并把 bit_cells 改为 4
+  dictionary: DICT_5X5_1000        # 当前 5×5
+  # dictionary: DICT_6X6_1000     # 改 6×6 时用这个，并把 bit_cells 改为 6
+
+tray:
+  print_size_m: 0.04              # 最外边（含白边）打印边长 40 mm
+  black_side_m: 0.0312            # OpenCV 检测的黑框边长 31.2 mm（不含白边）
+  bit_cells: 5                      # 4×4→4；5×5→5；6×6→6
+  black_border_cells: 1           # ArUco 黑边，各 1 格（仅作记录，不再用来推边长）
+  white_border_cells: 1           # 贴黑料盘用的白边，各 1 格
+  pitch_xy_m: 0.30                # 四角码中心的左右 / 前后间距
+  ids:                            # 槽位 → ID。没有中心码。
+    front_left: 2                 # 照片右下
+    front_right: 5                # 照片左下
+    rear_left: 6                  # 照片右上
+    rear_right: 7                 # 照片左上
+  holes:
+    rows: 6                       # 沿 +X（前）
+    cols: 6                       # 沿 +Y（左）
+    pitch_m: 0.075                # 横竖孔心距
+    diameter_m: 0.038             # 孔径
+    offset_x_m: 0.0               # 相对中心码的网格中心偏移（前）
+    offset_y_m: 0.0               # 相对中心码的网格中心偏移（左）
+
+# 料盘一当前使用这一组。四角相对几何固定，都用来定位，不按 ID 分角。
+# 对角常见两个 100，另一对角是 0–7 里的同一号（现场见过 0/3/4）。
+# 码的「上」都朝料盘 +X。整盘可转 180°（框跟着转）；单码不会相对其它码再转 180°。
+# 抓取/放置按基座远近重排行、按左右对调列。
+tray_grasp_code:
+  enabled: true
+  dictionary: DICT_5X5_1000
+  print_size_m: 0.04
+  black_side_m: 0.0312
+  bit_cells: 5
+  pitch_xy_m: 0.30                # 四角中心间距，定位框用这个
+  locate_id: 100                  # 对角定位码，不拿来分角
+  info_ids: [0, 1, 2, 3, 4, 5, 6, 7]
+  ids:
+    front_left: 100               # 槽位只给几何参考，实际按码朝向+码心分角
+    rear_right: 100
+    front_right: 2
+    rear_left: 2
+
+# 料盘二和料盘一同一套四角码。5×5，打印 40 mm，黑框 31.2 mm，四角间距 0.30 m。
+# 相对位置固定；整盘可转 180°。码的「上」朝料盘 +X。
+tray2:
+  dictionary: DICT_5X5_1000
+  print_size_m: 0.04
+  black_side_m: 0.0312
+  bit_cells: 5
+  pitch_xy_m: 0.30
+
+pose:
+  pnp_flag: SQPNP                 # SQPNP | ITERATIVE
+  pnp_refine: true
+  min_markers: 4                  # 至少几个盘上的码才解料盘位姿
+
+camera:
+  width: 1920
+  height: 1080
+  fps: 15
+  serial: ""
+
+display:
+  axis_length_m: 0.08             # 料盘坐标轴长度
+  print_pose_every_n_frames: 15
+  save_dir: captures
+  window_name: board_yf100_aruco

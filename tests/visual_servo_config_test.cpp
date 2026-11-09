@@ -93,7 +93,7 @@ int main(int argc,char **argv) {
                 c.belt_place_enabled==root["visual_servo"]["belt_place_enabled"].as<bool>(),
                 "belt grasp/place servo switches differ from YAML");
         require(c.period_s==.01 && c.stable_frames>=2,"actual controller parameters loaded");
-        require(c.profiles[0].reference_px.x()==598 && c.profiles[1].reference_px.x()==702,"per-hand profiles loaded");
+        require(c.profiles[0].reference_px.x()==583 && c.profiles[1].reference_px.x()==717,"per-hand profiles loaded");
         const auto snapshot=(std::filesystem::temp_directory_path()/"t170_servo_config_roundtrip.yaml").string();
         std::string error;
         require(wrist_servo::write_config_snapshot(c,snapshot,error),"snapshot written");

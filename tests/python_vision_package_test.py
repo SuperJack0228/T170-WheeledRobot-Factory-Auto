@@ -27,7 +27,7 @@ assert 'online' not in sys.modules and 'algorithm' not in sys.modules
 assert 'torch' not in sys.modules and 'ultralytics' not in sys.modules
 tray.init(); belt.init(); marker.init()
 assert tray._cfg.dictionary.startswith('DICT_5X5')
-assert belt._cfg.dictionary.startswith('DICT_6X6')
+assert belt._cfg.dictionary.startswith('DICT_5X5')
 assert tray._cfg is not belt._cfg
 """
         with tempfile.TemporaryDirectory() as cwd:

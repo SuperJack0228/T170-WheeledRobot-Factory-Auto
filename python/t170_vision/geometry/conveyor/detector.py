@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-RealSense 在线传送带 6D 位姿：每条皮带横贴 2 个 6×6 ArUco，独立 PnP。
+RealSense 在线传送带 6D 位姿：每条皮带横贴 2 个 5×5 ArUco，独立 PnP。
 
-皮带 0：ID0 左、ID1 右；皮带 1：ID2 左、ID3 右。
+圆方本期：定位码可共用，信息码每条唯一。皮带 0 左 500 右 550，皮带 1 左 500 右 551。
 原点在两码心连线中点。+X 前、+Y 左、+Z 上。
 码水平贴在上表面，码的「上」朝皮带前方。
 
@@ -109,10 +109,15 @@ class AppConfig:
         return out
 
     def id_to_belt(self) -> dict[int, BeltSpec]:
+        """信息码唯一，直接映射。共用的定位码不映射到某一条皮带。"""
         mapping: dict[int, BeltSpec] = {}
+        left_counts: dict[int, int] = {}
         for b in self.belts:
-            mapping[b.left_id] = b
+            left_counts[b.left_id] = left_counts.get(b.left_id, 0) + 1
             mapping[b.right_id] = b
+        for b in self.belts:
+            if left_counts[b.left_id] == 1:
+                mapping[b.left_id] = b
         return mapping
 
     def marker_center_belt(self, belt: BeltSpec, marker_id: int) -> np.ndarray:
@@ -178,14 +183,13 @@ def load_config(path: Path) -> AppConfig:
         )
         if spec.left_id == spec.right_id:
             raise ValueError(f"{spec.name} 左右 ID 不能相同")
-        overlap = spec.ids & seen
-        if overlap:
-            raise ValueError(f"ID 重复: {sorted(overlap)}")
-        seen |= spec.ids
+        if spec.right_id in seen:
+            raise ValueError(f"信息码重复: {spec.right_id}")
+        seen.add(spec.right_id)
         belts.append(spec)
 
     print_size = float(aruco.get("print_size_m", 0.03))
-    bit_cells = int(aruco.get("bit_cells", 6))
+    bit_cells = int(aruco.get("bit_cells", 5))
     black_border = int(aruco.get("black_border_cells", 1))
     white_border = int(aruco.get("white_border_cells", 1))
     pitch_y = float(belt.get("pitch_y_m", 0.109))
@@ -210,7 +214,7 @@ def load_config(path: Path) -> AppConfig:
         min_markers = 1
 
     return AppConfig(
-        dictionary=str(aruco.get("dictionary", "DICT_6X6_1000")),
+        dictionary=str(aruco.get("dictionary", "DICT_5X5_1000")),
         print_size_m=print_size,
         bit_cells=bit_cells,
         black_border_cells=black_border,
@@ -306,6 +310,11 @@ def estimate_belt_pose(
     dist: np.ndarray,
 ) -> BeltPose | None:
     if ids is None or len(corners) == 0:
+        return None
+    seen_ids = {int(v) for v in ids.flatten()}
+    left_shared = sum(b.left_id == belt.left_id for b in cfg.belts) > 1
+    # 多条皮带共用定位码时，只看见定位码不能判断是哪一条。
+    if belt.right_id not in seen_ids and left_shared:
         return None
     obj_list: list[np.ndarray] = []
     img_list: list[np.ndarray] = []
