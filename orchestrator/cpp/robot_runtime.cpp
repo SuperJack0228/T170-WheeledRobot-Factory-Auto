@@ -1317,16 +1317,7 @@ int go_waist_debug(int pose)
         return -2;
     }
 
-    const auto now = std::chrono::system_clock::now();
-    const std::time_t tt = std::chrono::system_clock::to_time_t(now);
-    std::tm tm{};
-    localtime_r(&tt, &tm);
-    std::ostringstream name;
-    name << "waist2_" << std::put_time(&tm, "%Y%m%d_%H%M%S") << ".jpg";
-    const std::filesystem::path dir = std::filesystem::path(project_root_dir()) / "picture_debug" / "head";
-    std::error_code ec;
-    std::filesystem::create_directories(dir, ec);
-    const std::string path = (dir / name.str()).string();
+    const std::string path = vision_debug_record_path("head", "waist2");
     cv::Mat bgr(frame.height, frame.width, CV_8UC3, frame.color_bgr.data());
     if (!cv::imwrite(path, bgr))
     {
@@ -1941,7 +1932,7 @@ BeltPartList detect_belt_parts_full(
         part_ids = {kGraspDetectClassId, kFallenClassId};
     std::vector<BeltPartMark> raw_parts;
     cv::Mat vis;
-    if (vision_debug_annotate() && frame.ok && !frame.color_bgr.empty())
+    if (frame.ok && !frame.color_bgr.empty())
     {
         vis = cv::Mat(frame.height, frame.width, CV_8UC3,
                       const_cast<uint8_t *>(frame.color_bgr.data()))
@@ -1991,7 +1982,12 @@ BeltPartList detect_belt_parts_full(
     }
     if (!vis.empty())
     {
-        const std::string path = vision_debug_make_path("head", "belt_yolo_det");
+        std::ostringstream banner;
+        banner << name << " yolo boxes=" << raw_parts.size();
+        cv::rectangle(vis, cv::Point(0, 0), cv::Point(vis.cols, 28), cv::Scalar(0, 0, 0), cv::FILLED);
+        cv::putText(vis, banner.str(), cv::Point(8, 20), cv::FONT_HERSHEY_SIMPLEX, 0.55,
+                    cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        const std::string path = vision_debug_record_path("head", "yolo");
         if (!path.empty() && cv::imwrite(path, vis))
         {
             std::cout << "[orch] 工件检测框 " << path << " 框数=" << raw_parts.size() << "\n";

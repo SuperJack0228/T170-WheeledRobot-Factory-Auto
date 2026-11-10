@@ -55,7 +55,7 @@ int ensure_level_unlocked()
     return g_level;
 }
 
-std::string stamp_name()
+std::string stamp_name(const char *stem)
 {
     using clock = std::chrono::system_clock;
     const auto tp = clock::now();
@@ -66,7 +66,10 @@ std::string stamp_name()
     localtime_r(&sec, &tm);
     std::ostringstream name;
     name << std::put_time(&tm, "%Y%m%d_%H%M%S") << '_' << std::setw(3) << std::setfill('0')
-         << ms.count() << ".jpg";
+         << ms.count();
+    if (stem && stem[0])
+        name << '_' << stem;
+    name << ".jpg";
     return name.str();
 }
 
@@ -78,9 +81,9 @@ void vision_debug_init_from_env()
     g_level = -1;
     const int level = ensure_level_unlocked();
     std::cerr << "[vision_debug] T170_VISION_DEBUG=" << level
-              << (level == 0   ? "（默认：业务不写调试图）"
-                  : level == 1 ? "（写 picture_debug）"
-                               : "（写图 + GUI）")
+              << (level == 0   ? "（业务识别图仍写 debug_picture）"
+                  : level == 1 ? "（另写原图/标注成对图）"
+                               : "（成对图 + GUI）")
               << "\n";
 }
 
@@ -110,17 +113,22 @@ int vision_debug_level()
 
 std::string vision_debug_root_dir()
 {
-    return project_root_dir() + "/picture_debug";
+    return project_root_dir() + "/debug_picture";
 }
 
-std::string vision_debug_make_path(const char *slot, const char *stem)
+std::string vision_debug_record_path(const char *slot, const char *stem)
 {
     const char *s = (slot && slot[0]) ? slot : "head";
     const char *st = (stem && stem[0]) ? stem : "vision";
     const std::string dir = vision_debug_root_dir() + "/" + s;
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
-    return dir + "/" + st + "_" + stamp_name();
+    return dir + "/" + stamp_name(st);
+}
+
+std::string vision_debug_make_path(const char *slot, const char *stem)
+{
+    return vision_debug_record_path(slot, stem);
 }
 
 std::string vision_debug_annotate_path(const char *slot, const char *stem)

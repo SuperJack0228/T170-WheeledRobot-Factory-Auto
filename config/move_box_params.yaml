@@ -161,8 +161,8 @@ tray2_place:
   open_tolerance_rad: 0.5
   open_timeout_ms: 1500
   offset:
-    left:  { x: 0.039, y: 0.01, z: 0.0 }
-    right: { x: 0.036, y: 0.013, z: 0.0 }
+    left:  { x: 0.039, y: 0.01, z: -0.008 }
+    right: { x: 0.036, y: 0.013, z: -0.008 }
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
   far_row_forward_m: 0.20
@@ -343,7 +343,7 @@ conveyor:
   grasp_ready_close_ratio: 0.3
   # 传送带检测门禁。整图 YOLO，框中心转到码系。抓取窗口和放置 ±3cm 都在代码里。
   # 抓取窗口：码系 x∈[-0.06,0.08]、y∈[0.10,0.13]。0 个不抓，1 个只右手，≥2 双手。手臂仍走 grasp_offset。
-  # 调试图：T170_VISION_DEBUG≥1 → picture_debug/head/belt_yolo_det_*.jpg。
+  # 头相机识别图写到 debug_picture/head，文件名以日期开头。抓空和放置检查的 YOLO 图也在这里。
   yolo_roi_enable: true
   yolo_min_conf: 0.25
   yolo_part_class_ids: [0, 2]   # 立件和倒件都算零件；1=空孔不计入
@@ -385,8 +385,8 @@ conveyor2:
     left: [0, 50, -50]
     right: [0, 50, 50]
   grasp_offset:
-    left: { x: 0.072, y: 0.109, z: -0.015 }
-    right: { x: -0.008, y: 0.132, z: -0.02 }
+    left: { x: 0.072, y: 0.109, z: -0.010 }
+    right: { x: -0.008, y: 0.132, z: -0.015 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
@@ -513,14 +513,21 @@ visual_servo:
   track_radius_px: 100
   pair_clearance_m: 0.10
   log_period_s: 0.05
-  # reference_height_m=0：以下像素来自最终抓准位置；feature_z_offset_m
-  # 是可见顶面/孔口相对最终TCP Z，不是相机深度。未知时0只是初始假设。
-  # 未单独填写reference_px时继承cameras里的左右夹取像素，避免两处修改互相覆盖。
-  # 要区分抓/放参考时在对应profile显式添加reference_px: [u, v]。
+  # reference_height_m=0：像素定义在最终高度。左手图已转 180°。原点左上，x 向右，y 向下。
+  # 抓取用 left_grasp / right_grasp，不写 reference_px 时用上面的 gripper 像素。
+  # 料盘放置用 left_place / right_place，只认这里的 reference_px，不跟抓取像素走。
   left_grasp:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   right_grasp: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
-  # 放置参考像素应示教工件轴心在正确放置高度的投影，不能用邻孔框中心代替。
-  # 当前未另填 reference_px 时沿用该手现有参考像素，现场需确认。
+  left_place:
+    mode: geometry
+    reference_height_m: 0.0
+    feature_z_offset_m: 0.0
+    reference_px: [588, 458]
+  right_place:
+    mode: geometry
+    reference_height_m: 0.0
+    feature_z_offset_m: 0.0
+    reference_px: [788, 498]
   # enabled=false：料盘二放置走传统 tray2_place offset 开环，不进手相机伺服。
   # enabled=true：纯邻孔虚拟孔心伺服（手相机不识别标记）（需 hand_descent_correct=true）。
   tray_place:
@@ -588,8 +595,6 @@ visual_servo:
   place_finish_speed_m_s: 0.010
   place_height_margin_m: 0.001
   place_z_accept_above_m: 0.005
-  left_place:  { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
-  right_place: { mode: geometry, reference_height_m: 0.0, feature_z_offset_m: 0.0 }
   # 实测表的格式（不可把示例矩阵当作真实标定）：
   # left_grasp:
   #   mode: table

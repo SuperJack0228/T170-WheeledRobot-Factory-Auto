@@ -888,4 +888,4 @@ def fuse_and_annotate(
 
 def default_save_path(project_root: str) -> str:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    return str(Path(project_root) / "picture_debug" / "head" / f"tray_yolo_{ts}.jpg")
+    return str(Path(project_root) / "debug_picture" / "head" / f"{ts}_tray.jpg")

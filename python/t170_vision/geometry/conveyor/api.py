@@ -77,7 +77,7 @@ def _R_robot(T_rc: np.ndarray | None, rvec: np.ndarray) -> list[float] | None:
 
 def default_save_path(project_root: str) -> str:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    return str(Path(project_root) / "picture_debug" / "head" / f"belt_aruco_{ts}.jpg")
+    return str(Path(project_root) / "debug_picture" / "head" / f"{ts}_belt_aruco.jpg")
 
 
 def _grasp_from_pose(pose, T_rc: np.ndarray | None, offset_board) -> tuple[np.ndarray, list[float] | None]:
