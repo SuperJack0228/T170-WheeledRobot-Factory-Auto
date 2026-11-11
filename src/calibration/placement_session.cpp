@@ -1,5 +1,6 @@
 #include "t170/calibration/placement_session.h"
 #include "t170/calibration/identity.h"
+#include "t170/calibration/tray_policy.h"
 #include "robot_runtime.h"
 #include "function.h"
 #include "move_box_runtime.h"
@@ -45,7 +46,8 @@ struct PlacementSession::Impl {
     mutable std::mutex mutex;
     Json::Value view{Json::objectValue};
     std::atomic<bool> active{false},interrupted{false};
-    int hand=1,group=1,step=0,row=0,col=0;
+    int hand=1,step=0,row=0,col=0;
+    bool grasp=false;
     std::string id,phase="idle",serial,eye_hash,model_hash,saved_file;
     std::filesystem::path directory;
     orch::HwSession *hw=nullptr;
@@ -53,9 +55,10 @@ struct PlacementSession::Impl {
     Eigen::Matrix4d frame=Eigen::Matrix4d::Identity(),base_camera=Eigen::Matrix4d::Identity();
     Joints ready=Joints::Zero();
     Eigen::Vector2d coarse=Eigen::Vector2d::Zero(),bias=Eigen::Vector2d::Zero(),reference=Eigen::Vector2d::Zero();
-    double clearance=.02,plane=0,reference_above_plane=0,reference_fit_residual=0;
+    double clearance=.02,plane=0,feature_plane=0,reference_above_plane=0,reference_fit_residual=0;
+    std::string reference_method;
     int reference_coverage=0;
-    bool far_rows=false,held=false,aligned_recorded=false,have_reference=false,verified=false,verify_done=false;
+    bool held=false,aligned_recorded=false,have_reference=false;
     CameraFrameData frozen;
     std::uint64_t image_revision=0,head_revision=0;
     std::vector<TrayHoleResult> holes;
@@ -70,9 +73,9 @@ struct PlacementSession::Impl {
     void state(const std::string &p,int s) {phase=p;step=s;publish();}
     void publish() {
         Json::Value v(Json::objectValue);v["ok"]=true;v["active"]=active.load();v["session"]=id;
-        v["hand"]=hand;v["far_rows"]=far_rows;v["step"]=step;v["phase"]=phase;v["held"]=held;
-        v["interrupted"]=interrupted.load();v["row_group"]=group;v["row"]=row;v["col"]=col;
-        v["d_clearance_mm"]=clearance*1000;v["holes"]=candidates;v["validated"]=verified;
+        v["hand"]=hand;v["task"]=grasp?"grasp":"placement";v["scope"]="tray_only";v["step"]=step;v["phase"]=phase;v["held"]=held;
+        v["interrupted"]=interrupted.load();v["robot_row"]=5;v["from_left_col"]=hand?5:2;v["row"]=row;v["col"]=col;
+        v["d_clearance_mm"]=clearance*1000;v["holes"]=candidates;v["validated"]=!saved_file.empty();v["field_verified"]=false;
         v["coarse_xy_mm"]=array((coarse*1000).transpose().eval());
         v["compensation_xy_mm"]=array((bias*1000).transpose().eval());
         v["reference_px"]=array(reference.transpose());v["reference_tcp_above_plane_mm"]=reference_above_plane*1000;
@@ -80,7 +83,7 @@ struct PlacementSession::Impl {
         v["head_image_revision"]=Json::UInt64(head_revision);
         if(head_revision)v["head_image_path"]=std::filesystem::relative(directory/"head.jpg",project_root_dir()).string();
         v["image_tcp_z_m"]=reference_pose(2);v["image_revision"]=Json::UInt64(image_revision);v["width"]=frozen.width;v["height"]=frozen.height;
-        v["reference_fit_residual"]=reference_fit_residual;v["reference_coverage"]=reference_coverage;v["have_reference"]=have_reference;v["verify_done"]=verify_done;
+        v["reference_fit_residual"]=reference_fit_residual;v["reference_coverage"]=reference_coverage;v["have_reference"]=have_reference;v["reference_method"]=reference_method;v["feature_plane_z_m"]=feature_plane;
         if(image_revision) v["image_path"]=std::filesystem::relative(directory/("frame_"+std::to_string(image_revision)+".jpg"),project_root_dir()).string();
         v["log_directory"]=directory.string();v["saved_file"]=saved_file;
         {std::lock_guard<std::mutex> lock(mutex);view=v;}
@@ -152,19 +155,26 @@ struct PlacementSession::Impl {
         wrist_servo::hold_joint_reference(hand,path.back());wrist_servo::start_final_hold_repeat();
         require(record_arm_cartesian_arrival(arm(),goal,"标定微调",3.0),"微调到位反馈超时");actual();stopped();
     }
-    void grip() {
+    void check_held() {
         stopped();require(hw->g->hasSide(side()),"所选夹爪未连接");
-        const auto f=hw->g->graspAndWait(side());
-        if(f.result!=gripper::GraspResult::TorqueLimit) {
-            const bool maintained=hw->g->holdCurrent(side());
-            if(!maintained) interrupted=true;
-            throw std::runtime_error(maintained?"夹取未确认：空合到底或超时；已保持反馈位置，停止继续闭合":
-                "夹爪反馈异常，无法确认位置保持；会话已停止，请检查夹爪连接和电机状态");
-        }
         const auto fb=hw->g->feedback(side());
-        require(fb.have_feedback && fb.io_ok && fb.merror==0 && fb.position_rad>=g_move_cfg.gripper_check.empty_q_rad &&
-            fb.position_rad<=g_move_cfg.gripper_check.hold_q_max_rad,"夹爪持件反馈不符合条件");
-        held=true;stopped();
+        require(fb.have_feedback && fb.io_ok && fb.merror==0 && std::isfinite(fb.position_rad) &&
+            fb.position_rad>=g_move_cfg.gripper_check.empty_q_rad && fb.position_rad<=g_move_cfg.gripper_check.hold_q_max_rad,
+            "未确认正常持件：请先退出标定，使用实际传送带抓取流程取件；不要人工喂件");
+        held=true;
+    }
+    void close_empty() {
+        stopped();require(hw->g->hasSide(side()),"所选夹爪未连接");
+        // Retain torque protection, but success here means EMPTY position reached,
+        // unlike a production grasp which expects a contact/torque event.
+        const auto closed=hw->g->graspAndWait(side(),-1.0,std::chrono::milliseconds(3000));
+        const bool maintained=hw->g->holdCurrent(side());
+        if(!maintained) interrupted=true;
+        const auto fb=hw->g->feedback(side());
+        require(closed.result==gripper::GraspResult::PositionReached && maintained && fb.have_feedback && fb.io_ok && fb.merror==0 &&
+                std::isfinite(fb.position_rad) && fb.position_rad<=g_move_cfg.gripper_check.empty_q_rad,
+                "空爪闭合未到位或检测到夹持物，请检查并重新进入；不会继续顶着闭合");
+        held=false;stopped();
     }
     void open() {
         stopped();require(hw->g->hasSide(side()),"夹爪未连接");
@@ -179,56 +189,51 @@ struct PlacementSession::Impl {
         serial=cameras["realsense"][side_name()+"_hand"]["serial"].as<std::string>();
         eye_hash=fingerprint(root/(side_name()+"_hand_to_base_result.yaml"));model_hash=fingerprint(root/"Robot_Arm_Model.yaml");
     }
-    int robot_row(int aruco_row) const {
-        std::map<int,std::vector<double>> xs;
-        for(const auto &h:holes)if(h.in_robot && std::isfinite(h.x_level))xs[h.row].push_back(h.x_level);
-        std::vector<std::pair<double,int>> rows;
-        for(const auto &[r,x]:xs) {double sum=0;for(double v:x)sum+=v;rows.emplace_back(sum/x.size(),r);}
-        std::sort(rows.rbegin(),rows.rend());
-        require(rows.size()==6,"头相机需解析完整6行料盘网格后才能标定");
-        for(int i=0;i<6;++i)if(rows[i].second==aruco_row)return i+1;
-        throw std::runtime_error("目标行身份无效");
+    const GraspRpyDeg &rpy() const {
+        return grasp?grasp_rpy_deg_for_row(5,hand==1):tray2_place_rpy_deg_for_row(5,hand==1);
     }
-    bool matches_setup(int aruco_row) const {
-        const int r=robot_row(aruco_row),expected=r==1?6:(r==2 || r==5)?2:r==4?3:1;
-        return group==expected && far_rows==(r<=3);
+    std::vector<wrist_servo::TrayAnchor> anchors() const {
+        std::vector<wrist_servo::TrayAnchor> result;
+        for(const auto &h:holes) if(h.in_robot && std::isfinite(h.x_level) && std::isfinite(h.y_level))
+            result.push_back({h.row,h.col,Eigen::Vector3d(h.x_level,h.y_level,move_box::tray_z_ref_now()),h.class_id});
+        return result;
     }
     void head() {
-        stopped();PerceiveTrayOptions options;options.tray2_markers=true;options.run_yolo=true;
+        stopped();PerceiveTrayOptions options;options.tray2_markers=!grasp;options.run_yolo=true;
         const auto result=vision::perceive_tray_head(hw->pipeline->cameras(),hw->pipeline->bridge(),options);
         require(result.tray.ok,"头相机未定位到料盘: "+result.tray.message);
         if(!result.tray.save_path.empty() && std::filesystem::is_regular_file(result.tray.save_path)) {
             std::filesystem::copy_file(result.tray.save_path,directory/"head.jpg",std::filesystem::copy_options::overwrite_existing);++head_revision;
         }
-        holes=result.tray.holes;candidates=Json::Value(Json::arrayValue);
-        for(const auto &h:holes) if(h.in_robot && std::isfinite(h.x_level) && std::isfinite(h.y_level) && matches_setup(h.row)) {
-            Json::Value c(Json::objectValue);c["row"]=h.row;c["col"]=h.col;c["class_id"]=h.class_id;
-            c["x"]=h.x_level;c["y"]=h.y_level;candidates.append(c);
-        }
-        require(!candidates.empty(),"没有可用孔位，请检查头相机二维码");
+        holes=result.tray.holes;const auto selected=teaching_hole(anchors(),hand);row=selected.row;col=selected.col;
+        candidates=Json::Value(Json::arrayValue);Json::Value c(Json::objectValue);
+        c["row"]=row;c["col"]=col;c["class_id"]=selected.class_id;c["x"]=selected.base.x();c["y"]=selected.base.y();candidates.append(c);
     }
-    void bind(int r,int c) {
-        auto it=std::find_if(holes.begin(),holes.end(),[&](const auto &h){return h.row==r && h.col==c && h.in_robot;});
-        require(it!=holes.end(),"请先识别并选择有效孔位");
-        require(it->class_id==1,"所选孔未被识别为空孔，请清空该孔后重新识别");
-        require(matches_setup(r),"孔位不属于所选姿态组/近远区，请重新准备");
-        row=r;col=c;frame=move_box::placement_calibration_frame();
+    void bind() {
+        const auto all=anchors();const auto selected=teaching_hole(all,hand);
+        row=selected.row;col=selected.col;frame=move_box::placement_calibration_frame();
         wrist_servo::TrayBoardGeometry board;std::string error;
-        require(wrist_servo::load_tray_board((std::filesystem::path(project_root_dir())/g_move_cfg.visual_servo.tray_place.board_config).string(),board,error),error);
-        std::vector<wrist_servo::TrayAnchor> anchors;
-        for(const auto &h:holes) if(h.in_robot && std::isfinite(h.x_level) && std::isfinite(h.y_level))
-            anchors.push_back({h.row,h.col,Eigen::Vector3d(h.x_level,h.y_level,move_box::tray_z_ref_now()),h.class_id});
-        require(wrist_servo::make_tray_target(anchors,board,row,col,target,error),error);
-        target.base_from_tray=frame*target.base_from_tray;
+        const auto configured=std::filesystem::path(g_move_cfg.visual_servo.tray_place.board_config);
+        const auto path=configured.is_absolute()?configured:std::filesystem::path(project_root_dir())/configured;
+        require(wrist_servo::load_tray_board(path.string(),board,error),error);
+        require(wrist_servo::make_tray_target(all,board,row,col,target,error),error);
+        // Exactly the production fixed horizontal tray; no head depth/tilt.
+        const double yaw=std::atan2(target.base_from_tray(1,0),target.base_from_tray(0,0));
+        target.base_from_tray.block<3,3>(0,0)=Eigen::AngleAxisd(yaw,Eigen::Vector3d::UnitZ()).toRotationMatrix();
+        target.base_from_tray(2,3)=move_box::tray_z_ref_now();target.base_from_tray=frame*target.base_from_tray;
         const auto xy=board.hole(row,col);plane=(target.base_from_tray*Eigen::Vector4d(xy.x(),xy.y(),0,1)).z();
-        const auto &p=g_move_cfg.tray2_place;
-        const double zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m)+(p.use_row_offset?
-            (hand?p.right_row_offset[robot_row(row)-1].z:p.left_row_offset[robot_row(row)-1].z):0.0);
-        const auto &rpy=group==6?(hand?p.right_row6_rpy_deg:p.left_row6_rpy_deg):
-            (hand?p.right_row_rpy_deg[group-1]:p.left_row_rpy_deg[group-1]);
-        Pose upright;upright<<it->x_level,it->y_level,move_box::expected_object_top_z()+zoff+(robot_row(row)==6?g_move_cfg.tray2_place.nearest_row_z_offset_m:0.0),
-            rpy.rx*M_PI/180,rpy.ry*M_PI/180,rpy.rz*M_PI/180;
+        double zoff=0;
+        if(grasp) {
+            const auto &p=g_move_cfg.head_grasp;
+            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m)+(p.use_row_offset?(hand?p.right_row_offset[4].z:p.left_row_offset[4].z):0.0);
+        } else {
+            const auto &p=g_move_cfg.tray2_place;
+            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m)+(p.use_row_offset?(hand?p.right_row_offset[4].z:p.left_row_offset[4].z):0.0);
+        }
+        const auto &r=rpy();Pose upright;
+        upright<<selected.base.x(),selected.base.y(),move_box::expected_object_top_z()+zoff,r.rx*M_PI/180,r.ry*M_PI/180,r.rz*M_PI/180;
         nominal=T2PosEulerAngles(frame*TR(upright));initial=nominal;initial(2)+=g_move_cfg.head_grasp.hover_above_m;
+        feature_plane=grasp?(frame*Eigen::Vector4d(selected.base.x(),selected.base.y(),move_box::expected_object_top_z(),1)).z():plane;
         require(initial(2)>nominal(2)+clearance,"观察高度必须高于D点");check_workspace(nominal);
     }
     void retract() {
@@ -257,7 +262,7 @@ struct PlacementSession::Impl {
         const auto next_camera=camera(next_pose);const auto revision=image_revision+1;
         cv::Mat image(next.height,next.width,CV_8UC3,next.color_bgr.data());
         require(cv::imwrite((directory/("frame_"+std::to_string(revision)+".jpg")).string(),image),"标定图像写入失败");
-        Json::Value m;m["tcp"]=array(next_pose);m["aligned_tcp"]=array(aligned);m["plane_z_m"]=plane;
+        Json::Value m;m["tcp"]=array(next_pose);m["aligned_tcp"]=array(aligned);m["plane_z_m"]=plane;m["feature_plane_z_m"]=feature_plane;
         m["frame"]=Json::UInt64(next.frame_number);m["capture_s"]=next.capture_steady_s;
         m["K"]=Json::Value(Json::arrayValue);for(auto v:next.K)m["K"].append(v);
         m["dist"]=Json::Value(Json::arrayValue);for(auto v:next.dist)m["dist"].append(v);
@@ -268,14 +273,18 @@ struct PlacementSession::Impl {
     }
 
     Eigen::Vector2d refine(double u,double v) {
+        require(std::isfinite(u) && std::isfinite(v) && u>=0 && v>=0 && u<frozen.width && v<frozen.height,"参考点超出当前图像");
+        if(grasp) {reference_method="manual_part_top_center";reference_fit_residual=0;reference_coverage=0;return {u,v};}
         const auto fit=vision::refine_calibration_hole(frozen,base_camera,target.base_from_tray,target.board.radius_m,u,v);
-        require(fit.valid,fit.reason);reference_fit_residual=fit.residual_rectified_px;reference_coverage=fit.coverage_bins;return fit.pixel;
+        require(fit.valid,fit.reason);reference_method="rectified_orange_hole_center";reference_fit_residual=fit.residual_rectified_px;reference_coverage=fit.coverage_bins;return fit.pixel;
     }
     Json::Value record(bool validated) {
-        Json::Value r;r["schema_version"]=1;r["validated"]=validated;r["hand"]=hand;r["session"]=id;
+        Json::Value r;r["schema_version"]=2;r["validated"]=validated;
+        r["task"]=grasp?"grasp":"placement";r["scope"]="tray_only";r["validation_kind"]="manual_at_D";r["field_verified"]=false;
+        r["reference_method"]=reference_method;r["feature_plane_z_m"]=feature_plane;r["robot_row"]=5;r["from_left_col"]=hand?5:2;r["hand"]=hand;r["session"]=id;
         r["robot_id"]=g_move_cfg.chassis.sequence_number;r["camera_serial"]=serial;
         r["eye_fingerprint"]=eye_hash;r["model_fingerprint"]=model_hash;
-        r["width"]=frozen.width;r["height"]=frozen.height;r["row"]=row;r["col"]=col;r["row_group"]=group;
+        r["width"]=frozen.width;r["height"]=frozen.height;r["row"]=row;r["col"]=col;r["d_clearance_m"]=clearance;
         r["reference_fit_residual_rectified_px"]=reference_fit_residual;r["reference_coverage_bins"]=reference_coverage;
         r["reference_px"]=array(reference.transpose());r["reference_tcp_above_plane_m"]=reference_above_plane;
         r["reference_pose_tcp"]=array(reference_pose);r["aligned_tcp"]=array(aligned);r["plane_z_m"]=plane;
@@ -303,15 +312,15 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
         if(action=="begin") {
             require(!s.active,"已有标定会话，请恢复或退出");
             require(request["hand"].isInt() && (request["hand"].asInt()==0 || request["hand"].asInt()==1),"请选择左手或右手");
-            s.hand=request["hand"].asInt();s.far_rows=request.get("far_rows",false).asBool();s.group=request.get("row_group",1).asInt();
-            require(s.group==1 || s.group==2 || s.group==3 || s.group==6,"姿态组必须为1/2/3/6");
-            require(!(s.group==6 && !s.far_rows) && !(s.group==3 && s.far_rows),"ready6请选择远三排，ready3请选择近三排");
+            s.hand=request["hand"].asInt();const auto task=request.get("task","placement").asString();
+            require(task=="grasp" || task=="placement","标定任务必须为料盘抓取或料盘放置");s.grasp=task=="grasp";
             s.clearance=request.get("clearance_mm",20.).asDouble()/1000;
             require(std::isfinite(s.clearance) && s.clearance>=.01 && s.clearance<=.02,"D点距离必须在10–20mm之间");
             require(!s.hand || !right_arm_motors_locked(),"右手电机当前锁定");
             s.id=std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(Clock::now().time_since_epoch()).count());
             s.directory=std::filesystem::path(project_root_dir())/"debug_picture"/"calibration"/s.id;
-            s.replies.clear();s.held=s.have_reference=s.verified=s.verify_done=s.aligned_recorded=false;
+            s.replies.clear();s.held=s.have_reference=s.aligned_recorded=false;
+            s.reference_fit_residual=0;s.reference_coverage=0;s.reference_method.clear();s.feature_plane=s.plane=s.reference_above_plane=0;
             s.image_revision=0;s.head_revision=0;s.saved_file.clear();s.frozen={};s.nominal.setZero();s.aligned.setZero();s.reference_pose.setZero();s.latest.setZero();s.row=s.col=0;s.coarse.setZero();s.bias.setZero();s.reference.setZero();s.candidates=Json::Value(Json::arrayValue);
             s.camera_identity();
             std::filesystem::create_directories(s.directory/"inputs");
@@ -323,98 +332,70 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
             s.stopped();
             if(action=="prepare") {
                 require(s.phase=="selected","准备动作只允许执行一次");
+                require(s.hw->g && s.hw->arm_r && s.hw->arm_l && s.hw->waist && s.hw->layer3 && s.hw->pipeline,"标定所需硬件尚未初始化");
+                require(request.get("setup_confirmed",false).asBool(),"请确认工位、第五行空盘以及空爪/实际传送带持件状态");
+                if(!s.grasp) s.check_held(); // Must precede all preparation motion; never open a loaded gripper.
                 require(enable_head_calib_pose()==0,"头部准备失败");
                 for(const auto motor:s.arm().can_id_list) {s.stopped();require(motor_enable_id(static_cast<std::uint32_t>(motor)),"所选手臂电机使能失败");}
-                Pose p=s.hand?g_move_cfg.standby.right:g_move_cfg.standby.left;
-                const auto &cfg=g_move_cfg.tray2_place;const auto &r=s.group==6?(s.hand?cfg.right_row6_rpy_deg:cfg.left_row6_rpy_deg):
-                    (s.hand?cfg.right_row_rpy_deg[s.group-1]:cfg.left_row_rpy_deg[s.group-1]);
+                Pose p=s.hand?g_move_cfg.standby.right:g_move_cfg.standby.left;const auto &r=s.rpy();
                 p.tail<3>()<<r.rx*M_PI/180,r.ry*M_PI/180,r.rz*M_PI/180;s.line(p,.10);
                 require(move_box::ensure_waist_ready_start(*s.hw->waist,*s.hw->layer3),"腰部到准备位失败");
-                move_box::waist_layer3_set_synced(true);
-                if(s.far_rows) {
-                    move_box::waist_layer3_ensure_far_row_forward(*s.hw->waist,*s.hw->layer3,g_move_cfg.tray2_place.far_row_forward_m);
-                    require(std::abs((*s.hw->layer3)(0)-(g_move_cfg.waist.layer3_home(0)+g_move_cfg.tray2_place.far_row_forward_m))<.005,"远排腰部前伸未到位");
-                    require(enable_head_far_pitch()==0,"远排头部观察姿态未到位");
-                }
-                s.ready=arm_get_joint_pos(s.arm());s.open();s.state("prepared",1);
-            } else if(action=="grip") {
-                require(s.phase=="prepared" || s.phase=="verify_ready","请在准备位人工装件后合爪");
-                const bool verification=s.phase=="verify_ready";s.grip();s.state(verification?"verify_held":"loaded",verification?6:2);
-            } else if(action=="detect") {require(s.phase=="loaded","先装件合爪");s.head();s.publish();}
+                move_box::waist_layer3_set_synced(true);s.ready=arm_get_joint_pos(s.arm());
+                if(s.grasp) s.close_empty();
+                s.state("prepared",1);
+            } else if(action=="detect") {require(s.phase=="prepared","请先完成准备");s.head();s.publish();}
             else if(action=="move_d") {
-                require(s.phase=="loaded" && s.held,"当前状态不能去D点");s.bind(request["row"].asInt(),request["col"].asInt());
-                s.line(s.initial,.10);Pose d=s.nominal;d(2)+=s.clearance;s.local(d);s.state("at_d",3);s.capture(false);s.publish();
+                require(s.phase=="prepared" && !s.candidates.empty(),"请先准备并识别固定标定孔");
+                if(!s.grasp) s.check_held();s.bind();
+                s.line(s.initial,.10);Pose d=s.nominal;d(2)+=s.clearance;s.local(d);s.state("at_d",2);s.capture(false);s.publish();
             } else if(action=="jog") {
-                require(s.phase=="at_d" || s.phase=="at_c","只能在D/C对准页微调");
+                require(s.phase=="at_d","只能在D点对准页微调");
                 const double dx=request.get("dx_mm",0.).asDouble()/1000,dy=request.get("dy_mm",0.).asDouble()/1000;
-                require(std::isfinite(dx) && std::isfinite(dy) && std::hypot(dx,dy)>0 && std::hypot(dx,dy)<=.0021,"单次微调必须在2mm内");
+                require(valid_teach_jog(dx,dy),"单次XY微调合位移必须在5mm内");
                 Pose p=s.actual();p.tail<3>()=s.nominal.tail<3>();p(0)+=dx;p(1)+=dy;
                 require((p.head<2>()-s.nominal.head<2>()).norm()<=.10,"累计补偿超过100mm，请检查识别和工具参数");s.local(p);s.publish();s.capture(false);s.publish();
             } else if(action=="observe") {
-                require(s.phase=="at_d" || s.phase=="at_c","只允许在D/C点刷新观察画面");s.capture(false);s.publish();
-            } else if(action=="record_coarse") {
-                require(s.phase=="at_d","请在D点记录");const auto p=s.actual();
-                // D differs only along arm Z; remove that term before rotating to upright XY.
-                Eigen::Vector3d d=(p.head<3>()-s.nominal.head<3>()).transpose();d.z()=0;
-                s.coarse=s.frame.block<2,2>(0,0).inverse()*d.head<2>();s.state("coarse_recorded",4);
-            } else if(action=="lower_c") {
-                require(s.phase=="coarse_recorded","请先记录D点初始补偿");Pose p=s.actual();p.tail<3>()=s.nominal.tail<3>();p(2)=s.nominal(2);s.local(p);s.state("at_c",4);s.capture(false);s.publish();
+                require(s.phase=="at_d","只允许在D点刷新观察画面");s.capture(false);s.publish();
             } else if(action=="record_aligned") {
-                require(s.phase=="at_c" && request.get("physically_centered",false).asBool(),"请确认零件实际居中");
+                require(s.phase=="at_d" && request.get("physically_centered",false).asBool(),"请在D点确认竖直下降的工作中心已对准目标孔");
                 s.aligned=s.actual();Eigen::Vector3d d=(s.aligned.head<3>()-s.nominal.head<3>()).transpose();d.z()=0;
-                s.bias=s.frame.block<2,2>(0,0).inverse()*d.head<2>();s.aligned_recorded=true;s.state("aligned",5);
-            } else if(action=="release") {require(s.phase=="aligned","先记录对准位姿");s.open();s.state("released",5);}
-            else if(action=="capture") {require(s.phase=="released" || s.phase=="captured","先张爪并取走零件");s.capture();s.state("captured",5);}
+                s.bias=s.frame.block<2,2>(0,0).inverse()*d.head<2>();s.coarse=s.bias;
+                s.aligned_recorded=true;s.state("aligned",3);
+            } else if(action=="release") {require(s.phase=="aligned","先记录D点对准位姿");s.open();s.state("released",3);}
+            else if(action=="capture") {
+                require((s.phase=="released" || s.phase=="captured") && request.get("scene_ready",false).asBool(),
+                        s.grasp?"请原地张爪并将居中的标定零件放入目标孔":"请张爪并取走零件，露出同一个目标孔");
+                s.capture();s.state("captured",4);
+            }
             else if(action=="reference") {
                 require(s.phase=="captured" && request["image_revision"].asUInt64()==s.image_revision,"图像已更新，请重新点击当前图像");
+                require(request["u"].isNumeric() && request["v"].isNumeric(),"请点击当前图像中的参考中心");
                 const auto now=s.actual();
                 require((now.head<3>()-s.reference_pose.head<3>()).norm()<=.001 &&
                     Eigen::AngleAxisd(TR(now).block<3,3>(0,0)*TR(s.reference_pose).block<3,3>(0,0).transpose()).angle()<=.01,
                     "拍照后位姿发生变化，请重新拍摄或对准");
                 s.reference=s.refine(request["u"].asDouble(),request["v"].asDouble());
-                s.reference_above_plane=s.reference_pose(2)-s.plane;s.have_reference=true;
-                atomic_json(s.directory/"draft.yaml",s.record(false));s.state("reference",6);
-            } else if(action=="verify_return") {require(s.phase=="reference","先记录参考点");s.retract();s.state("verify_ready",6);}
-            else if(action=="verify_run") {
-                require(s.phase=="verify_held" && s.held && s.have_reference,"请重新装件合爪后回放");
-                s.head();const int row=s.row,col=s.col;s.bind(row,col);
-                // Draft applies only to this call; production configuration is unchanged until save.
-                const auto backup=g_move_cfg;
-                struct Restore {MoveBoxConfig saved;~Restore(){g_move_cfg=std::move(saved);}} restore{backup};
-                // Verification must exercise neighbor-hole servo even if production has it disabled.
-                g_move_cfg.visual_servo.tray_place.enabled=true;
-                g_move_cfg.visual_servo.calibrated_placement[s.hand].clear();
-                auto &p=g_move_cfg.visual_servo.profiles[2+s.hand];p.mode="geometry";p.reference_px=s.reference;
-                p.plane_relative_reference=true;p.reference_tcp_above_plane_m=s.reference_above_plane;p.constrain_reference_tilt=false;
-                const Eigen::Vector3d delta=s.frame.block<3,3>(0,0)*Eigen::Vector3d(s.bias.x(),s.bias.y(),0);
-                Pose goal=s.nominal;goal.head<3>()+=delta.transpose();Pose b=goal;b(2)+=g_move_cfg.head_grasp.hover_above_m;
-                wrist_servo::stage_tray_target(s.hand,s.target);
-                const auto result=arm_dual_line_then_line_nostop(*s.hw->arm_r,b,goal,s.hand==1,*s.hw->arm_l,b,goal,s.hand==0,
-                    .10,g_move_cfg.head_grasp.descend_vel_m_s,{},false,"标定回放放置",false,true,1);
-                require((s.hand?result.ret_r:result.ret_l)==0,"标定回放伺服失败，保持夹爪状态");
-                require(wrist_servo::ready_for_gripper(s.arm()),"回放结束位置复核失败");
-                wrist_servo::start_final_hold_repeat();s.verify_done=true;s.state("verify_at_c",6);
-            } else if(action=="verify_release") {
-                require(s.phase=="verify_at_c" && s.verify_done,"请先完成回放");s.open();s.state("verify_released",6);
-            } else if(action=="confirm_verified") {
-                require(s.phase=="verify_released" && request.get("physically_centered",false).asBool(),"请确认实物放置居中");
-                s.verified=true;s.retract();s.state("verified",6);
+                s.reference_above_plane=s.reference_pose(2)-s.feature_plane;s.have_reference=true;
+                atomic_json(s.directory/"draft.yaml",s.record(false));s.state("reference",5);
+            } else if(action=="return_ready") {
+                require(s.phase=="saved","请先保存标定；退出本身不会运动");s.retract();s.state("returned",5);
             } else if(action=="save") {
-                require(s.phase=="verified" && s.verified && s.have_reference,"尚未完成持件回放和实物确认");
-                const auto dir=std::filesystem::path(default_move_box_config_path()).parent_path()/"calibration"/"placement";
-                const std::string family=s.side_name()+"_tilt_"+std::to_string(std::lround(s.reference_pose(3)*180/M_PI/5)*5)+"_"+
-                    std::to_string(std::lround(s.reference_pose(4)*180/M_PI/5)*5);
-                const auto path=dir/(family+".yaml");const auto data=s.record(true);
-                if(std::filesystem::exists(path) && !std::filesystem::exists(dir/(family+"_before_"+s.id+".yaml")))
-                    std::filesystem::copy_file(path,dir/(family+"_before_"+s.id+".yaml"));
+                require(s.phase=="reference" && s.have_reference && s.aligned_recorded && request.get("reference_confirmed",false).asBool(),
+                        "请先确认D点对准和参考点；不需要下到C点或重新装件回放");
+                const auto dir=std::filesystem::path(default_move_box_config_path()).parent_path()/"calibration"/(s.grasp?"grasp":"placement");
+                const std::string name=s.side_name();const auto path=dir/(name+".yaml");const auto data=s.record(true);
+                const auto old=dir/(name+"_before_"+s.id+".yaml");
+                if(std::filesystem::exists(path)) std::filesystem::copy_file(path,old);
                 atomic_json(path,data);MoveBoxConfig next;std::string error;
-                if(!load_move_box_config(default_move_box_config_path(),next,error) ||
-                   !wrist_servo::calibrated_placement_for(next.visual_servo,s.hand,s.nominal(3),s.nominal(4))) {
-                    std::filesystem::remove(path);const auto old=dir/(family+"_before_"+s.id+".yaml");
-                    if(std::filesystem::exists(old))std::filesystem::copy_file(old,path);
+                const bool loaded=load_move_box_config(default_move_box_config_path(),next,error);
+                const bool applied=loaded && (s.grasp?wrist_servo::calibrated_tray_grasp_for(next.visual_servo,s.hand):
+                    wrist_servo::calibrated_placement_for(next.visual_servo,s.hand,s.nominal(3),s.nominal(4)));
+                if(!applied) {
+                    std::filesystem::remove(path);
+                    if(std::filesystem::exists(old)) std::filesystem::copy_file(old,path);
                     throw std::runtime_error("标定未应用，已恢复旧版本: "+error);
                 }
-                g_move_cfg=std::move(next);s.saved_file=path.string();atomic_json(s.directory/"validated.yaml",data);s.state("saved",7);
+                g_move_cfg=std::move(next);s.saved_file=path.string();atomic_json(s.directory/"validated.yaml",data);s.state("saved",5);
             } else throw std::runtime_error("未知标定动作");
         }
         out=status();out["ok"]=true;

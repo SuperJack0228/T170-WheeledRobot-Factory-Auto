@@ -538,9 +538,23 @@ const PlacementCalibrationProfile *calibrated_placement_for(const Config &c,int 
     if(hand<0 || hand>1) return nullptr;
     const PlacementCalibrationProfile *best=nullptr;double distance=.035;
     for(const auto &p:c.calibrated_placement[hand]) {
+        if(p.universal) return &p;
         const double d=std::max(std::abs(roll-p.image.reference_roll_rad),std::abs(pitch-p.image.reference_pitch_rad));
         if(d<distance) {distance=d;best=&p;}
     }
     return best;
+}
+const PlacementCalibrationProfile *calibrated_tray_grasp_for(const Config &c,int hand) {
+    if(hand<0 || hand>1 || c.calibrated_tray_grasp[hand].empty()) return nullptr;
+    return &c.calibrated_tray_grasp[hand].front();
+}
+bool apply_tray_calibration(Config &c,int hand,int cls,double feature_z,double final_z,double roll,double pitch) {
+    if(hand<0 || hand>1 || (cls!=0 && cls!=1)) return false;
+    const auto *entry=cls==0?calibrated_tray_grasp_for(c,hand):calibrated_placement_for(c,hand,roll,pitch);
+    if(!entry) return false;
+    auto profile=entry->image;
+    profile.feature_z_offset_m=feature_z-final_z;
+    c.profiles[(cls==1?2:0)+hand]=std::move(profile);
+    return true;
 }
 } // namespace wrist_servo

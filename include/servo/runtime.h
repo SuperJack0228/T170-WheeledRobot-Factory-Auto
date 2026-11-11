@@ -19,6 +19,8 @@ void sample_approach_state(Robot_Arm &arm);
 void end_session(int hand, bool success);
 
 void stage_tray_target(int hand,const TrayTarget &target);
+// Explicit tray-grasp scope; NaN clears it. Consumed by the next session.
+void stage_tray_grasp(int hand,double feature_plane_z);
 // Measured state interpolated at the frame timestamp; never command extrapolation.
 
 int run_descent(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal,

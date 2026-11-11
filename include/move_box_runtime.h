@@ -132,7 +132,7 @@ bool head_grasp_simultaneous(const HeadAssignState &st);
 bool dual_grasp_targets_too_close(const HeadAssignState &st);
 /** 安全抬离料盘 → 本侧分区内退到 yaml standby（抓取开始前准备姿态）。失败返回 false。
  *  row_pose_group 1/2/3/6：XYZ 仍用 standby，RPY 用对应 ready 姿态；其它值用 standby 原姿态。 */
-/** tray2_place_rpy=true 时用 tray2_place 的四组姿态，不读 grasp ready1236。 */
+/** tray2_place_rpy=true 时统一用料盘放置第五行姿态，不读 grasp ready1236。 */
 bool move_arms_to_standby(
     Robot_Arm &arm_r,
     Robot_Arm &arm_l,

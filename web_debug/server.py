@@ -34,8 +34,8 @@ import yaml
 
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
-WEB_API_VERSION = 5
-UI_VERSION = "1.2.0"
+WEB_API_VERSION = 6
+UI_VERSION = "1.3.0"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from t170_common.paths import load_paths
@@ -990,9 +990,8 @@ class DebugHandler(BaseHTTPRequestHandler):
         try:
             payload = self._parse_json()
             if parsed.path == "/api/calibration":
-                allowed = {"reset_stop", "begin", "prepare", "grip", "detect", "move_d", "jog", "observe", "record_coarse", "lower_c",
-                           "record_aligned", "release", "capture", "reference", "verify_return", "verify_run",
-                           "verify_release", "confirm_verified", "save", "end"}
+                allowed = {"reset_stop", "begin", "prepare", "detect", "move_d", "jog", "observe",
+                           "record_aligned", "release", "capture", "reference", "save", "return_ready", "end"}
                 action = str(payload.get("action", ""))
                 if action not in allowed:
                     self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "未知标定步骤"})

@@ -72,13 +72,13 @@
     target_link_libraries(joint_motion_test PRIVATE t170::motion_math Threads::Threads)
     add_test(NAME joint_motion_test COMMAND joint_motion_test)
 
-    add_executable(placement_calibration_math_test tests/placement_calibration_math_test.cpp)
+    add_executable(placement_calibration_math_test tests/placement_calibration_math_test.cpp src/move_box_config.cpp)
     target_link_libraries(placement_calibration_math_test PRIVATE t170::configuration)
     add_test(NAME placement_calibration_math_test COMMAND placement_calibration_math_test ${PROJECT_SOURCE_DIR})
     add_test(NAME placement_calibration_web_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/placement_calibration_web_test.py)
 
     find_package(jsoncpp CONFIG REQUIRED)
-    add_executable(placement_calibration_session_test tests/placement_calibration_session_test.cpp src/calibration/placement_session.cpp)
+    add_executable(placement_calibration_session_test tests/placement_calibration_session_test.cpp src/calibration/placement_session.cpp src/move_box_config.cpp)
     target_include_directories(placement_calibration_session_test PRIVATE include eigen3 orchestrator/cpp libs/lower_body/include)
     target_link_libraries(placement_calibration_session_test PRIVATE t170::configuration t170::motion_math t170::tray_geometry JsonCpp::JsonCpp Threads::Threads)
     add_test(NAME placement_calibration_session_test COMMAND placement_calibration_session_test ${PROJECT_SOURCE_DIR})

@@ -35,6 +35,7 @@ struct Runtime {
     Vec2 completed_goal = Vec2::Zero();
     std::string failure_reason;
     TrayTarget staged_tray_target;
+    std::optional<double> staged_tray_grasp_plane;
 };
 Runtime slots[2];
 std::atomic<std::uint64_t> next_session{1};
@@ -109,9 +110,14 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     Config cfg=g_move_cfg.visual_servo;
     auto profile=profile_for(cfg,hand,cls);
     bool tray_placement=false;
+    std::optional<double> tray_grasp_plane;
     { std::lock_guard<std::mutex> lock(slots[hand].mutex);
       tray_placement=cls==1 && cfg.tray_place.enabled && slots[hand].staged_tray_target.valid;
+      tray_grasp_plane=slots[hand].staged_tray_grasp_plane;
+      slots[hand].staged_tray_grasp_plane.reset();
     }
+    if(cls==0 && tray_grasp_plane && apply_tray_calibration(cfg,hand,cls,*tray_grasp_plane,goal(2),goal(3),goal(4)))
+        profile=profile_for(cfg,hand,cls);
     if(tray_placement) {
         if(const auto *calibrated=calibrated_placement_for(cfg,hand,goal(3),goal(4))) {
             profile=calibrated->image;cfg.profiles[2+hand]=profile;
@@ -208,6 +214,12 @@ void stage_tray_target(int hand,const TrayTarget &target) {
     if(hand<0 || hand>1) return;
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     slots[hand].staged_tray_target=target;
+}
+void stage_tray_grasp(int hand,double feature_plane_z) {
+    if(hand<0 || hand>1) return;
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    if(std::isfinite(feature_plane_z)) slots[hand].staged_tray_grasp_plane=feature_plane_z;
+    else slots[hand].staged_tray_grasp_plane.reset();
 }
 bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera,State *capture_state) {
     if(hand<0 || hand>1) return false;

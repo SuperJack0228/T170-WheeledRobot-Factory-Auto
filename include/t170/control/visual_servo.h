@@ -37,10 +37,12 @@ struct ImageProfile {
 struct PlacementCalibrationProfile {
     ImageProfile image;
     Vec2 head_xy_bias = Vec2::Zero();
+    bool universal = false; // schema 2: one manually taught reference per hand/task
 };
 
 struct Config {
     std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_placement;
+    std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_tray_grasp;
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
     bool belt_grasp_enabled = false; // keep belt grasp on traditional offset until accepted
     bool require_dual = false; // set by the dedicated dual-hand validation command
@@ -179,4 +181,8 @@ private:
 double braking_speed(double distance_m, double deceleration_m_s2, double delay_s);
 // Returns a calibrated tool-tilt family; yaw is handled by the geometric mapper.
 const PlacementCalibrationProfile *calibrated_placement_for(const Config &config,int hand,double roll,double pitch);
+const PlacementCalibrationProfile *calibrated_tray_grasp_for(const Config &config,int hand);
+// Applied to a session copy only. Belt sessions never call this function.
+bool apply_tray_calibration(Config &config,int hand,int target_class,double feature_z,double final_z,
+                            double roll,double pitch);
 } // namespace wrist_servo

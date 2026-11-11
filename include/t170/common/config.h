@@ -198,7 +198,7 @@ struct ChassisConfig
     int nav_timeout_ms = 600000;
 };
 
-/** 料盘2空孔放置的四组 TCP 姿态。与 head_grasp ready1/2/3/6 独立，方便单独微调。 */
+/** 料盘2空孔放置统一 TCP 姿态（左右手独立）。旧数组在加载时归一为第五行姿态。 */
 struct Tray2PlaceConfig
 {
     double retract_lift_m = 0.08;

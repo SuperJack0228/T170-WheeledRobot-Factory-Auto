@@ -4,6 +4,7 @@
 #include <memory>
 namespace orch { struct HwSession; }
 namespace t170::calibration {
+// Tray grasp/placement wizard; the class name preserves the existing API integration.
 // Calls which touch hardware are serialized by the factory's hardware mutex.
 class PlacementSession {
 public:

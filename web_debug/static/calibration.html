@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T170 · 放置标定向导</title><link rel="stylesheet" href="/calibration.css?v=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>T170 · 料盘标定向导</title><link rel="stylesheet" href="/calibration.css?v=1"></head>
 <body>
-<header><a href="/">← 调试台</a><span>T170 <b>放置标定向导</b></span><button id="stop" class="stop">停止运动</button></header>
-<div class="layout"><aside><div class="eyebrow">PLACEMENT CALIBRATION</div><h1>让每一次放置<br>有准确的起点。</h1><p>一次标定一只手。保存初始引导补偿与孔心参考，不改头相机手眼矩阵。</p><ol id="steps"></ol><div id="connection" class="connection">正在连接机器人…</div></aside>
+<header><a href="/">← 调试台</a><span>T170 <b>料盘标定向导</b></span><button id="stop" class="stop">停止运动</button></header>
+<div class="layout"><aside><div class="eyebrow">TRAY CALIBRATION</div><h1>抓取与放置<br>各有准确的起点。</h1><p>固定第五行，左右手分别标定。只用于料盘，不改传送带参数或头相机手眼矩阵。</p><ol id="steps"></ol><div id="connection" class="connection">正在连接机器人…</div></aside>
 <main><div id="sessionBar" class="session"></div><div id="error" role="alert" hidden></div><div id="content"></div><footer><button id="back" class="quiet">查看上一步</button><span id="progress"></span><button id="resume" class="quiet">回到当前步骤</button></footer></main></div>
 <dialog id="exitDialog"><h2>退出标定会话？</h2><p>退出只释放标定会话，不会自动移动手臂或松开夹爪。未保存的草案留在本次日志中。</p><button id="cancelExit">继续标定</button><button id="confirmExit">退出会话</button></dialog>
-<script src="/calibration.js?v=1"></script></body></html>
+<script src="/calibration.js?v=2"></script></body></html>

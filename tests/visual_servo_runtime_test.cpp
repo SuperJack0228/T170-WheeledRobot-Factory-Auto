@@ -94,6 +94,23 @@ int main() {
         a.image_jacobian=-10000*Mat2::Identity(); b.image_jacobian=a.image_jacobian;
         profile.knots={a,b};
     }
+    // Class 0 is shared by tray and conveyor. Only an explicit one-shot tray
+    // scope may load the new taught reference; the next unscoped call stays legacy.
+    PlacementCalibrationProfile taught;taught.universal=true;taught.image=g_move_cfg.visual_servo.profiles[0];
+    taught.image.reference_px=Vec2(710,410);g_move_cfg.visual_servo.calibrated_tray_grasp[0].push_back(taught);
+    Matrix<double,1,6> scope_goal=Matrix<double,1,6>::Zero();
+    stage_tray_grasp(0,.02);
+    if(!begin_session(left,scope_goal,0))return 2;
+    ObservationContext scoped;
+    if(!observation_context(0,scoped) || scoped.profile.reference_px!=Vec2(710,410)) {
+        std::cerr<<"runtime FAIL: scoped tray reference missing\n";return 1;
+    }
+    end_session(0,false);prepare_group();
+    if(!begin_session(left,scope_goal,0))return 2;
+    if(!observation_context(0,scoped) || scoped.profile.reference_px!=g_move_cfg.visual_servo.profiles[0].reference_px) {
+        std::cerr<<"runtime FAIL: tray reference leaked to an unscoped/conveyor session\n";return 1;
+    }
+    end_session(0,false);prepare_group();
     Vec2 targets[2]; Joints starts[2];
     Matrix<double,1,6> goals[2];
     prepare_group();
