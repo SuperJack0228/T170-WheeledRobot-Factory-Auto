@@ -166,8 +166,8 @@ tray2_place:
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
   far_row_forward_m: 0.20
-  # false：下面按行的 XYZ 不加入放置点，数值保留。整盘 offset 和每行姿态仍生效。
-  use_row_offset: false
+  # true：下面按行的 XYZ 叠在整盘 offset 上。手相机伺服关掉时用这套逐行偏置。
+  use_row_offset: true
   # 从料盘一抓取偏置抄来。第 1 项=最远一行，第 6 项=最近一行。
   row_offset:
     right:
@@ -332,7 +332,7 @@ conveyor:
   # 传送带手臂线速度（米/秒），允许约 0.02～0.50。
   place_approach_vel_m_s: 0.35
   place_retract_vel_m_s: 0.40
-  grasp_approach_vel_m_s: 0.35
+  grasp_approach_vel_m_s: 0.3
   grasp_retract_vel_m_s: 0.40
   # 右手抬完并开始回程后，左手才伸出。超时是等回程开始的上限。
   next_hand_clearance_m: 0.050
@@ -379,8 +379,8 @@ conveyor2:
     left:  [0.45,  0.30, -0.25, 0, 45, -60]
   # 先放的右手 x +2.5cm，后放的左手 x -2.5cm。Y/Z 不动。
   offset:
-    right: { x: 0.0, y: 0.008, z: -0.02 }
-    left:  { x: -0.06, y: -0.015, z: -0.02 }
+    right: { x: 0.0, y: 0.008, z: -0.005 }
+    left:  { x: -0.06, y: -0.015, z: -0.005 }
   grasp_rpy_deg:
     left: [0, 50, -50]
     right: [0, 50, 50]
@@ -392,10 +392,10 @@ conveyor2:
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
   grasp_hover_above_m: 0.09
   place_hover_above_m: 0.06
-  place_approach_vel_m_s: 0.35
+  place_approach_vel_m_s: 0.3
   place_retract_vel_m_s: 0.40
-  grasp_approach_vel_m_s: 0.2
-  grasp_retract_vel_m_s: 0.2
+  grasp_approach_vel_m_s: 0.3
+  grasp_retract_vel_m_s: 0.4
   # 右手抬完并开始回程后，左手才伸出。超时是等回程开始的上限。
   next_hand_clearance_m: 0.050
   next_hand_clearance_timeout_s: 4.0
@@ -528,10 +528,10 @@ visual_servo:
     reference_height_m: 0.0
     feature_z_offset_m: 0.0
     reference_px: [788, 498]
-  # enabled=false：料盘二放置走传统 tray2_place offset 开环，不进手相机伺服。
-  # enabled=true：纯邻孔虚拟孔心伺服（手相机不识别标记）（需 hand_descent_correct=true）。
+  # enabled=false：料盘二放置走 tray2_place 整盘 offset 加逐行偏置，开环，不进手相机。
+  # enabled=true：纯邻孔虚拟孔心伺服（需 hand_descent_correct=true）。
   tray_place:
-    enabled: true
+    enabled: false
     board_config: board_yf100_aruco/config.yaml
     # 邻孔搜索半径30mm，小于75mm孔距的一半；不是最终放置误差。
     association_gate_m: 0.030
