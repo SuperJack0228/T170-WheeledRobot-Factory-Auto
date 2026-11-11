@@ -167,7 +167,7 @@ endforeach()
 add_library(t170_runtime OBJECT
     orchestrator/cpp/robot_runtime.cpp orchestrator/cpp/dispatch_board.cpp
     src/grasp_to_standby.cpp src/grasp_execution.cpp src/function.cpp src/servo/runtime.cpp
-    src/move_box_config.cpp src/move_box_runtime.cpp)
+    src/move_box_config.cpp src/move_box_runtime.cpp src/calibration/placement_session.cpp)
 add_library(t170::runtime ALIAS t170_runtime)
 add_dependencies(t170_runtime servo_build_identity)
 target_link_libraries(t170_runtime PUBLIC t170_robot_platform t170::common t170::configuration

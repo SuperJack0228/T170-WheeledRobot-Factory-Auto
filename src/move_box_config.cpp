@@ -75,22 +75,15 @@ const GraspRpyDeg &grasp_rpy_deg_for_ready(int ready_id, bool is_right)
 
 const GraspRpyDeg &tray2_place_rpy_deg_for_row(int row, bool is_right)
 {
-    if (row == 1)
-        return is_right ? g_move_cfg.tray2_place.right_row6_rpy_deg
-                        : g_move_cfg.tray2_place.left_row6_rpy_deg;
-    const int g = tray_row_pose_group(row);
-    return is_right ? g_move_cfg.tray2_place.right_row_rpy_deg[g]
-                    : g_move_cfg.tray2_place.left_row_rpy_deg[g];
+    (void)row;
+    return is_right ? g_move_cfg.tray2_place.right_row_rpy_deg[1]
+                    : g_move_cfg.tray2_place.left_row_rpy_deg[1];
 }
 
 const GraspRpyDeg &tray2_place_rpy_deg_for_ready(int ready_id, bool is_right)
 {
-    if (ready_id == 6)
-        return is_right ? g_move_cfg.tray2_place.right_row6_rpy_deg
-                        : g_move_cfg.tray2_place.left_row6_rpy_deg;
-    const int g = std::clamp(ready_id, 1, 3) - 1;
-    return is_right ? g_move_cfg.tray2_place.right_row_rpy_deg[g]
-                    : g_move_cfg.tray2_place.left_row_rpy_deg[g];
+    (void)ready_id;
+    return tray2_place_rpy_deg_for_row(5,is_right);
 }
 
 const char *ready_rows_label(int ready_id)

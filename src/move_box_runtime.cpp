@@ -208,49 +208,45 @@ namespace move_box
                                                            : kGraspDetectClassId;
     }
 
+    Eigen::Matrix4d placement_calibration_frame() {
+        Eigen::Matrix<double,1,6> zero=Eigen::Matrix<double,1,6>::Zero();
+        return TR(arm_goal_in_real_waist_frame(zero));
+    }
+
     bool tray2_place_active()
     {
         return g_tray_hole_task == TrayHoleTask::PlaceEmpty;
     }
 
-    double active_goal_x_offset(bool is_right)
-    {
-        if (tray2_place_active())
-        {
-            const auto &t = g_move_cfg.tray2_place;
-            return is_right ? t.right_goal_x_offset : t.goal_x_offset;
-        }
+    const wrist_servo::PlacementCalibrationProfile *active_tray_calibration(bool is_right) {
+        const int hand=is_right?1:0;
+        if(!tray2_place_active()) return wrist_servo::calibrated_tray_grasp_for(g_move_cfg.visual_servo,hand);
+        const auto &rpy=tray2_place_rpy_deg_for_row(5,is_right);
+        return wrist_servo::calibrated_placement_for(g_move_cfg.visual_servo,hand,rpy.rx*rad,rpy.ry*rad);
+    }
+    double active_goal_x_offset(bool is_right) {
+        if(const auto *c=active_tray_calibration(is_right)) return c->head_xy_bias.x();
+        if(tray2_place_active()) return is_right?g_move_cfg.tray2_place.right_goal_x_offset:g_move_cfg.tray2_place.goal_x_offset;
         return grasp_goal_x_offset(is_right);
     }
-
-    double active_goal_y_offset(bool is_right)
-    {
-        if (tray2_place_active())
-        {
-            const auto &t = g_move_cfg.tray2_place;
-            return is_right ? t.right_goal_y_offset : t.goal_y_offset;
-        }
+    double active_goal_y_offset(bool is_right) {
+        if(const auto *c=active_tray_calibration(is_right)) return c->head_xy_bias.y();
+        if(tray2_place_active()) return is_right?g_move_cfg.tray2_place.right_goal_y_offset:g_move_cfg.tray2_place.goal_y_offset;
         return grasp_goal_y_offset(is_right);
     }
-
-    XyzOffsetM active_row_offset(bool is_right, int from_robot_row)
-    {
-        XyzOffsetM none;
-        if (from_robot_row < 1 || from_robot_row > 6)
-            return none;
-        if (tray2_place_active())
-        {
-            if (!g_move_cfg.tray2_place.use_row_offset)
-                return none;
-            const int i = from_robot_row - 1;
-            return is_right ? g_move_cfg.tray2_place.right_row_offset[i]
-                            : g_move_cfg.tray2_place.left_row_offset[i];
+    XyzOffsetM active_row_offset(bool is_right,int from_robot_row) {
+        XyzOffsetM offset;
+        if(from_robot_row<1 || from_robot_row>6) return offset;
+        if(tray2_place_active()) {
+            const auto &p=g_move_cfg.tray2_place;
+            if(p.use_row_offset) offset=is_right?p.right_row_offset[from_robot_row-1]:p.left_row_offset[from_robot_row-1];
+        } else {
+            const auto &p=g_move_cfg.head_grasp;
+            if(p.use_row_offset) offset=is_right?p.right_row_offset[from_robot_row-1]:p.left_row_offset[from_robot_row-1];
         }
-        if (!g_move_cfg.head_grasp.use_row_offset)
-            return none;
-        const int i = from_robot_row - 1;
-        return is_right ? g_move_cfg.head_grasp.right_row_offset[i]
-                        : g_move_cfg.head_grasp.left_row_offset[i];
+        // One task compensation replaces legacy whole-tray and per-row XY only.
+        if(active_tray_calibration(is_right)) offset.x=offset.y=0;
+        return offset;
     }
 
     double active_nearest_row_z()
@@ -540,10 +536,10 @@ namespace move_box
             rpy_l.rx * rad, rpy_l.ry * rad, rpy_l.rz * rad;
         const XyzOffsetM row_off_r = active_row_offset(true, row_r);
         const XyzOffsetM row_off_l = active_row_offset(false, row_l);
-        goal_last_r(0) += active_goal_x_offset(true) + row_off_r.x;
-        goal_last_l(0) += active_goal_x_offset(false) + row_off_l.x;
-        goal_last_r(1) += active_goal_y_offset(true) + row_off_r.y;
-        goal_last_l(1) += active_goal_y_offset(false) + row_off_l.y;
+        goal_last_r(0) += active_goal_x_offset(true)+row_off_r.x;
+        goal_last_l(0) += active_goal_x_offset(false)+row_off_l.x;
+        goal_last_r(1) += active_goal_y_offset(true)+row_off_r.y;
+        goal_last_l(1) += active_goal_y_offset(false)+row_off_l.y;
         goal_last_r(2) += row_off_r.z;
         goal_last_l(2) += row_off_l.z;
         clamp_cart_goal_z(goal_last_r, "fill_goal_last_from_head_assign(右手, 物体上方)");
@@ -674,7 +670,7 @@ namespace move_box
         bool move_r,
         bool move_l)
     {
-        if (!g_grasp_adaptive_rpy)
+        if (!g_grasp_adaptive_rpy || tray2_place_active())
             return;
         if (move_r)
             apply_adaptive_grasp_rpy_one(arm_get_tcp_pos(arm_r), st.goal_last_r, true);
@@ -3469,6 +3465,23 @@ namespace move_box
         Eigen::Matrix<double, 1, 6> goal_r_arm = arm_goal_in_real_waist_frame(st.goal_last_r);
         Eigen::Matrix<double, 1, 6> goal_l_arm = arm_goal_in_real_waist_frame(st.goal_last_l);
 
+        struct ClearTrayGraspScope {
+            ~ClearTrayGraspScope() {
+                wrist_servo::stage_tray_grasp(0,std::numeric_limits<double>::quiet_NaN());
+                wrist_servo::stage_tray_grasp(1,std::numeric_limits<double>::quiet_NaN());
+            }
+        } clear_tray_grasp_scope;
+        for(int hand=0;hand<2;++hand) {
+            const bool selected=hand?hs.move_r:hs.move_l;
+            double feature_z=std::numeric_limits<double>::quiet_NaN();
+            if(!place && selected && wrist_servo::calibrated_tray_grasp_for(g_move_cfg.visual_servo,hand)) {
+                auto feature=hand?st.goal_last_r:st.goal_last_l;
+                feature(2)=expected_object_top_z();
+                feature_z=arm_goal_in_real_waist_frame(feature)(2);
+            }
+            wrist_servo::stage_tray_grasp(hand,feature_z);
+        }
+
         if(place && straight_descent && g_move_cfg.cameras.hand_descent_correct &&
            g_move_cfg.visual_servo.tray_place.enabled) {
             wrist_servo::TrayBoardGeometry board; std::string error;
@@ -3686,10 +3699,15 @@ namespace move_box
                     // The SDK treats an unpaired side as success; placement must
                     // confirm real feedback before clearing a held-part latch.
                     if(g.hasSide(side)) {
-                        const bool waited=g.openAndWait(side,p.open_tolerance_rad,std::chrono::milliseconds(p.open_timeout_ms));
+                        const double open_q=g.config().open_position_rad;
+                        const double close_q=g.config().close_position_rad;
+                        const double target=std::clamp(p.release_q_rad,std::min(open_q,close_q),std::max(open_q,close_q));
+                        const double span=close_q-open_q;
+                        const double ratio=std::abs(span)<1e-6?0.0:std::clamp((target-open_q)/span,0.0,1.0);
+                        const bool waited=g.closeAndWait(side,ratio,p.open_tolerance_rad,std::chrono::milliseconds(p.open_timeout_ms));
                         const auto fb=g.feedback(side);
                         released[hand]=waited && fb.have_feedback && fb.io_ok && fb.merror==0 &&
-                            std::abs(fb.position_rad-g.config().open_position_rad)<=p.open_tolerance_rad;
+                            std::abs(fb.position_rad-target)<=p.open_tolerance_rad;
                         wrist_servo::record_gripper_check(hand,fb.position_rad,fb.torque,
                                                          released[hand] ? "open_confirmed" : "open_not_confirmed");
                     }

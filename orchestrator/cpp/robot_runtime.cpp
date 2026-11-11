@@ -873,12 +873,13 @@ struct ChassisTravel
     std::thread th;
     std::atomic<int> rc{0};
 
-    ChassisTravel(const std::string &station, bool watch_obstacle = false)
+    ChassisTravel(const std::string &station, bool watch_obstacle = false,
+                  const std::function<void()> &on_station_name = {})
     {
-        th = std::thread([this, station, watch_obstacle]() {
+        th = std::thread([this, station, watch_obstacle, on_station_name]() {
             try
             {
-                rc = chassis_goto_station(station, watch_obstacle);
+                rc = chassis_goto_station(station, watch_obstacle, on_station_name);
             }
             catch (const std::exception &ex)
             {
@@ -2874,12 +2875,20 @@ static int go_belt_grasp_attempt(
         const double hover_z = c.grasp_hover_above_m > 1e-9 ? c.grasp_hover_above_m : 0.08;
         hover(2) += hover_z;
         const double reach_mps = c.grasp_approach_vel_m_s;
-        double kDescentMps = g_move_cfg.head_grasp.descend_vel_m_s;
+        double kDescentMps = c.grasp_descend_vel_m_s;
         if (!std::isfinite(kDescentMps) || kDescentMps <= 0)
             return -30;
         const bool belt_grasp_servo =
             g_move_cfg.cameras.hand_descent_correct &&
             g_move_cfg.visual_servo.belt_grasp_enabled;
+        struct ClearBeltReference {
+            int hand=-1;
+            ~ClearBeltReference(){ if(hand>=0) wrist_servo::stage_belt_grasp_reference(hand,false); }
+        } clear_belt_reference;
+        if(belt_grasp_servo) {
+            clear_belt_reference.hand=is_right?1:0;
+            wrist_servo::stage_belt_grasp_reference(clear_belt_reference.hand,true);
+        }
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
                   << "m/s 先到正上方 " << (hover_z * 100.0)
@@ -2947,7 +2956,7 @@ static int go_belt_grasp_attempt(
             const auto &m=g_move_cfg.retract_motion;
             const wrist_servo::Joints ready=to_ready?retry_ready[is_right?1:0]:
                 (is_right?m.ready_right:m.ready_left);
-            code=arm_return_after_lift(arm,ready,on_return);
+            code=arm_return_after_lift(arm,ready,on_return,on_return?0.40:-1.0,1.8);
         }
         if(code!=0) {
             std::cerr<<"[orch] "<<name<<' '<<hand<<" 收手失败 code="<<code<<"，保留夹爪状态\n";
@@ -3065,7 +3074,7 @@ static int go_belt_grasp_attempt(
         return aborted()?-4:clearance_rc;
     }
     wrist_servo::task_event(1,"peer_clearance","right_return_started");
-    std::cout << "[orch] belt_grasp 右手开始回程，左手进入，与右手回程并行\n";
+    std::cout << "[orch] belt_grasp 右手已在回程路上，左手进入\n";
     const int left_rc = grasp_one(false);
     const bool left_empty = left_rc == kBeltGraspEmpty;
     const int left_back_rc =
@@ -3401,12 +3410,13 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
     const bool from_tray2 = station_name_matches(here, g_move_cfg.chassis.tray2_station);
     const bool from_belt2 =
         !from_tray2 && station_name_matches(here, g_move_cfg.chassis.out_station);
-    // 仅料盘二回料盘一：先升腰，到站再降。传送带二回料盘一：出发 2s 后路上降腰摆手。
-    const bool lower_after_arrive = from_tray2;
+    // 料盘二回料盘一：先升腰出发。站名变成上料点、底盘尚未停稳时就开始降腰。
+    // 传送带二回料盘一：出发 2s 后路上降腰摆手。
+    const bool lower_on_station_name = from_tray2;
     if (from_tray2)
     {
         std::cout << "[grasp] 现在在料盘二，先升腰，再去 "
-                  << g_move_cfg.chassis.tray_station << "，到站后再降腰\n";
+                  << g_move_cfg.chassis.tray_station << "，到上料点就开始降腰，不等停稳\n";
         const int up_rc = home_waist_upright();
         if (up_rc != 0)
             return up_rc;
@@ -3429,8 +3439,35 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
     board_step("去料盘一");
     int prep_rc = 0;
     int travel_rc = 0;
+    std::atomic<bool> early_waist_started{false};
+    std::atomic<int> early_waist_rc{0};
+    std::thread early_waist;
     {
-        ChassisTravel travel(g_move_cfg.chassis.tray_station);
+        auto lower_waist = [&]() {
+            bool expected = false;
+            if (!early_waist_started.compare_exchange_strong(expected, true))
+                return;
+            early_waist = std::thread([&]() {
+                std::cout << "[grasp] 底盘已到 " << g_move_cfg.chassis.tray_station
+                          << "，开始降腰，不等停稳\n" << std::flush;
+                if (g_hw->waist == nullptr || g_hw->layer3 == nullptr ||
+                    !move_box::ensure_waist_ready_start(*g_hw->waist, *g_hw->layer3))
+                {
+                    early_waist_rc = hardware_abort_requested() ? -4 : -5;
+                    return;
+                }
+                if (move_box::tray1_far_band_active())
+                {
+                    move_box::waist_layer3_ensure_far_row_forward(
+                        *g_hw->waist, *g_hw->layer3, g_move_cfg.waist.far_row_forward_m);
+                    enable_head_far_pitch();
+                }
+                move_box::waist_layer3_set_synced(true);
+                early_waist_rc = hardware_abort_requested() ? -4 : 0;
+            });
+        };
+        ChassisTravel travel(g_move_cfg.chassis.tray_station, false,
+                             lower_on_station_name ? lower_waist : std::function<void()>{});
         auto prep_upper_and_waist = [&](bool do_waist) -> int {
             const bool far_mem = move_box::tray1_far_band_active();
             const int head_rc =
@@ -3481,26 +3518,28 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             else
                 prep_rc = prep_upper_and_waist(true);
         }
-        else if (lower_after_arrive)
+        else if (lower_on_station_name)
         {
             prep_rc = prep_upper_and_waist(false);
             if (prep_rc == 0)
-                std::cout << "[grasp] 腰先不动，等底盘到 "
-                          << g_move_cfg.chassis.tray_station << "\n";
+                std::cout << "[grasp] 手臂先摆好，腰等底盘站名变为 "
+                          << g_move_cfg.chassis.tray_station << " 再降\n";
         }
         else
             prep_rc = prep_upper_and_waist(true);
         travel_rc = travel.join();
     }
+    if (early_waist.joinable())
+        early_waist.join();
     if (should_abort())
         return -4;
     if (travel_rc != 0)
         return travel_rc;
     if (prep_rc != 0)
         return prep_rc;
-    if (lower_after_arrive)
+    if (lower_on_station_name && !early_waist_started.load())
     {
-        std::cout << "[grasp] 底盘已到 " << g_move_cfg.chassis.tray_station << "，开始降腰\n";
+        std::cout << "[grasp] 底盘停稳前没有提前降腰，现在降\n";
         if (g_hw->waist == nullptr || g_hw->layer3 == nullptr ||
             !move_box::ensure_waist_ready_start(*g_hw->waist, *g_hw->layer3))
         {
@@ -3514,14 +3553,24 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             enable_head_far_pitch();
         }
         move_box::waist_layer3_set_synced(true);
+    }
+    if (early_waist_started.load() && early_waist_rc.load() != 0)
+    {
+        std::cerr << "[grasp] 到站降腰失败，放弃抓取\n";
+        return early_waist_rc.load();
+    }
+    if (should_abort())
+        return -4;
+    if (!lower_on_station_name)
+    {
+        std::cout << "[grasp] 已在 " << g_move_cfg.chassis.tray_station << "，停稳 0.5s 再抓\n";
+        hardware_abort_sleep_ms(500);
         if (should_abort())
             return -4;
     }
-    std::cout << "[grasp] 已在 " << g_move_cfg.chassis.tray_station << "，停稳 0.5s 再抓\n";
+    else
+        std::cout << "[grasp] 已在 " << g_move_cfg.chassis.tray_station << "，腰和底盘都到位，直接抓\n";
     board_step("料盘一抓取");
-    hardware_abort_sleep_ms(500);
-    if (should_abort())
-        return -4;
 
     if (hover_track)
     {

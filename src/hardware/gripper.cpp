@@ -523,6 +523,13 @@ GraspFeedback Gripper::graspSideUntil(Side side, double max_torque_nm,
   return out;
 }
 
+bool Gripper::holdCurrent(Side side) {
+  if(!hasSide(side)) return false;
+  const auto fb=feedback(side);
+  if(!fb.have_feedback || !fb.io_ok || fb.merror!=0) return false;
+  setTargetRad(side,fb.position_rad);return true;
+}
+
 GraspFeedback Gripper::graspAndWait(Side side, double max_torque_nm,
                                     std::chrono::milliseconds timeout) {
   return graspSideUntil(side, max_torque_nm, 0.2, timeout);

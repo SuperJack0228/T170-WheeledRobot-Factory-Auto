@@ -262,6 +262,9 @@ public:
    * @brief 经典闭合并阻塞等待
    * @param ratio 闭合比例 0~1
    */
+  /** Hold the measured jaw position; used to end a timed-out calibration close. */
+  bool holdCurrent(Side side);
+
   bool closeAndWait(Side side, double ratio = 1.0, double tolerance_rad = 0.2,
                     std::chrono::milliseconds timeout = std::chrono::seconds(3));
 

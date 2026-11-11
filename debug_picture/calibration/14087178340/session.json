@@ -1,0 +1,96 @@
+{
+	"active" : false,
+	"aligned_tcp" : 
+	[
+		0.46065339621161072,
+		-0.084752883378561406,
+		-0.39312807718241771,
+		0.087597140299547419,
+		0.96144050382707291,
+		0.872461341284817
+	],
+	"coarse_xy_mm" : 
+	[
+		45.135925400352484,
+		10.131201940929895
+	],
+	"col" : 5,
+	"compensation_xy_mm" : 
+	[
+		45.135925400352484,
+		10.131201940929895
+	],
+	"current_tcp" : 
+	[
+		0.46043555632837219,
+		-0.084496307738782916,
+		-0.39306656878478985,
+		0.088601704058790018,
+		0.96124550996071356,
+		0.87385351859130034
+	],
+	"d_clearance_mm" : 15.0,
+	"feature_plane_z_m" : -0.41381639613735832,
+	"field_verified" : false,
+	"from_left_col" : 5,
+	"hand" : 1,
+	"have_reference" : true,
+	"head_image_path" : "debug_picture/calibration/14087178340/head.jpg",
+	"head_image_revision" : 1,
+	"height" : 720,
+	"held" : false,
+	"holes" : 
+	[
+		{
+			"class_id" : 1,
+			"col" : 5,
+			"row" : 2,
+			"x" : 0.41595178838950958,
+			"y" : -0.094391220109453111
+		}
+	],
+	"image_path" : "debug_picture/calibration/14087178340/frame_22.jpg",
+	"image_revision" : 22,
+	"image_tcp_z_m" : -0.39306234719298172,
+	"interrupted" : false,
+	"log_directory" : "/home/ti5robot/T170Clean/debug_picture/calibration/14087178340",
+	"nominal_tcp" : 
+	[
+		0.41551605792707058,
+		-0.094877524141888436,
+		-0.41381639613735832,
+		0.08796979823670259,
+		0.96161407527010256,
+		0.87309657721859202
+	],
+	"ok" : true,
+	"phase" : "ended",
+	"plane_z_m" : -0.42881637367637976,
+	"reference_coverage" : 0,
+	"reference_fit_residual" : 0.0,
+	"reference_method" : "manual_part_top_center",
+	"reference_pose_tcp" : 
+	[
+		0.46046151195143104,
+		-0.0845055208715665,
+		-0.39306234719298172,
+		0.088514795110661806,
+		0.96123361155454423,
+		0.87372685792033855
+	],
+	"reference_px" : 
+	[
+		698.93644617380028,
+		432.14940662599565
+	],
+	"reference_tcp_above_plane_mm" : 20.754048944376603,
+	"robot_row" : 5,
+	"row" : 2,
+	"saved_file" : "/home/ti5robot/T170Clean/config/calibration/grasp/right.yaml",
+	"scope" : "tray_only",
+	"session" : "14087178340",
+	"step" : 0,
+	"task" : "grasp",
+	"validated" : true,
+	"width" : 1280
+}

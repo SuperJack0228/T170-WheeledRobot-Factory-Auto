@@ -1,6 +1,8 @@
 #include "t170/common/config.h"
 
 #include "t170/common/paths.h"
+#include "t170/calibration/identity.h"
+#include <filesystem>
 
 #include <yaml-cpp/yaml.h>
 
@@ -148,6 +150,7 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     read_value(node, "place_retract_vel_m_s", dst.place_retract_vel_m_s);
     read_value(node, "grasp_approach_vel_m_s", dst.grasp_approach_vel_m_s);
     read_value(node, "grasp_retract_vel_m_s", dst.grasp_retract_vel_m_s);
+    read_value(node, "grasp_descend_vel_m_s", dst.grasp_descend_vel_m_s);
     read_value(node, "next_hand_clearance_m", dst.next_hand_clearance_m);
     read_value(node, "next_hand_clearance_timeout_s", dst.next_hand_clearance_timeout_s);
     if (!std::isfinite(dst.next_hand_clearance_m) || dst.next_hand_clearance_m <= 0 ||
@@ -187,7 +190,16 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     clamp_vel(dst.place_approach_vel_m_s);
     clamp_vel(dst.place_retract_vel_m_s);
     clamp_vel(dst.grasp_approach_vel_m_s);
-    clamp_vel(dst.grasp_retract_vel_m_s);
+    auto clamp_fast = [](double &v) {
+        if (!(v > 0.0) || !std::isfinite(v))
+            v = 0.25;
+        if (v < 0.02)
+            v = 0.02;
+        if (v > 0.80)
+            v = 0.80;
+    };
+    clamp_fast(dst.grasp_retract_vel_m_s);
+    clamp_fast(dst.grasp_descend_vel_m_s);
 }
 
 void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
@@ -482,16 +494,20 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
             read_value(t2,"pre_open_settle_sec",cfg.tray2_place.pre_open_settle_sec);
             read_value(t2,"open_tolerance_rad",cfg.tray2_place.open_tolerance_rad);
             read_value(t2,"open_timeout_ms",cfg.tray2_place.open_timeout_ms);
+            read_value(t2,"release_q_rad",cfg.tray2_place.release_q_rad);
             const auto &p=cfg.tray2_place;
             if(!std::isfinite(p.retract_lift_m) || p.retract_lift_m<=0 ||
                !std::isfinite(p.retract_lift_vel_m_s) || p.retract_lift_vel_m_s<=0 ||
                !std::isfinite(p.retract_return_vel_m_s) || p.retract_return_vel_m_s<=0 ||
                !std::isfinite(p.pre_open_settle_sec) || p.pre_open_settle_sec<0 ||
-               !std::isfinite(p.open_tolerance_rad) || p.open_tolerance_rad<=0 || p.open_timeout_ms<1)
+               !std::isfinite(p.open_tolerance_rad) || p.open_tolerance_rad<=0 || p.open_timeout_ms<1 ||
+               !std::isfinite(p.release_q_rad) || p.release_q_rad<0 || p.release_q_rad>6.0)
                 throw std::runtime_error("invalid tray2_place retract/open parameters");
-            read_row_rpy_list(t2["row_place_rpy_deg"]["left"], cfg.tray2_place.left_row_rpy_deg);
-            if (t2["row_place_rpy_deg"]["right"] && t2["row_place_rpy_deg"]["right"].IsSequence())
-                read_row_rpy_list(t2["row_place_rpy_deg"]["right"], cfg.tray2_place.right_row_rpy_deg);
+            const auto legacy_rows=t2["row_place_rpy_deg"]?t2["row_place_rpy_deg"]:YAML::Node(YAML::NodeType::Map);
+            const auto legacy_first=t2["row1_rpy_deg"]?t2["row1_rpy_deg"]:YAML::Node(YAML::NodeType::Map);
+            read_row_rpy_list(legacy_rows["left"], cfg.tray2_place.left_row_rpy_deg);
+            if (legacy_rows["right"] && legacy_rows["right"].IsSequence())
+                read_row_rpy_list(legacy_rows["right"], cfg.tray2_place.right_row_rpy_deg);
             else
             {
                 for (int g = 0; g < 3; ++g)
@@ -500,8 +516,8 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                     cfg.tray2_place.right_row_rpy_deg[g].rz = -cfg.tray2_place.left_row_rpy_deg[g].rz;
                 }
             }
-            if (read_one_rpy(t2["row1_rpy_deg"]["left"], cfg.tray2_place.left_row6_rpy_deg) ||
-                read_one_rpy(t2["row1_rpy_deg"], cfg.tray2_place.left_row6_rpy_deg))
+            if (read_one_rpy(legacy_first["left"], cfg.tray2_place.left_row6_rpy_deg) ||
+                read_one_rpy(legacy_first, cfg.tray2_place.left_row6_rpy_deg))
             {
                 std::cout << std::fixed << std::setprecision(1)
                           << "[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=("
@@ -509,7 +525,7 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                           << cfg.tray2_place.left_row6_rpy_deg.ry << ","
                           << cfg.tray2_place.left_row6_rpy_deg.rz << ")\n";
             }
-            if (read_one_rpy(t2["row1_rpy_deg"]["right"], cfg.tray2_place.right_row6_rpy_deg))
+            if (read_one_rpy(legacy_first["right"], cfg.tray2_place.right_row6_rpy_deg))
             {
                 std::cout << std::fixed << std::setprecision(1)
                           << "[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=("
@@ -522,6 +538,19 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                 cfg.tray2_place.right_row6_rpy_deg = cfg.tray2_place.left_row6_rpy_deg;
                 cfg.tray2_place.right_row6_rpy_deg.rz = -cfg.tray2_place.left_row6_rpy_deg.rz;
             }
+            // One placement orientation per hand, shared by every row and calibration.
+            // Old row lists remain readable; their fifth-row (ready2) entry is the fallback.
+            auto left=cfg.tray2_place.left_row_rpy_deg[1],right=cfg.tray2_place.right_row_rpy_deg[1];
+            if(t2["rpy_deg"]) {
+                if(!read_one_rpy(t2["rpy_deg"]["left"],left) || !read_one_rpy(t2["rpy_deg"]["right"],right))
+                    throw std::runtime_error("tray2_place.rpy_deg requires left/right three-angle lists");
+            }
+            for(const auto &r:{left,right}) if(!std::isfinite(r.rx) || !std::isfinite(r.ry) || !std::isfinite(r.rz))
+                throw std::runtime_error("tray2_place unified RPY must be finite");
+            for(int group=0;group<3;++group) {
+                cfg.tray2_place.left_row_rpy_deg[group]=left;cfg.tray2_place.right_row_rpy_deg[group]=right;
+            }
+            cfg.tray2_place.left_row6_rpy_deg=left;cfg.tray2_place.right_row6_rpy_deg=right;
             if (t2["offset"])
             {
                 const YAML::Node off = t2["offset"];
@@ -771,12 +800,73 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
     MoveBoxConfig candidate;
     if (!parse_move_box_config(path, candidate, err))
         return false;
+    try {
+        const auto directory=std::filesystem::path(path).parent_path();
+        // Task-local catalog: never overwrite the four legacy/global image profiles,
+        // which are also used by conveyor sessions.
+        for(const std::string task:{"grasp","placement"}) for(int hand=0;hand<2;++hand) {
+            const std::string side=hand?"right":"left";
+            const auto catalog=directory/"calibration"/task;
+            std::vector<std::filesystem::path> files;
+            const auto canonical=catalog/(side+".yaml");
+            if(std::filesystem::is_regular_file(canonical)) files.push_back(canonical);
+            else if(task=="placement" && std::filesystem::exists(catalog)) {
+                // Read old tilt files only until a new per-hand file replaces them.
+                for(const auto &e:std::filesystem::directory_iterator(catalog)) {
+                    const auto name=e.path().filename().string();
+                    if(e.is_regular_file() && name.rfind(side+"_tilt_",0)==0 &&
+                       e.path().extension()==".yaml" && name.find("_before_")==std::string::npos)
+                        files.push_back(e.path());
+                }
+                std::sort(files.begin(),files.end());
+            }
+            for(const auto &file:files) {
+                const auto n=YAML::LoadFile(file.string());
+                const int schema=n["schema_version"].as<int>();
+                const auto cameras=YAML::LoadFile((directory/"realsense_cameras.yaml").string());
+                if((schema!=1 && schema!=2) || (schema==1 && task!="placement") || !n["validated"].as<bool>() ||
+                   n["hand"].as<int>()!=hand || n["robot_id"].as<std::string>()!=candidate.chassis.sequence_number ||
+                   n["camera_serial"].as<std::string>()!=cameras["realsense"][side+"_hand"]["serial"].as<std::string>() ||
+                   n["width"].as<int>()!=candidate.cameras.width || n["height"].as<int>()!=candidate.cameras.height ||
+                   n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")) ||
+                   n["model_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/"Robot_Arm_Model.yaml") ||
+                   (schema==2 && (n["task"].as<std::string>()!=task || n["scope"].as<std::string>()!="tray_only" ||
+                                  n["validation_kind"].as<std::string>()!="manual_at_D")))
+                    throw std::runtime_error("料盘标定与任务/机器人/相机/工具模型不匹配: "+file.string());
+                wrist_servo::PlacementCalibrationProfile entry;
+                entry.universal=schema==2;
+                entry.image=candidate.visual_servo.profiles[(task=="placement"?2:0)+hand];
+                auto &profile=entry.image;profile.knots.clear();
+                profile.mode="geometry";profile.plane_relative_reference=true;
+                profile.reference_tcp_above_plane_m=n["reference_tcp_above_plane_m"].as<double>();
+                profile.reference_px<<n["reference_px"][0].as<double>(),n["reference_px"][1].as<double>();
+                profile.constrain_reference_tilt=schema==1;
+                profile.reference_roll_rad=n["reference_pose_tcp"][3].as<double>();
+                profile.reference_pitch_rad=n["reference_pose_tcp"][4].as<double>();
+                const double x=n["compensation_xy_upright_m"][0].as<double>();
+                const double y=n["compensation_xy_upright_m"][1].as<double>();
+                if(!std::isfinite(x) || !std::isfinite(y) || std::hypot(x,y)>.10 ||
+                   !profile.reference_px.allFinite() || profile.reference_px.x()<0 || profile.reference_px.y()<0 ||
+                   profile.reference_px.x()>=candidate.cameras.width || profile.reference_px.y()>=candidate.cameras.height ||
+                   !std::isfinite(profile.reference_tcp_above_plane_m) || !std::isfinite(profile.reference_roll_rad) ||
+                   !std::isfinite(profile.reference_pitch_rad))
+                    throw std::runtime_error("料盘标定数据越界/非有限值: "+file.string());
+                entry.head_xy_bias<<x,y;
+                auto &entries=task=="placement"?candidate.visual_servo.calibrated_placement[hand]:candidate.visual_servo.calibrated_tray_grasp[hand];
+                entries.push_back(entry);
+            }
+        }
+        if(!wrist_servo::validate_config(candidate.visual_servo,err)) return false;
+    } catch(const std::exception &ex) {err=ex.what();return false;}
     cfg = std::move(candidate);
     return true;
 }
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[calibration] placement tilt families left="<<cfg.visual_servo.calibrated_placement[0].size()
+             <<" right="<<cfg.visual_servo.calibrated_placement[1].size()<<"; tray grasp left="<<cfg.visual_servo.calibrated_tray_grasp[0].size()
+             <<" right="<<cfg.visual_servo.calibrated_tray_grasp[1].size()<<" (tray-only; belt profiles unchanged)\n";
     std::cout<<"[cfg] retract_motion fixed_ready_motor_rad right="<<cfg.retract_motion.ready_right
              <<" left="<<cfg.retract_motion.ready_left<<" limits_v_a_j="
              <<cfg.retract_motion.max_joint_velocity_rad_s<<","<<cfg.retract_motion.max_joint_acceleration_rad_s2

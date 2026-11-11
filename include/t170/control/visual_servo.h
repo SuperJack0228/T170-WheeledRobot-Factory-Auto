@@ -24,13 +24,25 @@ struct ImageProfile {
     std::string mode = "geometry"; // geometry is explicitly an uncalibrated estimate
     Vec2 reference_px = Vec2::Zero(); // at reference_height_m
     double reference_height_m = 0.0;
+    bool plane_relative_reference = false;
+    bool constrain_reference_tilt = false;
+    double reference_roll_rad = 0.0, reference_pitch_rad = 0.0;
+    double reference_tcp_above_plane_m = 0.0;
     double feature_z_offset_m = 0.0; // visible feature plane minus final TCP Z
     double min_depth_m = 0.015;
     double max_depth_m = 0.65;
     std::vector<MapKnot> knots;
 };
 
+struct PlacementCalibrationProfile {
+    ImageProfile image;
+    Vec2 head_xy_bias = Vec2::Zero();
+    bool universal = false; // schema 2: one manually taught reference per hand/task
+};
+
 struct Config {
+    std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_placement;
+    std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_tray_grasp;
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
     bool belt_grasp_enabled = false; // keep belt grasp on traditional offset until accepted
     bool require_dual = false; // set by the dedicated dual-hand validation command
@@ -167,4 +179,10 @@ private:
 
 // Conservative one-dimensional envelope; used with actual motion state and acceleration limits.
 double braking_speed(double distance_m, double deceleration_m_s2, double delay_s);
+// Returns a calibrated tool-tilt family; yaw is handled by the geometric mapper.
+const PlacementCalibrationProfile *calibrated_placement_for(const Config &config,int hand,double roll,double pitch);
+const PlacementCalibrationProfile *calibrated_tray_grasp_for(const Config &config,int hand);
+// Applied to a session copy only. Belt sessions never call this function.
+bool apply_tray_calibration(Config &config,int hand,int target_class,double feature_z,double final_z,
+                            double roll,double pitch);
 } // namespace wrist_servo

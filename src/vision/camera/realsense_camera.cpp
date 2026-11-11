@@ -10,6 +10,7 @@
 #include <thread>
 #include <vector>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <ctime>
@@ -61,6 +62,8 @@ struct SlotDevice
     std::array<double, 5> dist{};
     bool started = false;
     bool color_only = false;
+    // <1：彩色增益按自动曝光稳定值缩放后固定。D405 没有 ISO，增益就是 ISO。
+    float color_gain_scale = -1.f;
     double frame_period_s = 1.0/15.0;
     double hardware_to_steady_s = std::numeric_limits<double>::infinity();
     double last_device_s = -1.0;
@@ -80,6 +83,67 @@ void try_set_frames_queue_size_one(const rs2::device &device)
         } catch(const std::exception &e) {
             std::cerr << "[realsense] global time unavailable; bounded hardware-clock fallback: " << e.what() << '\n';
         }
+    }
+}
+
+float snap_option(float value, const rs2::option_range &range)
+{
+    value = std::max(range.min, std::min(range.max, value));
+    if (!(range.step > 0.f))
+        return value;
+    const float steps = std::round((value - range.min) / range.step);
+    return std::max(range.min, std::min(range.max, range.min + steps * range.step));
+}
+
+void lower_color_gain(const rs2::device &device, const std::string &label, float scale)
+{
+    if (!(scale > 0.f && scale < 1.f))
+        return;
+    rs2::sensor chosen;
+    bool have = false;
+    bool dedicated_color = false;
+    for (rs2::sensor sensor : device.query_sensors())
+    {
+        if (!sensor.supports(RS2_OPTION_GAIN) || !sensor.supports(RS2_OPTION_EXPOSURE))
+            continue;
+        std::string name;
+        try { name = sensor.get_info(RS2_CAMERA_INFO_NAME); }
+        catch (const std::exception &) {}
+        const bool color_name = name.find("RGB") != std::string::npos || name.find("Color") != std::string::npos;
+        if (!have || (color_name && !dedicated_color))
+        {
+            chosen = sensor;
+            have = true;
+            dedicated_color = color_name;
+        }
+    }
+    if (!have)
+    {
+        std::cerr << "[realsense] " << label << " 没有可调增益的传感器\n";
+        return;
+    }
+    try
+    {
+        const std::string name = chosen.supports(RS2_CAMERA_INFO_NAME)
+            ? chosen.get_info(RS2_CAMERA_INFO_NAME) : "sensor";
+        const float exposure = chosen.get_option(RS2_OPTION_EXPOSURE);
+        const float gain = chosen.get_option(RS2_OPTION_GAIN);
+        if (chosen.supports(RS2_OPTION_ENABLE_AUTO_EXPOSURE))
+            chosen.set_option(RS2_OPTION_ENABLE_AUTO_EXPOSURE, 0.f);
+        const auto exposure_range = chosen.get_option_range(RS2_OPTION_EXPOSURE);
+        const auto gain_range = chosen.get_option_range(RS2_OPTION_GAIN);
+        const float next_gain = snap_option(gain * scale, gain_range);
+        const float next_exposure = snap_option(exposure * scale, exposure_range);
+        chosen.set_option(RS2_OPTION_EXPOSURE, snap_option(next_exposure, exposure_range));
+        chosen.set_option(RS2_OPTION_GAIN, next_gain);
+        std::cout << "[realsense] " << label << " " << name
+                  << " 彩色曝光固定 exposure " << exposure << "→" << next_exposure
+                  << " gain " << gain << "→" << next_gain
+                  << "（自动曝光已关，增益即 ISO）\n";
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "[realsense] " << label << " 降低彩色增益失败: " << e.what() << "\n";
     }
 }
 
@@ -259,6 +323,7 @@ bool start_slot_device(SlotDevice &dev, int width, int height, int fps, bool wit
                 CameraFrameData timing;
                 if(color) stamp_color_frame(dev,color,timing);
             }
+            lower_color_gain(device, dev.label, dev.color_gain_scale);
 
             dev.started = true;
             if (attempt > 1)
@@ -428,6 +493,8 @@ bool RealSenseMultiCam::init(std::string &err)
         dev.slot_id = key;
         dev.label = node["label"] ? node["label"].as<std::string>() : key;
         dev.serial = node["serial"] ? node["serial"].as<std::string>() : "";
+        if (node["color_gain_scale"])
+            dev.color_gain_scale = node["color_gain_scale"].as<float>();
         if (!dev.serial.empty())
             impl_->slots.emplace(key, std::move(dev));
     }

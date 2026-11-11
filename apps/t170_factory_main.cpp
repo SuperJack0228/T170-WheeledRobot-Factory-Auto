@@ -2,6 +2,7 @@
 
 #include "robot_runtime.h"
 #include "dispatch_board.h"
+#include "t170/calibration/placement_session.h"
 
 #include "function.h"
 #include "t170/hardware/gripper.hpp"
@@ -40,6 +41,8 @@ namespace
 
 std::atomic<bool> g_abort{false};
 std::mutex g_hw_mu;
+std::mutex g_config_mu;
+t170::calibration::PlacementSession g_placement_calibration;
 orch::HwSession g_session;
 std::unique_ptr<gripper::Gripper> g_grip;
 std::unique_ptr<Robot_Arm> g_arm_r;
@@ -364,6 +367,7 @@ Json::Value dispatch(const Json::Value &request)
     if (cmd == "abort" || cmd == "dispatch_exit")
     {
         g_abort.store(true);
+        g_placement_calibration.interrupt();
         hardware_abort_request();
         Json::Value out = reply(true);
         out["dispatch_exit"] = (cmd == "dispatch_exit");
@@ -371,11 +375,33 @@ Json::Value dispatch(const Json::Value &request)
             out["message"] = "已请求退出调度（中止动作并离开调度模式）";
         return out;
     }
+    if (cmd == "calibration_status") {
+        auto state=g_placement_calibration.status();state["software_stopped"]=hardware_abort_requested();return state;
+    }
+    if (cmd == "placement_calibration") {
+        std::unique_lock<std::mutex> lock(g_hw_mu,std::try_to_lock);
+        if(!lock.owns_lock()) return reply(false,"机器人正在执行其他动作或调度，请先退出并等待停止");
+        if(request.get("action","").asString()=="reset_stop") {
+            if(g_placement_calibration.active()) return reply(false,"请先退出已停止的标定会话");
+            if(!request.get("acknowledged",false).asBool()) return reply(false,"请先确认现场状态");
+            if(app_stop_requested()) return reply(false,"机器人服务正在退出");
+            g_abort.store(false);hardware_abort_clear();
+            auto state=g_placement_calibration.status();state["software_stopped"]=false;return state;
+        }
+        if(request.get("action","").asString()=="begin") {
+            if(hardware_abort_requested()) return reply(false,"停止状态尚未复位，请在向导首页确认现场并解除软件停止");
+        }
+        std::lock_guard<std::mutex> config_lock(g_config_mu);
+        auto state=g_placement_calibration.execute(request,g_session);state["software_stopped"]=hardware_abort_requested();return state;
+    }
     if (cmd == "dispatch_status")
         return dispatch_status_json();
     // 充电/调度占用 g_hw_mu 时也要能热更新阈值等参数，不能等任务结束。
     if (cmd == "reload_config")
     {
+        if(g_placement_calibration.active()) return reply(false,"标定期间不能重载正式配置");
+        std::lock_guard<std::mutex> config_lock(g_config_mu);
+        if(g_placement_calibration.active()) return reply(false,"标定期间不能重载正式配置");
         std::string err;
         if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
             return reply(false, err);
@@ -397,22 +423,24 @@ Json::Value dispatch(const Json::Value &request)
         return out;
     }
 
-    std::lock_guard<std::mutex> lock(g_hw_mu);
+    std::unique_lock<std::mutex> lock(g_hw_mu,std::try_to_lock);
+    if(!lock.owns_lock()) return reply(false,"机器人动作忙，请等待当前动作结束");
+    if(g_placement_calibration.active() && cmd!="snapshot")
+        return reply(false,"标定会话占用机器人，请从标定页面退出后再执行普通动作");
     if (app_stop_requested())
     {
         g_abort.store(true);
         hardware_abort_request();
         return reply(false, "进程正在退出");
     }
-    g_abort.store(false);
-    hardware_abort_clear();
+    if(!g_placement_calibration.active()) {g_abort.store(false);hardware_abort_clear();}
     if (app_stop_requested())
     {
         g_abort.store(true);
         hardware_abort_request();
         return reply(false, "进程正在退出");
     }
-    can_io_fault_clear();
+    if(!g_placement_calibration.active()) can_io_fault_clear();
     can_io_watch_begin();
     struct WatchEnd
     {
@@ -1139,6 +1167,7 @@ void handle_client(int fd)
         {
             const std::string cmd = request.get("cmd", "").asString();
             if (cmd == "ping" || cmd == "abort" || cmd == "dispatch_status" ||
+                cmd == "calibration_status" || cmd == "placement_calibration" ||
                 (cmd.size() == 6 && cmd.compare(0, 5, "Audio") == 0 && cmd[5] >= '1' &&
                  cmd[5] <= '5'))
                 write_json(fd, dispatch(request));
@@ -1160,7 +1189,7 @@ void start_boot_dispatch()
 {
     std::thread([]() {
         std::lock_guard<std::mutex> lock(g_hw_mu);
-        if (app_stop_requested())
+        if (app_stop_requested() || g_placement_calibration.active())
             return;
         g_abort.store(false);
         hardware_abort_clear();

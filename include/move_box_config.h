@@ -20,7 +20,7 @@ int tray_row_pose_group(int row);
 const GraspRpyDeg &grasp_rpy_deg_for_row(int row, bool is_right);
 /** ready 指令 1/2/3/6 对应的抓取 RPY。 */
 const GraspRpyDeg &grasp_rpy_deg_for_ready(int ready_id, bool is_right);
-/** 料盘2放置专用 RPY，不读 head_grasp。 */
+/** 料盘2放置统一使用第五行（ready2）的 RPY，所有行/ready 共用，不改抓取姿态。 */
 const GraspRpyDeg &tray2_place_rpy_deg_for_row(int row, bool is_right);
 const GraspRpyDeg &tray2_place_rpy_deg_for_ready(int ready_id, bool is_right);
 const char *ready_rows_label(int ready_id);

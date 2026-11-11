@@ -35,6 +35,8 @@ struct Runtime {
     Vec2 completed_goal = Vec2::Zero();
     std::string failure_reason;
     TrayTarget staged_tray_target;
+    std::optional<double> staged_tray_grasp_plane;
+    bool staged_belt_grasp_reference = false;
 };
 Runtime slots[2];
 std::atomic<std::uint64_t> next_session{1};
@@ -106,11 +108,37 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     if (!trace_writer().start(t170::logging::file("visual_servo").string())) {
         std::cerr << "[servo] 无法创建调试日志，取消视觉动作\n"; return false;
     }
-    const Config cfg=g_move_cfg.visual_servo;
-    const auto &profile=profile_for(cfg,hand,cls);
+    Config cfg=g_move_cfg.visual_servo;
+    auto profile=profile_for(cfg,hand,cls);
     bool tray_placement=false;
+    bool belt_reference=false;
+    std::optional<double> tray_grasp_plane;
     { std::lock_guard<std::mutex> lock(slots[hand].mutex);
       tray_placement=cls==1 && cfg.tray_place.enabled && slots[hand].staged_tray_target.valid;
+      tray_grasp_plane=slots[hand].staged_tray_grasp_plane;
+      belt_reference=slots[hand].staged_belt_grasp_reference;
+      slots[hand].staged_tray_grasp_plane.reset();
+      slots[hand].staged_belt_grasp_reference=false;
+    }
+    if(cls==0 && tray_grasp_plane && apply_tray_calibration(cfg,hand,cls,*tray_grasp_plane,goal(2),goal(3),goal(4)))
+        profile=profile_for(cfg,hand,cls);
+    else if(cls==0 && belt_reference) {
+        if(const auto *taught=calibrated_tray_grasp_for(cfg,hand)) {
+            auto &dst=cfg.profiles[hand];
+            dst.reference_px=taught->image.reference_px;
+            dst.plane_relative_reference=taught->image.plane_relative_reference;
+            dst.reference_tcp_above_plane_m=taught->image.reference_tcp_above_plane_m;
+            dst.reference_height_m=taught->image.reference_height_m;
+            profile=dst;
+            std::cout<<"[servo] 传送带抓取共用料盘参考点 ("<<dst.reference_px.x()<<","
+                     <<dst.reference_px.y()<<")，不使用料盘XY补偿\n";
+        } else std::cerr<<"[servo] 传送带抓取没有该手的料盘参考点，沿用夹爪像素\n";
+    }
+    if(tray_placement) {
+        if(const auto *calibrated=calibrated_placement_for(cfg,hand,goal(3),goal(4))) {
+            profile=calibrated->image;cfg.profiles[2+hand]=profile;
+        } else if(!cfg.calibrated_placement[hand].empty())
+            std::cerr<<"[servo] 本放置倾角尚未示教，沿用move_box_params中的显式参考，不套用其他倾角标定\n";
     }
     Eigen::Matrix4d eye=Eigen::Matrix4d::Identity();
     if (profile.mode=="geometry" || tray_placement) {
@@ -202,6 +230,17 @@ void stage_tray_target(int hand,const TrayTarget &target) {
     if(hand<0 || hand>1) return;
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     slots[hand].staged_tray_target=target;
+}
+void stage_tray_grasp(int hand,double feature_plane_z) {
+    if(hand<0 || hand>1) return;
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    if(std::isfinite(feature_plane_z)) slots[hand].staged_tray_grasp_plane=feature_plane_z;
+    else slots[hand].staged_tray_grasp_plane.reset();
+}
+void stage_belt_grasp_reference(int hand,bool enable) {
+    if(hand<0 || hand>1) return;
+    std::lock_guard<std::mutex> lock(slots[hand].mutex);
+    slots[hand].staged_belt_grasp_reference=enable;
 }
 bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera,State *capture_state) {
     if(hand<0 || hand>1) return false;
