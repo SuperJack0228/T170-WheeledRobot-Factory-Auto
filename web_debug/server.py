@@ -379,9 +379,9 @@ def write_field_groups(file_id: str, updates: dict[str, str]) -> None:
     temp.write_text(text, encoding="utf-8")
     os.replace(temp, path)
 
-PICTURE_ROOT = PROJECT_ROOT / "picture_debug"
+PICTURE_ROOT = PROJECT_ROOT / "debug_picture"
 RUNTIME_ROOT = RUNTIME_PATHS.log_dir / "web"
-CAMERA_SLOTS = ("head", "right_hand", "left_hand")
+CAMERA_SLOTS = ("head", "right", "left")
 ALLOWED_COMMANDS = {
     "ping",
     "snapshot",

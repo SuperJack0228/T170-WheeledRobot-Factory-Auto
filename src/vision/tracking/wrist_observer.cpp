@@ -56,8 +56,12 @@ public:
             try {
                 std::error_code ec;std::filesystem::create_directories(item->path.parent_path(),ec);
                 if(ec) {std::cerr<<"[tray_debug] directory: "<<ec.message()<<'\n';continue;}
+                const auto slot=item->path.parent_path().filename();
+                const auto raw_path=item->path.parent_path().parent_path()/"original"/slot/
+                    (item->path.stem().string()+".png");
+                std::filesystem::create_directories(raw_path.parent_path(),ec);
                 if(!cv::imwrite(item->path.string(),item->overlay) ||
-                   !cv::imwrite(item->path.string()+".raw.png",item->raw))
+                   !cv::imwrite(raw_path.string(),item->raw))
                     std::cerr<<"[tray_debug] image write failed\n";
                 std::ofstream meta(item->path.string()+".yaml");meta<<item->metadata;
                 if(!meta) std::cerr<<"[tray_debug] metadata write failed\n";
@@ -79,9 +83,8 @@ void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
     const int target_row=target.row,target_col=target.col;
     if(!frame.ok || frame.width<1 || frame.height<1 ||
        frame.color_bgr.size()!=static_cast<std::size_t>(frame.width)*frame.height*3) return;
-    const char *slot=hand==1?"right_hand":"left_hand";
-    const auto path=std::filesystem::path(vision_debug_root_dir())/slot/
-        ("place_s"+std::to_string(session)+"_f"+std::to_string(frame_id)+".jpg");
+    const char *slot=hand==1?"right":"left";
+    const auto path=std::filesystem::path(vision_debug_record_path(slot,"servo"));
     cv::Mat canvas(frame.height,frame.width,CV_8UC3,
                    const_cast<unsigned char*>(frame.color_bgr.data()));
     cv::Mat raw=canvas.clone();
@@ -148,6 +151,21 @@ void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
         for(const auto &k:profile.knots) metadata<<"    - height_m: "<<k.height_m<<"\n      reference_px: ["<<k.reference_px.x()<<", "<<k.reference_px.y()
             <<"]\n      jacobian_px_per_m: [["<<k.image_jacobian(0,0)<<", "<<k.image_jacobian(0,1)<<"], ["
             <<k.image_jacobian(1,0)<<", "<<k.image_jacobian(1,1)<<"]]\n";
+    }
+    wrist_servo::PixelObservation probe;
+    probe.pixel=context.profile.reference_px;
+    probe.fx=frame.K[0]; probe.fy=frame.K[4]; probe.cx=frame.K[2]; probe.cy=frame.K[5];
+    probe.width=frame.width; probe.height=frame.height;
+    const auto mapped=wrist_servo::map_observation(
+        context.profile,probe,capture,context.final_z,
+        base_camera.block<3,1>(0,3),base_camera.block<3,3>(0,0));
+    const Eigen::Vector2d ref=mapped.valid?mapped.reference_px:context.profile.reference_px;
+    if(std::isfinite(ref.x()) && std::isfinite(ref.y()) && inside(static_cast<float>(ref.x()),static_cast<float>(ref.y()))) {
+        const cv::Point mark(cvRound(ref.x()),cvRound(ref.y()));
+        cv::drawMarker(canvas,mark,cv::Scalar(255,0,0),cv::MARKER_CROSS,36,2,cv::LINE_AA);
+        cv::circle(canvas,mark,16,cv::Scalar(255,0,0),2,cv::LINE_AA);
+        cv::putText(canvas,"ref "+std::to_string(cvRound(ref.x()))+","+std::to_string(cvRound(ref.y())),
+                    mark+cv::Point(12,-12),cv::FONT_HERSHEY_SIMPLEX,0.5,cv::Scalar(255,0,0),1,cv::LINE_AA);
     }
     static PlaceImageWriter writer;writer.put(hand,path,std::move(canvas),std::move(raw),metadata.str());
 }
@@ -281,11 +299,9 @@ void observe(int hand) {
             wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
         save_debug(); // Valid observations reach the controller before overlay construction.
         if(save_raw.load()) {
-            const auto directory=std::filesystem::path(project_root_dir())/"hand_descent_raw";
-            std::error_code ec;std::filesystem::create_directories(directory,ec);
-            if(!ec) cv::imwrite((directory/("place_session_"+std::to_string(context.session)+"_hand_"+
-                std::to_string(hand)+"_frame_"+std::to_string(obs.frame)+".jpg")).string(),
-                cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()));
+            const auto raw_path=vision_debug_record_path(
+                hand==1?"original/right":"original/left","servo_raw");
+            cv::imwrite(raw_path,cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()));
         }
         return; // no YOLO call and no closest-box fallback for tray placement
     }
@@ -325,17 +341,33 @@ void observe(int hand) {
             w.pixel=obs.pixel; w.locked=true;
         }
     }
+    if(cfg.tray_place.save_debug_images) {
+        static double last_grasp_image_s[2]{};
+        const double now_s=wrist_servo::monotonic_seconds();
+        if(now_s-last_grasp_image_s[hand]>=0.25) {
+            last_grasp_image_s[hand]=now_s;
+            cv::Mat canvas(frame.height,frame.width,CV_8UC3,
+                           const_cast<unsigned char*>(frame.color_bgr.data()));
+            canvas=canvas.clone();
+            const cv::Point mark(cvRound(model.reference_px.x()),cvRound(model.reference_px.y()));
+            cv::drawMarker(canvas,mark,cv::Scalar(255,0,0),cv::MARKER_CROSS,36,2,cv::LINE_AA);
+            cv::circle(canvas,mark,16,cv::Scalar(255,0,0),2,cv::LINE_AA);
+            cv::putText(canvas,"ref "+std::to_string(mark.x)+","+std::to_string(mark.y),
+                        mark+cv::Point(12,-12),cv::FONT_HERSHEY_SIMPLEX,0.5,cv::Scalar(255,0,0),1,cv::LINE_AA);
+            if(best) cv::circle(canvas,cv::Point(cvRound(best->box_u),cvRound(best->box_v)),
+                                6,cv::Scalar(0,255,0),-1,cv::LINE_AA);
+            cv::rectangle(canvas,cv::Point(0,0),cv::Point(canvas.cols,28),cv::Scalar(0,0,0),cv::FILLED);
+            cv::putText(canvas,std::string(hand==1?"right ":"left ")+(best?"grasp":"grasp missing"),
+                        cv::Point(8,20),cv::FONT_HERSHEY_SIMPLEX,0.55,cv::Scalar(255,255,255),1,cv::LINE_AA);
+            cv::imwrite(vision_debug_record_path(hand==1?"right":"left","servo"),canvas);
+        }
+    }
     if(!best) { wrist_servo::observation_event(hand,context.session,"locked_target_missing",obs); return; }
     if(!wrist_servo::submit_observation(hand,obs))
         wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
     if(save_raw.load() && context.descending) {
-        const auto directory=std::filesystem::path(project_root_dir())/"hand_descent_raw";
-        std::error_code ec; std::filesystem::create_directories(directory,ec);
-        if(!ec) {
-            const auto name="session_"+std::to_string(context.session)+"_hand_"+std::to_string(hand)+
-                            "_frame_"+std::to_string(obs.frame)+".jpg";
-            cv::imwrite((directory/name).string(),cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()));
-        }
+        cv::imwrite(vision_debug_record_path(hand==1?"original/right":"original/left","servo_raw"),
+                    cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()));
     }
 }
 

@@ -628,13 +628,7 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
         if (got_ext)
             cam2robot_arg = pose16_to_numpy(cam2robot);
 
-        py::object save_arg = py::none();
-        if (show_visualization)
-        {
-            const std::string save_path = vision_debug_annotate_path("head", "belt_aruco");
-            if (!save_path.empty())
-                save_arg = py::str(save_path);
-        }
+        py::object save_arg = py::str(vision_debug_record_path("head", "belt_aruco"));
 
         auto make_off = [](const double *src) -> py::object {
             if (src == nullptr)
@@ -843,13 +837,7 @@ TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
             dets.append(d);
         }
 
-        py::object save_arg = py::none();
-        if (show_visualization)
-        {
-            const std::string save_path = vision_debug_annotate_path("head", "tray_yolo");
-            if (!save_path.empty())
-                save_arg = py::str(save_path);
-        }
+        py::object save_arg = py::str(vision_debug_record_path("head", "tray"));
 
         py::object out;
         const bool use_fuse = frames.size() > 1 && impl_->tray_fuse_fn && !impl_->tray_fuse_fn.is_none();

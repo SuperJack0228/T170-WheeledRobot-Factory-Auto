@@ -1,4 +1,5 @@
 #include "t170/vision/visualization.h"
+#include "t170/vision/debug.h"
 #include "t170/common/paths.h"
 #include "python_arrays.h"
 #include "python_visualization.h"
@@ -34,9 +35,9 @@ const char *debug_subdir_for_panel(int panel_index)
     case PoseVisPanel::Head:
         return "head";
     case PoseVisPanel::RightHand:
-        return "right_hand";
+        return "right";
     case PoseVisPanel::LeftHand:
-        return "left_hand";
+        return "left";
     default:
         return "unknown";
     }
@@ -63,7 +64,7 @@ DebugImagePaths make_debug_image_paths(int panel_index)
          << '_' << std::setw(3) << std::setfill('0') << ms.count() << ".jpg";
 
     const std::string sub = debug_subdir_for_panel(panel_index);
-    const std::string root = project_root_dir() + "/picture_debug/";
+    const std::string root = vision_debug_root_dir() + "/";
     return {name.str(), root + sub + "/" + name.str(), root + "original/" + sub + "/" + name.str()};
 }
 

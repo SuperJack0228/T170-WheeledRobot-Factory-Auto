@@ -927,8 +927,12 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << "fps hand_live_preview=" << (cfg.cameras.hand_live_preview ? "on" : "off")
               << " hand_descent_correct="
               << (cfg.cameras.hand_descent_correct ? "on" : "off")
-              << " gripper_px L=(" << cfg.cameras.left_gripper_u << ","
+              << " grasp_px L=(" << cfg.cameras.left_gripper_u << ","
               << cfg.cameras.left_gripper_v << ") R=("
               << cfg.cameras.right_gripper_u << ","
-              << cfg.cameras.right_gripper_v << ")\n";
+              << cfg.cameras.right_gripper_v << ")"
+              << " place_px L=(" << cfg.visual_servo.profiles[2].reference_px.x() << ","
+              << cfg.visual_servo.profiles[2].reference_px.y() << ") R=("
+              << cfg.visual_servo.profiles[3].reference_px.x() << ","
+              << cfg.visual_servo.profiles[3].reference_px.y() << ")\n";
 }
