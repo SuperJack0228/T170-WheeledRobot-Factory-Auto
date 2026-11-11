@@ -3699,10 +3699,15 @@ namespace move_box
                     // The SDK treats an unpaired side as success; placement must
                     // confirm real feedback before clearing a held-part latch.
                     if(g.hasSide(side)) {
-                        const bool waited=g.openAndWait(side,p.open_tolerance_rad,std::chrono::milliseconds(p.open_timeout_ms));
+                        const double open_q=g.config().open_position_rad;
+                        const double close_q=g.config().close_position_rad;
+                        const double target=std::clamp(p.release_q_rad,std::min(open_q,close_q),std::max(open_q,close_q));
+                        const double span=close_q-open_q;
+                        const double ratio=std::abs(span)<1e-6?0.0:std::clamp((target-open_q)/span,0.0,1.0);
+                        const bool waited=g.closeAndWait(side,ratio,p.open_tolerance_rad,std::chrono::milliseconds(p.open_timeout_ms));
                         const auto fb=g.feedback(side);
                         released[hand]=waited && fb.have_feedback && fb.io_ok && fb.merror==0 &&
-                            std::abs(fb.position_rad-g.config().open_position_rad)<=p.open_tolerance_rad;
+                            std::abs(fb.position_rad-target)<=p.open_tolerance_rad;
                         wrist_servo::record_gripper_check(hand,fb.position_rad,fb.torque,
                                                          released[hand] ? "open_confirmed" : "open_not_confirmed");
                     }

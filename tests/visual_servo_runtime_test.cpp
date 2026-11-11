@@ -111,6 +111,19 @@ int main() {
         std::cerr<<"runtime FAIL: tray reference leaked to an unscoped/conveyor session\n";return 1;
     }
     end_session(0,false);prepare_group();
+    const double belt_feature_offset=g_move_cfg.visual_servo.profiles[0].feature_z_offset_m;
+    stage_belt_grasp_reference(0,true);
+    if(!begin_session(left,scope_goal,0))return 2;
+    if(!observation_context(0,scoped) || scoped.profile.reference_px!=Vec2(710,410) ||
+       scoped.profile.feature_z_offset_m!=belt_feature_offset) {
+        std::cerr<<"runtime FAIL: belt grasp did not reuse only the tray reference point\n";return 1;
+    }
+    end_session(0,false);prepare_group();
+    if(!begin_session(left,scope_goal,0))return 2;
+    if(!observation_context(0,scoped) || scoped.profile.reference_px!=g_move_cfg.visual_servo.profiles[0].reference_px) {
+        std::cerr<<"runtime FAIL: belt reference stayed armed after one session\n";return 1;
+    }
+    end_session(0,false);prepare_group();
     Vec2 targets[2]; Joints starts[2];
     Matrix<double,1,6> goals[2];
     prepare_group();

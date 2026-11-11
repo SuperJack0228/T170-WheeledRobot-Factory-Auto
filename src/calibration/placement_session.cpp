@@ -114,13 +114,14 @@ struct PlacementSession::Impl {
     }
     // Short teach moves use the same FK/local IK math, continuous seeds and rest-to-rest timing.
     // A full path is checked before sending any point; never use uninitialised servo-session limits.
-    void local(Pose goal) {
+    void local(Pose goal,double speed=.015) {
         stopped();check_workspace(goal);const Pose start=actual();
         require((goal.head<3>()-start.head<3>()).norm()<=.16,"微调/下降距离过大");
+        require(std::isfinite(speed) && speed>0,"局部运动速度无效");
         const Joints seed=arm_get_joint_pos(arm());
         auto cfg=g_move_cfg.visual_servo;std::vector<Joints> path;
         const Eigen::Quaterniond start_rotation(TR(start).block<3,3>(0,0)),goal_rotation(TR(goal).block<3,3>(0,0));
-        double duration=std::max(.35,1.9*(goal.head<3>()-start.head<3>()).norm()/.015);
+        double duration=std::max(.35,1.9*(goal.head<3>()-start.head<3>()).norm()/speed);
         bool planned=false;
         for(int attempt=0;attempt<5 && !planned;++attempt,duration*=1.7) {
             const int count=static_cast<int>(std::ceil(duration/.01));path.clear();path.push_back(seed);
@@ -347,7 +348,7 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
             else if(action=="move_d") {
                 require(s.phase=="prepared" && !s.candidates.empty(),"请先准备并识别固定标定孔");
                 if(!s.grasp) s.check_held();s.bind();
-                s.line(s.initial,.10);Pose d=s.nominal;d(2)+=s.clearance;s.local(d);s.state("at_d",2);s.capture(false);s.publish();
+                s.line(s.initial,.10);Pose d=s.nominal;d(2)+=s.clearance;s.local(d,.06);s.state("at_d",2);s.capture(false);s.publish();
             } else if(action=="jog") {
                 require(s.phase=="at_d","只能在D点对准页微调");
                 const double dx=request.get("dx_mm",0.).asDouble()/1000,dy=request.get("dy_mm",0.).asDouble()/1000;

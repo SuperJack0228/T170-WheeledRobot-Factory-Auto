@@ -2981,7 +2981,8 @@ int plan_seeded_vertical_lift(Robot_Arm &arm, const wrist_servo::Joints &grasp, 
 // stream and fresh feedback completion. Other SDK trajectories keep their player.
 int execute_staged_motion(Robot_Arm &arm,const Eigen::MatrixXd &path,const char *stage,
                           const std::function<void(const wrist_servo::Joints &)> &progress={},
-                          const std::function<bool(const wrist_servo::Joints &)> &arrived={})
+                          const std::function<bool(const wrist_servo::Joints &)> &arrived={},
+                          double notify_at=-1,const std::function<void()> &on_notify={})
 {
     const int hand=arm_hand_side(arm);
     if(path.rows()<2 || path.cols()!=7 || !path.allFinite()) return -16;
@@ -2998,6 +2999,7 @@ int execute_staged_motion(Robot_Arm &arm,const Eigen::MatrixXd &path,const char 
              <<" joint_limits="<<cfg.max_joint_velocity_rad_s<<","<<cfg.max_joint_acceleration_rad_s2
              <<","<<cfg.max_joint_jerk_rad_s3<<" ready_tolerance_rad="<<cfg.arrival_joint_tolerance_rad<<'\n';
     double last_print=-1;
+    bool notified=false;
     t170::motion::MotionIO io;
     io.read=[&](auto &q){return wrist_servo::read_joint_feedback(hand,q);};
     io.arrived=arrived;
@@ -3033,6 +3035,11 @@ int execute_staged_motion(Robot_Arm &arm,const Eigen::MatrixXd &path,const char 
             if(progress) progress(*actual);
         }
         wrist_servo::trace_writer().push(std::move(row));
+        if(on_notify && !notified && path.rows()>1 &&
+           (index>=static_cast<int>(std::ceil(std::clamp(notify_at,0.0,1.0)*(path.rows()-1))) ||
+            std::string(event)=="command_complete")) {
+            notified=true;on_notify();
+        }
         if(std::string(event)!="feedback" || now-last_print>=.5) {
             last_print=now;
             std::cout<<"[retract] hand="<<hand<<" stage="<<stage<<" event="<<event
@@ -3083,7 +3090,8 @@ int play_seeded_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
 }
 
 int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready,
-                      const std::function<void()> &on_started = {})
+                      const std::function<void()> &on_started = {},
+                      double notify_at = -1,double limit_scale = 1)
 {
     const int hand=arm_hand_side(arm);
     wrist_servo::Joints start;
@@ -3091,14 +3099,20 @@ int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready,
     wrist_servo::peek_final_hold(hand,start);
     Eigen::MatrixXd knots(2,7);knots.row(0)=start;knots.row(1)=ready;
     const auto &c=g_move_cfg.retract_motion;
+    const double scale=std::isfinite(limit_scale) && limit_scale>1 ? limit_scale : 1;
     const auto path=t170::motion::time_joint_path(knots,k_arm_traj_dt,
-        {c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,c.max_joint_jerk_rad_s3});
+        {c.max_joint_velocity_rad_s*scale,c.max_joint_acceleration_rad_s2*scale,
+         c.max_joint_jerk_rad_s3*scale});
     if(path.rows()<2) return -16;
     std::cout<<"[retract] hand="<<hand<<" fixed_ready_motor_rad="<<ready
-             <<" duration_s="<<(path.rows()-1)*k_arm_traj_dt<<'\n';
+             <<" duration_s="<<(path.rows()-1)*k_arm_traj_dt
+             <<" limit_scale="<<scale<<'\n';
     wrist_servo::task_event(hand,"return_plan","fixed_motor_joints_no_IK");
-    if(on_started) on_started();
-    return execute_staged_motion(arm,path,"return");
+    if(!(notify_at>=0 && notify_at<=1)) {
+        if(on_started) on_started();
+        return execute_staged_motion(arm,path,"return");
+    }
+    return execute_staged_motion(arm,path,"return",{},{},notify_at,on_started);
 }
 }
 
@@ -3307,12 +3321,13 @@ int arm_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
 }
 
 int arm_return_after_lift(Robot_Arm &arm,const Eigen::Matrix<double,1,7> &ready,
-                          const std::function<void()> &on_started) {
+                          const std::function<void()> &on_started,
+                          double notify_at,double limit_scale) {
     if(arm_hand_side(arm)==1 && right_arm_motors_locked()) return 0;
     if(!ready.allFinite()) return -10;
     arm_discard_line_then_line_plan(arm_hand_side(arm));
     std::lock_guard<std::mutex> owner(g_staged_motion_mu[arm_hand_side(arm)]);
-    return play_joint_return(arm,ready,on_started);
+    return play_joint_return(arm,ready,on_started,notify_at,limit_scale);
 }
 
 void arm_discard_line_then_line_plan(int hand)

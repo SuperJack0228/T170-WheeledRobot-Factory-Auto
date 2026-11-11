@@ -157,12 +157,14 @@ tray2_place:
   retract_lift_vel_m_s: 0.40
   retract_return_vel_m_s: 0.40
   pre_open_settle_sec: 0.0
-  # 离全开 5.5 rad 不超过这个值就算松开。夹住零件大约 1.4～1.6，0.5 仍是张开。
+  # 到位判定：离 release_q_rad 不超过这个值就算松开。夹住零件大约 1.4～1.6。
   open_tolerance_rad: 0.5
   open_timeout_ms: 1500
+  # 0=全合，约 5.5=全开。2.2 只比夹持再张开约 0.7 rad，不张到全开。
+  release_q_rad: 3.0
   offset:
-    left:  { x: 0.039, y: 0.01, z: -0.008 }
-    right: { x: 0.036, y: 0.013, z: -0.008 }
+    left:  { x: 0.040, y: 0.01, z: -0.008 }
+    right: { x: 0.040, y: 0.01, z: -0.008 }
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
   far_row_forward_m: 0.20
@@ -309,7 +311,7 @@ conveyor:
   # 抓取点 = 码原点 + R_识别 × 该手 grasp_offset。识别系 +X 前 +Y 左 +Z 上，不再乘腰 Rz。
   grasp_rpy_deg:
     left: [0, 50, -20]
-    right: [0, 50, 45]
+    right: [0, 50, 50]
   grasp_offset:
     left: { x: 0.083, y: 0.11, z: 0.015 }
     right: { x: 0.0, y: 0.12, z: 0.005 }
@@ -325,14 +327,17 @@ conveyor:
   place_approach_vel_m_s: 0.35
   place_retract_vel_m_s: 0.40
   grasp_approach_vel_m_s: 0.3
-  grasp_retract_vel_m_s: 0.40
+  grasp_retract_vel_m_s: 0.60
+  # 传送带手相机下降上限。料盘抓取仍用 head_grasp.descend_vel_m_s。
+  grasp_descend_vel_m_s: 0.18
   # 右手抬完并开始回程后，左手才伸出。超时是等回程开始的上限。
   next_hand_clearance_m: 0.050
   next_hand_clearance_timeout_s: 4.0
   # 站点已更新，传送带抓取不再转腰。0=不转。左右手可以过中轴，不卡料盘中缝。
   grasp_waist_yaw_deg: 0
   # 准备姿态夹爪闭合比例，0=全开 1=全合。先合一点再下探，避免磕皮带边。
-  grasp_ready_close_ratio: 0.3
+  # 0.45 对应约 3.0 rad，比 0.30（约 3.9 rad）再收一档。
+  grasp_ready_close_ratio: 0.4
   # 传送带检测门禁。整图 YOLO，框中心转到码系。抓取窗口和放置 ±3cm 都在代码里。
   # 抓取窗口：码系 x∈[-0.06,0.08]、y∈[0.10,0.13]。0 个不抓，1 个只右手，≥2 双手。手臂仍走 grasp_offset。
   # 头相机识别图写到 debug_picture/head，文件名以日期开头。抓空和放置检查的 YOLO 图也在这里。
@@ -374,11 +379,11 @@ conveyor2:
     right: { x: 0.0, y: 0.008, z: -0.005 }
     left:  { x: -0.06, y: -0.015, z: -0.005 }
   grasp_rpy_deg:
-    left: [0, 50, -50]
-    right: [0, 50, 50]
+    left: [0, 50, -45]
+    right: [0, 50, 60]
   grasp_offset:
-    left: { x: 0.072, y: 0.109, z: -0.010 }
-    right: { x: -0.008, y: 0.132, z: -0.015 }
+    left: { x: 0.072, y: 0.109, z: -0.01 }
+    right: { x: -0.020, y: 0.13, z: -0.01 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
@@ -387,12 +392,14 @@ conveyor2:
   place_approach_vel_m_s: 0.3
   place_retract_vel_m_s: 0.40
   grasp_approach_vel_m_s: 0.3
-  grasp_retract_vel_m_s: 0.4
+  grasp_retract_vel_m_s: 0.60
+  grasp_descend_vel_m_s: 0.18
   # 右手抬完并开始回程后，左手才伸出。超时是等回程开始的上限。
   next_hand_clearance_m: 0.050
   next_hand_clearance_timeout_s: 4.0
   grasp_waist_yaw_deg: 0
-  grasp_ready_close_ratio: 0.30
+  # 与第一传送带相同：0.45 约 3.0 rad，比 0.30 再收一档。
+  grasp_ready_close_ratio: 0.4
   yolo_roi_enable: true
   yolo_min_conf: 0.25
   yolo_part_class_ids: [0, 2]   # 立件和倒件都算零件；1=空孔不计入
@@ -440,7 +447,7 @@ gripper_check:
 visual_servo:
   # 传送带放置不进手相机。false：码+offset 开环下降后松爪。
   belt_place_enabled: false
-  # 传送带抓取暂时不进手相机。false：码+offset 开环下降后合爪。
+  # false：传送带抓取按码+offset 开环下降后合爪，不进手相机。
   belt_grasp_enabled: true
   period_s: 0.01
   kp: 1.5
@@ -520,10 +527,10 @@ visual_servo:
     reference_height_m: 0.0
     feature_z_offset_m: 0.0
     reference_px: [788, 498]
-  # enabled=false：料盘二放置走 tray2_place 整盘 offset 加逐行偏置，开环，不进手相机。
-  # enabled=true：纯邻孔虚拟孔心伺服（需 hand_descent_correct=true）。
+  # enabled=true：料盘放置下降进手相机伺服（需 hand_descent_correct=true）。
+  # 有匹配的放置标定文件时，XY 用标定补偿；Z 仍用这里的高度。
   tray_place:
-    enabled: false
+    enabled: true
     board_config: board_yf100_aruco/config.yaml
     # 邻孔搜索半径30mm，小于75mm孔距的一半；不是最终放置误差。
     association_gate_m: 0.030

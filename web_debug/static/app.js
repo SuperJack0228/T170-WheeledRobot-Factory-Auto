@@ -8,8 +8,8 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
-const WEB_API = 5;
-const UI_VERSION = "1.2.0";
+const WEB_API = 6;
+const UI_VERSION = "1.3.0";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [

@@ -150,6 +150,7 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     read_value(node, "place_retract_vel_m_s", dst.place_retract_vel_m_s);
     read_value(node, "grasp_approach_vel_m_s", dst.grasp_approach_vel_m_s);
     read_value(node, "grasp_retract_vel_m_s", dst.grasp_retract_vel_m_s);
+    read_value(node, "grasp_descend_vel_m_s", dst.grasp_descend_vel_m_s);
     read_value(node, "next_hand_clearance_m", dst.next_hand_clearance_m);
     read_value(node, "next_hand_clearance_timeout_s", dst.next_hand_clearance_timeout_s);
     if (!std::isfinite(dst.next_hand_clearance_m) || dst.next_hand_clearance_m <= 0 ||
@@ -189,7 +190,16 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     clamp_vel(dst.place_approach_vel_m_s);
     clamp_vel(dst.place_retract_vel_m_s);
     clamp_vel(dst.grasp_approach_vel_m_s);
-    clamp_vel(dst.grasp_retract_vel_m_s);
+    auto clamp_fast = [](double &v) {
+        if (!(v > 0.0) || !std::isfinite(v))
+            v = 0.25;
+        if (v < 0.02)
+            v = 0.02;
+        if (v > 0.80)
+            v = 0.80;
+    };
+    clamp_fast(dst.grasp_retract_vel_m_s);
+    clamp_fast(dst.grasp_descend_vel_m_s);
 }
 
 void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
@@ -484,12 +494,14 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
             read_value(t2,"pre_open_settle_sec",cfg.tray2_place.pre_open_settle_sec);
             read_value(t2,"open_tolerance_rad",cfg.tray2_place.open_tolerance_rad);
             read_value(t2,"open_timeout_ms",cfg.tray2_place.open_timeout_ms);
+            read_value(t2,"release_q_rad",cfg.tray2_place.release_q_rad);
             const auto &p=cfg.tray2_place;
             if(!std::isfinite(p.retract_lift_m) || p.retract_lift_m<=0 ||
                !std::isfinite(p.retract_lift_vel_m_s) || p.retract_lift_vel_m_s<=0 ||
                !std::isfinite(p.retract_return_vel_m_s) || p.retract_return_vel_m_s<=0 ||
                !std::isfinite(p.pre_open_settle_sec) || p.pre_open_settle_sec<0 ||
-               !std::isfinite(p.open_tolerance_rad) || p.open_tolerance_rad<=0 || p.open_timeout_ms<1)
+               !std::isfinite(p.open_tolerance_rad) || p.open_tolerance_rad<=0 || p.open_timeout_ms<1 ||
+               !std::isfinite(p.release_q_rad) || p.release_q_rad<0 || p.release_q_rad>6.0)
                 throw std::runtime_error("invalid tray2_place retract/open parameters");
             const auto legacy_rows=t2["row_place_rpy_deg"]?t2["row_place_rpy_deg"]:YAML::Node(YAML::NodeType::Map);
             const auto legacy_first=t2["row1_rpy_deg"]?t2["row1_rpy_deg"]:YAML::Node(YAML::NodeType::Map);

@@ -207,6 +207,8 @@ struct Tray2PlaceConfig
     double pre_open_settle_sec = 0.0;
     double open_tolerance_rad = 0.2;
     int open_timeout_ms = 1500;
+    /** 放置松爪目标。0=全合，约 5.5=全开。夹持约 1.4～1.6，小于全开表示只松开一点。 */
+    double release_q_rad = 5.5;
     GraspRpyDeg left_row_rpy_deg[3];
     GraspRpyDeg right_row_rpy_deg[3];
     GraspRpyDeg left_row6_rpy_deg;
@@ -265,8 +267,10 @@ struct ConveyorStationConfig
     double place_retract_vel_m_s = 0.25;
     /** 抓取：上方接近再落到抓取点的线速度（米/秒）。 */
     double grasp_approach_vel_m_s = 0.25;
-    /** 抓取：抬起再回 grasp_tcp/准备的线速度（米/秒）。 */
+    /** 抓取：抬起再回准备的竖直速度（米/秒）。 */
     double grasp_retract_vel_m_s = 0.25;
+    /** 抓取：手相机或开环竖直下降的上限（米/秒）。不改料盘抓取的 head_grasp.descend_vel_m_s。 */
+    double grasp_descend_vel_m_s = 0.18;
     double next_hand_clearance_m = 0.050;
     double next_hand_clearance_timeout_s = 4.0;
     /** 叠在放置目标的基座 Z 上（米，向上为正）。0=不改。转运松手再降用负值。 */

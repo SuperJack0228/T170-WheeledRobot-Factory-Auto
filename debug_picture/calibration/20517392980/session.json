@@ -1,0 +1,96 @@
+{
+	"active" : false,
+	"aligned_tcp" : 
+	[
+		0.47704843754243043,
+		0.12218548580624246,
+		-0.40859216942747129,
+		0.086537890551940472,
+		0.95989863473698689,
+		-0.87245212975973341
+	],
+	"coarse_xy_mm" : 
+	[
+		52.07335273919103,
+		-2.9597283791859677
+	],
+	"col" : 2,
+	"compensation_xy_mm" : 
+	[
+		52.07335273919103,
+		-2.9597283791859677
+	],
+	"current_tcp" : 
+	[
+		0.47705232885257476,
+		0.1221701902075296,
+		-0.40857316013499234,
+		0.086288290506943421,
+		0.959870676404187,
+		-0.87255376656228523
+	],
+	"d_clearance_mm" : 10.0,
+	"feature_plane_z_m" : -0.41316816221443747,
+	"field_verified" : false,
+	"from_left_col" : 2,
+	"hand" : 0,
+	"have_reference" : true,
+	"head_image_path" : "debug_picture/calibration/20517392980/head.jpg",
+	"head_image_revision" : 1,
+	"height" : 720,
+	"held" : false,
+	"holes" : 
+	[
+		{
+			"class_id" : 1,
+			"col" : 2,
+			"row" : 2,
+			"x" : 0.42474658092198908,
+			"y" : 0.1257646902678819
+		}
+	],
+	"image_path" : "debug_picture/calibration/20517392980/frame_19.jpg",
+	"image_revision" : 19,
+	"image_tcp_z_m" : -0.40859411629371933,
+	"interrupted" : false,
+	"log_directory" : "/home/ti5robot/T170Clean/debug_picture/calibration/20517392980",
+	"nominal_tcp" : 
+	[
+		0.4249765174874458,
+		0.12517014806420651,
+		-0.41816815927019424,
+		0.086955631667104905,
+		0.95886063860486781,
+		-0.87339825970791463
+	],
+	"ok" : true,
+	"phase" : "ended",
+	"plane_z_m" : -0.42816815338170777,
+	"reference_coverage" : 0,
+	"reference_fit_residual" : 0.0,
+	"reference_method" : "manual_part_top_center",
+	"reference_pose_tcp" : 
+	[
+		0.47704897061454421,
+		0.12219634076223829,
+		-0.40859411629371933,
+		0.086377597464129097,
+		0.95992327054054316,
+		-0.87245296839733044
+	],
+	"reference_px" : 
+	[
+		586.04409857328142,
+		442.94069018395413
+	],
+	"reference_tcp_above_plane_mm" : 4.5740459207181399,
+	"robot_row" : 5,
+	"row" : 2,
+	"saved_file" : "/home/ti5robot/T170Clean/config/calibration/grasp/left.yaml",
+	"scope" : "tray_only",
+	"session" : "20517392980",
+	"step" : 0,
+	"task" : "grasp",
+	"validated" : true,
+	"width" : 1280
+}

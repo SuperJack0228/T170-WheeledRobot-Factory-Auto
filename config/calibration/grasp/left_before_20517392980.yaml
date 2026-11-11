@@ -1,0 +1,82 @@
+{
+	"K" : 
+	[
+		654.48675537109375,
+		0.0,
+		639.052734375,
+		0.0,
+		653.6251220703125,
+		348.27688598632812,
+		0.0,
+		0.0,
+		1.0
+	],
+	"aligned_tcp" : 
+	[
+		0.46862824701186401,
+		0.13162518222178615,
+		-0.40172475369886657,
+		0.08898346057952837,
+		0.95786036072248215,
+		-0.87375396401881056
+	],
+	"camera_serial" : "261922275388",
+	"coarse_xy_upright_m" : 
+	[
+		0.047098088050569732,
+		0.0016825883447906178
+	],
+	"col" : 2,
+	"compensation_xy_upright_m" : 
+	[
+		0.047098088050569732,
+		0.0016825883447906178
+	],
+	"d_clearance_m" : 0.014999999999999999,
+	"dist" : 
+	[
+		-0.049050871282815933,
+		0.050921861082315445,
+		-0.00074832834070548415,
+		-0.00053239340195432305,
+		-0.015834245830774307
+	],
+	"eye_fingerprint" : "a749d3b305eeda33",
+	"feature_plane_z_m" : -0.41223540979147771,
+	"field_verified" : false,
+	"from_left_col" : 2,
+	"hand" : 0,
+	"height" : 720,
+	"log_directory" : "/home/ti5robot/T170Clean/debug_picture/calibration/14453164355",
+	"model_fingerprint" : "8ee7207a96a5716e",
+	"pixel_coordinates" : "raw_color_left_rotated_180",
+	"plane_z_m" : -0.42723539823568168,
+	"reference_coverage_bins" : 0,
+	"reference_fit_residual_rectified_px" : 0.0,
+	"reference_method" : "manual_part_top_center",
+	"reference_pose_tcp" : 
+	[
+		0.46808697951809081,
+		0.13182434195612466,
+		-0.40238304235609856,
+		0.08792415161614521,
+		0.95940176755873496,
+		-0.87466226168495464
+	],
+	"reference_px" : 
+	[
+		571.10246433203633,
+		397.28525974643753
+	],
+	"reference_tcp_above_plane_m" : 0.0098523674353791502,
+	"robot_id" : "TH-T170C-0124",
+	"robot_row" : 5,
+	"row" : 2,
+	"schema_version" : 2,
+	"scope" : "tray_only",
+	"session" : "14453164355",
+	"task" : "grasp",
+	"validated" : true,
+	"validation_kind" : "manual_at_D",
+	"width" : 1280
+}

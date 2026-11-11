@@ -192,9 +192,11 @@ void arm_discard_line_then_line_plan(int hand);
 int arm_vertical_lift(Robot_Arm &arm, double lift_m, double speed_m_s,
                       const std::function<void(double)> &on_measured_lift = {});
 /** 抬完后的关节收手：固定电机角(rad)，不调用SDK逆解，成功表示实测关节到位。
- *  on_started 在回程轨迹开始下发时调用一次。 */
+ *  on_started 默认在回程轨迹开始下发时调用一次。notify_at 在 0～1 时改为下发到该比例后再调用。
+ *  limit_scale>1 只加快这一段收手的关节速度、加速度和急动度。 */
 int arm_return_after_lift(Robot_Arm &arm, const Eigen::Matrix<double,1,7> &ready,
-                          const std::function<void()> &on_started = {});
+                          const std::function<void()> &on_started = {},
+                          double notify_at = -1.0, double limit_scale = 1.0);
 /** 已在目标位置附近时，按关节角速度上限转到目标姿态。max_deg_s 是单个关节的上限。 */
 int arm_reorient_limited(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal, double max_deg_s);
 

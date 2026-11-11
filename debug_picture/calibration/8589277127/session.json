@@ -1,0 +1,81 @@
+{
+	"active" : false,
+	"aligned_tcp" : 
+	[
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0
+	],
+	"coarse_xy_mm" : 
+	[
+		0.0,
+		0.0
+	],
+	"col" : 0,
+	"compensation_xy_mm" : 
+	[
+		0.0,
+		0.0
+	],
+	"current_tcp" : 
+	[
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0
+	],
+	"d_clearance_mm" : 20.0,
+	"far_rows" : false,
+	"hand" : 1,
+	"have_reference" : false,
+	"head_image_revision" : 0,
+	"height" : 0,
+	"held" : false,
+	"holes" : [],
+	"image_revision" : 0,
+	"image_tcp_z_m" : 0.0,
+	"interrupted" : false,
+	"log_directory" : "/home/ti5robot/T170Clean/debug_picture/calibration/8589277127",
+	"nominal_tcp" : 
+	[
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0
+	],
+	"ok" : true,
+	"phase" : "ended",
+	"plane_z_m" : 0.0,
+	"reference_coverage" : 0,
+	"reference_fit_residual" : 0.0,
+	"reference_pose_tcp" : 
+	[
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0,
+		0.0
+	],
+	"reference_px" : 
+	[
+		0.0,
+		0.0
+	],
+	"reference_tcp_above_plane_mm" : 0.0,
+	"row" : 0,
+	"row_group" : 1,
+	"saved_file" : "",
+	"session" : "8589277127",
+	"step" : 0,
+	"validated" : false,
+	"verify_done" : false,
+	"width" : 0
+}
