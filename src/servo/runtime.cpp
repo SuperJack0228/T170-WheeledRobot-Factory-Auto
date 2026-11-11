@@ -106,11 +106,17 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     if (!trace_writer().start(t170::logging::file("visual_servo").string())) {
         std::cerr << "[servo] 无法创建调试日志，取消视觉动作\n"; return false;
     }
-    const Config cfg=g_move_cfg.visual_servo;
-    const auto &profile=profile_for(cfg,hand,cls);
+    Config cfg=g_move_cfg.visual_servo;
+    auto profile=profile_for(cfg,hand,cls);
     bool tray_placement=false;
     { std::lock_guard<std::mutex> lock(slots[hand].mutex);
       tray_placement=cls==1 && cfg.tray_place.enabled && slots[hand].staged_tray_target.valid;
+    }
+    if(tray_placement) {
+        if(const auto *calibrated=calibrated_placement_for(cfg,hand,goal(3),goal(4))) {
+            profile=calibrated->image;cfg.profiles[2+hand]=profile;
+        } else if(!cfg.calibrated_placement[hand].empty())
+            std::cerr<<"[servo] 本放置倾角尚未示教，沿用move_box_params中的显式参考，不套用其他倾角标定\n";
     }
     Eigen::Matrix4d eye=Eigen::Matrix4d::Identity();
     if (profile.mode=="geometry" || tray_placement) {

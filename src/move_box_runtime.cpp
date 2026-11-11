@@ -208,6 +208,11 @@ namespace move_box
                                                            : kGraspDetectClassId;
     }
 
+    Eigen::Matrix4d placement_calibration_frame() {
+        Eigen::Matrix<double,1,6> zero=Eigen::Matrix<double,1,6>::Zero();
+        return TR(arm_goal_in_real_waist_frame(zero));
+    }
+
     bool tray2_place_active()
     {
         return g_tray_hole_task == TrayHoleTask::PlaceEmpty;
@@ -540,10 +545,12 @@ namespace move_box
             rpy_l.rx * rad, rpy_l.ry * rad, rpy_l.rz * rad;
         const XyzOffsetM row_off_r = active_row_offset(true, row_r);
         const XyzOffsetM row_off_l = active_row_offset(false, row_l);
-        goal_last_r(0) += active_goal_x_offset(true) + row_off_r.x;
-        goal_last_l(0) += active_goal_x_offset(false) + row_off_l.x;
-        goal_last_r(1) += active_goal_y_offset(true) + row_off_r.y;
-        goal_last_l(1) += active_goal_y_offset(false) + row_off_l.y;
+        const auto *cal_r=place?wrist_servo::calibrated_placement_for(g_move_cfg.visual_servo,1,rpy_r.rx*rad,rpy_r.ry*rad):nullptr;
+        const auto *cal_l=place?wrist_servo::calibrated_placement_for(g_move_cfg.visual_servo,0,rpy_l.rx*rad,rpy_l.ry*rad):nullptr;
+        goal_last_r(0) += (cal_r?cal_r->head_xy_bias.x():active_goal_x_offset(true)) + (cal_r?0.0:row_off_r.x);
+        goal_last_l(0) += (cal_l?cal_l->head_xy_bias.x():active_goal_x_offset(false)) + (cal_l?0.0:row_off_l.x);
+        goal_last_r(1) += (cal_r?cal_r->head_xy_bias.y():active_goal_y_offset(true)) + (cal_r?0.0:row_off_r.y);
+        goal_last_l(1) += (cal_l?cal_l->head_xy_bias.y():active_goal_y_offset(false)) + (cal_l?0.0:row_off_l.y);
         goal_last_r(2) += row_off_r.z;
         goal_last_l(2) += row_off_l.z;
         clamp_cart_goal_z(goal_last_r, "fill_goal_last_from_head_assign(右手, 物体上方)");

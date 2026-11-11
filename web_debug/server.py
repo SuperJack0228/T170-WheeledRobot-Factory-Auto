@@ -34,8 +34,8 @@ import yaml
 
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
-WEB_API_VERSION = 4
-UI_VERSION = "1.1.15"
+WEB_API_VERSION = 5
+UI_VERSION = "1.2.0"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from t170_common.paths import load_paths
@@ -770,6 +770,21 @@ class DebugHandler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/") and not self._require_auth(parsed):
             return
         try:
+            if parsed.path == "/api/calibration":
+                self._json(HTTPStatus.OK, self.state.robot_request({"cmd": "calibration_status"}, timeout=3.0))
+                return
+            if parsed.path == "/api/calibration/image":
+                query = parse_qs(parsed.query)
+                current = self.state.robot_request({"cmd": "calibration_status"}, timeout=3.0)
+                head = query.get("kind", ["hand"])[0] == "head"
+                if (query.get("session", [""])[0] != current.get("session") or
+                        query.get("revision", [""])[0] != str(current.get("head_image_revision" if head else "image_revision"))):
+                    self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "标定图像已更新"})
+                    return
+                path = (PROJECT_ROOT / str(current.get("head_image_path" if head else "image_path", ""))).resolve()
+                path.relative_to((PICTURE_ROOT / "calibration").resolve())
+                self._send(HTTPStatus.OK, path.read_bytes(), "image/jpeg")
+                return
             if parsed.path == "/api/health":
                 online = self.state.robot_online()
                 process = self.state.robot_process
@@ -952,7 +967,8 @@ class DebugHandler(BaseHTTPRequestHandler):
                 return
 
     def _serve_static(self, url_path: str) -> None:
-        relative = "index.html" if url_path in {"", "/"} else url_path.lstrip("/")
+        relative = ("index.html" if url_path in {"", "/"} else
+                    "calibration.html" if url_path in {"/calibration", "/calibration/"} else url_path.lstrip("/"))
         candidate = (STATIC_ROOT / relative).resolve()
         try:
             candidate.relative_to(STATIC_ROOT.resolve())
@@ -973,6 +989,30 @@ class DebugHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = self._parse_json()
+            if parsed.path == "/api/calibration":
+                allowed = {"reset_stop", "begin", "prepare", "grip", "detect", "move_d", "jog", "observe", "record_coarse", "lower_c",
+                           "record_aligned", "release", "capture", "reference", "verify_return", "verify_run",
+                           "verify_release", "confirm_verified", "save", "end"}
+                action = str(payload.get("action", ""))
+                if action not in allowed:
+                    self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "未知标定步骤"})
+                    return
+                if not self.state.begin_action("标定: " + action):
+                    self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "已有动作在执行，请等待"})
+                    return
+                try:
+                    payload["cmd"] = "placement_calibration"
+                    result = self.state.robot_request(payload)
+                finally:
+                    self.state.end_action()
+                self.state.log("标定 " + action + ": " + json.dumps(result, ensure_ascii=False), "calibration")
+                self._json(HTTPStatus.OK, result)
+                return
+            if parsed.path in {"/api/fields", "/api/config"}:
+                calibration = self.state.robot_request({"cmd": "calibration_status"}, timeout=3.0)
+                if calibration.get("active"):
+                    self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "标定期间禁止修改正式配置"})
+                    return
             if parsed.path == "/api/command":
                 cmd = str(payload.get("cmd", ""))
                 if cmd not in ALLOWED_COMMANDS:

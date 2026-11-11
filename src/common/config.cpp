@@ -1,6 +1,8 @@
 #include "t170/common/config.h"
 
 #include "t170/common/paths.h"
+#include "t170/calibration/identity.h"
+#include <filesystem>
 
 #include <yaml-cpp/yaml.h>
 
@@ -771,12 +773,60 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
     MoveBoxConfig candidate;
     if (!parse_move_box_config(path, candidate, err))
         return false;
+    try {
+        const auto directory=std::filesystem::path(path).parent_path();
+        const auto catalog=directory/"calibration"/"placement";
+        std::vector<std::filesystem::path> files;
+        if(std::filesystem::exists(catalog)) for(const auto &e:std::filesystem::directory_iterator(catalog)) {
+            const auto name=e.path().filename().string();
+            if(e.is_regular_file() && (name=="left.yaml" || name=="right.yaml" ||
+                name.rfind("left_tilt_",0)==0 || name.rfind("right_tilt_",0)==0) && e.path().extension()==".yaml" && name.find("_before_")==std::string::npos)
+                files.push_back(e.path());
+        }
+        std::sort(files.begin(),files.end());
+        for(const auto &file:files) {
+            const auto hand_node=YAML::LoadFile(file.string());
+            const int hand=hand_node["hand"].as<int>();
+            if(hand<0 || hand>1) throw std::runtime_error("标定手臂编号无效");
+            const std::string side=hand ? "right" : "left";
+            const auto n=YAML::LoadFile(file.string());
+            const auto cameras=YAML::LoadFile((directory/"realsense_cameras.yaml").string());
+            if(n["schema_version"].as<int>()!=1 || !n["validated"].as<bool>() ||
+               n["hand"].as<int>()!=hand || n["robot_id"].as<std::string>()!=candidate.chassis.sequence_number ||
+               n["camera_serial"].as<std::string>()!=cameras["realsense"][side+"_hand"]["serial"].as<std::string>() ||
+               n["width"].as<int>()!=candidate.cameras.width || n["height"].as<int>()!=candidate.cameras.height ||
+               n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")) ||
+               n["model_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/"Robot_Arm_Model.yaml"))
+                throw std::runtime_error("放置标定与机器人/相机/工具模型不匹配: "+file.string());
+            wrist_servo::PlacementCalibrationProfile entry;entry.image=candidate.visual_servo.profiles[2+hand];
+            auto &profile=entry.image;profile.knots.clear();
+            profile.mode="geometry"; profile.plane_relative_reference=true;
+            profile.reference_tcp_above_plane_m=n["reference_tcp_above_plane_m"].as<double>();
+            profile.reference_px<<n["reference_px"][0].as<double>(),n["reference_px"][1].as<double>();
+            profile.constrain_reference_tilt=true;
+            profile.reference_roll_rad=n["reference_pose_tcp"][3].as<double>();
+            profile.reference_pitch_rad=n["reference_pose_tcp"][4].as<double>();
+            const double x=n["compensation_xy_upright_m"][0].as<double>();
+            const double y=n["compensation_xy_upright_m"][1].as<double>();
+            if(!std::isfinite(x) || !std::isfinite(y) || std::hypot(x,y)>.10 ||
+               !profile.reference_px.allFinite() || profile.reference_px.x()<0 || profile.reference_px.y()<0 ||
+               profile.reference_px.x()>=candidate.cameras.width || profile.reference_px.y()>=candidate.cameras.height)
+                throw std::runtime_error("放置标定数据越界: "+file.string());
+            entry.head_xy_bias<<x,y;
+            if(!std::isfinite(profile.reference_tcp_above_plane_m) || !std::isfinite(profile.reference_roll_rad) ||
+               !std::isfinite(profile.reference_pitch_rad)) throw std::runtime_error("标定高度/姿态无效");
+            candidate.visual_servo.calibrated_placement[hand].push_back(entry);
+        }
+        if(!wrist_servo::validate_config(candidate.visual_servo,err)) return false;
+    } catch(const std::exception &ex) {err=ex.what();return false;}
     cfg = std::move(candidate);
     return true;
 }
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[calibration] placement tilt families left="<<cfg.visual_servo.calibrated_placement[0].size()
+             <<" right="<<cfg.visual_servo.calibrated_placement[1].size()<<" (unmatched tilts use explicit YAML fallback)\n";
     std::cout<<"[cfg] retract_motion fixed_ready_motor_rad right="<<cfg.retract_motion.ready_right
              <<" left="<<cfg.retract_motion.ready_left<<" limits_v_a_j="
              <<cfg.retract_motion.max_joint_velocity_rad_s<<","<<cfg.retract_motion.max_joint_acceleration_rad_s2

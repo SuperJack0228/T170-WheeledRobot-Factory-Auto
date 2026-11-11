@@ -19,6 +19,10 @@ void profile(const YAML::Node &n, ImageProfile &p) {
     if (!n) return;
     read(n,"mode",p.mode); read(n,"reference_height_m",p.reference_height_m);
     read(n,"feature_z_offset_m",p.feature_z_offset_m);
+    read(n,"plane_relative_reference",p.plane_relative_reference);
+    read(n,"constrain_reference_tilt",p.constrain_reference_tilt);
+    read(n,"reference_roll_rad",p.reference_roll_rad); read(n,"reference_pitch_rad",p.reference_pitch_rad);
+    read(n,"reference_tcp_above_plane_m",p.reference_tcp_above_plane_m);
     read(n,"min_depth_m",p.min_depth_m); read(n,"max_depth_m",p.max_depth_m);
     if (n["reference_px"]) p.reference_px = vec2(n["reference_px"]);
     if (n["knots"]) {
@@ -229,6 +233,11 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
             out << YAML::Key << "mode" << YAML::Value << p.mode;
             out << YAML::Key << "reference_px" << YAML::Value << YAML::Flow << YAML::BeginSeq
                 << p.reference_px.x() << p.reference_px.y() << YAML::EndSeq;
+            out << YAML::Key << "constrain_reference_tilt" << YAML::Value << p.constrain_reference_tilt;
+            out << YAML::Key << "reference_roll_rad" << YAML::Value << p.reference_roll_rad;
+            out << YAML::Key << "reference_pitch_rad" << YAML::Value << p.reference_pitch_rad;
+            out << YAML::Key << "plane_relative_reference" << YAML::Value << p.plane_relative_reference;
+            out << YAML::Key << "reference_tcp_above_plane_m" << YAML::Value << p.reference_tcp_above_plane_m;
             out << YAML::Key << "reference_height_m" << YAML::Value << p.reference_height_m;
             out << YAML::Key << "feature_z_offset_m" << YAML::Value << p.feature_z_offset_m;
             out << YAML::Key << "min_depth_m" << YAML::Value << p.min_depth_m;

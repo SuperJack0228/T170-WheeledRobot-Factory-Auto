@@ -116,6 +116,8 @@ bool validate_config(const Config &c, std::string &error) {
     }
     for (const auto &p : c.profiles) {
         if ((p.mode != "geometry" && p.mode != "table") || !p.reference_px.allFinite() ||
+            !std::isfinite(p.reference_roll_rad) || !std::isfinite(p.reference_pitch_rad) ||
+            !std::isfinite(p.reference_tcp_above_plane_m) ||
             !std::isfinite(p.reference_height_m) || !std::isfinite(p.feature_z_offset_m) ||
             !positive(p.min_depth_m,"min_depth_m") || !positive(p.max_depth_m,"max_depth_m") ||
             p.min_depth_m >= p.max_depth_m) { error = "invalid image profile"; return false; }
@@ -169,6 +171,8 @@ Mapping map_observation(const ImageProfile &p, const PixelObservation &o, const 
                         double final_z, const Vec3 &origin, const Eigen::Matrix3d &R) {
     Mapping m;
     const double h = s.position.z() - final_z;
+    const double reference_height = p.plane_relative_reference ?
+        p.reference_tcp_above_plane_m + p.feature_z_offset_m : p.reference_height_m;
     if (!o.pixel.allFinite() || !std::isfinite(h)) { m.reason = "nonfinite_pixel_or_height"; return m; }
     if (p.mode == "table") {
         if (p.knots.empty() || h < p.knots.front().height_m || h > p.knots.back().height_m) {
@@ -191,12 +195,12 @@ Mapping map_observation(const ImageProfile &p, const PixelObservation &o, const 
         const double xn0 = (p.reference_px.x() - o.cx) / o.fx;
         const double yn0 = (p.reference_px.y() - o.cy) / o.fy;
         const Vec3 ray0(xn0, yn0, 1);
-        const double origin_at_reference_z = origin.z() - (h - p.reference_height_m);
+        const double origin_at_reference_z = origin.z() - (h - reference_height);
         const double denominator0 = (R * ray0).z();
         const double feature_z = final_z + p.feature_z_offset_m;
         if (std::abs(denominator0) < 0.15) { m.reason = "reference_ray_parallel_to_plane"; return m; }
         const double reference_depth = (feature_z - origin_at_reference_z) / denominator0;
-        const Vec3 desired = reference_depth * ray0 - R.transpose() * Vec3(0, 0, h - p.reference_height_m);
+        const Vec3 desired = reference_depth * ray0 - R.transpose() * Vec3(0, 0, h - reference_height);
         if (!(reference_depth >= p.min_depth_m && reference_depth <= p.max_depth_m) ||
             !(desired.z() >= p.min_depth_m && desired.z() <= p.max_depth_m)) {
             m.reason = "reference_depth_outside_range"; return m;
@@ -529,5 +533,14 @@ Output Controller::tick(const State &s, double dt) {
     else if(phase_==Phase::Done) out.reason=virtual_place_?"ready_place_locked":
         (relaxed_grasp_?"ready_grasp_tolerance":"ready_precise");
     return out;
+}
+const PlacementCalibrationProfile *calibrated_placement_for(const Config &c,int hand,double roll,double pitch) {
+    if(hand<0 || hand>1) return nullptr;
+    const PlacementCalibrationProfile *best=nullptr;double distance=.035;
+    for(const auto &p:c.calibrated_placement[hand]) {
+        const double d=std::max(std::abs(roll-p.image.reference_roll_rad),std::abs(pitch-p.image.reference_pitch_rad));
+        if(d<distance) {distance=d;best=&p;}
+    }
+    return best;
 }
 } // namespace wrist_servo

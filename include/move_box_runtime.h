@@ -27,6 +27,8 @@ inline constexpr DebugVisualizeFlag kDebugVisualize{};
 
 namespace move_box
 {
+// Same upright-to-current-base transform used by production tray motion.
+Eigen::Matrix4d placement_calibration_frame();
 
 struct HeadAssignState
 {

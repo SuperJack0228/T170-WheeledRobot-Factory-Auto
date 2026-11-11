@@ -156,8 +156,12 @@ void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
     probe.pixel=context.profile.reference_px;
     probe.fx=frame.K[0]; probe.fy=frame.K[4]; probe.cx=frame.K[2]; probe.cy=frame.K[5];
     probe.width=frame.width; probe.height=frame.height;
+    auto display_profile=context.profile;
+    const auto hole_xy=context.tray_target.board.hole(target_row,target_col);
+    display_profile.feature_z_offset_m=(context.tray_target.base_from_tray*
+        Eigen::Vector4d(hole_xy.x(),hole_xy.y(),0,1)).z()-context.final_z;
     const auto mapped=wrist_servo::map_observation(
-        context.profile,probe,capture,context.final_z,
+        display_profile,probe,capture,context.final_z,
         base_camera.block<3,1>(0,3),base_camera.block<3,3>(0,0));
     const Eigen::Vector2d ref=mapped.valid?mapped.reference_px:context.profile.reference_px;
     if(std::isfinite(ref.x()) && std::isfinite(ref.y()) && inside(static_cast<float>(ref.x()),static_cast<float>(ref.y()))) {
