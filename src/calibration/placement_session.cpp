@@ -381,6 +381,8 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
                 // Draft applies only to this call; production configuration is unchanged until save.
                 const auto backup=g_move_cfg;
                 struct Restore {MoveBoxConfig saved;~Restore(){g_move_cfg=std::move(saved);}} restore{backup};
+                // Verification must exercise neighbor-hole servo even if production has it disabled.
+                g_move_cfg.visual_servo.tray_place.enabled=true;
                 g_move_cfg.visual_servo.calibrated_placement[s.hand].clear();
                 auto &p=g_move_cfg.visual_servo.profiles[2+s.hand];p.mode="geometry";p.reference_px=s.reference;
                 p.plane_relative_reference=true;p.reference_tcp_above_plane_m=s.reference_above_plane;p.constrain_reference_tilt=false;

@@ -37,6 +37,8 @@ python3 web_debug/server.py --host 0.0.0.0 --port 8080
 
 页面只改变显示，不因翻页自动运动。回看旧步骤不能执行旧动作。每条请求带会话与唯一编号，重复请求返回原结果；并发动作直接拒绝，不排队后突然执行。
 
+持件回放验证会在本次调用期间临时启用料盘邻孔伺服，结束或异常退出时恢复原配置；不会改写现场配置文件里的 `visual_servo.tray_place.enabled` 开关。保存标定数据也不会自动打开该生产开关。
+
 ## 数据和生产接入
 
 - 正式数据：`$T170_CONFIG_DIR/calibration/placement/<left|right>_tilt_<roll>_<pitch>.yaml`。未配置目录覆盖时在工程 `config/calibration/placement/`。
