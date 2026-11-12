@@ -1,6 +1,7 @@
 #include "t170/motion/pose_solver.h"
 #include "t170/control/visual_servo.h"
 #include "t170/common/servo_trace.h"
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -398,9 +399,65 @@ void test_place_observation_recovery() {
 
 }
 
+void test_belt_goal_latch() {
+    Config cfg; Controller c; State s=state_at(1,Vec3(0,0,.12));
+    c.reset(cfg,s,0,.03,s.position.head<2>(),true,false,true);
+    std::string reason;
+    const double xs[10]={.020,.008,.018,.012,.022,.015,.011,.016,.019,.014};
+    double best=.020;
+    for(int i=0;i<10;++i) {
+        best=std::min(best,xs[i]);
+        Mapping m; m.valid=true; m.remaining_m << xs[i],0;
+        const double t=1+i*.08;
+        check(c.observe(observation_at(t,i+1),s,m,t+.05,reason),"belt sample rejected");
+        near(c.goal_xy().x(),best,1e-12,"belt goal must stay on the smallest error");
+        check(c.goal_latched()==(i==9),"belt grasp latches after ten samples");
+    }
+    check(c.belt_samples()==10,"ten belt samples recorded");
+    Mapping jumped; jumped.valid=true; jumped.remaining_m << .001,0;
+    check(!c.observe(observation_at(2.0,11),s,jumped,2.05,reason),"sample after the cap is ignored");
+    check(reason=="goal_latched","ignored frame reports the latch");
+    const Vec2 locked=c.goal_xy();
+    bool done=false;
+    for(int i=0;i<1600 && !done;++i) {
+        s.time_s+=.01;
+        const auto out=c.tick(s,.01);
+        check(out.phase!=Phase::Failed,"latched belt goal must not expire with the camera");
+        if(out.phase==Phase::Done) done=true;
+        s.position=out.reference;
+        s.velocity=Vec3(out.velocity_xy.x(),out.velocity_xy.y(),out.velocity_z);
+    }
+    check(done,"latest belt target finishes the grasp");
+    check((s.position.head<2>()-locked).norm()<=cfg.grasp_xy_accept_m,"finish stays on the latest target");
+
+    Controller lost; State t=state_at(1,Vec3(0,0,.12));
+    lost.reset(cfg,t,0,.03,t.position.head<2>(),true,false,true);
+    const double partial[5]={.020,.012,.018,.009,.015};
+    for(int i=0;i<5;++i) {
+        Mapping m; m.valid=true; m.remaining_m << partial[i],0;
+        const double tcap=1+i*.08;
+        check(lost.observe(observation_at(tcap,i+1),t,m,tcap+.05,reason),"partial belt sample rejected");
+        check(!lost.goal_latched(),"five samples stay open for more frames");
+    }
+    near(lost.goal_xy().x(),.009,1e-12,"partial set keeps the smallest error");
+    const Vec2 kept=lost.goal_xy();
+    t.time_s=1.32;
+    for(int i=0;i<200;++i) {
+        t.time_s+=.01;
+        check(lost.tick(t,.01).phase!=Phase::Failed,"losing the camera after a sample must not fail");
+    }
+    check(lost.goal_latched() && (lost.goal_xy()-kept).norm()<1e-12,"silence keeps the last belt sample");
+
+    Controller blind; State b=state_at(1,Vec3(0,0,.12));
+    blind.reset(cfg,b,0,.03,b.position.head<2>(),true,false,true);
+    b.time_s=3;
+    check(blind.tick(b,.01).phase==Phase::Failed,"no belt sample at all still times out");
+}
+
 int main() {
     try {
         test_mapping(); test_tilted_geometry(); test_history_and_delay(); test_braking_and_loss();
+        test_belt_goal_latch();
         test_commit_evidence(); test_local_pose_solver();
         test_delayed_dual_arm_simulation(); test_trace_and_config();
         test_position_following_and_grasp_tolerance();

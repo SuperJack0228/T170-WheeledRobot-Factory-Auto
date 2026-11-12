@@ -94,11 +94,20 @@ int main(int argc,char **argv) {
     check(!load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),"placement file accepted in grasp catalog");
     g_move_cfg=base;
     const auto expected_r=base.tray2_place.right_row_rpy_deg[1],expected_l=base.tray2_place.left_row_rpy_deg[1];
+    const auto far_r=base.tray2_place.right_row6_rpy_deg,far_l=base.tray2_place.left_row6_rpy_deg;
     for(int row=1;row<=6;++row) for(bool right:{false,true}) {
-        const auto &expected=right?expected_r:expected_l;const auto &actual=tray2_place_rpy_deg_for_row(row,right);
-        check(actual.rx==expected.rx && actual.ry==expected.ry && actual.rz==expected.rz,"placement row retained a different pose");
-        const auto &ready=tray2_place_rpy_deg_for_ready(row,right);
-        check(ready.ry==expected.ry && ready.rz==expected.rz,"placement ready retained a different pose");
+        const auto &expected=row==1?(right?far_r:far_l):(right?expected_r:expected_l);
+        const auto &actual=tray2_place_rpy_deg_for_row(row,right);
+        check(actual.rx==expected.rx && actual.ry==expected.ry && actual.rz==expected.rz,"placement row pose mismatch");
+    }
+    for(bool right:{false,true}) {
+        const auto &far=right?far_r:far_l; const auto &ordinary=right?expected_r:expected_l;
+        const auto &ready_far=tray2_place_rpy_deg_for_ready(6,right);
+        check(ready_far.rx==far.rx && ready_far.ry==far.ry && ready_far.rz==far.rz,"farthest placement ready pose mismatch");
+        for(int ready:{1,2,3}) {
+            const auto &pose=tray2_place_rpy_deg_for_ready(ready,right);
+            check(pose.ry==ordinary.ry && pose.rz==ordinary.rz,"ordinary placement ready pose mismatch");
+        }
     }
     check(grasp_rpy_deg_for_row(1,true).ry==base.head_grasp.right_row6_rpy_deg.ry &&
           grasp_rpy_deg_for_row(5,true).rx==base.head_grasp.right_row_rpy_deg[1].rx,"grasp poses changed");

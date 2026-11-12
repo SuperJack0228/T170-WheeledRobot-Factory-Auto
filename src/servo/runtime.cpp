@@ -476,8 +476,9 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     const bool staged_place=context.target_class==1 && context.tray_target.valid &&
         cfg.tray_place.enabled && cfg.tray_place.observe_at_B;
     orch::TimingSpan descent_timer("servo_descent");descent_timer.fail();
+    const bool belt_grasp=context.target_class==0 && context.task_tag.rfind("belt",0)==0;
     Controller controller; controller.reset(cfg,state,goal(2),speed,goal.head<2>().transpose(),
-        context.target_class==0,staged_place);
+        context.target_class==0,staged_place,belt_grasp);
     Joints command=last_command, joint_velocity=(last_command-previous_command)/0.005;
     Vec3 reference=arm_tcp_from_joints(arm,command).head<3>().transpose();
     const Vec3 incoming_velocity=(reference-arm_tcp_from_joints(arm,previous_command).head<3>().transpose())/0.005;
@@ -494,6 +495,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     int result=-31;
     bool recovery_logged=false;
     bool extension_logged=false;
+    bool belt_latched_logged=false;
     while(true) {
         const auto cycle=std::chrono::steady_clock::now();
         if(hardware_abort_requested()) { result=-4; break; }
@@ -589,8 +591,14 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         }
         if(staged_place && output.phase==Phase::Commit && previous_phase!=Phase::Commit)
             task_event(hand,"place_XY_locked","lower_to_fixed_C_without_new_vision");
-        if(output.phase==Phase::Commit || output.phase==Phase::Settling || output.phase==Phase::Done || output.phase==Phase::Failed) {
+        if((belt_grasp && controller.goal_latched()) || output.phase==Phase::Commit || output.phase==Phase::Settling ||
+           output.phase==Phase::Done || output.phase==Phase::Failed) {
             std::lock_guard<std::mutex> lock(slot.mutex); slot.context.vision_required=false;
+        }
+        if(belt_grasp && controller.goal_latched() && !belt_latched_logged) {
+            belt_latched_logged=true;
+            std::cout << "[servo] hand=" << hand << " 传送带锁定误差最小的目标，共"
+                      << controller.belt_samples() << "帧，停止后续检测\n";
         }
         if(output.phase==Phase::Failed) group_failed.store(true);
         const double step_dt=std::min(dt,cfg.max_tick_gap_s);

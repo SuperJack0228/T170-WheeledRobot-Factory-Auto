@@ -538,8 +538,7 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                 cfg.tray2_place.right_row6_rpy_deg = cfg.tray2_place.left_row6_rpy_deg;
                 cfg.tray2_place.right_row6_rpy_deg.rz = -cfg.tray2_place.left_row6_rpy_deg.rz;
             }
-            // One placement orientation per hand, shared by every row and calibration.
-            // Old row lists remain readable; their fifth-row (ready2) entry is the fallback.
+            // Ordinary rows share one orientation. The farthest row keeps row1_rpy_deg when present.
             auto left=cfg.tray2_place.left_row_rpy_deg[1],right=cfg.tray2_place.right_row_rpy_deg[1];
             if(t2["rpy_deg"]) {
                 if(!read_one_rpy(t2["rpy_deg"]["left"],left) || !read_one_rpy(t2["rpy_deg"]["right"],right))
@@ -550,7 +549,10 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
             for(int group=0;group<3;++group) {
                 cfg.tray2_place.left_row_rpy_deg[group]=left;cfg.tray2_place.right_row_rpy_deg[group]=right;
             }
-            cfg.tray2_place.left_row6_rpy_deg=left;cfg.tray2_place.right_row6_rpy_deg=right;
+            const bool keep_far=t2["row1_rpy_deg"] && (t2["row1_rpy_deg"]["left"] || t2["row1_rpy_deg"].IsSequence());
+            if(!keep_far) {
+                cfg.tray2_place.left_row6_rpy_deg=left;cfg.tray2_place.right_row6_rpy_deg=right;
+            }
             if (t2["offset"])
             {
                 const YAML::Node off = t2["offset"];
