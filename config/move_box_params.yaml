@@ -380,10 +380,10 @@ conveyor2:
     left:  { x: -0.06, y: -0.015, z: -0.005 }
   grasp_rpy_deg:
     left: [0, 50, -45]
-    right: [0, 50, 60]
+    right: [0, 40, 60]
   grasp_offset:
     left: { x: 0.072, y: 0.109, z: -0.01 }
-    right: { x: -0.020, y: 0.13, z: -0.01 }
+    right: { x: -0.020, y: 0.13, z: -0.015 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
@@ -507,7 +507,9 @@ visual_servo:
   solver_rotation_tolerance_rad: 0.00872664626
   max_solver_failures: 5
   stable_frames: 2
+  # 料盘手相机。传送带抓取用下面的 belt_min_confidence。
   min_confidence: 0.45
+  belt_min_confidence: 0.25
   acquire_radius_px: 180
   track_radius_px: 100
   pair_clearance_m: 0.10
