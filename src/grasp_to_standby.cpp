@@ -90,7 +90,8 @@ GraspToStandbyResult run_grasp_to_standby(
     bool holding_l,
     const std::function<void(bool did_r, bool did_l)> &on_place_retract,
     bool hover_track,
-    bool allow_waist_rise)
+    bool allow_waist_rise,
+    const std::function<void()> &on_waist_up)
 {
     GraspToStandbyResult out;
     g_grasp_adaptive_rpy = adaptive_approach_rpy;
@@ -410,13 +411,15 @@ GraspToStandbyResult run_grasp_to_standby(
             std::cerr<<"[retract] 竖直抬升失败 右="<<lift_r<<" 左="<<lift_l<<" 腰="<<waist_rc<<'\n';
             retract_failed=true;return false;
         }
+        if(waist_started && on_waist_up) on_waist_up();
         if(!want_r && !want_l) return true;
         if(on_place_retract) on_place_retract(grasped_r,grasped_l);
-        // Both arms may stop here. Plan the turn/return only after the lift and waist ended.
+        // Joint return can overlap chassis departure. Place keeps the old joint limits.
         auto back = [&](bool right,int &rc) {
             try {
                 const auto &motion=g_move_cfg.retract_motion;
-                rc=arm_return_after_lift(right?arm_r:arm_l,right?motion.ready_right:motion.ready_left);
+                rc=arm_return_after_lift(right?arm_r:arm_l,right?motion.ready_right:motion.ready_left,
+                                         {},-1,place?1.0:2.0);
             } catch(const std::exception &ex) {std::cerr<<"[retract] 返回异常: "<<ex.what()<<'\n';rc=-32;}
         };
         std::thread right_return;

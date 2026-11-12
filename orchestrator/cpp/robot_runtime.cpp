@@ -3659,11 +3659,13 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
         }
     } chassis_join{chassis_th};
     const std::string next_station = g_move_cfg.chassis.belt_station;
-    auto start_chassis = [&]() {
+    auto start_chassis = [&](const char *why) {
         if (chassis_started)
             return;
         chassis_started = true;
-        std::cout << "[grasp] 收手已完成，底盘立刻去 " << next_station << std::endl;
+        std::cout << "[grasp] " << why << "，底盘立刻去 " << next_station << std::endl;
+        if (g_on_grasp_depart)
+            g_on_grasp_depart();
         chassis_th = std::thread([&]() {
             try
             {
@@ -3714,7 +3716,9 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
             adaptive_approach_rpy,
             clear_tray ? false : holding_r,
             clear_tray ? false : holding_l,
-            {}, false, !clear_tray);
+            {}, false, !clear_tray,
+            depart_after_grasp ? std::function<void()>{[&]{ start_chassis("腰已站起"); }}
+                               : std::function<void()>{});
 
         if (g_load_parts_seen < 0 && r.zone_count_ok)
         {
@@ -3884,9 +3888,7 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy =
     if ((holding_r || holding_l) && depart_after_grasp)
     {
         board_step("去传送带一");
-        start_chassis();
-        if (g_on_grasp_depart)
-            g_on_grasp_depart();
+        start_chassis("收手已完成");
         std::cout << "[grasp] 底盘已出发，腰直接到传送带拍照前伸，不再先收回再伸出"
                   << std::endl;
         waist_rotate_deg(0.0, 30.0);

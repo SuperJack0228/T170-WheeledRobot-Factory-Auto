@@ -58,7 +58,7 @@ head_grasp:
   goal_x_offset: 0.04
   goal_y_offset: 0.00
   # 右手单独孔位偏置（基座系，不取反）。缺省时 x/z 跟左手、y 取左手相反。
-  right_grasp_z_offset_m: 0.0
+  right_grasp_z_offset_m: -0.005
   right_goal_x_offset: 0.04
   right_goal_y_offset: 0.01
   # 仅离机器人最近一排（from_robot=6）。叠在左右手 z_offset 上。向上为正，夹不到改负。
@@ -167,7 +167,7 @@ tray2_place:
     right: { x: 0.040, y: 0.01, z: -0.008 }
   nearest_row_z_offset_m: 0.0
   # 远三排腰前伸，相对 home 的 x。只用于料盘二放置，不改料盘一的 waist.far_row_forward_m。
-  far_row_forward_m: 0.20
+  far_row_forward_m: 0.22
   # true：下面按行的 XYZ 叠在整盘 offset 上。手相机伺服关掉时用这套逐行偏置。
   use_row_offset: true
   # 从料盘一抓取偏置抄来。第 1 项=最远一行，第 6 项=最近一行。
@@ -314,7 +314,7 @@ conveyor:
   # 抓完回到 grasp_tcp（专用，不再用放置 tcp）。
   # 抓取点 = 码原点 + R_识别 × 该手 grasp_offset。识别系 +X 前 +Y 左 +Z 上，不再乘腰 Rz。
   grasp_rpy_deg:
-    left: [0, 50, -20]
+    left: [0, 50, -30]
     right: [0, 50, 50]
   grasp_offset:
     left: { x: 0.083, y: 0.11, z: 0.01 }
@@ -384,10 +384,10 @@ conveyor2:
     left:  { x: -0.06, y: -0.015, z: -0.005 }
   grasp_rpy_deg:
     left: [0, 50, -45]
-    right: [0, 40, 60]
+    right: [0, 50, 60]
   grasp_offset:
     left: { x: 0.072, y: 0.109, z: -0.01 }
-    right: { x: -0.020, y: 0.13, z: -0.015 }
+    right: { x: -0.020, y: 0.135, z: -0.015 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
