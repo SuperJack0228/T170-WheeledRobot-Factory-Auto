@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -167,6 +168,8 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
         slot.context.desired_rotation=TR(goal).block<3,3>(0,0);
         slot.context.final_z=goal(2); slot.context.target_class=cls; slot.context.profile=profile;
         slot.context.task_tag=tag?tag:"descent";
+        if(cls==0 && tag && std::strncmp(tag,"belt",4)==0)
+            cfg.min_confidence=cfg.belt_min_confidence;
         slot.context.nominal_xy=goal.head<2>().transpose();
         slot.context.config=cfg;
         if(cls==1) slot.context.tray_target=slot.staged_tray_target;

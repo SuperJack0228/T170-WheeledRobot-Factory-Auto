@@ -110,6 +110,8 @@ struct Config {
     int max_solver_failures = 5;
     int stable_frames = 2;
     double min_confidence = 0.45;
+    // Conveyor grasp only. Tray grasp and place keep min_confidence.
+    double belt_min_confidence = 0.25;
     double acquire_radius_px = 180.0;
     double track_radius_px = 100.0;
     double pair_clearance_m = 0.10;
