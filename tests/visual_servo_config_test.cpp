@@ -97,6 +97,12 @@ int main(int argc,char **argv) {
             wrist_servo::load_config(override_yaml,override_config);
             require(override_config.tray_place.enabled==enabled,"tray placement switch override ignored");
         }
+        require(c.belt2_circle.enabled && c.belt2_circle.radius_m==.0135,"measured outer radius not loaded");
+        require(c.min_confidence==root["visual_servo"]["min_confidence"].as<double>() &&
+                c.belt_min_confidence==root["visual_servo"]["belt_min_confidence"].as<double>(),
+                "merged tray/belt confidence thresholds were not loaded independently");
+        auto invalid_circle=c;invalid_circle.belt2_circle.min_coverage_bins=1;
+        require(!wrist_servo::validate_config(invalid_circle,config_error),"unsupported short-arc fallback enabled");
         require(c.belt_grasp_enabled==root["visual_servo"]["belt_grasp_enabled"].as<bool>() &&
                 c.belt_place_enabled==root["visual_servo"]["belt_place_enabled"].as<bool>(),
                 "belt grasp/place servo switches differ from YAML");
@@ -117,6 +123,10 @@ int main(int argc,char **argv) {
         require(wrist_servo::write_config_snapshot(c,snapshot,error),"snapshot written");
         wrist_servo::Config replay;
         wrist_servo::load_config(YAML::LoadFile(snapshot)["visual_servo"],replay);
+        require(replay.belt_min_confidence==c.belt_min_confidence && replay.min_confidence==c.min_confidence,
+                "merged confidence thresholds lost in snapshot");
+        require(replay.belt2_circle.enabled==c.belt2_circle.enabled && replay.belt2_circle.radius_m==c.belt2_circle.radius_m &&
+                replay.belt2_circle.max_time_ms==c.belt2_circle.max_time_ms,"circle configuration lost in snapshot");
         require(replay.tray_place.enabled==c.tray_place.enabled &&
                 replay.tray_place.board_config==c.tray_place.board_config &&
                 replay.tray_place.association_gate_m==c.tray_place.association_gate_m,"tray vision snapshot roundtrip");

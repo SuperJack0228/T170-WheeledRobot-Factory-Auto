@@ -49,6 +49,8 @@ struct PixelObservation {
     std::string tray_stage;
     double tray_undistort_ms=0,tray_acquisition_ms=0,tray_prepare_ms=0,tray_roi_ms=0,tray_partial_ms=0,tray_fit_ms=0;
     int tray_partial_calls=0,tray_pruned_neighbors=0;
+    double geometry_radius_m=0,geometry_residual_m=0,geometry_ms=0,saturated_fraction=0;
+    int geometry_coverage_bins=0,geometry_inliers=0;
     std::string vision_source="yolo";
 };
 

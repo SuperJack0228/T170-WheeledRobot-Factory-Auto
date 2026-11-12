@@ -124,6 +124,24 @@ int main() {
         std::cerr<<"runtime FAIL: belt reference stayed armed after one session\n";return 1;
     }
     end_session(0,false);prepare_group();
+    g_move_cfg.visual_servo.belt2_circle.enabled=true;
+    stage_belt_grasp_reference(0,true,false);
+    if(!begin_session(left,scope_goal,0,"belt_grasp/AP2/grasp") || !observation_context(0,scoped) || scoped.belt_circle_fallback ||
+       scoped.config.min_confidence!=g_move_cfg.visual_servo.belt_min_confidence) {
+        std::cerr<<"runtime FAIL: belt one armed circle fallback\n";return 1;
+    }
+    end_session(0,false);prepare_group();
+    stage_belt_grasp_reference(0,true,true);
+    if(!begin_session(left,scope_goal,0,"belt2_grasp/AP3/grasp") || !observation_context(0,scoped) || !scoped.belt_circle_fallback ||
+       scoped.config.min_confidence!=g_move_cfg.visual_servo.belt_min_confidence) {
+        std::cerr<<"runtime FAIL: belt two did not arm its circle fallback\n";return 1;
+    }
+    end_session(0,false);prepare_group();
+    if(!begin_session(left,scope_goal,0) || !observation_context(0,scoped) || scoped.belt_circle_fallback ||
+       scoped.config.min_confidence!=g_move_cfg.visual_servo.min_confidence) {
+        std::cerr<<"runtime FAIL: belt circle fallback leaked into next task\n";return 1;
+    }
+    end_session(0,false);prepare_group();
     Vec2 targets[2]; Joints starts[2];
     Matrix<double,1,6> goals[2];
     prepare_group();

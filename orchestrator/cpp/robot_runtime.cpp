@@ -2887,7 +2887,7 @@ static int go_belt_grasp_attempt(
         } clear_belt_reference;
         if(belt_grasp_servo) {
             clear_belt_reference.hand=is_right?1:0;
-            wrist_servo::stage_belt_grasp_reference(clear_belt_reference.hand,true);
+            wrist_servo::stage_belt_grasp_reference(clear_belt_reference.hand,true,std::string(name)=="belt2_grasp");
         }
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps
@@ -3218,6 +3218,8 @@ int go_belt_grasp(
         const int rc = go_belt_grasp_attempt(
             attempt == 0 ? from_place : true, c, station, tag, hand, on_grasped,
             attempt == 0 ? photo_settle : true, depart_after_right, on_lift, empty_mask);
+        timing_event("grasp_attempt",name,rc==0 && empty_mask==0?"success":"failed",station,
+                     {{"attempt",double(attempt+1)},{"code",double(rc)},{"empty_mask",double(empty_mask)}});
         if (rc != 0)
         {
             g_tray2_place_prep_done = false;
@@ -3242,6 +3244,7 @@ int go_belt_grasp(
         if (kind == 1 && !stood_retry)
         {
             stood_retry = true;
+            timing_event("retry",name,"retrying","empty grasp; standing part still present",{{"attempt",double(attempt+2)}});
             board_note("warn", std::string(name) + " " + who +
                                    "空抓后再拍仍是立件，在抓取窗口内再抓一次");
             if (only_hand < 0 && empty_mask == kEmptyLeft)
@@ -5679,6 +5682,7 @@ static int confirm_belt_place_not_fallen(
 bool dispatch_report_ex(RobotClient &client, int code, const char *zh)
 {
     const bool retry = client.report_exception(code);
+    timing_event("recovery","dispatch_resolution",retry?"resolved":"unresolved",zh?zh:"",{{"code",double(code)}});
     std::cout << "[dispatch] 上报异常 " << code << " " << (zh ? zh : "")
               << (retry ? "，调度已解决，不再申请，再拍一次\n" : "，调度未解决，原地待命\n");
     board_error(zh ? zh : "");
@@ -5692,6 +5696,7 @@ bool dispatch_belt_vision_again(RobotClient &client, int &vision_retry, const ch
     if (vision_retry > 0)
     {
         --vision_retry;
+        timing_event("retry","belt_perception","retrying",what?what:"");
         std::cerr << "[dispatch] " << name << " 视觉失败，再拍一次\n";
         board_note("warn", std::string(name) + " 视觉失败，再拍一次");
         board_activity(std::string(name) + "：再拍一次");
@@ -6989,6 +6994,7 @@ static int run_dispatch_mode_body()
             rc = dispatch_transfer(client);
         else
             rc = dispatch_unload(client);
+        timing_event("mission_execution",current,rc==0?"success":"failed","algorithm return code",{{"code",double(rc)}});
         if (rc == -4 || hardware_abort_requested())
         {
             board_mission_end(false, "已中止");

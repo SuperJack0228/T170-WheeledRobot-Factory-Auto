@@ -1,4 +1,5 @@
 #include "t170/vision/pipeline.h"
+#include "t170/common/task_timing.h"
 
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/python_bridge.h"
@@ -189,7 +190,8 @@ HeadTrayPerception perceive_tray_head(
     RealSenseCameraBackend cam(cameras);
     BridgeDlEngine dl(bridge);
     BridgePoseSolver pose(bridge);
-    return perceive_tray(cam, dl, pose, opts);
+    orch::TimingSpan timer("head_tray_perception");timer.fail();
+    auto result=perceive_tray(cam,dl,pose,opts);timer.set_ok(result.tray.ok);return result;
 }
 
 HeadBeltPerception perceive_belt_head(
@@ -201,6 +203,7 @@ HeadBeltPerception perceive_belt_head(
     const double *grasp_offset_right,
     bool parallel_yolo)
 {
+    orch::TimingSpan timer("head_belt_perception");timer.fail();
     RealSenseCameraBackend cam(cameras);
     BridgePoseSolver pose(bridge);
     BridgeDlEngine dl(bridge);
@@ -220,7 +223,8 @@ HeadBeltPerception perceive_belt_head(
         out.belt.message = "传送带引擎未就绪";
         return out;
     }
-    return perceive_belt(cam, pose, opts, parallel_yolo ? &dl : nullptr);
+    auto result=perceive_belt(cam,pose,opts,parallel_yolo?&dl:nullptr);
+    timer.set_ok(result.frame.ok && result.belt.ok && (!parallel_yolo || (result.yolo_ran && result.yolo.ok)));return result;
 }
 
 } // namespace vision

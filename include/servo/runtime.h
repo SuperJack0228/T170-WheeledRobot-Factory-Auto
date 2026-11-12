@@ -23,7 +23,7 @@ void stage_tray_target(int hand,const TrayTarget &target);
 void stage_tray_grasp(int hand,double feature_plane_z);
 // Belt grasp may reuse the tray-grasp reference pixel and its taught height.
 // The tray XY compensation stays on the tray goal. Consumed by the next session.
-void stage_belt_grasp_reference(int hand,bool enable);
+void stage_belt_grasp_reference(int hand,bool enable,bool conveyor2=false);
 // Measured state interpolated at the frame timestamp; never command extrapolation.
 
 int run_descent(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal,

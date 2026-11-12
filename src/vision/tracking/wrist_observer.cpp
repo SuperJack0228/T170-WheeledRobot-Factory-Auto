@@ -3,6 +3,7 @@
 #include "t170/vision/wrist_observer.h"
 #include "t170/vision/servo_observer_port.h"
 #include "t170/vision/tray_localizer.h"
+#include "t170/vision/belt_circle.h"
 #include "t170/vision/debug.h"
 #include "t170/common/abort_query.h"
 #include "t170/vision/python_bridge.h"
@@ -37,13 +38,13 @@ wrist_servo::TrayLocalizer tray_localizers[2];
 std::uint64_t tray_sessions[2]{}; // exclusively owned by the observation worker
 
 // At most one pending frame per hand. Disk latency never blocks the observer.
-class PlaceImageWriter {
+class DebugImageWriter {
     struct Item {std::filesystem::path path;cv::Mat overlay,raw;std::string metadata;};
     std::mutex mutex_;std::condition_variable wake_;bool stop_=false;
     std::array<std::optional<Item>,2> pending_;
     std::thread worker_;
 public:
-    PlaceImageWriter():worker_([this] {
+    DebugImageWriter():worker_([this] {
         for(;;) {
             std::optional<Item> item;
             {
@@ -60,15 +61,14 @@ public:
                 const auto raw_path=item->path.parent_path().parent_path()/"original"/slot/
                     (item->path.stem().string()+".png");
                 std::filesystem::create_directories(raw_path.parent_path(),ec);
-                if(!cv::imwrite(item->path.string(),item->overlay) ||
-                   !cv::imwrite(raw_path.string(),item->raw))
-                    std::cerr<<"[tray_debug] image write failed\n";
+                if(!cv::imwrite(item->path.string(),item->overlay)) std::cerr<<"[vision_debug] overlay write failed\n";
+                if(!item->raw.empty() && !cv::imwrite(raw_path.string(),item->raw)) std::cerr<<"[vision_debug] raw write failed\n";
                 std::ofstream meta(item->path.string()+".yaml");meta<<item->metadata;
                 if(!meta) std::cerr<<"[tray_debug] metadata write failed\n";
             } catch(const std::exception &ex) {std::cerr<<"[tray_debug] "<<ex.what()<<'\n';}
         }
     }) {}
-    ~PlaceImageWriter() {{std::lock_guard<std::mutex> lock(mutex_);stop_=true;}wake_.notify_all();worker_.join();}
+    ~DebugImageWriter() {{std::lock_guard<std::mutex> lock(mutex_);stop_=true;}wake_.notify_all();worker_.join();}
     void put(int hand,const std::filesystem::path &path,cv::Mat overlay,cv::Mat raw,std::string metadata) {
         {std::lock_guard<std::mutex> lock(mutex_);pending_[hand]=Item{path,std::move(overlay),std::move(raw),std::move(metadata)};}
         wake_.notify_one();
@@ -171,7 +171,7 @@ void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
         cv::putText(canvas,"ref "+std::to_string(cvRound(ref.x()))+","+std::to_string(cvRound(ref.y())),
                     mark+cv::Point(12,-12),cv::FONT_HERSHEY_SIMPLEX,0.5,cv::Scalar(255,0,0),1,cv::LINE_AA);
     }
-    static PlaceImageWriter writer;writer.put(hand,path,std::move(canvas),std::move(raw),metadata.str());
+    static DebugImageWriter writer;writer.put(hand,path,std::move(canvas),std::move(raw),metadata.str());
 }
 
 void rotate_left(CameraFrameData &f,int hand) {
@@ -313,7 +313,7 @@ void observe(int hand) {
     catch(const std::exception &ex) { result.ok=false; result.message=ex.what(); }
     obs.completed_s=wrist_servo::monotonic_seconds();
     obs.infer_ms=(obs.completed_s-infer_start)*1000;
-    if(!result.ok) { wrist_servo::observation_event(hand,context.session,"inference_failed",obs); return; }
+    if(!result.ok) { wrist_servo::observation_event(hand,context.session,"inference_failed",obs); if(!context.belt_circle_fallback)return; }
     if(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
         wrist_servo::observation_event(hand,context.session,"frame_expired_before_association",obs); return;
     }
@@ -345,10 +345,46 @@ void observe(int hand) {
             w.pixel=obs.pixel; w.locked=true;
         }
     }
-    if(cfg.tray_place.save_debug_images) {
+    PoseTargetResult circle_target;
+    if(!best && context.belt_circle_fallback) {
+        wrist_servo::observation_event(hand,context.session,"circle_attempt",obs);
+        Eigen::Matrix4d base_camera;wrist_servo::State capture;
+        if(wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera,&capture)) {
+            auto geometric_profile=context.profile;
+            geometric_profile.feature_z_offset_m=cfg.belt2_circle.feature_above_final_m;
+            const auto predicted=wrist_servo::map_observation(geometric_profile,obs,capture,context.final_z,
+                base_camera.block<3,1>(0,3),base_camera.block<3,3>(0,0));
+            if(predicted.valid) {
+                const auto expected=predicted.reference_px+predicted.jacobian*(capture.position.head<2>()-context.nominal_xy);
+                const auto circle=vision::locate_belt_circle(frame,base_camera,
+                    context.final_z+cfg.belt2_circle.feature_above_final_m,expected,cfg.belt2_circle);
+                obs.vision_source="belt_circle";obs.geometry_radius_m=circle.radius_m;
+                obs.geometry_residual_m=circle.residual_m;obs.geometry_coverage_bins=circle.coverage_bins;
+                obs.geometry_inliers=circle.inliers;obs.geometry_ms=circle.elapsed_ms;
+                obs.saturated_fraction=circle.saturated_fraction;
+                if(circle.valid) {
+                    circle_target.box_u=circle.pixel.x();circle_target.box_v=circle.pixel.y();
+                    circle_target.class_id=0;circle_target.confidence=.75;
+                    best=&circle_target;obs.pixel=circle.pixel;obs.confidence=.75;
+                    std::lock_guard<std::mutex> lock(watch_mutex);
+                    if(watches[hand].session!=context.session || watches[hand].generation!=generation)return;
+                    watches[hand].pixel=obs.pixel;watches[hand].locked=true;
+                }
+                wrist_servo::observation_event(hand,context.session,circle.reason.c_str(),obs);
+            } else wrist_servo::observation_event(hand,context.session,"circle_prediction_invalid",obs);
+        } else wrist_servo::observation_event(hand,context.session,"circle_capture_state_unavailable",obs);
+        obs.completed_s=wrist_servo::monotonic_seconds();obs.infer_ms=(obs.completed_s-infer_start)*1000;
+        if(obs.completed_s-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
+            wrist_servo::observation_event(hand,context.session,"circle_frame_expired",obs);return;
+        }
+    }
+    // Submit first: debug JPEG encoding and storage must not age a usable observation.
+    if(best && !wrist_servo::submit_observation(hand,obs))
+        wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
+    if(cfg.tray_place.save_debug_images || save_raw.load()) {
         static double last_grasp_image_s[2]{};
         const double now_s=wrist_servo::monotonic_seconds();
-        if(now_s-last_grasp_image_s[hand]>=0.25) {
+        if(now_s-last_grasp_image_s[hand]>=0.25 || save_raw.load()) {
             last_grasp_image_s[hand]=now_s;
             cv::Mat canvas(frame.height,frame.width,CV_8UC3,
                            const_cast<unsigned char*>(frame.color_bgr.data()));
@@ -361,18 +397,26 @@ void observe(int hand) {
             if(best) cv::circle(canvas,cv::Point(cvRound(best->box_u),cvRound(best->box_v)),
                                 6,cv::Scalar(0,255,0),-1,cv::LINE_AA);
             cv::rectangle(canvas,cv::Point(0,0),cv::Point(canvas.cols,28),cv::Scalar(0,0,0),cv::FILLED);
-            cv::putText(canvas,std::string(hand==1?"right ":"left ")+(best?"grasp":"grasp missing"),
+            cv::putText(canvas,std::string(hand==1?"right ":"left ")+(best?obs.vision_source:"grasp missing"),
                         cv::Point(8,20),cv::FONT_HERSHEY_SIMPLEX,0.55,cv::Scalar(255,255,255),1,cv::LINE_AA);
-            cv::imwrite(vision_debug_record_path(hand==1?"right":"left","servo"),canvas);
+            std::ostringstream metadata;metadata<<std::setprecision(17);
+            metadata<<"hand: "<<hand<<"\nsession: "<<context.session<<"\nframe: "<<obs.frame
+                    <<"\nvision_source: "<<obs.vision_source<<"\ncapture_s: "<<obs.capture_s<<"\nfinal_z: "<<context.final_z
+                    <<"\nfeature_above_final_m: "<<context.profile.feature_z_offset_m
+                    <<"\ngeometry_radius_m: "<<obs.geometry_radius_m<<"\ngeometry_residual_m: "<<obs.geometry_residual_m
+                    <<"\ngeometry_coverage_bins: "<<obs.geometry_coverage_bins<<"\ngeometry_ms: "<<obs.geometry_ms<<"\nK: [";
+            for(int i=0;i<9;++i)metadata<<(i?", ":"")<<frame.K[i];metadata<<"]\ndist: [";
+            for(int i=0;i<5;++i)metadata<<(i?", ":"")<<frame.dist[i];metadata<<"]\n";
+            Eigen::Matrix4d bc;
+            if(wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,bc)) {
+                metadata<<"base_from_camera:\n";for(int r=0;r<4;++r){metadata<<"  - [";for(int c=0;c<4;++c)metadata<<(c?", ":"")<<bc(r,c);metadata<<"]\n";}
+            }
+            cv::Mat raw=save_raw.load()?cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()).clone():cv::Mat();
+            static DebugImageWriter writer;
+            writer.put(hand,vision_debug_record_path(hand==1?"right":"left","servo"),std::move(canvas),std::move(raw),metadata.str());
         }
     }
-    if(!best) { wrist_servo::observation_event(hand,context.session,"locked_target_missing",obs); return; }
-    if(!wrist_servo::submit_observation(hand,obs))
-        wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
-    if(save_raw.load() && context.descending) {
-        cv::imwrite(vision_debug_record_path(hand==1?"original/right":"original/left","servo_raw"),
-                    cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()));
-    }
+    if(!best) wrist_servo::observation_event(hand,context.session,"locked_target_missing",obs);
 }
 
 void loop() {

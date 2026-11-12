@@ -45,6 +45,14 @@ void load_config(const YAML::Node &n, Config &c) {
     read(n,"belt_place_enabled",c.belt_place_enabled);
     read(n,"belt_grasp_enabled",c.belt_grasp_enabled);
     read(n,"require_dual",c.require_dual);
+    const auto circle=n?n["belt2_circle"]:YAML::Node();
+#define CIRCLE_READ(field) read(circle,#field,c.belt2_circle.field)
+    CIRCLE_READ(enabled);CIRCLE_READ(radius_m);CIRCLE_READ(min_radius_m);CIRCLE_READ(max_radius_m);
+    CIRCLE_READ(radius_tolerance);CIRCLE_READ(feature_above_final_m);CIRCLE_READ(search_radius_m);
+    CIRCLE_READ(residual_m);CIRCLE_READ(pixels_per_m);CIRCLE_READ(max_time_ms);
+    CIRCLE_READ(min_coverage_bins);CIRCLE_READ(min_inliers);CIRCLE_READ(ransac_trials);CIRCLE_READ(saturation_threshold);
+#undef CIRCLE_READ
+
     const auto placement=n ? n["tray_place"] : YAML::Node();
 #define PLACE_READ(field) read(placement,#field,c.tray_place.field)
     PLACE_READ(enabled); PLACE_READ(board_config); PLACE_READ(association_gate_m);
@@ -204,6 +212,14 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         out << YAML::Key << "min_confidence" << YAML::Value << c.min_confidence;
         out << YAML::Key << "belt_min_confidence" << YAML::Value << c.belt_min_confidence;
         out << YAML::Key << "acquire_radius_px" << YAML::Value << c.acquire_radius_px;
+        out << YAML::Key << "belt2_circle" << YAML::Value << YAML::BeginMap;
+#define CIRCLE_WRITE(field) out << YAML::Key << #field << YAML::Value << c.belt2_circle.field
+        CIRCLE_WRITE(enabled);CIRCLE_WRITE(radius_m);CIRCLE_WRITE(min_radius_m);CIRCLE_WRITE(max_radius_m);
+        CIRCLE_WRITE(radius_tolerance);CIRCLE_WRITE(feature_above_final_m);CIRCLE_WRITE(search_radius_m);
+        CIRCLE_WRITE(residual_m);CIRCLE_WRITE(pixels_per_m);CIRCLE_WRITE(max_time_ms);
+        CIRCLE_WRITE(min_coverage_bins);CIRCLE_WRITE(min_inliers);CIRCLE_WRITE(ransac_trials);CIRCLE_WRITE(saturation_threshold);
+#undef CIRCLE_WRITE
+        out << YAML::EndMap;
         out << YAML::Key << "track_radius_px" << YAML::Value << c.track_radius_px;
         out << YAML::Key << "pair_clearance_m" << YAML::Value << c.pair_clearance_m;
         out << YAML::Key << "log_period_s" << YAML::Value << c.log_period_s;

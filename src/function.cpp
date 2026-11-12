@@ -12,6 +12,7 @@
 #include "servo/runtime.h"
 #include "servo/trajectory.h"
 #include "t170/common/paths.h"
+#include "t170/common/task_timing.h"
 #include "t170/common/servo_trace.h"
 #include "t170/vision/realsense_camera.h"
 
@@ -3317,7 +3318,7 @@ int arm_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
     if(!std::isfinite(lift_m) || lift_m<=0 || !std::isfinite(speed) || speed<=0) return -10;
     arm_discard_line_then_line_plan(hand);
     std::lock_guard<std::mutex> owner(g_staged_motion_mu[hand]);
-    return play_seeded_vertical_lift(arm, lift_m, speed, on_progress);
+    orch::TimingSpan timer("arm_vertical_lift");const int code=play_seeded_vertical_lift(arm,lift_m,speed,on_progress);timer.set_ok(code==0);return code;
 }
 
 int arm_return_after_lift(Robot_Arm &arm,const Eigen::Matrix<double,1,7> &ready,
@@ -3327,7 +3328,7 @@ int arm_return_after_lift(Robot_Arm &arm,const Eigen::Matrix<double,1,7> &ready,
     if(!ready.allFinite()) return -10;
     arm_discard_line_then_line_plan(arm_hand_side(arm));
     std::lock_guard<std::mutex> owner(g_staged_motion_mu[arm_hand_side(arm)]);
-    return play_joint_return(arm,ready,on_started,notify_at,limit_scale);
+    orch::TimingSpan timer("arm_return");const int code=play_joint_return(arm,ready,on_started,notify_at,limit_scale);timer.set_ok(code==0);return code;
 }
 
 void arm_discard_line_then_line_plan(int hand)

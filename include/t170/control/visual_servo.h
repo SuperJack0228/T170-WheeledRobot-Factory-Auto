@@ -9,6 +9,7 @@
 #include <vector>
 #include "t170/common/servo_types.h"
 #include "t170/common/tray_types.h"
+#include "t170/common/belt_circle_config.h"
 
 namespace YAML { class Node; }
 
@@ -43,6 +44,7 @@ struct PlacementCalibrationProfile {
 struct Config {
     std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_placement;
     std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_tray_grasp;
+    vision::BeltCircleConfig belt2_circle;
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
     bool belt_grasp_enabled = false; // keep belt grasp on traditional offset until accepted
     bool require_dual = false; // set by the dedicated dual-hand validation command

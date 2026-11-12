@@ -1,3 +1,4 @@
+#include "t170/common/task_timing.h"
 #include "t170/hardware/gripper.hpp"
 
 #include "Ti5_Device_SDK.hpp"
@@ -402,8 +403,8 @@ bool Gripper::closeBothAndWait(double ratio, double tolerance_rad,
 }
 
 bool Gripper::openAndWait(Side side, double tolerance_rad, std::chrono::milliseconds timeout) {
-  open(side);
-  return waitForRad(side, config_.open_position_rad, tolerance_rad, timeout);
+  orch::TimingSpan timer("gripper_open");open(side);
+  const bool ok=waitForRad(side,config_.open_position_rad,tolerance_rad,timeout);timer.set_ok(ok);return ok;
 }
 
 bool Gripper::closeAndWait(Side side, double ratio, double tolerance_rad,
@@ -532,7 +533,12 @@ bool Gripper::holdCurrent(Side side) {
 
 GraspFeedback Gripper::graspAndWait(Side side, double max_torque_nm,
                                     std::chrono::milliseconds timeout) {
-  return graspSideUntil(side, max_torque_nm, 0.2, timeout);
+  orch::TimingSpan timer("gripper_close");
+  const auto result=graspSideUntil(side,max_torque_nm,0.2,timeout);timer.set_ok(result.result!=GraspResult::Timeout);
+  orch::timing_event("gripper_feedback",side==Side::Right?"right":"left",
+      result.result==GraspResult::TorqueLimit?"contact":result.result==GraspResult::PositionReached?"empty":"timeout",
+      "motor feedback; not independent physical verification",{{"q_rad",result.position_rad},{"torque_nm",result.torque}});
+  return result;
 }
 
 GraspFeedback Gripper::graspSoftSideUntil(Side side, double max_torque_nm,

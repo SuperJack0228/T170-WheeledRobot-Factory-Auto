@@ -1,40 +1,35 @@
 #pragma once
-
-/** 调度两层计时：L1 粗步骤（对齐 board_step），L2 细相位（nav/apply/…）。
- *  T170_TIMING=0 关闭（默认）；1 只 L1；2 L1+L2。
- *  结果追加写入 logs/timing_YYYYMMDD_HHMMSS.jsonl。
- */
-
 #include <cstdint>
+#include <map>
 #include <string>
 
-namespace orch
-{
-
-/** 0=关，1=L1，2=L1+L2。读环境变量 T170_TIMING，非法值当 0。 */
+namespace orch {
+// Dispatch structured telemetry, enabled by default. T170_TIMING=0/1/2:
+// off / mission+step / mission+step+spans. No per-control-tick disk writes.
 int timing_level();
-
+struct TimingContext {std::string run_id,mission_id,mission,step;};
+TimingContext timing_context();
+void timing_run_begin(const std::string &robot,const std::string &server);
+void timing_run_end(int code);
 void timing_mission_begin(const std::string &mission);
-void timing_mission_end(bool ok, const std::string &result);
-/** 结束上一段 L1 步骤并开始新步骤；step 空则只结束。 */
+void timing_mission_end(bool ok,const std::string &result);
 void timing_step(const std::string &step);
-
-/** L2 细相位。level<2 时构造/析构为空操作。 */
-class TimingSpan
-{
+void timing_event(const std::string &type,const std::string &name,const std::string &status,
+                  const std::string &detail="",const std::map<std::string,double> &metrics={},
+                  const TimingContext *context=nullptr);
+class TimingSpan {
 public:
     explicit TimingSpan(const char *phase);
     ~TimingSpan();
-    TimingSpan(const TimingSpan &) = delete;
-    TimingSpan &operator=(const TimingSpan &) = delete;
+    TimingSpan(const TimingSpan &)=delete;
+    TimingSpan &operator=(const TimingSpan &)=delete;
     void set_ok(bool ok);
-    void fail() { set_ok(false); }
-
+    void fail(){set_ok(false);}
 private:
-    bool active_ = false;
-    bool ok_ = true;
+    bool active_=false,ok_=true;
+    int exceptions_=0;
     std::string phase_;
-    std::int64_t t0_ms_ = 0;
+    TimingContext context_;
+    std::int64_t t0_ms_=0;
 };
-
-} // namespace orch
+}
