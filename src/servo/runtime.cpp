@@ -42,7 +42,6 @@ struct Runtime {
     TrayTarget staged_tray_target;
     std::optional<double> staged_tray_grasp_plane;
     bool staged_belt_grasp_reference = false;
-    bool staged_conveyor2=false;
 };
 Runtime slots[2];
 std::atomic<std::uint64_t> next_session{1};
@@ -117,13 +116,12 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     Config cfg=g_move_cfg.visual_servo;
     auto profile=profile_for(cfg,hand,cls);
     bool tray_placement=false;
-    bool belt_reference=false,conveyor2=false;
+    bool belt_reference=false;
     std::optional<double> tray_grasp_plane;
     { std::lock_guard<std::mutex> lock(slots[hand].mutex);
       tray_placement=cls==1 && cfg.tray_place.enabled && slots[hand].staged_tray_target.valid;
       tray_grasp_plane=slots[hand].staged_tray_grasp_plane;
       belt_reference=slots[hand].staged_belt_grasp_reference;
-      conveyor2=slots[hand].staged_conveyor2;slots[hand].staged_conveyor2=false;
       slots[hand].staged_tray_grasp_plane.reset();
       slots[hand].staged_belt_grasp_reference=false;
     }
@@ -147,9 +145,6 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
         } else if(!cfg.calibrated_placement[hand].empty())
             std::cerr<<"[servo] 本放置倾角尚未示教，沿用move_box_params中的显式参考，不套用其他倾角标定\n";
     }
-    if(cls==0 && belt_reference && conveyor2 && cfg.belt2_circle.enabled) {
-        profile.feature_z_offset_m=cfg.belt2_circle.feature_above_final_m;cfg.profiles[hand]=profile;
-    }
     Eigen::Matrix4d eye=Eigen::Matrix4d::Identity();
     if (profile.mode=="geometry" || tray_placement) {
         std::array<double,16> raw; std::string error;
@@ -163,7 +158,6 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
         slot.telemetry=orch::timing_context();slot.metrics.clear();slot.began_s=monotonic_seconds();
         slot.context={}; slot.history.clear(); slot.pending.reset();slot.pending_view.reset(); slot.succeeded=false;
         slot.failure_reason.clear();
-        slot.context.belt_circle_fallback=cls==0 && belt_reference && conveyor2 && cfg.belt2_circle.enabled;
         slot.context.active=true; slot.context.session=next_session.fetch_add(1);
         slot.context.desired_rotation=TR(goal).block<3,3>(0,0);
         slot.context.final_z=goal(2); slot.context.target_class=cls; slot.context.profile=profile;
@@ -256,11 +250,10 @@ void stage_tray_grasp(int hand,double feature_plane_z) {
     if(std::isfinite(feature_plane_z)) slots[hand].staged_tray_grasp_plane=feature_plane_z;
     else slots[hand].staged_tray_grasp_plane.reset();
 }
-void stage_belt_grasp_reference(int hand,bool enable,bool conveyor2) {
+void stage_belt_grasp_reference(int hand,bool enable) {
     if(hand<0 || hand>1) return;
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     slots[hand].staged_belt_grasp_reference=enable;
-    slots[hand].staged_conveyor2=enable && conveyor2;
 }
 bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera,State *capture_state) {
     if(hand<0 || hand>1) return false;
@@ -476,9 +469,8 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     const bool staged_place=context.target_class==1 && context.tray_target.valid &&
         cfg.tray_place.enabled && cfg.tray_place.observe_at_B;
     orch::TimingSpan descent_timer("servo_descent");descent_timer.fail();
-    const bool belt_grasp=context.target_class==0 && context.task_tag.rfind("belt",0)==0;
     Controller controller; controller.reset(cfg,state,goal(2),speed,goal.head<2>().transpose(),
-        context.target_class==0,staged_place,belt_grasp);
+        context.target_class==0,staged_place);
     Joints command=last_command, joint_velocity=(last_command-previous_command)/0.005;
     Vec3 reference=arm_tcp_from_joints(arm,command).head<3>().transpose();
     const Vec3 incoming_velocity=(reference-arm_tcp_from_joints(arm,previous_command).head<3>().transpose())/0.005;
@@ -495,7 +487,6 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     int result=-31;
     bool recovery_logged=false;
     bool extension_logged=false;
-    bool belt_latched_logged=false;
     while(true) {
         const auto cycle=std::chrono::steady_clock::now();
         if(hardware_abort_requested()) { result=-4; break; }
@@ -569,7 +560,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
             }
             {std::lock_guard<std::mutex> lock(slot.mutex);
              ++slot.metrics[accepted?"accepted_frames":"rejected_frames"];
-             if(accepted)++slot.metrics[observation->vision_source=="belt_circle"?"circle_accepted_frames":observation->vision_source=="yolo"?"yolo_accepted_frames":"tray_accepted_frames"];
+             if(accepted)++slot.metrics[observation->vision_source=="yolo"?"yolo_accepted_frames":"tray_accepted_frames"];
              slot.metrics["inference_ms_sum"]+=observation->infer_ms;
             }
             if(accepted) { last_observation=*observation; last_map=map; }
@@ -591,14 +582,9 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         }
         if(staged_place && output.phase==Phase::Commit && previous_phase!=Phase::Commit)
             task_event(hand,"place_XY_locked","lower_to_fixed_C_without_new_vision");
-        if((belt_grasp && controller.goal_latched()) || output.phase==Phase::Commit || output.phase==Phase::Settling ||
+        if(output.phase==Phase::Commit || output.phase==Phase::Settling ||
            output.phase==Phase::Done || output.phase==Phase::Failed) {
             std::lock_guard<std::mutex> lock(slot.mutex); slot.context.vision_required=false;
-        }
-        if(belt_grasp && controller.goal_latched() && !belt_latched_logged) {
-            belt_latched_logged=true;
-            std::cout << "[servo] hand=" << hand << " 传送带锁定误差最小的目标，共"
-                      << controller.belt_samples() << "帧，停止后续检测\n";
         }
         if(output.phase==Phase::Failed) group_failed.store(true);
         const double step_dt=std::min(dt,cfg.max_tick_gap_s);

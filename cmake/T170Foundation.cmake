@@ -54,7 +54,7 @@ function(t170_add_observation_support)
     target_include_directories(t170_servo_trace PUBLIC ${PROJECT_SOURCE_DIR}/include)
     target_link_libraries(t170_servo_trace PUBLIC t170::common Threads::Threads)
     add_library(t170_tray_geometry STATIC src/vision/geometry/tray_localizer.cpp src/vision/geometry/calibration_hole.cpp
-        src/vision/geometry/tray_registration.cpp src/vision/geometry/belt_circle.cpp)
+        src/vision/geometry/tray_registration.cpp)
     add_library(t170::tray_geometry ALIAS t170_tray_geometry)
     target_include_directories(t170_tray_geometry PUBLIC ${PROJECT_SOURCE_DIR}/include ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(t170_tray_geometry PUBLIC t170::common ${OpenCV_LIBS})

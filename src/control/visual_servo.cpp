@@ -13,7 +13,6 @@ const ImageProfile &profile_for(const Config &c, int hand, int cls) {
 }
 
 bool validate_config(const Config &c, std::string &error) {
-    if(!vision::validate_belt_circle(c.belt2_circle,error)) return false;
     const auto &p=c.tray_place;
     if(!std::isfinite(p.observe_timeout_s) || p.observe_timeout_s<=0 || p.observe_timeout_s>=c.task_timeout_s ||
        !std::isfinite(p.affine_min_scale) || !std::isfinite(p.affine_max_scale) ||
@@ -40,6 +39,10 @@ bool validate_config(const Config &c, std::string &error) {
        !std::isfinite(p.global_ambiguity_margin) || p.global_ambiguity_margin<=0 ||
        p.global_max_hypotheses<100 || p.global_max_hypotheses>10000 || p.reacquire_after_frames<1 || p.reacquire_after_frames>10 ||
        p.partial_min_bins<6 || p.partial_min_bins>p.min_coverage_bins || p.single_neighbor_max_frames<0 || p.single_neighbor_max_frames>8 ||
+       p.partial_acquire_min_neighbors<4 || p.partial_acquire_min_neighbors>12 ||
+       p.partial_acquire_confirm_frames<2 || p.partial_acquire_confirm_frames>8 ||
+       !std::isfinite(p.partial_acquire_stability_m) || p.partial_acquire_stability_m<=0 ||
+       p.partial_acquire_stability_m>.010 ||
        !std::isfinite(p.single_neighbor_step_m) || p.single_neighbor_step_m<=0 || p.single_neighbor_step_m>.010 ||
        !std::isfinite(p.single_neighbor_budget_m) || p.single_neighbor_budget_m<p.single_neighbor_step_m || p.single_neighbor_budget_m>.020 ||
        !std::isfinite(p.single_neighbor_max_age_s) || p.single_neighbor_max_age_s<=0 || p.single_neighbor_max_age_s>1 ||
@@ -247,11 +250,9 @@ double braking_speed(double d, double a, double delay) {
 }
 
 void Controller::reset(const Config &c, const State &s, double z, double speed,
-                       const Vec2 &nominal_xy, bool grasp, bool observe_at_B, bool latch_first_goal) {
+                       const Vec2 &nominal_xy, bool grasp, bool observe_at_B) {
     cfg_ = c; initial_xy_ = nominal_xy; goal_xy_ = nominal_xy;
     reference_=s.position; grasp_=grasp; relaxed_grasp_=false; continue_without_vision_=false;
-    latch_goal_=latch_first_goal && grasp && !observe_at_B; goal_latched_=false; belt_samples_=0;
-    best_error_=std::numeric_limits<double>::infinity();
     acquire_floor_z_=std::max(z+c.commit_height_m,s.position.z()-c.acquire_descent_m);
     precision_floor_since_=finish_since_=-1; close_confirmations_=0;
     velocity_ = s.velocity.head<2>(); vz_ = s.velocity.z();
@@ -272,7 +273,6 @@ void Controller::reset(const Config &c, const State &s, double z, double speed,
 bool Controller::observe(const PixelObservation &o, const State &s, const Mapping &m,
                          double now, std::string &reason) {
     if (phase_ == Phase::Commit || phase_ == Phase::Settling || phase_ == Phase::Done || phase_ == Phase::Failed) { reason = "session_not_accepting"; return false; }
-    if (goal_latched_) { reason = "goal_latched"; return false; }
     if(staged_place_ && !o.virtual_target) {reason="place_requires_neighbor_target";return false;}
     if (!m.valid) { reason = m.reason; return false; }
     if (o.frame <= last_frame_ || o.capture_s <= last_capture_) { reason = "duplicate_or_out_of_order"; return false; }
@@ -287,8 +287,7 @@ bool Controller::observe(const PixelObservation &o, const State &s, const Mappin
     if (!candidate.allFinite() || (candidate - initial_xy_).norm() > cfg_.max_correction_m) {
         reason = "outside_correction_envelope"; return false;
     }
-    // Belt grasp replaces the goal with each new sample. The 12 mm gate stays for tray tracking.
-    if (!latch_goal_ && have_goal_ && (candidate - goal_xy_).norm() > cfg_.innovation_gate_m) {
+    if (have_goal_ && (candidate - goal_xy_).norm() > cfg_.innovation_gate_m) {
         reason = "goal_innovation_rejected"; return false;
     }
     const double age_limit=staged_place_?cfg_.tray_place.target_hold_s:cfg_.max_observation_age_s;
@@ -303,13 +302,7 @@ bool Controller::observe(const PixelObservation &o, const State &s, const Mappin
     const bool stable=!have_goal_ || (candidate-goal_xy_).norm()<=cfg_.place_goal_stability_m;
     stable_goal_frames_=stable ? stable_goal_frames_+1 : 0;
     virtual_place_=!grasp_ && o.virtual_target;
-    if(latch_goal_) {
-        const double err=m.remaining_m.norm();
-        if(!(err>best_error_)) { best_error_=err; goal_xy_=candidate; }
-        if(++belt_samples_>=10) goal_latched_=true;
-    } else {
-        goal_xy_ = have_goal_ ? Vec2(goal_xy_ + cfg_.goal_filter_alpha * (candidate - goal_xy_)) : candidate;
-    }
+    goal_xy_ = have_goal_ ? Vec2(goal_xy_ + cfg_.goal_filter_alpha * (candidate - goal_xy_)) : candidate;
     have_goal_ = true; last_capture_ = o.capture_s; last_frame_ = o.frame;
     last_clock_uncertainty_ = o.clock_uncertainty_s;
     // Visual evidence is independent of noisy finite-difference motor speed.
@@ -334,7 +327,7 @@ void Controller::fail(const std::string &reason) {
 }
 
 Output Controller::tick(const State &s, double dt) {
-    Output out; out.age_s=goal_latched_?0.0:(have_goal_?s.time_s-last_capture_:-1);
+    Output out; out.age_s=have_goal_?s.time_s-last_capture_:-1;
     out.confirmations=confirmations_;
     if(!std::isfinite(dt) || dt<=0 || dt>cfg_.max_tick_gap_s ||
        !s.position.allFinite() || !s.velocity.allFinite()) fail("invalid_state_or_tick_gap");
@@ -363,15 +356,10 @@ Output Controller::tick(const State &s, double dt) {
         }
         if(s.time_s>place_deadline_s_) fail("place_B_alignment_timeout");
     }
-    if(!goal_latched_ && !frozen && phase_!=Phase::Done && phase_!=Phase::Failed &&
+    if(!frozen && phase_!=Phase::Done && phase_!=Phase::Failed &&
        s.time_s-(have_goal_?last_capture_:start_time_)>vision_budget) {
-        // A belt sample already in hand is the grasp target. Silence is not a failure.
-        if(latch_goal_ && have_goal_) goal_latched_=true;
-        else fail(have_goal_?"target_lost_timeout":"no_valid_observation_timeout");
+        fail(have_goal_?"target_lost_timeout":"no_valid_observation_timeout");
     }
-    if(latch_goal_ && have_goal_ && !goal_latched_ && belt_samples_>=3 &&
-       s.time_s-last_capture_>0.8) goal_latched_=true;
-    if(goal_latched_) out.age_s=0;
     // The nominal visual feature plane remains C. This is only a motion clearance.
     const double stop_z=final_z_+(grasp_?cfg_.grasp_height_margin_m:(virtual_place_?cfg_.place_height_margin_m:0.0));
     const double finish_speed=grasp_?cfg_.finish_speed_m_s:(virtual_place_?cfg_.place_finish_speed_m_s:cfg_.settle_speed_m_s);
@@ -380,16 +368,9 @@ Output Controller::tick(const State &s, double dt) {
     out.finish_xy_tolerance_m=accept;
     out.remaining_m=goal_xy_-s.position.head<2>();
     const double distance=out.remaining_m.norm();
-    if(goal_latched_) {
-        if(distance<=cfg_.xy_tolerance_m) confirmations_=std::max(confirmations_,cfg_.stable_frames);
-        else if(distance>1.5*cfg_.xy_tolerance_m) confirmations_=0;
-        const double latch_accept=grasp_?cfg_.grasp_xy_accept_m:cfg_.xy_tolerance_m;
-        if(distance<=latch_accept) close_confirmations_=std::max(close_confirmations_,cfg_.stable_frames);
-        else close_confirmations_=0;
-    }
     const double fresh_limit=staged_place_?cfg_.tray_place.observation_age_s:cfg_.max_observation_age_s;
-    const bool fresh=goal_latched_ || (have_goal_ && out.age_s>=0 &&
-        out.age_s+last_clock_uncertainty_<=fresh_limit);
+    const bool fresh=have_goal_ && out.age_s>=0 &&
+        out.age_s+last_clock_uncertainty_<=fresh_limit;
     const bool static_motion=staged_place_ && have_goal_ && out.age_s>=0 &&
         out.age_s+last_clock_uncertainty_<=cfg_.tray_place.target_hold_s;
     const double usable_dt=(std::isfinite(dt) && dt>0)?std::min(dt,cfg_.max_tick_gap_s):cfg_.period_s;

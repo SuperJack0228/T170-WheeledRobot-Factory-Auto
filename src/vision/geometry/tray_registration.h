@@ -21,6 +21,7 @@ struct Result {
     NeighborGridFit fit;
     int hypotheses=0;
     double margin=0;
+    bool partial_bootstrap=false;
     std::string reason,detail;
 };
 Scene discover(const cv::Mat &undistorted_bgr,const Eigen::Matrix3d &seed,

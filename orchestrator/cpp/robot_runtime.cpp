@@ -2887,7 +2887,7 @@ static int go_belt_grasp_attempt(
         } clear_belt_reference;
         if(belt_grasp_servo) {
             clear_belt_reference.hand=is_right?1:0;
-            wrist_servo::stage_belt_grasp_reference(clear_belt_reference.hand,true,std::string(name)=="belt2_grasp");
+            wrist_servo::stage_belt_grasp_reference(clear_belt_reference.hand,true);
         }
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp " << hand << " " << reach_mps

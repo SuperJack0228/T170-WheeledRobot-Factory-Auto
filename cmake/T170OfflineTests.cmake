@@ -87,9 +87,6 @@
     target_link_libraries(calibration_hole_test PRIVATE t170::tray_geometry)
     add_test(NAME calibration_hole_test COMMAND calibration_hole_test)
 
-    add_executable(belt_circle_test tests/belt_circle_test.cpp)
-    target_link_libraries(belt_circle_test PRIVATE t170::tray_geometry)
-    add_test(NAME belt_circle_test COMMAND belt_circle_test)
     add_executable(dispatch_metrics_emitter tests/dispatch_metrics_emitter.cpp)
     target_link_libraries(dispatch_metrics_emitter PRIVATE t170::common)
     add_test(NAME dispatch_metrics_test COMMAND ${Python3_EXECUTABLE}

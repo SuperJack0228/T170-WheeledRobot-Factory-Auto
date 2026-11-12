@@ -266,7 +266,8 @@ Result acquire(const Scene &scene,const TrayTarget &target,const TrayPlaceVision
             for(const auto &p:grid) consider(linear,scene.rims[i].point-linear*p);
         }
     }
-    struct Refined {Hypothesis h;NeighborGridFit fit;bool eligible;};std::vector<Refined> refined;
+    struct Refined {Hypothesis h;NeighborGridFit fit;bool eligible,partial_bootstrap;int complete;};
+    std::vector<Refined> refined;
     int rejected_fit=0,rejected_background=0,rejected_task=0;
     bool corner_visible=false;
     for(std::size_t i=0;i<scene.edges.size();++i) for(std::size_t j=i+1;j<scene.edges.size();++j)
@@ -287,11 +288,29 @@ Result acquire(const Scene &scene,const TrayTarget &target,const TrayPlaceVision
         auto consensus_cfg=cfg;consensus_cfg.global_match_gate_m=2*cfg.circle_residual_m;
         h=evaluate(fit.transform,scene,grid,whole,consensus_cfg,board.radius_m);
         if(h.outside>0) {++rejected_background;continue;}
-        int complete=0;for(const auto &p:h.pairs) if(!scene.rims[p.rim].partial) ++complete;
-        // A large correction needs redundant evidence. Two partial arcs cannot establish identity.
-        const bool eligible=complete>=2 && ((fit.target-goal).norm()<board.pitch_m*.45 || h.pairs.size()>=4 || corner_visible || executable_target);
+        int complete=0;Eigen::Vector2d mean=Eigen::Vector2d::Zero();
+        for(const auto &p:h.pairs) {
+            if(!scene.rims[p.rim].partial) ++complete;
+            mean+=grid[p.grid];
+        }
+        bool spread=false;
+        if(h.pairs.size()>=static_cast<std::size_t>(cfg.partial_acquire_min_neighbors)) {
+            mean/=h.pairs.size();Eigen::Matrix2d covariance=Eigen::Matrix2d::Zero();
+            for(const auto &p:h.pairs) {
+                const Eigen::Vector2d d=grid[p.grid]-mean;covariance+=d*d.transpose();
+            }
+            const Eigen::JacobiSVD<Eigen::Matrix2d> svd(covariance);
+            spread=svd.singularValues()(0)>board.pitch_m*board.pitch_m*.1 &&
+                   svd.singularValues()(1)>svd.singularValues()(0)*.02;
+        }
+        // Each partial rim already passed the known-radius/outer-edge/arc-coverage
+        // checks in discover(). Redundant noncollinear arcs can replace full rims,
+        // but still face the same identity, executable-target and boundary checks.
+        const bool partial_bootstrap=complete<2 && cfg.partial_rims && spread;
+        const bool eligible=(complete>=2 || partial_bootstrap) &&
+            ((fit.target-goal).norm()<board.pitch_m*.45 || h.pairs.size()>=4 || corner_visible || executable_target);
         // Insufficiently supported alternatives still count as ambiguity evidence.
-        refined.push_back({std::move(h),std::move(fit),eligible});
+        refined.push_back({std::move(h),std::move(fit),eligible,partial_bootstrap,complete});
     }
     const std::string diagnostics="candidates="+std::to_string(scene.rims.size())+" hypotheses="+std::to_string(out.hypotheses)+
         " top="+std::to_string(top.size())+" reject_fit="+std::to_string(rejected_fit)+" reject_background="+std::to_string(rejected_background)+
@@ -304,13 +323,17 @@ Result acquire(const Scene &scene,const TrayTarget &target,const TrayPlaceVision
         out.margin=best.h.score-refined[i].h.score;break;
     }
     std::ostringstream detail;detail<<"candidates="<<scene.rims.size()<<" hypotheses="<<out.hypotheses<<" reject_task_envelope="<<rejected_task
-        <<" boundary_edges="<<scene.edges.size()<<" matches="<<best.h.pairs.size()<<" identity_margin="<<out.margin<<" "<<best.fit.detail;
+        <<" boundary_edges="<<scene.edges.size()<<" matches="<<best.h.pairs.size()
+        <<" complete="<<best.complete<<" partial="<<best.h.pairs.size()-best.complete
+        <<" partial_bootstrap="<<best.partial_bootstrap
+        <<" required_partial_support="<<cfg.partial_acquire_min_neighbors
+        <<" identity_margin="<<out.margin<<" "<<best.fit.detail;
     for(std::size_t i=0;i<std::min<std::size_t>(refined.size(),4);++i)
         detail<<" alternative"<<i<<"_shift_mm="<<1000*(refined[i].fit.target.x()-goal.x())<<":"
               <<1000*(refined[i].fit.target.y()-goal.y())<<"_score="<<refined[i].h.score<<"_support="<<refined[i].h.pairs.size();
     out.detail=detail.str();
     if(out.margin<cfg.global_ambiguity_margin) {out.reason="tray_acquire_ambiguous_grid";return out;}
-    if(!best.eligible) {out.reason="tray_acquire_no_supported_grid";return out;}
-    out.valid=true;out.fit=best.fit;out.reason="ok";return out;
+    if(!best.eligible) {out.reason="tray_acquire_insufficient_support";return out;}
+    out.valid=true;out.fit=best.fit;out.partial_bootstrap=best.partial_bootstrap;out.reason="ok";return out;
 }
 }

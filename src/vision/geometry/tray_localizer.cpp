@@ -232,6 +232,9 @@ struct TrayLocalizer::Impl {
     int cached_width=0,cached_height=0;
     std::vector<int> support;
     int misses=0, acquisition_frames=0, single_frames=0;
+    int partial_confirmations=0;
+    Eigen::Vector2d partial_target=Eigen::Vector2d::Zero();
+    double partial_capture_s=-1;
     double full_capture_s=0,single_travel=0;
 };
 TrayLocalizer::TrayLocalizer():impl_(std::make_unique<Impl>()) {}
@@ -240,6 +243,7 @@ void TrayLocalizer::reset(const TrayTarget &target,const TrayPlaceVisionConfig &
     impl_->target=target; impl_->cfg=cfg; impl_->refined=target.base_from_tray;
     impl_->image_correction.setIdentity();
     impl_->registered=false;impl_->misses=impl_->acquisition_frames=impl_->single_frames=0;
+    impl_->partial_confirmations=0;impl_->partial_capture_s=-1;
     impl_->single_travel=0;impl_->full_capture_s=0;impl_->support.clear();
 }
 
@@ -301,6 +305,7 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
         out.global_hypotheses=acquired.hypotheses;out.identity_margin=acquired.margin;
         out.detail=acquired.detail;
         if(!acquired.valid) {
+            s.partial_confirmations=0;s.partial_capture_s=-1;
             out.reason=acquired.reason;
             const auto raw=to_raw(project(prior,target_xy));out.target_u=raw.x();out.target_v=raw.y();
             for(int r=1;r<=board.rows;++r) for(int c=1;c<=board.cols;++c) {
@@ -312,6 +317,26 @@ TrayLocalization TrayLocalizer::locate(const CameraFrameData &frame,const Eigen:
             }
             return out;
         }
+        if(acquired.partial_bootstrap) {
+            // No motion is authorized by a single partial-only acquisition. Confirm
+            // a consistent absolute hole identity in distinct, recent captures.
+            if(!std::isfinite(frame.capture_steady_s) || frame.capture_steady_s<=s.partial_capture_s) {
+                out.reason="tray_acquire_partial_duplicate_capture";return out;
+            }
+            const bool stable=s.partial_confirmations>0 &&
+                frame.capture_steady_s-s.partial_capture_s<=cfg.target_hold_s &&
+                (acquired.fit.target-s.partial_target).norm()<=cfg.partial_acquire_stability_m;
+            s.partial_confirmations=stable?s.partial_confirmations+1:1;
+            s.partial_target=acquired.fit.target;s.partial_capture_s=frame.capture_steady_s;
+            out.detail+=" partial_confirmations="+std::to_string(s.partial_confirmations)+"/"+
+                std::to_string(cfg.partial_acquire_confirm_frames);
+            if(s.partial_confirmations<cfg.partial_acquire_confirm_frames) {
+                const auto raw=to_raw(project(seed_projection,acquired.fit.target));
+                out.target_u=raw.x();out.target_v=raw.y();
+                out.reason="tray_acquire_partial_pending";return out;
+            }
+        }
+        s.partial_confirmations=0;s.partial_capture_s=-1;
         // This update is an image-model correction, never a commanded TCP displacement.
         s.image_correction=acquired.fit.transform;s.registered=true;s.misses=0;
         prior=seed_projection*s.image_correction;inverse=prior.inverse();

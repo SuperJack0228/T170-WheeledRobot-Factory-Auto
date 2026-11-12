@@ -9,7 +9,6 @@
 #include <vector>
 #include "t170/common/servo_types.h"
 #include "t170/common/tray_types.h"
-#include "t170/common/belt_circle_config.h"
 
 namespace YAML { class Node; }
 
@@ -44,7 +43,6 @@ struct PlacementCalibrationProfile {
 struct Config {
     std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_placement;
     std::array<std::vector<PlacementCalibrationProfile>,2> calibrated_tray_grasp;
-    vision::BeltCircleConfig belt2_circle;
     bool belt_place_enabled = false; // no tray-hole feature is assumed on a bare conveyor
     bool belt_grasp_enabled = false; // keep belt grasp on traditional offset until accepted
     bool require_dual = false; // set by the dedicated dual-hand validation command
@@ -140,7 +138,7 @@ Mapping map_observation(const ImageProfile &profile, const PixelObservation &obs
 class Controller {
 public:
     void reset(const Config &config, const State &start, double final_z, double descent_speed,
-               const Vec2 &nominal_xy, bool grasp, bool observe_at_B=false, bool latch_first_goal=false);
+               const Vec2 &nominal_xy, bool grasp, bool observe_at_B=false);
     void reset(const Config &config, const State &start, double final_z, double descent_speed) {
         reset(config,start,final_z,descent_speed,start.position.head<2>(),true);
     }
@@ -155,8 +153,6 @@ public:
     void set_observation_z(double z) { observe_z_=z; }
     Vec2 goal_xy() const { return goal_xy_; }
     bool has_goal() const { return have_goal_; }
-    bool goal_latched() const { return goal_latched_; }
-    int belt_samples() const { return belt_samples_; }
     Phase phase() const { return phase_; }
 private:
     Config cfg_;
@@ -170,9 +166,6 @@ private:
     double commit_start_ = -1.0;
     std::uint64_t last_frame_ = 0;
     bool have_goal_ = false;
-    bool latch_goal_ = false, goal_latched_ = false;
-    int belt_samples_ = 0;
-    double best_error_ = 0;
     int confirmations_ = 0;
     int close_confirmations_ = 0;
     int stable_goal_frames_ = 0;

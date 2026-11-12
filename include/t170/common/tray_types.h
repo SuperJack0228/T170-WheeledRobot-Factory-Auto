@@ -38,6 +38,9 @@ struct TrayPlaceVisionConfig {
     double global_ambiguity_margin=.75; // one full rim advantage, allowing its residual penalty
     int global_max_hypotheses=4000, reacquire_after_frames=2;
     bool partial_rims=true;
+    // First acquisition from arcs needs redundant 2-D support and a repeated fit.
+    int partial_acquire_min_neighbors=4, partial_acquire_confirm_frames=2;
+    double partial_acquire_stability_m=.004;
     int partial_min_bins=7, single_neighbor_max_frames=4;
     double single_neighbor_step_m=.006, single_neighbor_budget_m=.010;
     double single_neighbor_max_age_s=.6;

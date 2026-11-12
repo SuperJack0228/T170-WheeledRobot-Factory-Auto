@@ -3,7 +3,6 @@
 #include "t170/vision/wrist_observer.h"
 #include "t170/vision/servo_observer_port.h"
 #include "t170/vision/tray_localizer.h"
-#include "t170/vision/belt_circle.h"
 #include "t170/vision/debug.h"
 #include "t170/common/abort_query.h"
 #include "t170/vision/python_bridge.h"
@@ -25,7 +24,6 @@
 namespace {
 struct Watch {
     bool active=false, locked=false;
-    int belt_source=0; // 0 undecided, 1 YOLO only, 2 circle only
     std::uint64_t generation=0, session=0, last_frame=0;
     Eigen::Vector2d pixel=Eigen::Vector2d::Zero();
 };
@@ -196,7 +194,6 @@ void observe(int hand) {
       generation=watches[hand].generation;
       if(watches[hand].session!=context.session) {
           watches[hand].session=context.session; watches[hand].locked=false; watches[hand].last_frame=0;
-          watches[hand].belt_source=0;
       }
     }
     auto *cams=RealSenseMultiCam::live(); auto *bridge=engine.load();
@@ -258,11 +255,12 @@ void observe(int hand) {
             return valid;
         };
         auto located=tray_localizers[hand].locate(frame,base_camera,executable);
-        if(!located.valid && !gate_reason.empty()) located.detail+=" task_hint="+gate_reason;
+        if(!located.valid && !gate_reason.empty()) located.detail+=" rejected_alternative_hint="+gate_reason;
         obs.completed_s=wrist_servo::monotonic_seconds(); obs.infer_ms=(obs.completed_s-infer_start)*1000;
         if(located.reason!="tray_acquire_wait_next_frame") {
             const bool insufficient=located.reason=="tray_acquire_no_rims" ||
-                located.reason=="tray_acquire_insufficient_rims" || located.reason=="tray_insufficient_visible_neighbors";
+                located.reason=="tray_acquire_insufficient_rims" || located.reason=="tray_insufficient_visible_neighbors" ||
+                located.reason=="tray_acquire_insufficient_support";
             wrist_servo::report_tray_view(hand,context.session,obs.completed_s,insufficient);
         }
         obs.virtual_target=true; obs.target_row=context.tray_target.row; obs.target_col=context.tray_target.col;
@@ -311,17 +309,11 @@ void observe(int hand) {
         }
         return; // no YOLO call and no closest-box fallback for tray placement
     }
-    int belt_source=0;
-    { std::lock_guard<std::mutex> lock(watch_mutex); belt_source=watches[hand].belt_source; }
-    if(belt_source==2) {
-        result.ok=true; obs.completed_s=wrist_servo::monotonic_seconds(); obs.infer_ms=0;
-    } else {
-        try { result=bridge->run_yolo(frame,algorithm_id_for_slot(camera),false,camera,-1,SegEngineId::Hand); }
-        catch(const std::exception &ex) { result.ok=false; result.message=ex.what(); }
-        obs.completed_s=wrist_servo::monotonic_seconds();
-        obs.infer_ms=(obs.completed_s-infer_start)*1000;
-        if(!result.ok) { wrist_servo::observation_event(hand,context.session,"inference_failed",obs); if(!context.belt_circle_fallback)return; }
-    }
+    try { result=bridge->run_yolo(frame,algorithm_id_for_slot(camera),false,camera,-1,SegEngineId::Hand); }
+    catch(const std::exception &ex) { result.ok=false; result.message=ex.what(); }
+    obs.completed_s=wrist_servo::monotonic_seconds();
+    obs.infer_ms=(obs.completed_s-infer_start)*1000;
+    if(!result.ok) { wrist_servo::observation_event(hand,context.session,"inference_failed",obs); return; }
     if(wrist_servo::monotonic_seconds()-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
         wrist_servo::observation_event(hand,context.session,"frame_expired_before_association",obs); return;
     }
@@ -351,42 +343,6 @@ void observe(int hand) {
         if(best) {
             obs.pixel << best->box_u,best->box_v; obs.confidence=best->confidence;
             w.pixel=obs.pixel; w.locked=true;
-            if(w.belt_source==0) w.belt_source=1;
-        } else if(w.belt_source==0 && context.belt_circle_fallback) w.belt_source=2;
-        belt_source=w.belt_source;
-    }
-    PoseTargetResult circle_target;
-    // Circle is only for a belt2 grasp that had no YOLO target from the start.
-    if(!best && context.belt_circle_fallback && belt_source==2) {
-        wrist_servo::observation_event(hand,context.session,"circle_attempt",obs);
-        Eigen::Matrix4d base_camera;wrist_servo::State capture;
-        if(wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,base_camera,&capture)) {
-            auto geometric_profile=context.profile;
-            geometric_profile.feature_z_offset_m=cfg.belt2_circle.feature_above_final_m;
-            const auto predicted=wrist_servo::map_observation(geometric_profile,obs,capture,context.final_z,
-                base_camera.block<3,1>(0,3),base_camera.block<3,3>(0,0));
-            if(predicted.valid) {
-                const auto expected=predicted.reference_px+predicted.jacobian*(capture.position.head<2>()-context.nominal_xy);
-                const auto circle=vision::locate_belt_circle(frame,base_camera,
-                    context.final_z+cfg.belt2_circle.feature_above_final_m,expected,cfg.belt2_circle);
-                obs.vision_source="belt_circle";obs.geometry_radius_m=circle.radius_m;
-                obs.geometry_residual_m=circle.residual_m;obs.geometry_coverage_bins=circle.coverage_bins;
-                obs.geometry_inliers=circle.inliers;obs.geometry_ms=circle.elapsed_ms;
-                obs.saturated_fraction=circle.saturated_fraction;
-                if(circle.valid) {
-                    circle_target.box_u=circle.pixel.x();circle_target.box_v=circle.pixel.y();
-                    circle_target.class_id=0;circle_target.confidence=.75;
-                    best=&circle_target;obs.pixel=circle.pixel;obs.confidence=.75;
-                    std::lock_guard<std::mutex> lock(watch_mutex);
-                    if(watches[hand].session!=context.session || watches[hand].generation!=generation)return;
-                    watches[hand].pixel=obs.pixel;watches[hand].locked=true;
-                }
-                wrist_servo::observation_event(hand,context.session,circle.reason.c_str(),obs);
-            } else wrist_servo::observation_event(hand,context.session,"circle_prediction_invalid",obs);
-        } else wrist_servo::observation_event(hand,context.session,"circle_capture_state_unavailable",obs);
-        obs.completed_s=wrist_servo::monotonic_seconds();obs.infer_ms=(obs.completed_s-infer_start)*1000;
-        if(obs.completed_s-obs.capture_s+obs.clock_uncertainty_s>cfg.max_observation_age_s) {
-            wrist_servo::observation_event(hand,context.session,"circle_frame_expired",obs);return;
         }
     }
     // Submit first: debug JPEG encoding and storage must not age a usable observation.

@@ -88,6 +88,78 @@ int main() {
             return (p-target.board.hole(3,3)-Eigen::Vector2d(-.05,.015)).norm()<.025;
         });
         check(two_executable.valid,"two complete rims plus an unambiguous executable target were discarded");
+        // A nearly full tray can have NO complete neighbors. Four independently
+        // fitted, noncollinear rims can bootstrap, but must retain identity checks.
+        auto partial_scene=scene;partial_scene.edges.clear();
+        for(auto &rim:partial_scene.rims) rim.partial=true;
+        const auto partial_gate=[&](const Eigen::Vector2d &p) {return (p-physical_goal).norm()<.025;};
+        const auto all_partial=tray_registration::acquire(partial_scene,target,cfg,partial_gate);
+        check(all_partial.valid && all_partial.partial_bootstrap &&
+              (all_partial.fit.target-physical_goal).norm()<1e-5,
+              "four reliable partial rims still required two complete rings");
+        check(all_partial.detail.find("complete=0 partial=4")!=std::string::npos,
+              "acquisition did not expose its actual support types");
+        partial_scene.rims.front().partial=false;
+        const auto mixed_partial=tray_registration::acquire(partial_scene,target,cfg,partial_gate);
+        check(mixed_partial.valid && mixed_partial.partial_bootstrap,
+              "one complete ring plus three reliable partial rims could not bootstrap");
+        partial_scene.rims.front().partial=true;
+        const auto ambiguous_arcs=tray_registration::acquire(partial_scene,target,cfg);
+        check(!ambiguous_arcs.valid && ambiguous_arcs.reason=="tray_acquire_ambiguous_grid",
+              "partial-only acquisition bypassed periodic row/column ambiguity");
+        partial_scene.rims.resize(2);
+        const auto two_arcs=tray_registration::acquire(partial_scene,target,cfg,partial_gate);
+        check(!two_arcs.valid && two_arcs.reason=="tray_acquire_insufficient_support",
+              "two partial arcs established an absolute grid without redundant support");
+        partial_scene.rims.clear();
+        for(int r=1;r<=4;++r)
+            partial_scene.rims.push_back({target.board.hole(r,2)+Eigen::Vector2d(-.05,0),true});
+        const auto collinear_arcs=tray_registration::acquire(partial_scene,target,cfg,partial_gate);
+        check(!collinear_arcs.valid,"collinear partial rims authorized an unconstrained 2-D bootstrap");
+        // Exercise image discovery AND temporal confirmation from a cold start,
+        // rather than testing partial rims only after complete-ring registration.
+        TrayLocalizer cold_arcs;cold_arcs.reset(seed,cfg);bool cold_acquired=false,pending=false;
+        for(int i=0;i<6;++i) {
+            auto partial_image=image(target,camera,{},true,1.2+i*.1);
+            const auto partial_out=cold_arcs.locate(partial_image,camera);
+            pending|=partial_out.reason=="tray_acquire_partial_pending";
+            if(i==0) check(!partial_out.valid,"one partial-only image authorized a fresh target");
+            if(partial_out.valid) {
+                check((partial_out.pixel-pixel(target.board.hole(3,3),camera)).norm()<3,
+                      "cold partial-rim acquisition predicted a different hole");
+                cold_acquired=true;break;
+            }
+        }
+        check(pending && cold_acquired,"cold partial-only registration did not confirm across fresh images");
+        TrayLocalizer duplicate_arcs;duplicate_arcs.reset(seed,cfg);
+        const auto repeated=image(target,camera,{},true,2.0);
+        for(int i=0;i<5;++i)
+            check(!duplicate_arcs.locate(repeated,camera).valid,
+                  "reprocessing the same partial-only capture counted as independent confirmation");
+        // Reproduce the last-two-hole occupancy, with only occupied neighbors'
+        // half-rims visible. Each hand starts without a registration history.
+        for(int col:{3,6}) {
+            auto last=target;last.row=6;last.col=col;
+            for(int r=1;r<=6;++r) for(int c=1;c<=6;++c)
+                if(r!=6 || (c!=3 && c!=6)) last.occupied_holes.push_back(r*100+c);
+            auto last_seed=last;last_seed.base_from_tray=seed.base_from_tray;
+            TrayLocalizer last_holes;last_holes.reset(last_seed,cfg);
+            const std::set<int> visible=col==3?std::set<int>{401,402,403,501,502,503}:
+                                                   std::set<int>{404,405,406,504,505,506};
+            const auto expected=pixel(last.board.hole(6,col),camera);
+            bool placed_target=false;
+            for(int i=0;i<6;++i) {
+                const auto last_out=last_holes.locate(image(last,camera,visible,true,6+i*.1),camera,
+                    [&](const Eigen::Vector2d &p) {return (p-expected).norm()<40;});
+                if(last_out.valid) {
+                    check(last_out.occupied_used>=2 && last_out.partial_used>=2 &&
+                          (last_out.pixel-expected).norm()<3,
+                          "last-two-hole acquisition used the wrong plane feature or hole identity");
+                    placed_target=true;break;
+                }
+            }
+            check(placed_target,"last two empty holes could not bootstrap from occupied half-rims");
+        }
         TrayLocalizer blocked;blocked.reset(seed,cfg);
         const auto unexecutable=blocked.locate(f,camera,[](const Eigen::Vector2d &){return false;});
         check(!unexecutable.valid && unexecutable.detail.find("reject_task_envelope=")!=std::string::npos,
