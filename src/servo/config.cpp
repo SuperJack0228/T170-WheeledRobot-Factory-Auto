@@ -102,6 +102,7 @@ void load_config(const YAML::Node &n, Config &c) {
     SERVO_READ(max_joint_accel_rad_s2); SERVO_READ(max_orientation_error_rad);
     SERVO_READ(solver_position_tolerance_m); SERVO_READ(solver_rotation_tolerance_rad);
     SERVO_READ(max_solver_failures); SERVO_READ(stable_frames); SERVO_READ(min_confidence);
+    SERVO_READ(belt_min_confidence);
     SERVO_READ(acquire_radius_px); SERVO_READ(track_radius_px); SERVO_READ(pair_clearance_m);
     SERVO_READ(log_period_s);
     SERVO_READ(enforce_sdk_joint_limits); SERVO_READ(max_joint_excursion_rad);
@@ -201,6 +202,7 @@ bool write_config_snapshot(const Config &c,const std::string &path,std::string &
         out << YAML::Key << "max_solver_failures" << YAML::Value << c.max_solver_failures;
         out << YAML::Key << "stable_frames" << YAML::Value << c.stable_frames;
         out << YAML::Key << "min_confidence" << YAML::Value << c.min_confidence;
+        out << YAML::Key << "belt_min_confidence" << YAML::Value << c.belt_min_confidence;
         out << YAML::Key << "acquire_radius_px" << YAML::Value << c.acquire_radius_px;
         out << YAML::Key << "track_radius_px" << YAML::Value << c.track_radius_px;
         out << YAML::Key << "pair_clearance_m" << YAML::Value << c.pair_clearance_m;

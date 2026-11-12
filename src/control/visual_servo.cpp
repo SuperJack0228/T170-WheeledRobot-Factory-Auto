@@ -98,6 +98,7 @@ bool validate_config(const Config &c, std::string &error) {
         !std::isfinite(c.commit_height_m) || c.commit_height_m < 0 ||
         !(c.goal_filter_alpha > 0 && c.goal_filter_alpha <= 1) ||
         !(c.min_confidence > 0 && c.min_confidence <= 1) ||
+        !(c.belt_min_confidence > 0 && c.belt_min_confidence <= 1) ||
         c.period_s > c.max_tick_gap_s || c.max_observation_age_s >= c.loss_timeout_s ||
         c.task_timeout_s <= c.loss_timeout_s || c.stable_frames < 2 || c.max_solver_failures < 1 ||
         c.grasp_xy_accept_m < c.xy_tolerance_m || c.freeze_height_m <= c.commit_height_m ||
