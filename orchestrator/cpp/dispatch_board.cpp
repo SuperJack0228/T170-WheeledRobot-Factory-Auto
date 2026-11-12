@@ -351,6 +351,7 @@ bool dispatch_board_active()
 
 void board_begin(const std::string &server, const std::string &robot)
 {
+    timing_run_begin(robot,server);
     std::string line;
     {
         std::lock_guard<std::mutex> lk(g_mu);
@@ -368,6 +369,7 @@ void board_begin(const std::string &server, const std::string &robot)
 
 void board_end(int rc)
 {
+    timing_run_end(rc);
     std::string line;
     {
         std::lock_guard<std::mutex> lk(g_mu);
@@ -563,6 +565,7 @@ void board_report_pending(const std::string &name, const std::string &what)
 
 void board_report(const std::string &name, const std::string &what, bool ok)
 {
+    timing_event("dispatch_report",name,ok?"sent":"failed",what);
     std::string line;
     {
         std::lock_guard<std::mutex> lk(g_mu);
@@ -615,6 +618,7 @@ void board_tray1(int right, int left)
 
 void board_tray1_taken(int n)
 {
+    timing_event("part_count","tray1_taken","reported","",{{"count",double(n)}});
     std::lock_guard<std::mutex> lk(g_mu);
     g_board.tray1_task_taken += n;
     g_board.tray1_session_taken += n;
@@ -648,6 +652,7 @@ void board_tray2(int right, int left)
 
 void board_tray2_placed(int n)
 {
+    timing_event("part_count","tray2_placed","reported","",{{"count",double(n)}});
     std::lock_guard<std::mutex> lk(g_mu);
     g_board.tray2_task_placed += n;
     g_board.tray2_session_placed += n;
@@ -661,6 +666,7 @@ void board_tray2_full_reported()
 
 void board_error(const std::string &text)
 {
+    timing_event("fault","board_error","reported",text);
     std::string line;
     {
         std::lock_guard<std::mutex> lk(g_mu);

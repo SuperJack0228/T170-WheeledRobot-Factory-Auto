@@ -9,6 +9,11 @@ add_library(t170::common ALIAS t170_common)
 target_include_directories(t170_common PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(t170_common PUBLIC Eigen3::Eigen)
 target_compile_definitions(t170_common PRIVATE T170_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+execute_process(COMMAND git describe --always --dirty --abbrev=12 WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    OUTPUT_VARIABLE T170_TELEMETRY_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+target_compile_definitions(t170_common PRIVATE T170_GIT_COMMIT="${T170_TELEMETRY_COMMIT}" T170_METRICS_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+target_link_libraries(t170_common PUBLIC Threads::Threads)
+
 
 add_library(t170_model_registry STATIC src/vision/detection/model_registry.cpp)
 add_library(t170::model_registry ALIAS t170_model_registry)
@@ -49,7 +54,7 @@ function(t170_add_observation_support)
     target_include_directories(t170_servo_trace PUBLIC ${PROJECT_SOURCE_DIR}/include)
     target_link_libraries(t170_servo_trace PUBLIC t170::common Threads::Threads)
     add_library(t170_tray_geometry STATIC src/vision/geometry/tray_localizer.cpp src/vision/geometry/calibration_hole.cpp
-        src/vision/geometry/tray_registration.cpp)
+        src/vision/geometry/tray_registration.cpp src/vision/geometry/belt_circle.cpp)
     add_library(t170::tray_geometry ALIAS t170_tray_geometry)
     target_include_directories(t170_tray_geometry PUBLIC ${PROJECT_SOURCE_DIR}/include ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(t170_tray_geometry PUBLIC t170::common ${OpenCV_LIBS})

@@ -449,6 +449,20 @@ visual_servo:
   belt_place_enabled: false
   # false：传送带抓取按码+offset 开环下降后合爪，不进手相机。
   belt_grasp_enabled: true
+  # 仅传送带二：YOLO没有本次目标时回退RGB顶面圆弧；不影响料盘和传送带一。
+  belt2_circle:
+    enabled: true
+    radius_m: 0.0135 # 精加工件顶面外径约27mm；不是旧模型配置中的27.5mm半径
+    min_radius_m: 0.010
+    max_radius_m: 0.017
+    feature_above_final_m: 0.0 # 零件顶面相对最终TCP高度；沿用现有映射平面，需现场核对
+    search_radius_m: 0.025
+    residual_m: 0.001
+    min_coverage_bins: 8 # 至少半圈角度覆盖，不能只有一小条圆弧
+    min_inliers: 35
+    ransac_trials: 320
+    max_time_ms: 60
+
   period_s: 0.01
   kp: 1.5
   kd: 0.2

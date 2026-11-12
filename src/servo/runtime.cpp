@@ -1,5 +1,6 @@
 #include "t170/common/paths.h"
 #include "t170/common/logging.h"
+#include "t170/common/task_timing.h"
 #include "servo/runtime.h"
 #include "t170/common/servo_trace.h"
 #include "function.h"
@@ -29,6 +30,9 @@ struct Runtime {
     std::optional<PixelObservation> pending;
     std::optional<std::pair<double,bool>> pending_view;
     Eigen::Matrix4d tcp_to_camera = Eigen::Matrix4d::Identity();
+    orch::TimingContext telemetry;
+    std::map<std::string,double> metrics;
+    double began_s=0;
     bool succeeded = false;
     bool final_hold = false;
     Joints final_command = Joints::Zero();
@@ -37,6 +41,7 @@ struct Runtime {
     TrayTarget staged_tray_target;
     std::optional<double> staged_tray_grasp_plane;
     bool staged_belt_grasp_reference = false;
+    bool staged_conveyor2=false;
 };
 Runtime slots[2];
 std::atomic<std::uint64_t> next_session{1};
@@ -111,12 +116,13 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     Config cfg=g_move_cfg.visual_servo;
     auto profile=profile_for(cfg,hand,cls);
     bool tray_placement=false;
-    bool belt_reference=false;
+    bool belt_reference=false,conveyor2=false;
     std::optional<double> tray_grasp_plane;
     { std::lock_guard<std::mutex> lock(slots[hand].mutex);
       tray_placement=cls==1 && cfg.tray_place.enabled && slots[hand].staged_tray_target.valid;
       tray_grasp_plane=slots[hand].staged_tray_grasp_plane;
       belt_reference=slots[hand].staged_belt_grasp_reference;
+      conveyor2=slots[hand].staged_conveyor2;slots[hand].staged_conveyor2=false;
       slots[hand].staged_tray_grasp_plane.reset();
       slots[hand].staged_belt_grasp_reference=false;
     }
@@ -140,6 +146,9 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
         } else if(!cfg.calibrated_placement[hand].empty())
             std::cerr<<"[servo] 本放置倾角尚未示教，沿用move_box_params中的显式参考，不套用其他倾角标定\n";
     }
+    if(cls==0 && belt_reference && conveyor2 && cfg.belt2_circle.enabled) {
+        profile.feature_z_offset_m=cfg.belt2_circle.feature_above_final_m;cfg.profiles[hand]=profile;
+    }
     Eigen::Matrix4d eye=Eigen::Matrix4d::Identity();
     if (profile.mode=="geometry" || tray_placement) {
         std::array<double,16> raw; std::string error;
@@ -150,8 +159,10 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     Runtime &slot=slots[hand];
     {
         std::lock_guard<std::mutex> lock(slot.mutex);
+        slot.telemetry=orch::timing_context();slot.metrics.clear();slot.began_s=monotonic_seconds();
         slot.context={}; slot.history.clear(); slot.pending.reset();slot.pending_view.reset(); slot.succeeded=false;
         slot.failure_reason.clear();
+        slot.context.belt_circle_fallback=cls==0 && belt_reference && conveyor2 && cfg.belt2_circle.enabled;
         slot.context.active=true; slot.context.session=next_session.fetch_add(1);
         slot.context.desired_rotation=TR(goal).block<3,3>(0,0);
         slot.context.final_z=goal(2); slot.context.target_class=cls; slot.context.profile=profile;
@@ -165,6 +176,7 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     }
     std::uint64_t session;
     { std::lock_guard<std::mutex> lock(slot.mutex); session=slot.context.session; }
+    orch::timing_event("servo_start",tag?tag:"descent","running",trace_writer().path(),{{"hand",double(hand)},{"servo_session",double(session)},{"target_class",double(cls)}},&slot.telemetry);
     std::string snapshot_error;
     const std::string prefix=trace_writer().path()+".session_"+std::to_string(session);
     if(!write_config_snapshot(cfg,prefix+".params.yaml",snapshot_error))
@@ -212,12 +224,16 @@ void sample_approach_state(Robot_Arm &arm) {
 
 void end_session(int hand, bool success) {
     if(hand<0 || hand>1) return;
-    auto &slot=slots[hand];
-    std::lock_guard<std::mutex> lock(slot.mutex);
-    slot.context.active=false; slot.context.descending=false; slot.pending.reset();slot.pending_view.reset();
-    slot.succeeded=success;
-    if(!success && slot.failure_reason.empty()) slot.failure_reason="approach_or_execution_failed";
-    if(!success) group_failed.store(true);
+    auto &slot=slots[hand];orch::TimingContext telemetry;std::map<std::string,double> metrics;std::string reason,tag;
+    {std::lock_guard<std::mutex> lock(slot.mutex);
+     if(!slot.context.active)return;
+     slot.context.active=false;slot.context.descending=false;slot.pending.reset();slot.pending_view.reset();slot.succeeded=success;
+     if(!success && slot.failure_reason.empty())slot.failure_reason="approach_or_execution_failed";
+     if(!success)group_failed.store(true);
+     telemetry=slot.telemetry;metrics=slot.metrics;reason=slot.failure_reason;tag=slot.context.task_tag;
+     metrics["hand"]=hand;metrics["servo_session"]=slot.context.session;metrics["dur_ms"]=(monotonic_seconds()-slot.began_s)*1000;
+    }
+    orch::timing_event("servo_end",tag,success?"success":"failed",reason,metrics,&telemetry);
 }
 
 bool observation_context(int hand, ObservationContext &context) {
@@ -237,10 +253,11 @@ void stage_tray_grasp(int hand,double feature_plane_z) {
     if(std::isfinite(feature_plane_z)) slots[hand].staged_tray_grasp_plane=feature_plane_z;
     else slots[hand].staged_tray_grasp_plane.reset();
 }
-void stage_belt_grasp_reference(int hand,bool enable) {
+void stage_belt_grasp_reference(int hand,bool enable,bool conveyor2) {
     if(hand<0 || hand>1) return;
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     slots[hand].staged_belt_grasp_reference=enable;
+    slots[hand].staged_conveyor2=enable && conveyor2;
 }
 bool camera_at_capture(int hand,std::uint64_t session,double time,Eigen::Matrix4d &base_camera,State *capture_state) {
     if(hand<0 || hand>1) return false;
@@ -273,6 +290,16 @@ void report_tray_view(int hand,std::uint64_t session,double completed_s,bool ins
 }
 
 void observation_event(int hand,std::uint64_t session,const char *reason,const PixelObservation &o) {
+    if(hand>=0 && hand<2) {
+        std::lock_guard<std::mutex> lock(slots[hand].mutex);
+        if(slots[hand].context.session==session && reason) {
+            const std::string r=reason;
+            if(r=="locked_target_missing")++slots[hand].metrics["missing_frames"];
+            if(r=="circle_attempt")++slots[hand].metrics["circle_attempts"];
+            if(r=="circle_supported")++slots[hand].metrics["circle_candidates"];
+            if(r=="frame_expired_before_association"||r=="circle_frame_expired")++slots[hand].metrics["expired_frames"];
+        }
+    }
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand; row.session=session;
     row.event="vision"; row.reason=reason; row.observation=o;
     ObservationContext context;
@@ -420,6 +447,8 @@ void task_event(int hand,const char *event,const char *reason) {
 
 void record_gripper_check(int hand,double position,double torque,const char *outcome) {
     if(hand<0 || hand>1) return;
+    orch::timing_event("grasp_check",hand?"right":"left",outcome?outcome:"unknown_gripper_feedback",
+        "checked gripper feedback, not external workpiece inspection",{{"q_rad",position},{"torque_nm",torque}});
     TraceRow row;
     { std::lock_guard<std::mutex> lock(slots[hand].mutex);
       if(!slots[hand].succeeded) return;
@@ -443,6 +472,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     State state=measured(arm,slot,read_ms);
     const bool staged_place=context.target_class==1 && context.tray_target.valid &&
         cfg.tray_place.enabled && cfg.tray_place.observe_at_B;
+    orch::TimingSpan descent_timer("servo_descent");descent_timer.fail();
     Controller controller; controller.reset(cfg,state,goal(2),speed,goal.head<2>().transpose(),
         context.target_class==0,staged_place);
     Joints command=last_command, joint_velocity=(last_command-previous_command)/0.005;
@@ -531,6 +561,11 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 map=map_observation(profile,*observation,capture,goal(2),
                                     camera.block<3,1>(0,3),camera.block<3,3>(0,0));
                 accepted=controller.observe(*observation,capture,map,monotonic_seconds(),reason);
+            }
+            {std::lock_guard<std::mutex> lock(slot.mutex);
+             ++slot.metrics[accepted?"accepted_frames":"rejected_frames"];
+             if(accepted)++slot.metrics[observation->vision_source=="belt_circle"?"circle_accepted_frames":observation->vision_source=="yolo"?"yolo_accepted_frames":"tray_accepted_frames"];
+             slot.metrics["inference_ms_sum"]+=observation->infer_ms;
             }
             if(accepted) { last_observation=*observation; last_map=map; }
             TraceRow row; row.time_s=monotonic_seconds(); row.session=context.session; row.hand=hand;
@@ -660,6 +695,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         group_failed.store(true);
         observation_event(hand,context.session,"motion_failed",last_observation);
     }
+    descent_timer.set_ok(result==0);
     return result;
 }
 } // namespace wrist_servo

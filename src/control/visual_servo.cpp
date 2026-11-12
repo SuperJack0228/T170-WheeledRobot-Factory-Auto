@@ -13,6 +13,7 @@ const ImageProfile &profile_for(const Config &c, int hand, int cls) {
 }
 
 bool validate_config(const Config &c, std::string &error) {
+    if(!vision::validate_belt_circle(c.belt2_circle,error)) return false;
     const auto &p=c.tray_place;
     if(!std::isfinite(p.observe_timeout_s) || p.observe_timeout_s<=0 || p.observe_timeout_s>=c.task_timeout_s ||
        !std::isfinite(p.affine_min_scale) || !std::isfinite(p.affine_max_scale) ||

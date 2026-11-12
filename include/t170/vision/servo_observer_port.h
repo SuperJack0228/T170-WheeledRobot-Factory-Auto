@@ -6,6 +6,7 @@ namespace wrist_servo {
 struct ObservationContext {
     bool active = false, descending = false;
     bool vision_required = true;
+    bool belt_circle_fallback = false;
     std::uint64_t session = 0;
     int target_class = -1;
     std::string task_tag;
