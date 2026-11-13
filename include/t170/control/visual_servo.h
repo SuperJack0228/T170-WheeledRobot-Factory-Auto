@@ -138,7 +138,7 @@ Mapping map_observation(const ImageProfile &profile, const PixelObservation &obs
 class Controller {
 public:
     void reset(const Config &config, const State &start, double final_z, double descent_speed,
-               const Vec2 &nominal_xy, bool grasp, bool observe_at_B=false);
+               const Vec2 &nominal_xy, bool grasp, bool observe_at_B=false, bool latch_after_samples=false);
     void reset(const Config &config, const State &start, double final_z, double descent_speed) {
         reset(config,start,final_z,descent_speed,start.position.head<2>(),true);
     }
@@ -153,6 +153,8 @@ public:
     void set_observation_z(double z) { observe_z_=z; }
     Vec2 goal_xy() const { return goal_xy_; }
     bool has_goal() const { return have_goal_; }
+    bool goal_latched() const { return goal_latched_; }
+    int belt_samples() const { return belt_samples_; }
     Phase phase() const { return phase_; }
 private:
     Config cfg_;
@@ -166,6 +168,9 @@ private:
     double commit_start_ = -1.0;
     std::uint64_t last_frame_ = 0;
     bool have_goal_ = false;
+    bool latch_goal_ = false, goal_latched_ = false;
+    int belt_samples_ = 0;
+    double belt_close_since_ = -1;
     int confirmations_ = 0;
     int close_confirmations_ = 0;
     int stable_goal_frames_ = 0;

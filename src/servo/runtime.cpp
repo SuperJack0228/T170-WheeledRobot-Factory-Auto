@@ -321,21 +321,24 @@ void invalidate_result(int hand) {
 
 bool ready_for_gripper(Robot_Arm &arm) {
     const int hand=hand_index(arm); auto &slot=slots[hand];
-    Vec2 goal; Config cfg; double final_z; bool succeeded,place,tray_place; Eigen::Matrix3d rotation;
+    Vec2 goal; Config cfg; double final_z; bool succeeded,place,tray_place,belt; Eigen::Matrix3d rotation;
     { std::lock_guard<std::mutex> lock(slot.mutex);
       succeeded=slot.succeeded; goal=slot.completed_goal;
       cfg=slot.context.config; final_z=slot.context.final_z;
       rotation=slot.context.desired_rotation;
       place=slot.context.target_class==1;
       tray_place=place && slot.context.config.tray_place.enabled && slot.context.tray_target.valid;
+      belt=!place && slot.context.task_tag.rfind("belt",0)==0;
     }
     if(!succeeded || hardware_abort_requested() || can_io_faulted() || group_failed.load()) return false;
     double read_ms=0; const auto state=measured(arm,slot,read_ms);
-    const bool ready=(state.position.head<2>()-goal).norm()<=(place ?
-            (tray_place?cfg.place_xy_accept_m:cfg.xy_tolerance_m) : cfg.grasp_xy_accept_m) &&
+    const double xy_accept=place ? (tray_place?cfg.place_xy_accept_m:cfg.xy_tolerance_m)
+                                 : (belt?0.018:cfg.grasp_xy_accept_m);
+    const double z_above=place ? (tray_place?cfg.place_z_accept_above_m:cfg.z_tolerance_m)
+                               : (belt?0.012:cfg.grasp_z_accept_above_m);
+    const bool ready=(state.position.head<2>()-goal).norm()<=xy_accept &&
         state.position.z()>=final_z-(place ? cfg.z_tolerance_m : cfg.grasp_z_feedback_tolerance_m) &&
-        state.position.z()<=final_z+(place ?
-            (tray_place?cfg.place_z_accept_above_m:cfg.z_tolerance_m) : cfg.grasp_z_accept_above_m) &&
+        state.position.z()<=final_z+z_above &&
         Eigen::AngleAxisd(rotation*state.rotation.transpose()).angle()<=cfg.max_orientation_error_rad;
     TraceRow row; row.time_s=monotonic_seconds(); row.hand=hand;
     { std::lock_guard<std::mutex> lock(slot.mutex);
@@ -470,7 +473,8 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         cfg.tray_place.enabled && cfg.tray_place.observe_at_B;
     orch::TimingSpan descent_timer("servo_descent");descent_timer.fail();
     Controller controller; controller.reset(cfg,state,goal(2),speed,goal.head<2>().transpose(),
-        context.target_class==0,staged_place);
+        context.target_class==0,staged_place,
+        context.target_class==0 && context.task_tag.rfind("belt",0)==0);
     Joints command=last_command, joint_velocity=(last_command-previous_command)/0.005;
     Vec3 reference=arm_tcp_from_joints(arm,command).head<3>().transpose();
     const Vec3 incoming_velocity=(reference-arm_tcp_from_joints(arm,previous_command).head<3>().transpose())/0.005;
@@ -487,6 +491,7 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
     int result=-31;
     bool recovery_logged=false;
     bool extension_logged=false;
+    bool belt_latched_logged=false;
     while(true) {
         const auto cycle=std::chrono::steady_clock::now();
         if(hardware_abort_requested()) { result=-4; break; }
@@ -583,8 +588,13 @@ int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         if(staged_place && output.phase==Phase::Commit && previous_phase!=Phase::Commit)
             task_event(hand,"place_XY_locked","lower_to_fixed_C_without_new_vision");
         if(output.phase==Phase::Commit || output.phase==Phase::Settling ||
-           output.phase==Phase::Done || output.phase==Phase::Failed) {
+           output.phase==Phase::Done || output.phase==Phase::Failed || controller.goal_latched()) {
             std::lock_guard<std::mutex> lock(slot.mutex); slot.context.vision_required=false;
+        }
+        if(controller.goal_latched() && !belt_latched_logged) {
+            belt_latched_logged=true;
+            std::cout << "[servo] hand=" << hand << " 传送带锁定最后一帧，共 "
+                      << controller.belt_samples() << " 帧，下降合爪\n";
         }
         if(output.phase==Phase::Failed) group_failed.store(true);
         const double step_dt=std::min(dt,cfg.max_tick_gap_s);

@@ -1,0 +1,11 @@
+﻿name,count,median_ms,p95_ms,max_ms
+apply_wait,35,8.0,20005.8,20214
+arm_return,137,1378.0,1951.7999999999993,2245
+arm_vertical_lift,137,1382.0,1482.2,1587
+gripper_close,107,345.0,384.0,412
+head_belt_perception,115,596.0,631.0,652
+head_tray_perception,68,1256.5,1330.85,1366
+motion_home,2,11744.5,12282.25,12342
+nav,136,11780.0,13180.0,13929
+servo_descent,151,4201.0,6285.0,18005
+vision_aruco,68,60.5,70.3,83

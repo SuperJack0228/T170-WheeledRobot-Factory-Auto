@@ -1,0 +1,90 @@
+{
+  "missions": 64,
+  "orphan_missions": 0,
+  "by_type": {
+    "TASK_LOAD": {
+      "started": 28,
+      "success": 26,
+      "failed": 2,
+      "incomplete": 0,
+      "completion_rate_all_started": 0.9285714285714286,
+      "completion_rate_finished": 0.9285714285714286,
+      "first_pass_rate": 0.8571428571428571,
+      "completion_wilson95_all_started": [
+        0.7735463743160095,
+        0.9801879358846942
+      ],
+      "median_ms": 51022.0,
+      "p95_ms": 67291.75
+    },
+    "TASK_TRANSFER": {
+      "started": 9,
+      "success": 9,
+      "failed": 0,
+      "incomplete": 0,
+      "completion_rate_all_started": 1.0,
+      "completion_rate_finished": 1.0,
+      "first_pass_rate": 0.8888888888888888,
+      "completion_wilson95_all_started": [
+        0.7008549515804559,
+        1
+      ],
+      "median_ms": 49669.0,
+      "p95_ms": 56526.6
+    },
+    "TASK_UNLOAD": {
+      "started": 27,
+      "success": 16,
+      "failed": 10,
+      "incomplete": 1,
+      "completion_rate_all_started": 0.5925925925925926,
+      "completion_rate_finished": 0.6153846153846154,
+      "first_pass_rate": 0.5185185185185185,
+      "completion_wilson95_all_started": [
+        0.4072670096806468,
+        0.7548524292560443
+      ],
+      "median_ms": 53231.0,
+      "p95_ms": 88156.5
+    }
+  },
+  "vision": {
+    "circle_attempts": 211,
+    "yolo_accepted_frames": 2733,
+    "circle_accepted_frames": 60,
+    "tray_accepted_frames": 625,
+    "rejected_frames": 41,
+    "missing_frames": 347,
+    "expired_frames": 0
+  },
+  "servo_failure_reasons": {
+    "no_valid_observation_timeout": 1,
+    "local_solver_or_joint_limits": 1,
+    "approach_or_execution_failed": 1,
+    "commit_timeout": 1,
+    "place_B_alignment_timeout": 1,
+    "peer_arm_failed": 1,
+    "target_lost_timeout": 3,
+    "task_timeout": 5
+  },
+  "gripper_feedback_by_hand": {
+    "right/contact": 52,
+    "left/contact": 51,
+    "right/empty": 4
+  },
+  "runs": 8,
+  "closed_runs": 7,
+  "open_runs": 1,
+  "reported_placed": 30,
+  "reported_taken": 52,
+  "manual_interventions_recorded": 0,
+  "unattended_success_rate": null,
+  "dropped_events": 0,
+  "writer_failures": 0,
+  "parse_warnings": [],
+  "runtime_ms_closed_runs": 4284399,
+  "reported_placed_per_hour_closed_runs": 23.527220503972668,
+  "legacy_servo_sessions": 0,
+  "legacy_servo_failure_reasons": {},
+  "structured_servo_sessions": 152
+}

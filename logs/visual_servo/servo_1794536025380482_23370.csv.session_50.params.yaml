@@ -1,0 +1,179 @@
+schema_version: 2
+build_revision: c567d13d466bac4bc62a4be95956ad82081ea96a
+build_dirty: 1
+build_diff_sha256: 33fdf56c77b9fb434b879e38a7158a32f157820741a6359bb7c2af00b61489c6
+build_source_config_sha256: fbc2204335b17a1a6f53e46d58f5f32069ed392f1535f7299ecfedaa29a0b9ef
+build_configuration: RelWithDebInfo
+build_time: Nov 13 2026 09:52:44
+visual_servo:
+  belt_place_enabled: false
+  belt_grasp_enabled: true
+  require_dual: false
+  tray_place:
+    enabled: true
+    board_config: board_yf100_aruco/config.yaml
+    association_gate_m: 0.029999999999999999
+    reprojection_gate_px: 3
+    circle_residual_m: 0.0015
+    max_plane_update_m: 0.029999999999999999
+    min_neighbors: 2
+    rectified_pixels_per_m: 2000
+    affine_enabled: true
+    observe_at_B: true
+    observe_timeout_s: 6
+    observation_age_s: 0.59999999999999998
+    target_hold_s: 1.2
+    alignment_extension_s: 2
+    confirm_stable_s: 0.080000000000000002
+    tracking_max_neighbors: 6
+    tracking_scan_limit: 12
+    affine_min_scale: 0.65000000000000002
+    affine_max_scale: 1.5
+    affine_max_rotation_rad: 0.34999999999999998
+    max_extrapolation_pitches: 2.5
+    xy_only: true
+    orange_rim_enabled: true
+    rim_min_radius_ratio: 0.55000000000000004
+    occupied_orange_rims: true
+    rim_max_radius_ratio: 1.6000000000000001
+    min_coverage_bins: 12
+    global_acquisition: true
+    boundary_enabled: true
+    global_search_m: 0.089999999999999997
+    global_match_gate_m: 0.0089999999999999993
+    global_ambiguity_margin: 0.75
+    global_max_hypotheses: 4000
+    reacquire_after_frames: 2
+    partial_rims: true
+    partial_acquire_min_neighbors: 4
+    partial_acquire_confirm_frames: 2
+    partial_acquire_stability_m: 0.0040000000000000001
+    partial_min_bins: 7
+    single_neighbor_max_frames: 4
+    single_neighbor_step_m: 0.0060000000000000001
+    single_neighbor_budget_m: 0.01
+    single_neighbor_max_age_s: 0.59999999999999998
+    observe_recovery_after_s: 1.2
+    observe_recovery_lift_m: 0.02
+    observe_recovery_speed_m_s: 0.025000000000000001
+    save_debug_images: true
+    debug_image_period_s: 0.25
+  period_s: 0.01
+  kp: 1.5
+  kd: 0.20000000000000001
+  max_xy_speed_m_s: 0.040000000000000001
+  max_xy_accel_m_s2: 0.20000000000000001
+  max_z_accel_m_s2: 0.25
+  brake_delay_s: 0.080000000000000002
+  model_uncertainty_m: 0.00050000000000000001
+  xy_tolerance_m: 0.002
+  settle_speed_m_s: 0.0030000000000000001
+  z_tolerance_m: 0.001
+  commit_height_m: 0.0080000000000000002
+  commit_speed_m_s: 0.059999999999999998
+  commit_timeout_s: 5
+  max_correction_m: 0.035000000000000003
+  innovation_gate_m: 0.012
+  goal_filter_alpha: 0.65000000000000002
+  max_observation_age_s: 0.34999999999999998
+  max_clock_uncertainty_s: 0.12
+  feedback_age_budget_s: 0.02
+  loss_timeout_s: 1.5
+  task_timeout_s: 18
+  max_tick_gap_s: 0.14999999999999999
+  max_state_gap_s: 0.059999999999999998
+  max_reference_lead_m: 0.012
+  max_joint_lead_rad: 0.080000000000000002
+  max_joint_speed_rad_s: 0.45000000000000001
+  max_joint_accel_rad_s2: 2
+  max_orientation_error_rad: 0.052359877559999997
+  solver_position_tolerance_m: 0.00059999999999999995
+  solver_rotation_tolerance_rad: 0.0087266462600000001
+  max_solver_failures: 5
+  stable_frames: 2
+  min_confidence: 0.45000000000000001
+  belt_min_confidence: 0.25
+  acquire_radius_px: 180
+  track_radius_px: 100
+  pair_clearance_m: 0.10000000000000001
+  log_period_s: 0.050000000000000003
+  freeze_height_m: 0.029999999999999999
+  grasp_height_margin_m: 0.002
+  grasp_z_accept_above_m: 0.0060000000000000001
+  grasp_z_feedback_tolerance_m: 0.001
+  place_xy_accept_m: 0.0040000000000000001
+  place_lock_height_m: 0.065000000000000002
+  place_visibility_floor_m: 0.050000000000000003
+  place_goal_stability_m: 0.0025000000000000001
+  place_lock_frames: 2
+  place_finish_speed_m_s: 0.01
+  place_height_margin_m: 0.001
+  place_z_accept_above_m: 0.0050000000000000001
+  grasp_xy_accept_m: 0.0060000000000000001
+  grasp_relax_after_s: 0.34999999999999998
+  finish_speed_m_s: 0.0080000000000000002
+  finish_stable_s: 0.040000000000000001
+  alignment_time_margin_s: 0.12
+  acquire_descent_m: 0.02
+  handoff_distance_m: 0.014999999999999999
+  handoff_speed_m_s: 0.029999999999999999
+  hard_reference_lead_m: 0.025000000000000001
+  following_timeout_s: 0.5
+  enforce_sdk_joint_limits: false
+  max_joint_excursion_rad: 0.69999999999999996
+  left_grasp:
+    mode: geometry
+    reference_px: [586.04409857328142, 442.94069018395413]
+    constrain_reference_tilt: false
+    reference_roll_rad: 0.086377597464129097
+    reference_pitch_rad: 0.95992327054054316
+    plane_relative_reference: true
+    reference_tcp_above_plane_m: 0.0045740459207181394
+    reference_height_m: 0
+    feature_z_offset_m: 0.00099999899895741873
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []
+  right_grasp:
+    mode: geometry
+    reference_px: [712, 458]
+    constrain_reference_tilt: false
+    reference_roll_rad: 0
+    reference_pitch_rad: 0
+    plane_relative_reference: false
+    reference_tcp_above_plane_m: 0
+    reference_height_m: 0
+    feature_z_offset_m: 0
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []
+  left_place:
+    mode: geometry
+    reference_px: [588, 458]
+    constrain_reference_tilt: false
+    reference_roll_rad: 0
+    reference_pitch_rad: 0
+    plane_relative_reference: false
+    reference_tcp_above_plane_m: 0
+    reference_height_m: 0
+    feature_z_offset_m: 0
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []
+  right_place:
+    mode: geometry
+    reference_px: [788, 498]
+    constrain_reference_tilt: false
+    reference_roll_rad: 0
+    reference_pitch_rad: 0
+    plane_relative_reference: false
+    reference_tcp_above_plane_m: 0
+    reference_height_m: 0
+    feature_z_offset_m: 0
+    min_depth_m: 0.014999999999999999
+    max_depth_m: 0.65000000000000002
+    knots:
+      []

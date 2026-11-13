@@ -53,7 +53,7 @@ head:
 head_grasp:
   hover_above_m: 0.12
   # 左手孔位偏置（基座系）。X 前为正，Y 左为正，Z 上为正。
-  grasp_z_offset_m: -0.005
+  grasp_z_offset_m: -0.001
   goal_z_base: -0.30
   goal_x_offset: 0.04
   goal_y_offset: 0.00
@@ -384,10 +384,10 @@ conveyor2:
     left:  { x: -0.06, y: -0.015, z: -0.005 }
   grasp_rpy_deg:
     left: [0, 50, -45]
-    right: [0, 50, 60]
+    right: [-2, 50, 60]
   grasp_offset:
     left: { x: 0.072, y: 0.109, z: -0.01 }
-    right: { x: -0.020, y: 0.135, z: -0.015 }
+    right: { x: -0.03, y: 0.135, z: -0.016 }
   grasp_tcp:
     right: [0.55, -0.30, -0.15, 0, 0, 0]
     left:  [0.55,  0.30, -0.15, 0, 0, 0]
@@ -403,7 +403,7 @@ conveyor2:
   next_hand_clearance_timeout_s: 4.0
   grasp_waist_yaw_deg: 0
   # 与第一传送带相同：0.45 约 3.0 rad，比 0.30 再收一档。
-  grasp_ready_close_ratio: 0.4
+  grasp_ready_close_ratio: 0.3
   yolo_roi_enable: true
   yolo_min_conf: 0.25
   yolo_part_class_ids: [0, 2]   # 立件和倒件都算零件；1=空孔不计入
