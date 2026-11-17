@@ -46,7 +46,7 @@ class ModuleBoundaries(unittest.TestCase):
         for header in (ROOT / "include/t170/motion").glob("*.h"):
             self.assertNotIn("using namespace", header.read_text())
             for path in self.includes(header):
-                self.assertNotIn(path.name, ("function.h", "head.h", "Ti5_Arm.h"))
+                self.assertNotIn(path.name, ("function.h", "head.h", "Ti5_Arm.h", "Ti5_Robotics.h"))
                 self.assertNotIn("/t170/app/", str(path))
 
     def test_motion_implementations_do_not_depend_on_legacy_facade(self):

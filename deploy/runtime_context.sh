@@ -33,3 +33,10 @@ PY
   echo "[deployment] T170_RUNTIME_DIR=$runtime" >&2
 fi
 export T170_RUNTIME_DIR="$T170_ROOT"
+# Prefer the library shipped with this build over another libti5_robot.so in an
+# inherited environment. The CMake-selected platform is recorded beside the app.
+if [[ -f "$T170_SOURCE_ROOT/build_robot/arm_sdk_platform.txt" ]]; then
+  IFS= read -r arm_sdk_platform < "$T170_SOURCE_ROOT/build_robot/arm_sdk_platform.txt"
+  arm_sdk_library_dir="$T170_SOURCE_ROOT/dependencies/sdk/arm/lib/$arm_sdk_platform"
+  export LD_LIBRARY_PATH="$arm_sdk_library_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi

@@ -410,6 +410,8 @@ bool motor_set_pos_rad(uint32_t id, double rad)
     return sdk_try(id, "set_Position", [id, rad]() { set_Position(id, rad); });
 }
 
+bool motor_read_pos_rad(uint32_t id,double &rad) { return motor_get_pos_rad(id,rad); }
+
 bool can_io_faulted()
 {
     return g_can_io_fault.load();

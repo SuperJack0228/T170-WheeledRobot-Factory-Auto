@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "t170/vision/wrist_observer.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/feedback.h"
@@ -152,7 +152,7 @@ void update_hand_goal_xy_from_base(
 bool select_hand_target_matching_head(
         const PoseDetectionRecords &records,
         const std::array<double, 16> &cam2robot,
-        Robot_Arm &arm,
+        Arm &arm,
         const Eigen::Vector2d &expected_head_xy,
         const char *hand_label,
         bool is_right,
@@ -254,8 +254,8 @@ void log_arm_traj_plan_fail(const char *hand, int ret)
     }
 
 HandMoveState run_hand_detect_and_validate(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         RealSenseMultiCam &cameras,
         SegPoseBridge &bridge,
         HeadAssignState &st,

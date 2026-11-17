@@ -49,7 +49,7 @@ bool TraceWriter::start(const std::string &dir) {
     file_ << ",tray_undistort_ms,tray_acquisition_ms,tray_prepare_ms,tray_roi_ms,tray_partial_ms,tray_fit_ms,tray_partial_calls,tray_pruned_neighbors";
     file_ << ",place_close_frames,static_goal_motion,place_elapsed_s,place_deadline_s,place_alignment_extended,place_lock_blocker";
     file_ << ",capture_timing_accounted,submit_age_ms,geometry_radius_m,geometry_residual_m,geometry_coverage_bins,geometry_inliers,geometry_ms,saturated_fraction";
-    file_ << '\n'; file_.flush();
+    file_ << ",joint_coordinates\n"; file_.flush();
     if(!file_) return false;
     healthy_.store(true);
     thread_=std::thread(&TraceWriter::run,this);
@@ -123,7 +123,7 @@ void TraceWriter::run() {
         file_ << ',' << o.capture_timing_accounted << ',' << o.submit_age_ms
               << ',' << o.geometry_radius_m << ',' << o.geometry_residual_m << ',' << o.geometry_coverage_bins
               << ',' << o.geometry_inliers << ',' << o.geometry_ms << ',' << o.saturated_fraction;
-        file_ << '\n';
+        file_ << ",sdk_mdh_model_rad\n";
         if(++since_flush>=20 || r.event=="end" || r.event=="reject") { file_.flush(); since_flush=0; }
         if(!file_ && healthy_.exchange(false)) std::cerr << "[servo] 调试日志写入失败 " << path_ << '\n';
     }

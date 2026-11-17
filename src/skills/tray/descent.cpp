@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "t170/vision/wrist_observer.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/feedback.h"
 #include "t170/motion/kinematics_adapter.h"
@@ -46,8 +46,8 @@ using std::thread;
 namespace move_box {
 ArmLineMoveResult run_hand_approach_and_grasp(
         gripper::Gripper &g,
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         HeadAssignState &st,
         HandMoveState &hs)
     {
@@ -238,7 +238,7 @@ ArmLineMoveResult run_hand_approach_and_grasp(
             }
 
             // 位置偏差以最终抓取点为基准。
-            auto verify_final_c = [&](Robot_Arm &arm,
+            auto verify_final_c = [&](Arm &arm,
                                       const Eigen::Matrix<double, 1, 6> &goal,
                                       int hand_id,
                                       const char *hand,

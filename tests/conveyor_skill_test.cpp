@@ -13,31 +13,31 @@ Eigen::Matrix<double,1,7> returned_joints=Eigen::Matrix<double,1,7>::Zero();
 void require(bool ok,const char *message){if(!ok)throw std::runtime_error(message);}
 void reset(){aborted=io_fault=grasp_empty=false;opened=true;approach_code=lift_code=return_code=0;moves=closes=opens=0;}
 }
-Robot_Arm::Robot_Arm(const std::string &,const std::string &,const std::string &side,const std::string &){can_id_list={side=="left"?23:16};}
+Arm::Arm(const std::string &,const std::string &,const std::string &side,const std::string &){can_id_list={side=="left"?23:16};}
 bool hardware_abort_requested(){return aborted;}
 bool can_io_faulted(){return io_fault;}
 bool right_arm_motors_locked(){return false;}
 void hardware_abort_sleep_ms(int){}
 void hand_shadow_end(int){}
 void arm_discard_line_then_line_plan(int){}
-Eigen::Matrix<double,1,6> arm_get_tcp_pos(Robot_Arm &){return Eigen::Matrix<double,1,6>::Zero();}
-ArmLineMoveResult arm_dual_line_then_line_nostop(Robot_Arm &,const Eigen::Matrix<double,1,6> &hover,
- const Eigen::Matrix<double,1,6> &goal,bool right,Robot_Arm &,const Eigen::Matrix<double,1,6> &,
+Eigen::Matrix<double,1,6> arm_get_tcp_pos(Arm &){return Eigen::Matrix<double,1,6>::Zero();}
+ArmLineMoveResult arm_dual_line_then_line_nostop(Arm &,const Eigen::Matrix<double,1,6> &hover,
+ const Eigen::Matrix<double,1,6> &goal,bool right,Arm &,const Eigen::Matrix<double,1,6> &,
  const Eigen::Matrix<double,1,6> &,bool left,double reach,double descent,const std::function<void()> &,bool,
  const char *,bool,bool,int){
     ++moves;used_approach=reach;used_descent=descent;used_hover=hover(2)-goal(2);
     return {right?approach_code:0,left?approach_code:0};
 }
-int arm_vertical_lift(Robot_Arm &,double height,double,const std::function<void(double)> &progress){
+int arm_vertical_lift(Arm &,double height,double,const std::function<void(double)> &progress){
     ++moves;if(progress)progress(height);return lift_code;
 }
-int arm_return_after_lift(Robot_Arm &,const Eigen::Matrix<double,1,7> &ready,const std::function<void()> &on_return,double,double){
+int arm_return_after_lift(Arm &,const Eigen::Matrix<double,1,7> &ready,const std::function<void()> &on_return,double,double){
     ++moves;returned_joints=ready;if(on_return)on_return();return return_code;
 }
 namespace wrist_servo {
 void stage_belt_grasp_reference(int,bool){}
 void start_final_hold_repeat(){}
-bool ready_for_gripper(Robot_Arm &){return true;}
+bool ready_for_gripper(Arm &){return true;}
 void task_event(int,const char *,const char *){}
 }
 namespace gripper {
@@ -53,7 +53,7 @@ bool gripper_grasp_empty(gripper::Gripper &,gripper::Side,const gripper::GraspFe
 int main() {
     using namespace t170::skills;
     try {
-        Robot_Arm right("synthetic","synthetic","right"),left("synthetic","synthetic","left");gripper::Gripper g;
+        Arm right("synthetic","synthetic","right"),left("synthetic","synthetic","left");gripper::Gripper g;
         ConveyorStationConfig station;station.grasp_hover_above_m=.08;
         station.grasp_approach_vel_m_s=.12;station.grasp_descend_vel_m_s=.035;
         ConveyorContext context{g,right,left,station,{}};

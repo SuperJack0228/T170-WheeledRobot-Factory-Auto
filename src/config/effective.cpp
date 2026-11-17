@@ -313,6 +313,7 @@ YAML::Node encode(const RetractMotionConfig &v) {
 }
 YAML::Node encode(const MoveBoxConfig &v) {
  YAML::Node n;
+ n["pending_model_calibrations"] = encode(v.pending_model_calibrations);
  n["standby"] = encode(v.standby);
  n["home_tcp"] = encode(v.home_tcp);
  n["tray"] = encode(v.tray);

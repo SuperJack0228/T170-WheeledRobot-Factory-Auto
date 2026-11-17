@@ -1,4 +1,6 @@
 #include "t170/app/diagnostic_gestures.h"
+// Historical gesture waypoints are explicitly DEVICE radians. This maintenance
+// module reads/writes device coordinates and converts to MODEL for all SDK checks.
 #include "../motion/internal/arm_internal.h"
 #include "t170/motion/pose_solver.h"
 #include "t170/motion/joint_motion.h"
@@ -91,80 +93,22 @@ constexpr double k_wave_skip_rad = 2.0 * M_PI / 180.0;
 
 
 namespace {
-const double k_wave_right_min_deg[7] = {-90, -90, -90, -10, -180, -40, -20};
+Eigen::MatrixXd gesture_read_device_joints(int hand) {
+    return t170::motion::model_to_device(hand,arm_read_model_joints(hand).row(0));
 }
-
-
-namespace {
-const double k_wave_right_max_deg[7] = {180, 5, 90, 140, 180, 40, 90};
-}
-
-
-namespace {
-const double k_wave_left_min_deg[7] = {-90, 5, -90, -10, -90, -40, -90};
-}
-
-
-namespace {
-const double k_wave_left_max_deg[7] = {180, 90, 90, 140, 90, 40, 20};
-}
-
-
-namespace {
-double wave_model_rad(int hand, int joint, double q_motor)
-{
-    double dir = 1.0;
-    double off = 0.0;
-    if (hand == 1)
-    {
-        if (joint == 1)
-            off = M_PI / 2.0;
-    }
-    else
-    {
-        if (joint == 0 || joint == 3 || joint == 5)
-            dir = -1.0;
-        if (joint == 1)
-            off = -M_PI / 2.0;
-    }
-    return (q_motor - off) / dir;
-}
-}
-
-
-namespace {
-int wave_log_over_limit(Robot_Arm &arm, int hand, const WaveQ &q, const char *tag)
-{
-    if (!arm.Check_Joint_Limit(q))
-        return 0;
-    const double *mn = hand == 1 ? k_wave_right_min_deg : k_wave_left_min_deg;
-    const double *mx = hand == 1 ? k_wave_right_max_deg : k_wave_left_max_deg;
-    bool named = false;
-    for (int j = 0; j < 7; ++j)
-    {
-        const double model_deg = wave_model_rad(hand, j, q(j)) * 180.0 / M_PI;
-        if (model_deg >= mn[j] - 1e-3 && model_deg <= mx[j] + 1e-3)
-            continue;
-        named = true;
-        std::cerr << std::fixed << std::setprecision(2)
-                  << "[wave] " << (hand == 1 ? "右臂" : "左臂")
-                  << (tag ? tag : "") << " J" << (j + 1)
-                  << " 超限 电机角 " << (q(j) * 180.0 / M_PI)
-                  << "° 模型角(conv0) " << model_deg
-                  << "° 限位 [" << mn[j] << ", " << mx[j] << "]°\n";
-    }
-    if (!named)
-    {
-        std::cerr << "[wave] " << (hand == 1 ? "右臂" : "左臂")
-                  << (tag ? tag : "") << " Check_Joint_Limit 超限\n";
-    }
+int wave_log_over_limit(Arm &arm,int hand,const WaveQ &device,const char *tag) {
+    const WaveQ model=arm.to_model(device);
+    if(!arm.Check_Joint_Limit(model)) return 0;
+    const auto &d=arm.definition();
+    for(int j=0;j<7;++j) if(model(j)<d.minimum(j)||model(j)>d.maximum(j))
+        std::cerr<<"[gesture] hand="<<hand<<" J"<<j+1<<" model_deg="<<model(j)*180/M_PI
+                 <<" limits_deg=["<<d.minimum(j)*180/M_PI<<","<<d.maximum(j)*180/M_PI<<"] "<<(tag?tag:"")<<'\n';
     return -1;
 }
 }
 
-
 namespace {
-int wave_check_traj(Robot_Arm &arm, int hand, const Eigen::MatrixXd &traj, const char *tag,
+int wave_check_traj(Arm &arm, int hand, const Eigen::MatrixXd &traj, const char *tag,
                     bool skip_start = false)
 {
     const int i0 = (skip_start && traj.rows() > 1) ? 1 : 0;
@@ -471,14 +415,14 @@ int wave_play(int hand, const Eigen::MatrixXd &traj, bool nod,
 
 
 namespace {
-int wave_goto(Robot_Arm &arm, const WaveQ &goal, double fixed_s)
+int wave_goto(Arm &arm, const WaveQ &goal, double fixed_s)
 {
     const int hand = arm_hand_side(arm);
     if (hardware_abort_requested())
         return -4;
     if (can_io_faulted())
         return -2;
-    const Eigen::MatrixXd q_now = arm_read_motor_joints(hand);
+    const Eigen::MatrixXd q_now = gesture_read_device_joints(hand);
     if (can_io_faulted() || !q_now.allFinite())
         return -2;
     WaveQ qa;
@@ -523,7 +467,7 @@ Eigen::MatrixXd wave_sine_for(const WaveQ &raise, const WaveQ &outward)
 
 
 namespace {
-int wave_one(Robot_Arm &arm, bool is_right)
+int wave_one(Arm &arm, bool is_right)
 {
     const WaveQ hang = is_right ? k_wave_hang : WaveQ(-k_wave_hang);
     const WaveQ front = is_right ? k_wave_front : WaveQ(-k_wave_front);
@@ -533,7 +477,7 @@ int wave_one(Robot_Arm &arm, bool is_right)
     const char *name = is_right ? "右手" : "左手";
 
     WaveQ q_from = hang;
-    const Eigen::MatrixXd q_now = arm_read_motor_joints(hand);
+    const Eigen::MatrixXd q_now = gesture_read_device_joints(hand);
     if (can_io_faulted() || !q_now.allFinite())
         return -2;
     for (int j = 0; j < 7; ++j)
@@ -777,7 +721,7 @@ Eigen::MatrixXd bow_rest_via(const WaveQ &q0, const WaveQ &q1, const WaveQ &q2, 
 }
 
 
-int arm_wave_right(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int arm_wave_right(Arm &arm_r, Arm &arm_l)
 {
     if (arm_hand_side(arm_r) != 1 || arm_hand_side(arm_l) != 0)
     {
@@ -820,7 +764,7 @@ int arm_wave_right(Robot_Arm &arm_r, Robot_Arm &arm_l)
         return -4;
     std::cout << "[wave] 右手经身前抬到肩高\n";
     WaveQ q_lift = k_wave_hang;
-    const Eigen::MatrixXd q_at_hang = arm_read_motor_joints(1);
+    const Eigen::MatrixXd q_at_hang = gesture_read_device_joints(1);
     if (can_io_faulted() || !q_at_hang.allFinite())
         return -2;
     for (int j = 0; j < 7; ++j)
@@ -859,7 +803,7 @@ int arm_wave_right(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return 0;
 }
 
-int arm_wave_hang(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int arm_wave_hang(Arm &arm_r, Arm &arm_l)
 {
     if (arm_hand_side(arm_r) != 1 || arm_hand_side(arm_l) != 0)
     {
@@ -893,7 +837,7 @@ int arm_wave_hang(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return hardware_abort_requested() ? -4 : 0;
 }
 
-int arm_bow(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int arm_bow(Arm &arm_r, Arm &arm_l)
 {
     if (arm_hand_side(arm_r) != 1 || arm_hand_side(arm_l) != 0)
     {
@@ -990,7 +934,7 @@ int arm_bow(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return hardware_abort_requested() ? -4 : 0;
 }
 
-int arm_welcome(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int arm_welcome(Arm &arm_r, Arm &arm_l)
 {
     if (arm_hand_side(arm_r) != 1 || arm_hand_side(arm_l) != 0)
     {

@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "t170/vision/wrist_observer.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/feedback.h"
 #include "t170/motion/kinematics_adapter.h"
@@ -57,8 +57,8 @@ bool tcp_matches_goal_pose(
     }
 
 ArmLineMoveResult run_head_approach_selective(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         HeadAssignState &st,
         bool move_r,
         bool move_l)
@@ -153,7 +153,7 @@ ArmLineMoveResult run_head_approach_selective(
                 return out;
             }
 
-            auto verify_one = [&](Robot_Arm &arm,
+            auto verify_one = [&](Arm &arm,
                                   const Eigen::Matrix<double, 1, 6> &goal,
                                   const char *hand,
                                   int &ret_io) {
@@ -200,8 +200,8 @@ bool on_hand_steady_timeout_abort(
         const HandMoveState &hs,
         bool enable_r,
         bool enable_l,
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l)
+        Arm &arm_r,
+        Arm &arm_l)
     {
         if (hardware_abort_requested())
             return true;

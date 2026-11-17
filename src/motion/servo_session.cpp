@@ -6,7 +6,7 @@
 #include "t170/common/pose_math.h"
 #include "t170/motion/kinematics_adapter.h"
 #include "t170/motion/feedback.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/skills/legacy/profiles.h"
 #include "t170/vision/python_bridge.h"
@@ -45,7 +45,7 @@ std::string last_failure(int hand) {
     std::lock_guard<std::mutex> lock(slots[hand].mutex);
     return slots[hand].failure_reason;
 }
-bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,const char *tag) {
+bool begin_session(Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,const char *tag) {
     const int hand=hand_index(arm);
     if(hand<0 || hand>1) return false;
     if (!trace_writer().start(t170::logging::file("visual_servo").string())) {
@@ -119,9 +119,17 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
     // Preserve on-disk model for diagnosis. It is explicitly not proof of the SDK's
     // in-memory model if someone edits the YAML after process startup.
     std::error_code copy_error;
-    std::filesystem::copy_file(t170::paths::config_file("Robot_Arm_Model.yaml"),
+    std::filesystem::copy_file(t170::paths::config_file("Robot_Model.yaml"),
         prefix+".arm_model_on_disk.yaml",std::filesystem::copy_options::overwrite_existing,copy_error);
     if(copy_error) std::cerr << "[servo] 模型文件备份失败: " << copy_error.message() << '\n';
+    for(const auto &name:{"arm_binding.yaml","arm_model_metadata.yaml","arm_frames.yaml"}) {
+        const auto source=t170::paths::config_file(name);
+        if(!std::filesystem::exists(source)) continue;
+        copy_error.clear();
+        std::filesystem::copy_file(source,prefix+"."+name,
+            std::filesystem::copy_options::overwrite_existing,copy_error);
+        if(copy_error) std::cerr<<"[servo] "<<name<<" snapshot: "<<copy_error.message()<<'\n';
+    }
     ObservationContext saved;observation_context(hand,saved);
     if(cls==1 && cfg.tray_place.enabled && saved.tray_target.valid) {
         const auto &target=saved.tray_target;const auto &board=target.board;
@@ -151,7 +159,7 @@ bool begin_session(Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cl
               << " kp=" << cfg.kp << " kd=" << cfg.kd << " 双轴闭环；失败禁止夹爪动作\n";
     return !can_io_faulted();
 }
-void sample_approach_state(Robot_Arm &arm) {
+void sample_approach_state(Arm &arm) {
     const int hand=hand_index(arm); double ms=0;
     measured(arm,slots[hand],ms);
 }
@@ -194,7 +202,7 @@ void invalidate_result(int hand) {
     if(hand<0 || hand>1) return;
     std::lock_guard<std::mutex> lock(slots[hand].mutex); slots[hand].succeeded=false;
 }
-bool ready_for_gripper(Robot_Arm &arm) {
+bool ready_for_gripper(Arm &arm) {
     const int hand=hand_index(arm); auto &slot=slots[hand];
     Vec2 goal; Config cfg; double final_z; bool succeeded,place,tray_place,belt; Eigen::Matrix3d rotation;
     { std::lock_guard<std::mutex> lock(slot.mutex);

@@ -6,6 +6,7 @@
 #include <exception>
 #include <iostream>
 #include <thread>
+#include <yaml-cpp/yaml.h>
 
 namespace t170::app::detail {
 bool init_hardware(std::string &err)
@@ -16,6 +17,11 @@ bool init_hardware(std::string &err)
               << " config=" << t170::paths::config_directory()
               << " logs=" << t170::paths::log_directory() << std::endl;
     print_move_box_config(g_move_cfg);
+    // Pure algorithm construction/readback before enabling grippers or motion.
+    const std::string arm_yaml=t170::paths::config_file("Robot_Model.yaml").string();
+    const auto arm_model=YAML::LoadFile(t170::paths::config_file("arm_model_metadata.yaml").string())["model_id"].as<std::string>();
+    g_arm_r=std::make_unique<Arm>("T7_170",arm_model,"right",arm_yaml);
+    g_arm_l=std::make_unique<Arm>("T7_170",arm_model,"left",arm_yaml);
     vision_debug_init_from_env();
     pose_vis_set_save_debug(vision_debug_save_pairs());
     pose_vis_set_gui_enabled(vision_debug_gui());
@@ -54,9 +60,6 @@ bool init_hardware(std::string &err)
         return false;
 
     g_waist = std::make_unique<WaistRobot>();
-    const std::string arm_yaml = t170::paths::config_file("Robot_Arm_Model.yaml").string();
-    g_arm_r = std::make_unique<Robot_Arm>("T7", "T170", "right", arm_yaml);
-    g_arm_l = std::make_unique<Robot_Arm>("T7", "T170", "left", arm_yaml);
     rev_motor_error(0);
     rev_motor_error(1);
     motor_speed_change();

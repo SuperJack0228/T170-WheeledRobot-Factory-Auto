@@ -232,11 +232,11 @@ int dispatch_load(DispatchClient &client);
 int dispatch_transfer(DispatchClient &client);
 int dispatch_unload(DispatchClient &client);
 int go_belt_ready(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c, const char *tag);
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c, const char *tag);
 int go_belt_place(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c, const char *tag);
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c, const char *tag);
 int go_belt_grasp_rpy(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c, const char *tag);
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c, const char *tag);
 int go_belt_station(
     const ConveyorStationConfig &c, const char *tag,
     const std::function<int(bool is_right)> &on_hand_placed = {},

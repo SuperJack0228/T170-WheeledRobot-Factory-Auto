@@ -32,7 +32,7 @@ int main(int argc,char **argv) {
     const auto root=std::filesystem::temp_directory_path()/"t170-calibration-config-test";
     std::filesystem::remove_all(root);std::filesystem::create_directories(root/"calibration/placement");
     const auto repository=std::filesystem::path(argv[1]);
-    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","right_hand_to_base_result.yaml","Robot_Arm_Model.yaml"})
+    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","right_hand_to_base_result.yaml","Robot_Model.yaml"})
         std::filesystem::copy_file(repository/"config"/name,root/name);
     MoveBoxConfig base;std::string error;check(load_move_box_config((root/"move_box_params.yaml").string(),base,error),error.c_str());
     const auto cameras=YAML::LoadFile((root/"realsense_cameras.yaml").string());
@@ -40,7 +40,7 @@ int main(int argc,char **argv) {
     record["robot_id"]=base.chassis.sequence_number;record["camera_serial"]=cameras["realsense"]["right_hand"]["serial"].as<std::string>();
     record["width"]=base.cameras.width;record["height"]=base.cameras.height;
     record["eye_fingerprint"]=t170::calibration::fingerprint(root/"right_hand_to_base_result.yaml");
-    record["model_fingerprint"]=t170::calibration::fingerprint(root/"Robot_Arm_Model.yaml");
+    record["model_fingerprint"]=t170::calibration::fingerprint(root/"Robot_Model.yaml");
     record["reference_px"].push_back(701.5);record["reference_px"].push_back(430.2);
     record["reference_tcp_above_plane_m"]=.025;
     for(double v:{.4,-.2,-.4,0.,.95,.7})record["reference_pose_tcp"].push_back(v);

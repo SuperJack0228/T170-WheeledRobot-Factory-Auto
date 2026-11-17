@@ -6,7 +6,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
-class Robot_Arm;
+class Arm;
 Eigen::MatrixXd Transl_xyz(Eigen::Matrix<double, 1, 3> trans);
 
 Eigen::MatrixXd Rot_zyx(Eigen::Matrix<double, 1, 3>  theta);

@@ -3,8 +3,8 @@
 namespace move_box {
 GraspToStandbyResult run_tray_cycle_impl(
     gripper::Gripper &g,
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     WaistRobot &waist,
     Eigen::Matrix<double, 1, 6> &posup_down_3_layer,
     RealSenseMultiCam &cameras,

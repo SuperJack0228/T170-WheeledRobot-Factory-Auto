@@ -2,7 +2,7 @@
 #include "t170/skills/types.h"
 #include <Eigen/Core>
 #include <limits>
-class Robot_Arm;
+class Arm;
 struct ConveyorStationConfig;
 namespace gripper { class Gripper; }
 
@@ -17,7 +17,7 @@ struct ConveyorHooks {
 };
 struct ConveyorContext {
     gripper::Gripper &gripper;
-    Robot_Arm &right, &left;
+    Arm &right, &left;
     const ConveyorStationConfig &station; // Host resolves workcell configuration for this call.
     ConveyorHooks hooks;
 };

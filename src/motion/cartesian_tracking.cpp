@@ -56,7 +56,7 @@ constexpr double kServoBranchRad = 0.35;
 
 
 namespace {
-double servo_apply_pose(Robot_Arm &arm, int hand, const Eigen::Matrix<double, 1, 6> &pose,
+double servo_apply_pose(Arm &arm, int hand, const Eigen::Matrix<double, 1, 6> &pose,
                         Eigen::RowVectorXd &q, int &ik_code, double &max_dq)
 {
     ik_code = -1;
@@ -102,11 +102,7 @@ double servo_apply_pose(Robot_Arm &arm, int hand, const Eigen::Matrix<double, 1,
         scale = kServoMaxJointStepRad / max_dq;
         q_try = q + scale * (q_try - q);
     }
-    int motor_cmd[7] = {0};
-    for (int j = 0; j < 7; ++j)
-        motor_cmd[j] = rad_to_encoder_cnt(q_try(j));
-    set_motor_position(motor_cmd, hand);
-    save_arm_last_commanded_position(hand, motor_cmd);
+    wrist_servo::send_joint_reference(hand, q_try);
     q = std::move(q_try);
     return scale;
 }
@@ -130,7 +126,7 @@ struct ServoSide
 
 
 namespace {
-void servo_init_side(ServoSide &side, Robot_Arm &arm, bool on,
+void servo_init_side(ServoSide &side, Arm &arm, bool on,
                      const Eigen::Matrix<double, 1, 6> &start_pose)
 {
     side.on = on && !(arm_hand_side(arm) == 1 && right_arm_motors_locked());
@@ -142,10 +138,11 @@ void servo_init_side(ServoSide &side, Robot_Arm &arm, bool on,
     {
         for (int j = 0; j < 7; ++j)
             side.q(j) = encoder_cnt_to_rad(g_arm_last_cmd_cnt[side.hand][j]);
+        side.q = arm.to_model(side.q);
     }
     else
     {
-        side.q = arm_read_motor_joints(side.hand).row(0);
+        side.q = arm_read_model_joints(side.hand).row(0);
     }
     side.cmd = start_pose;
     if (!side.cmd.allFinite() || side.q.size() < 7)
@@ -161,7 +158,7 @@ void servo_init_side(ServoSide &side, Robot_Arm &arm, bool on,
 
 
 namespace {
-void servo_step_side(ServoSide &side, Robot_Arm &arm)
+void servo_step_side(ServoSide &side, Arm &arm)
 {
     if (!side.on)
         return;
@@ -211,8 +208,8 @@ void servo_step_side(ServoSide &side, Robot_Arm &arm)
 
 
 int arm_dual_cartesian_track(
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     const Eigen::Matrix<double, 1, 6> &start_r,
     const Eigen::Matrix<double, 1, 6> &start_l,
     bool move_r,

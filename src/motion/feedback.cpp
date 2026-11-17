@@ -67,15 +67,11 @@ void log_arms_motor_position_reach(bool log_r, bool log_l, const char *reason)
 
 
 namespace t170::motion::detail {
-Eigen::MatrixXd arm_read_motor_joints(int hand)
+Eigen::MatrixXd arm_read_model_joints(int hand)
 {
-    int motor_cnt[7] = {0};
-    get_motor_position(motor_cnt, hand);
-
-    Eigen::MatrixXd q_start(1, 7);
-    for (int i = 0; i < 7; ++i)
-        q_start(0, i) = encoder_cnt_to_rad(motor_cnt[i]);
-    return q_start;
+    wrist_servo::Joints q;
+    if(!wrist_servo::read_joint_feedback(hand,q)) throw std::runtime_error("joint_feedback_read_failed");
+    return q;
 }
 }
 
@@ -84,7 +80,7 @@ Eigen::MatrixXd arm_read_motor_joints(int hand)
 
 
 
-void log_arm_encoder_command_vs_actual(Robot_Arm &arm, const char *tag)
+void log_arm_encoder_command_vs_actual(Arm &arm, const char *tag)
 {
     const int hand = arm_hand_side(arm);
     const char *name = (tag && tag[0]) ? tag : (hand == 1 ? "右手" : "左手");
@@ -107,9 +103,9 @@ void log_arm_encoder_command_vs_actual(Robot_Arm &arm, const char *tag)
     std::cout << std::flush;
 }
 
-Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Robot_Arm &arm)
+Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Arm &arm)
 {
-    const Eigen::MatrixXd q = arm_read_motor_joints(arm_hand_side(arm));
+    const Eigen::MatrixXd q = arm_read_model_joints(arm_hand_side(arm));
     Eigen::Matrix<double, 1, 7> out = Eigen::Matrix<double, 1, 7>::Zero();
     const int n = static_cast<int>(std::min(q.cols(), static_cast<Eigen::Index>(7)));
     for (int i = 0; i < n; ++i)
@@ -117,16 +113,6 @@ Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Robot_Arm &arm)
     return out;
 }
 
-namespace wrist_servo {
-bool read_joint_feedback(int hand,Joints &q) {
-    uint32_t ids[7]; int counts[7]{};
-    const auto *source=hand==1?kRightArmCanIds:kLeftArmCanIds;
-    std::copy(source,source+7,ids);
-    if(socketcan_sendsimplecommand(0,7,ids,8,counts)!=1) return false;
-    for(int j=0;j<7;++j) q(j)=encoder_cnt_to_rad(counts[j]);
-    return q.allFinite();
-}
-}
 
 
 namespace {
@@ -389,7 +375,7 @@ std::vector<ArmArrivalRecord> arm_arrival_log_copy()
 }
 
 bool record_arm_cartesian_arrival(
-    Robot_Arm &arm,
+    Arm &arm,
     const Eigen::Matrix<double, 1, 6> &goal,
     const char *stage,
     double settle_sec)

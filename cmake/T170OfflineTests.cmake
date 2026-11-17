@@ -10,6 +10,15 @@
     endif()
     find_package(Threads REQUIRED)
     find_package(yaml-cpp REQUIRED)
+    t170_add_arm_support()
+    add_executable(arm_model_test tests/arm_model_test.cpp)
+    target_link_libraries(arm_model_test PRIVATE t170_arm_core)
+    add_test(NAME arm_model_test COMMAND arm_model_test ${T170_TEST_RUNTIME} ${PROJECT_SOURCE_DIR})
+    add_executable(arm_io_test tests/arm_io_test.cpp src/motion/arm_io.cpp)
+    target_link_libraries(arm_io_test PRIVATE t170_arm_configuration t170::control)
+    add_test(NAME arm_io_test COMMAND arm_io_test ${T170_TEST_RUNTIME})
+    add_library(arm_sdk_check_compilecheck OBJECT tools/arm_sdk_check.cpp)
+    target_link_libraries(arm_sdk_check_compilecheck PRIVATE t170_arm_core)
     find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d)
     if(OpenCV_VERSION VERSION_LESS "4.7")
         find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d aruco)
@@ -128,6 +137,8 @@
     add_test(NAME dispatch_report_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/dispatch_report_test.py)
     add_test(NAME deployment_test COMMAND ${Python3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/deployment_test.py $<TARGET_FILE:t170_config_dump>)
+    add_test(NAME arm_model_geometry_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/arm_model_geometry_test.py)
 
     add_executable(skills_contract_test tests/skills_contract_test.cpp)
     target_link_libraries(skills_contract_test PRIVATE t170::skill_contract Eigen3::Eigen)

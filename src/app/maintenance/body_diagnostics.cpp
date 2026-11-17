@@ -4,7 +4,7 @@
 
 #include "t170/telemetry/factory_status.h"
 #include "t170/telemetry/dispatch_metrics.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/vision/wrist_observer.h"
 #include "t170/motion/servo.h"

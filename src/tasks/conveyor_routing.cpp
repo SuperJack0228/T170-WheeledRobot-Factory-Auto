@@ -3,7 +3,7 @@
 
 #include "t170/telemetry/factory_status.h"
 #include "t170/telemetry/dispatch_metrics.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/vision/wrist_observer.h"
 #include "t170/motion/servo.h"
@@ -56,7 +56,7 @@ using std::thread;
 
 
 namespace orch {
-int chassis_goto_belt2_and_ready(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int chassis_goto_belt2_and_ready(Arm &arm_r, Arm &arm_l)
 {
     const std::string &st = g_move_cfg.chassis.out_station;
     std::cout << "[orch] belt2：先到 " << st << "\n";
@@ -72,12 +72,12 @@ int chassis_goto_belt2_and_ready(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return go_belt_ready(arm_r, arm_l, g_move_cfg.conveyor2, "belt2");
 }
 
-int go_belt2_ready(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int go_belt2_ready(Arm &arm_r, Arm &arm_l)
 {
     return chassis_goto_belt2_and_ready(arm_r, arm_l);
 }
 
-int go_belt2_grasp_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int go_belt2_grasp_rpy(Arm &arm_r, Arm &arm_l)
 {
     return go_belt_grasp_rpy(arm_r, arm_l, g_move_cfg.conveyor2, "belt2");
 }

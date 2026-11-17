@@ -5,7 +5,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
-class Robot_Arm;
+class Arm;
 void arm_line_move_set_debug_stage(const char *stage);
 struct ArmLineMoveResult
 {

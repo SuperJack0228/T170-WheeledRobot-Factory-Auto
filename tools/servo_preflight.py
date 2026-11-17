@@ -4,6 +4,7 @@ import argparse
 import hashlib
 from pathlib import Path
 import sys
+import platform
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from t170_common.paths import load_paths
@@ -31,7 +32,8 @@ def main():
         errors.append("旧 use_hand_camera 必须关闭，新伺服通过 hand_descent_correct 开启")
     if config.get("head_grasp", {}).get("descend_vel_m_s", 0) <= 0:
         errors.append("下降速度必须为正数")
-    resources = [config_dir / "Robot_Arm_Model.yaml", root / "dependencies/sdk/arm/lib/Ti5_Arm_2204.so", config_dir / "left_hand_to_base_result.yaml",
+    arch='aarch64' if platform.machine() in ['aarch64','arm64'] else 'x86_64'
+    resources = [config_dir / "Robot_Model.yaml", root / f"dependencies/sdk/arm/lib/{arch}-glibc227/libti5_robot.so", config_dir / "arm_binding.yaml", config_dir / "left_hand_to_base_result.yaml",
                  config_dir / "right_hand_to_base_result.yaml", config_dir / "move_box_params.yaml",
                  config_dir / "realsense_cameras.yaml", paths.config_file("vision/pose_params.yaml")]
     for key in ("model", "hand_model"):
@@ -70,8 +72,10 @@ def main():
     print("SERVO one-sided Z: C +", servo.get("grasp_height_margin_m", .002),
           "m; precise XY:", servo.get("xy_tolerance_m", .002),
           "m; grasp allowance:", servo.get("grasp_xy_accept_m", .006), "m")
-    print("SDK joint limits enforced:", servo.get("enforce_sdk_joint_limits", False),
+    print("SERVO additional joint-limit gate:", servo.get("enforce_sdk_joint_limits", False),
           "; local joint excursion:", servo.get("max_joint_excursion_rad", .70), "rad")
+    print("新 Arm 逆解和轨迹始终按所选模型限位求解；上述开关仅控制伺服附加检查。")
+    print("此处 PROFILE 为源配置；任务参考有效性及 pending_model_calibrations 以 C++ 配置加载结果为准。")
     print("geometry 是初始几何估计，不等于已经实测标定；本工具不验证实际精度或设备连接。")
     for error in errors:
         print("ERROR:", error, file=sys.stderr)

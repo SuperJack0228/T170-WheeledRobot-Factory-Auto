@@ -1,12 +1,14 @@
 # 配置选择、启动与调参
 
-更新：2026-11-16。本轮统一资源来源，尚未制作安装包。
+更新：2026-11-17。已统一资源来源并接入新手臂 SDK，尚未制作安装包。
 
 ## 配置不是编译进程序的常量
 
 `config/defaults/factory_baseline.yaml` 是共有控制/策略；`robot_models/t170/` 是型号和运动模型；`sites/current_factory/` 是工厂料盘、传送带、导航与视觉参数；`robots/TH-T170C-0124/` 是身份、相机 SN、设备和准备位；`calibration/TH-T170C-0124/` 是头/手眼及料盘抓放结果。`deployments/TH-T170C-0124.yaml` 选择这些真实输入。
 
 默认选择只在 `config/deployment.yaml` 这个数据文件里，C++ 没有固定选择 124。十台机器人可以共享型号/工厂配置，分别维护身份和标定；机床点位由每次调度任务提供，不固定机器人和机床组合。
+
+V2.0 双臂的 3 kg / 5 kg 模型分别保存在 `robot_models/t170c_v2_3kg/` 和 `robot_models/t170c_v2_5kg/`，deployment 的 `robot_model` 选择其一，No.124 选择 3 kg。正式运动后端已切换为 `Ti5_Robotics`，运行目录生成实际 `Robot_Model.yaml`、电机角绑定、工具和手眼 frame 转换，启动时回读核验 SDK 参数。旧模型下的四份料盘任务参考已标记待复核，原记录保留。完整边界及机器人侧验证顺序见 [双臂机型配置](ARM_MODELS.md) 和 [SDK 接入说明](ARM_SDK_MIGRATION.md)。
 
 合成器目前要求各字段只有一个归属。重复字段会报错，不存在随意“后面的覆盖前面的”。修改参数要改对应来源文件；来源记录见生成的 `deployment_resolved.json`。任意单机参数覆盖白名单属于后续工作。
 

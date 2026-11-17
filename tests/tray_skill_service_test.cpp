@@ -12,7 +12,7 @@ void require(bool ok,const char *message){if(!ok)throw std::runtime_error(messag
 }
 bool hardware_abort_requested(){return aborted;}
 bool can_io_faulted(){return io_fault;}
-Robot_Arm::Robot_Arm(const std::string &,const std::string &,const std::string &,const std::string &){}
+Arm::Arm(const std::string &,const std::string &,const std::string &,const std::string &){}
 WaistRobot::WaistRobot(){}
 struct RealSenseMultiCam::Impl {};
 RealSenseMultiCam::RealSenseMultiCam(std::string,int,int,int,int,bool){}
@@ -28,7 +28,7 @@ Gripper::~Gripper()=default;
 namespace move_box {
 TrayHoleTask tray_hole_task(){return mode;}
 void set_tray_hole_task(TrayHoleTask value){mode=value;}
-GraspToStandbyResult run_tray_cycle_impl(gripper::Gripper &,Robot_Arm &,Robot_Arm &,WaistRobot &,
+GraspToStandbyResult run_tray_cycle_impl(gripper::Gripper &,Arm &,Arm &,WaistRobot &,
  Eigen::Matrix<double,1,6> &,RealSenseMultiCam &,SegPoseBridge &,const std::array<double,16> &,
  std::string &,const std::function<bool()> &cancel,SegEngineId,bool,bool skip_r,bool skip_l,
  const std::function<void(bool,bool)> &,bool,const std::function<void()> &) {
@@ -60,7 +60,7 @@ GraspToStandbyResult run_tray_cycle_impl(gripper::Gripper &,Robot_Arm &,Robot_Ar
 int main() {
     using namespace t170::skills;
     try {
-        Robot_Arm right("","","right"),left("","","left");gripper::Gripper gripper;
+        Arm right("","","right"),left("","","left");gripper::Gripper gripper;
         WaistRobot waist;RealSenseMultiCam cameras("synthetic");SegPoseBridge vision;
         Eigen::Matrix<double,1,6> waist_pose=Eigen::Matrix<double,1,6>::Zero();
         TrayContext context{gripper,right,left,waist,waist_pose,cameras,vision,{}, {}};

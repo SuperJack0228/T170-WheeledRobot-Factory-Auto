@@ -3,7 +3,7 @@
 
 #include "t170/telemetry/factory_status.h"
 #include "t170/telemetry/dispatch_metrics.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/kinematics_adapter.h"
@@ -199,7 +199,7 @@ int home_waist_upright()
     return 0;
 }
 
-int go_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int go_home(Arm &arm_r, Arm &arm_l)
 {
     TimingSpan span("motion_home");
     auto done = [&](int code) {
@@ -248,7 +248,7 @@ int go_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return done(0);
 }
 
-int go_home_arms_keep_waist_z(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int go_home_arms_keep_waist_z(Arm &arm_r, Arm &arm_l)
 {
     std::cout << "[orch] 充完电收手：头标定 + 双臂回 home_tcp，腰高度保持不动\n";
     const int head_rc = enable_head_calib_pose();
@@ -273,7 +273,7 @@ int go_home_arms_keep_waist_z(Robot_Arm &arm_r, Robot_Arm &arm_l)
     return hardware_abort_requested() ? -4 : 0;
 }
 
-int go_grasp_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group)
+int go_grasp_ready(Arm &arm_r, Arm &arm_l, int row_group)
 {
     if (row_group != 6 && (row_group < 1 || row_group > 3))
     {
@@ -325,7 +325,7 @@ int go_grasp_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group)
     return 0;
 }
 
-int go_tray2_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group)
+int go_tray2_ready(Arm &arm_r, Arm &arm_l, int row_group)
 {
     if (row_group != 6 && (row_group < 1 || row_group > 3))
     {
@@ -378,7 +378,7 @@ int go_tray2_ready(Robot_Arm &arm_r, Robot_Arm &arm_l, int row_group)
 }
 
 int go_belt_ready(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c, const char *tag)
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c, const char *tag)
 {
     const char *name = (tag && tag[0]) ? tag : "belt";
     std::cout << "[orch] " << name << "_ready：腰/头到位，手臂到准备 tcp\n";
@@ -393,13 +393,13 @@ int go_belt_ready(
     return 0;
 }
 
-int go_belt_ready(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int go_belt_ready(Arm &arm_r, Arm &arm_l)
 {
     return go_belt_ready(arm_r, arm_l, g_move_cfg.conveyor, "belt");
 }
 
 int go_belt_place(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c, const char *tag)
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c, const char *tag)
 {
     const char *name = (tag && tag[0]) ? tag : "belt";
     std::cout << "[orch] " << name << "_place：腰/头到位，手臂到 place_tcp（放置末端）\n";
@@ -414,13 +414,13 @@ int go_belt_place(
     return 0;
 }
 
-int go_belt_place(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int go_belt_place(Arm &arm_r, Arm &arm_l)
 {
     return go_belt_place(arm_r, arm_l, g_move_cfg.conveyor, "belt");
 }
 
 int go_belt_grasp_rpy(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c, const char *tag)
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c, const char *tag)
 {
     const char *name = (tag && tag[0]) ? tag : "belt";
     std::cout << std::fixed << std::setprecision(1)
@@ -440,7 +440,7 @@ int go_belt_grasp_rpy(
     return 0;
 }
 
-int go_belt_grasp_rpy(Robot_Arm &arm_r, Robot_Arm &arm_l)
+int go_belt_grasp_rpy(Arm &arm_r, Arm &arm_l)
 {
     return go_belt_grasp_rpy(arm_r, arm_l, g_move_cfg.conveyor, "belt");
 }

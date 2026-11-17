@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "t170/vision/wrist_observer.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/feedback.h"
@@ -45,8 +45,8 @@ using std::thread;
 
 namespace move_box {
 void lift_grasped_selective(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         RealSenseMultiCam &cameras,
         HeadAssignState &st,
         bool lift_r,
@@ -87,8 +87,8 @@ void lift_grasped_selective(
     }
 
 void lift_grasped_after_pick(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         RealSenseMultiCam &cameras,
         HeadAssignState &st,
         bool grasped_r,

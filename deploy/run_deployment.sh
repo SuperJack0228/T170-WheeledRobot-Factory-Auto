@@ -14,6 +14,7 @@ python_bin="${T170_PYTHON:-python3}"
 "$python_bin" "$ROOT/tools/resolve_deployment.py" "$manifest" "$runtime" --root "$ROOT"
 runtime="$(cd -- "$runtime" && pwd)"
 export T170_ROOT="$runtime" T170_CONFIG_DIR="$runtime/config" T170_DEPLOYMENT="$manifest"
+source "$ROOT/deploy/runtime_context.sh"
 cd -- "$runtime"
 # Validate through the real C++ loader before linking/starting any device SDK.
 "$ROOT/build_robot/t170_config_dump" "$runtime/config/move_box_params.yaml" "$runtime/effective_config.yaml"

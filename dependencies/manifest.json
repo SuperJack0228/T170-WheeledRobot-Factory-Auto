@@ -4,8 +4,31 @@
     {
       "path": "sdk/arm",
       "kind": "ti5_sdk",
+      "status": "active_backend_native_validation_pending",
+      "file_count": 4,
+      "hash_scheme": "sha256_sorted_path_nul_file_sha256_lf",
+      "content_sha256": "00444dd627837dbbe95cfdb14ca8ca11561fc5d1a49abfcc95b1470e097be438",
+      "files": {
+        "README.md": "6d9dd86800f78ec8a9149ed7b2680e354acd313a90e4fe35e75e1298f69d7c32",
+        "include/Ti5_Robotics.h": "0e60e8da89ceda3035c3a234806d9911edab2909c677d1de3a0aad32a78f5d35",
+        "lib/aarch64-glibc227/libti5_robot.so": "825a3fca445b52da37295e0d08cb9c45fffa288eb76ae2c087e043b42f13c383",
+        "lib/x86_64-glibc227/libti5_robot.so": "3e4bbe302ec825689611c7478bf95577f181eebed85b654578209f40b71d7dd2"
+      },
+      "version": "20261109",
+      "source_packages": [
+        "ti5-robot-dynamics-aarch64-glibc227-20261109.tar.gz",
+        "ti5-robot-dynamics-x86_64-glibc227-20261109.tar.gz"
+      ],
+      "api_compile_checked": true,
+      "native_abi_verified": false
+    },
+    {
+      "path": "sdk/arm_legacy",
+      "kind": "ti5_sdk_archive",
+      "status": "not_linked",
       "file_count": 2,
-      "content_sha256": "9a4ca7df275b8529e297cd3a502be7a024f2763b321e998b8b4ad5363359dc42",
+      "hash_scheme": "sha256_sorted_path_nul_file_sha256_lf",
+      "content_sha256": "4130206ae5203ad777d2909f1b4fb188d215edec1a2bf23ccbfd6b96c2dbaaad",
       "files": {
         "include/Ti5_Arm.h": "5b1f245b55f02b6aab543912cfa5dbc1c5146256ec37875dec111b305c96c6ad",
         "lib/Ti5_Arm_2204.so": "e3da80016c6aa6f443ce66f023428f9ffaecf4c414bb6d51a3ed675e4253091f"

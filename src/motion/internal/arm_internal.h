@@ -8,7 +8,7 @@
 #include "t170/motion/retreat.h"
 #include "t170/motion/servo_handoff.h"
 #include "t170/motion/trajectory_executor.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/motion/servo.h"
 #include "t170/motion/trajectory.h"
 #include "t170/hardware/device_bus.h"
@@ -26,23 +26,23 @@ extern wrist_servo::Joints g_servo_joint_origin[2];
 namespace t170::motion::detail {
 inline constexpr double k_arm_traj_dt = 5e-3;
 inline constexpr int kMotorPositionReachTolerance = 550;
-int arm_hand_side(const Robot_Arm &arm);
-Eigen::MatrixXd arm_read_motor_joints(int hand);
+int arm_hand_side(const Arm &arm);
+Eigen::MatrixXd arm_read_model_joints(int hand);
 double encoder_cnt_to_rad(int cnt);
 int execute_arm_trajectory(const Eigen::MatrixXd &traj_in, int hand, double dt = k_arm_traj_dt,
-                           Robot_Arm *retract_arm = nullptr,
+                           Arm *retract_arm = nullptr,
                            const std::function<void(const wrist_servo::Joints &)> &observe_progress = {});
 std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
-    Robot_Arm &arm, const Eigen::RowVectorXd &held);
+    Arm &arm, const Eigen::RowVectorXd &held);
 int plan_arm_line_from(
-    Robot_Arm &arm,
+    Arm &arm,
     Eigen::Matrix<double, 1, 6> goal,
     double vel_m_s,
     const Eigen::MatrixXd &q_start,
     Eigen::MatrixXd &traj,
     bool lock_redundant = false);
 int plan_line_then_line(
-    Robot_Arm &arm,
+    Arm &arm,
     Eigen::Matrix<double, 1, 6> mid,
     Eigen::Matrix<double, 1, 6> goal,
     double vel_first_m_s,

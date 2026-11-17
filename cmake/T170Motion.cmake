@@ -4,6 +4,7 @@ set(T170_ARM_MOTION_SOURCES
     src/motion/arm_state.cpp
     src/motion/kinematics_adapter.cpp
     src/motion/feedback.cpp
+    src/motion/arm_io.cpp
     src/motion/planning.cpp
     src/motion/trajectory_executor.cpp
     src/motion/cartesian_tracking.cpp

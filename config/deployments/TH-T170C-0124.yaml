@@ -1,6 +1,7 @@
 schema_version: 1
 robot_id: TH-T170C-0124
-robot_model: t170
+# No.124: V2.0 3 kg; active Ti5_Robotics model-angle backend.
+robot_model: t170c_v2_3kg
 site_id: current_factory
 task_assignment: dispatch
 layers:
@@ -16,7 +17,6 @@ files:
   config/right_hand_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/right.yaml
   config/camera_profile_d405.yaml: config/robot_models/t170/camera_profile_d405.yaml
   config/camera_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/head_fallback.yaml
-  config/Robot_Arm_Model.yaml: config/robot_models/t170/Robot_Arm_Model.yaml
   config/devices.json: config/robots/TH-T170C-0124/hardware/devices.json
   config/camera_profile_d435i.yaml: config/robot_models/t170/camera_profile_d435i.yaml
   config/left_hand_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/left.yaml

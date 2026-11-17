@@ -1,7 +1,7 @@
 #pragma once
 #include "t170/skills/types.h"
 #include <Eigen/Core>
-class Robot_Arm;
+class Arm;
 class WaistRobot;
 class RealSenseMultiCam;
 class SegPoseBridge;
@@ -15,7 +15,7 @@ struct TrayHooks {
 };
 struct TrayContext {
     gripper::Gripper &gripper;
-    Robot_Arm &right, &left;
+    Arm &right, &left;
     WaistRobot &waist;
     Eigen::Matrix<double, 1, 6> &waist_pose; // Existing mutable, measured waist state.
     RealSenseMultiCam &cameras;

@@ -1,6 +1,6 @@
 #include "../internal/execution.h"
 #include "t170/skills/legacy/runtime.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/feedback.h"
@@ -40,8 +40,8 @@ bool aborting(const std::function<bool()> &should_abort)
 
 GraspToStandbyResult run_tray_cycle_impl(
     gripper::Gripper &g,
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     WaistRobot &waist,
     Eigen::Matrix<double, 1, 6> &posup_down_3_layer,
     RealSenseMultiCam &cameras,
@@ -57,12 +57,12 @@ GraspToStandbyResult run_tray_cycle_impl(
     bool allow_waist_rise,
     const std::function<void()> &on_waist_up)
 {
-    auto head_approach = [&](Robot_Arm &right,Robot_Arm &left,HeadAssignState &state,bool move_right,bool move_left) {
+    auto head_approach = [&](Arm &right,Arm &left,HeadAssignState &state,bool move_right,bool move_left) {
         const auto result = run_head_approach_selective(right,left,state,move_right,move_left);
         t170::skills::detail::report_native(result.ret_r,result.ret_l,move_right,move_left,t170::skills::Stage::Approach);
         return result;
     };
-    auto contact = [&](gripper::Gripper &gripper, Robot_Arm &right, Robot_Arm &left,
+    auto contact = [&](gripper::Gripper &gripper, Arm &right, Arm &left,
                        HeadAssignState &state, HandMoveState &hands) {
         const auto result=run_hand_approach_and_grasp(gripper,right,left,state,hands);
         t170::skills::detail::report_native(result.ret_r,result.ret_l,hands.move_r,hands.move_l,

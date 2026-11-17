@@ -4,6 +4,7 @@ No camera/SDK/motor imports. Legacy application files retain their byte identity
 from pathlib import Path
 import hashlib,json,os,shutil,tempfile
 import yaml
+from .arm_model import prepare_arm_model,legacy_flange_bridge,multiply
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -38,7 +39,7 @@ def resolve(root, manifest, output):
             if name==parent+'identity.yaml':
                 valid=set(layer)=={'chassis'} and set(layer['chassis'])=={'host','robot_type','sequence_number'}
             elif name==parent+'taught_poses.yaml':
-                valid=set(layer)=={'retract_motion'} and set(layer['retract_motion'])=={'ready_right_deg','ready_left_deg'}
+                valid=set(layer)=={'retract_motion'} and set(layer['retract_motion'])=={'ready_right_deg','ready_left_deg','joint_coordinates'} and layer['retract_motion']['joint_coordinates']=='sdk_mdh_model'
             elif name==parent+'reference_pixels.yaml':
                 valid=set(layer)<= {'cameras','visual_servo'} and set(layer.get('cameras',{}))<= {
                     'left_gripper_u','left_gripper_v','right_gripper_u','right_gripper_v'}
@@ -48,7 +49,10 @@ def resolve(root, manifest, output):
             if not valid:raise ValueError('Invalid robot identity/calibration ownership; never bind workcells/stations to a robot')
         merge(merged,layer,'',name)
     if merged.get('chassis',{}).get('sequence_number')!=doc['robot_id']:raise ValueError('Robot identity mismatch')
+    arm_resources, arm_inputs, selected_arm_model = prepare_arm_model(root,doc['robot_model'],doc['robot_id'],merged.get('retract_motion'))
+    inputs.update(arm_inputs)
     files=doc['files']
+    if set(files) & set(arm_resources):raise ValueError('Selected arm model owns its runtime files; remove conflicting manual mappings')
     for target,name in files.items():
         if Path(target).is_absolute() or '..' in Path(target).parts or target in ['config/move_box_params.yaml','config/calibration']:raise ValueError('Invalid runtime target '+target)
         p=source(name)
@@ -79,6 +83,24 @@ def resolve(root, manifest, output):
         for target,name in files.items():
             p=temp/target
             if not p.exists():p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(source(name).read_bytes())
+        for target,data in arm_resources.items():
+            p=temp/target
+            p.parent.mkdir(parents=True,exist_ok=True)
+            p.write_bytes(data)
+        # Re-express existing eye-in-hand transforms in the exact selected flange
+        # coordinates. Original robot calibration files remain immutable inputs.
+        binding=yaml.safe_load(arm_resources['config/arm_binding.yaml'])
+        if binding.get('hand_eye_coordinates')=='legacy_t7_flange':
+            frame_data=yaml.safe_load(arm_resources['config/arm_frames.yaml'])
+            for side in ['left','right']:
+                p=temp/'config'/(side+'_hand_to_base_result.yaml')
+                eye=yaml.safe_load(p.read_text());key='a. matrix' if 'a. matrix' in eye else 'matrix'
+                bridge=legacy_flange_bridge(frame_data,side)
+                for i in range(3):bridge[i][3]*=1000 # hand-eye source translations are mm
+                eye[key]=multiply(bridge,eye[key])
+                for k in ['b. translation_xyz_mm','c. euler_angles_xyz_deg']:eye.pop(k,None)
+                eye['parent_frame']='selected_sdk_flange';eye['source_parent_frame']='legacy_t7_flange'
+                p.write_text(yaml.safe_dump(eye,sort_keys=False,allow_unicode=True))
         (temp/'config').mkdir(exist_ok=True)
         (temp/'config/move_box_params.yaml').write_text(yaml.safe_dump(merged,allow_unicode=True,sort_keys=False))
         # Directory link preserves atomic calibration saves and *_before_ history
@@ -105,6 +127,7 @@ def resolve(root, manifest, output):
             alias.symlink_to(os.path.relpath(target, alias.parent), target_is_directory=target.is_dir())
         (temp/"web_compat_paths.json").write_text(json.dumps(web_aliases,indent=2)+"\n")
         record={'schema_version':1,'manifest':str(manifest),'robot_id':doc['robot_id'],'robot_model':doc['robot_model'],'site_id':doc['site_id'],'task_assignment':'dispatch','parameter_sources':provenance,'input_sha256':inputs,'resource_root':str(root),'runtime_root':str(output),'mode':'source-tree-overlay'}
+        if selected_arm_model is not None:record['selected_arm_model']=selected_arm_model
         (temp/'deployment_resolved.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
         temp.rename(output)
     except BaseException:

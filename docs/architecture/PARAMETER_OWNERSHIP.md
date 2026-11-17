@@ -1,5 +1,7 @@
 > 2026-11-16续行：当前行为基线为9e023e7。第一批配置工作和非绑定部署约束见[CONFIG_DEPLOYMENT_STAGE21.md](../deployment/CONFIGURATION.md)；下文旧基线日期和状态保留作历史记录。
 
+> 2026-11-17 更新：手臂已接入新 SDK，实际配置为所选 V2.0 型号的 `Robot_Model.yaml`，实例设备约定来自 `arm_binding.yaml`、工具来自 `arm_tools.yaml`；旧 `Robot_Arm_Model.yaml` 已退出运行目录。详见 [SDK 接入](../deployment/ARM_SDK_MIGRATION.md)。
+
 # 参数独立、标定与部署入口
 
 本文件规定第二步必须实现的目标。当前新目录只有骨架；旧 YAML 和当前加载路径仍生效，不因本次规划切换配置。

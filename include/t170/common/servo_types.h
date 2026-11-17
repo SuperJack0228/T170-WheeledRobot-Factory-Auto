@@ -7,6 +7,8 @@ namespace wrist_servo {
 using Vec2 = Eigen::Vector2d;
 using Vec3 = Eigen::Vector3d;
 using Mat2 = Eigen::Matrix2d;
+// SDK MODEL radians throughout runtime/history/PD/hold/retreat. Device angles
+// exist only in explicit hardware adapters and legacy maintenance gesture data.
 using Joints = Eigen::Matrix<double, 1, 7>;
 
 double monotonic_seconds();

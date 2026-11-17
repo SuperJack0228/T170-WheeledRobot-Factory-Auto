@@ -6,7 +6,7 @@
 #include "t170/common/pose_math.h"
 #include "t170/motion/kinematics_adapter.h"
 #include "t170/motion/feedback.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/skills/legacy/profiles.h"
 
@@ -28,7 +28,7 @@ using namespace Eigen;
 using namespace std;
 namespace wrist_servo {
 using namespace detail;
-int run_descent(Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal,
+int run_descent(Arm &arm,const Eigen::Matrix<double,1,6> &goal,
                 const Joints &last_command,const Joints &previous_command,double speed) {
     const int hand=hand_index(arm); Runtime &slot=slots[hand];
     ObservationContext context;

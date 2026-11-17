@@ -9,7 +9,7 @@
 #include <chrono>
 namespace t170::skills {
 namespace {
-struct Binding { gripper::Gripper *g; Robot_Arm *arm_r,*arm_l; bool last_grasped_r=false,last_grasped_l=false; };
+struct Binding { gripper::Gripper *g; Arm *arm_r,*arm_l; bool last_grasped_r=false,last_grasped_l=false; };
 int contact(ConveyorContext &context,const ConveyorGraspRequest &request,detail::Execution &run) {
     Binding binding{&context.gripper,&context.right,&context.left};auto *g_hw=&binding;
     const bool is_right=request.hand==Hand::Right;
@@ -177,7 +177,7 @@ int withdraw(ConveyorContext &context,const ConveyorRetreatRequest &request,deta
             return 0;
         if (aborted())
             return -4;
-        Robot_Arm &arm = is_right ? *g_hw->arm_r : *g_hw->arm_l;
+        Arm &arm = is_right ? *g_hw->arm_r : *g_hw->arm_l;
         const char *hand = is_right ? "右手" : "左手";
         const char *back_name = to_ready ? "伸手前实测关节（空抓）" : back_name_default;
         if (aborted())
@@ -217,7 +217,7 @@ int withdraw_place(ConveyorContext &context,const ConveyorRetreatRequest &reques
             return 0;
         if (aborted())
             return -4;
-        Robot_Arm &arm = is_right ? *g_hw->arm_r : *g_hw->arm_l;
+        Arm &arm = is_right ? *g_hw->arm_r : *g_hw->arm_l;
         constexpr double kPlaceNudgeUpM = 0.03;
         const double place_mps = c.place_retract_vel_m_s;
         Eigen::Matrix<double, 1, 6> lift = arm_get_tcp_pos(arm);

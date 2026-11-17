@@ -3,7 +3,7 @@
 #include "t170/telemetry/dispatch_metrics.h"
 #include "t170/vision/head_transform.h"
 #include "t170/skills/legacy/profiles.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/common/pose_math.h"

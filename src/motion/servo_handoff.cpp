@@ -22,7 +22,7 @@ using namespace std;
 using namespace t170::motion::detail;
 namespace {
 int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row,
-                          Robot_Arm &arm, const Eigen::Matrix<double,1,6> &goal,
+                          Arm &arm, const Eigen::Matrix<double,1,6> &goal,
                           double descent_speed, int target_class,const char *tag)
 {
     if (traj.rows()<2 || traj.cols()!=7 || descent_row<1 || descent_row>traj.rows()) return -30;
@@ -88,11 +88,11 @@ bool descent_commanded_xy(int hand,double &x,double &y) {
 }
 
 ArmLineMoveResult arm_dual_line_then_line_nostop(
-    Robot_Arm &arm_r,
+    Arm &arm_r,
     const Eigen::Matrix<double, 1, 6> &mid_r,
     const Eigen::Matrix<double, 1, 6> &goal_r,
     const bool move_r,
-    Robot_Arm &arm_l,
+    Arm &arm_l,
     const Eigen::Matrix<double, 1, 6> &mid_l,
     const Eigen::Matrix<double, 1, 6> &goal_l,
     const bool move_l,
@@ -121,7 +121,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const bool prepared_l =
         use_prepared && !correct_descent && move_l &&
         take_prepared_line(arm_hand_side(arm_l), traj_l, out.ret_l);
-    auto plan=[&](Robot_Arm &arm,Eigen::Matrix<double,1,6> mid,
+    auto plan=[&](Arm &arm,Eigen::Matrix<double,1,6> mid,
                   const Eigen::Matrix<double,1,6> &goal,Eigen::MatrixXd &trajectory) {
         if(!visual) return plan_line_then_line(
             arm,mid,goal,vel_first_m_s,vel_second_m_s,trajectory,log_tag,nullptr,use_prepared);
@@ -147,7 +147,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         before_move();
     if (visual)
         wrist_servo::prepare_group(move_r,move_l);
-    const auto watch = [&](Robot_Arm &arm, const Eigen::Matrix<double, 1, 6> &goal) {
+    const auto watch = [&](Arm &arm, const Eigen::Matrix<double, 1, 6> &goal) {
         const int hand = arm_hand_side(arm);
         if (visual)
             hand_shadow_ensure(
@@ -157,7 +157,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         watch(arm_r, goal_r);
     if (move_l)
         watch(arm_l, goal_l);
-    auto run_one = [&](Robot_Arm &arm, const Eigen::MatrixXd &traj,
+    auto run_one = [&](Arm &arm, const Eigen::MatrixXd &traj,
                        const Eigen::Matrix<double, 1, 6> &goal, int &ret) {
         const int hand = arm_hand_side(arm);
         try {
@@ -203,7 +203,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     if (correct_descent && move_l)
         hand_shadow_end(arm_hand_side(arm_l));
     const char *done = correct_descent ? "下降到位" : (snap_reach ? "伸手到位" : "收手终点");
-    auto arrival=[&](Robot_Arm &arm,const Eigen::Matrix<double,1,6> &goal) {
+    auto arrival=[&](Arm &arm,const Eigen::Matrix<double,1,6> &goal) {
         Eigen::Matrix<double,1,6> corrected=goal;
         double x=0,y=0;
         if(visual && descent_commanded_xy(arm_hand_side(arm),x,y)) { corrected(0)=x; corrected(1)=y; }

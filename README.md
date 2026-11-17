@@ -38,6 +38,8 @@
 
 当前为首版工程集成阶段，采用源码部署；安装包与发布验收尚未完成。
 
+手臂后端已接入 Ti5_Robotics 20261109，支持独立选择 V2.0 3 kg / 5 kg 模型，No.124 当前使用 3 kg。新 SDK 的 Linux 加载和实机回归尚待现场验证，旧料盘抓放参考需重新确认；步骤见 [SDK 接入与验证](docs/deployment/ARM_SDK_MIGRATION.md)。
+
 ## 软件架构
 
 ```text
@@ -141,6 +143,8 @@ ctest --test-dir build_tests --output-on-failure
 | --- | --- |
 | [系统架构](docs/architecture/REPOSITORY_GUIDE.md) | 模块职责、调用关系与目录说明 |
 | [配置与部署](docs/deployment/CONFIGURATION.md) | 配置来源、运行目录与启动方式 |
+| [双臂机型配置](docs/deployment/ARM_MODELS.md) | 3/5 kg URDF、模型角、工具和设备绑定 |
+| [SDK 接入](docs/deployment/ARM_SDK_MIGRATION.md) | 新库替换、坐标转换与现场验证顺序 |
 | [视觉伺服](docs/WRIST_VISUAL_SERVO_ALGORITHM.md) | 图像映射、控制、目标定位与动作交接 |
 | [技能接口](docs/architecture/SKILLS_INTERFACE_V1.md) | 标准输入输出、阶段、错误与逐手结果 |
 | [料盘标定](docs/calibration/PLACEMENT_WIZARD.md) | 抓取与放置校准流程 |

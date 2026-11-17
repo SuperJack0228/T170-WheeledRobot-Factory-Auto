@@ -22,6 +22,7 @@ env/
 # 本地编译产物放在 build/ 与 build_robot/；dependencies/ 中的交付库需要保留
 build_robot/
 build_servo_tests/
+build_sdk_check/
 build/**/*.a
 build/**/*.so
 build/**/*.so.*

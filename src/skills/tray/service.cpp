@@ -127,7 +127,7 @@ Result execute_tray_place(TrayContext &c,const TrayPlaceRequest &r,const Control
 
 namespace move_box {
 GraspToStandbyResult run_grasp_to_standby(
-    gripper::Gripper &g,Robot_Arm &right,Robot_Arm &left,WaistRobot &waist,
+    gripper::Gripper &g,Arm &right,Arm &left,WaistRobot &waist,
     Eigen::Matrix<double,1,6> &waist_pose,RealSenseMultiCam &cameras,SegPoseBridge &vision,
     const std::array<double,16> &head_matrix,std::string &error,const std::function<bool()> &abort,
     SegEngineId detector,bool adaptive,bool skip_right,bool skip_left,

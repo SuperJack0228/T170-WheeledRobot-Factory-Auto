@@ -40,7 +40,7 @@ wrist_servo::ConnectorLimits retract_connector_limits()
 
 namespace t170::motion::detail {
 std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
-    Robot_Arm &arm, const Eigen::RowVectorXd &held)
+    Arm &arm, const Eigen::RowVectorXd &held)
 {
     const Eigen::Vector3d start=arm_tcp_from_joints(arm,held).head<3>().transpose();
     return [&arm,start](const Eigen::RowVectorXd &q) {
@@ -56,7 +56,7 @@ std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
 
 namespace {
 Eigen::MatrixXd bridge_from_hold(const Eigen::MatrixXd &src, const wrist_servo::Joints &held,
-                                 double dt, int hand, Robot_Arm *arm)
+                                 double dt, int hand, Arm *arm)
 {
     const auto valid=arm ? lift_connector_validity(*arm,held) :
                           std::function<bool(const Eigen::RowVectorXd &)>{};
@@ -74,7 +74,7 @@ Eigen::MatrixXd bridge_from_hold(const Eigen::MatrixXd &src, const wrist_servo::
 
 namespace t170::motion::detail {
 int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
-                           Robot_Arm *retract_arm,
+                           Arm *retract_arm,
                            const std::function<void(const wrist_servo::Joints &)> &observe_progress)
 {
     if (hand == 1 && right_arm_motors_locked()) return 0;
@@ -141,9 +141,7 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
         const double tick=wrist_servo::monotonic_seconds();
         const double cycle_ms=last_tick>0 ? (tick-last_tick)*1000 : 0;
         last_tick=tick;
-        int motor_cmd[7] = {0};
-        for (int j=0;j<7;++j) motor_cmd[j]=rad_to_encoder_cnt(traj(i,j));
-        set_motor_position(motor_cmd,hand);
+        wrist_servo::send_joint_reference(hand,traj.row(i));
         // Only staged retreats request feedback, at 20 Hz. Planning/photography never
         // runs in this callback; it only publishes measured clearance to a waiting peer.
         if(observe_progress && i%10==0) {
@@ -164,7 +162,8 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
         std::this_thread::sleep_until(cycle_start+std::chrono::duration<double>(dt));
     }
     int last_cmd[7] = {0};
-    for(int j=0;j<7;++j) last_cmd[j]=rad_to_encoder_cnt(traj(traj.rows()-1,j));
+    const auto last_device=t170::motion::model_to_device(hand,traj.bottomRows(1));
+    for(int j=0;j<7;++j) last_cmd[j]=rad_to_encoder_cnt(last_device(j));
     save_arm_last_commanded_position(hand,last_cmd);
     wrist_servo::Joints final_actual;
     const bool final_feedback=diagnostic && wrist_servo::read_joint_feedback(hand,final_actual);
@@ -178,18 +177,3 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
     return 0;
 }
 }
-
-
-namespace wrist_servo {
-void send_joint_reference(int hand,const Joints &q) {
-    if((hand!=0 && hand!=1) || !q.allFinite()) throw std::runtime_error("invalid_joint_reference");
-    int counts[7];
-    for(int j=0;j<7;++j) counts[j]=rad_to_encoder_cnt(q(j));
-    uint32_t ids[7];
-    const auto *source=hand==1?kRightArmCanIds:kLeftArmCanIds;
-    std::copy(source,source+7,ids);
-    if(socketcan_sendcommand(0,7,ids,30,counts)!=1) throw std::runtime_error("joint_command_write_failed");
-    save_arm_last_commanded_position(hand,counts);
-}
-}
-

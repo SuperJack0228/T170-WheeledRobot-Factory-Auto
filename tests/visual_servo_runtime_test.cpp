@@ -1,7 +1,7 @@
 // Integration regression with an explicitly synthetic plant and SDK adapters.
 // Exercises the production runtime/queues/history/PD/limits together; not T170 kinematics.
 #include "t170/motion/servo.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/kinematics_adapter.h"
@@ -44,14 +44,14 @@ struct HoldRace {
     std::vector<wrist_servo::Joints> writes;
 } hold_race;
 }
-Robot_Arm::Robot_Arm(const std::string &,const std::string &,const std::string &side,const std::string &) {
+Arm::Arm(const std::string &,const std::string &,const std::string &side,const std::string &) {
     can_id_list={side=="left"?23:16};
 }
 MatrixXd TR(Matrix<double,1,6> p) {
     Eigen::Matrix4d t=Eigen::Matrix4d::Identity();
     t.block<3,1>(0,3)=p.head<3>().transpose(); return t;
 }
-Matrix<double,1,6> arm_tcp_from_joints(Robot_Arm &,const Eigen::Ref<const Eigen::RowVectorXd> &q) {
+Matrix<double,1,6> arm_tcp_from_joints(Arm &,const Eigen::Ref<const Eigen::RowVectorXd> &q) {
     Matrix<double,1,6> p=Matrix<double,1,6>::Zero(); p.head<3>()=q.head<3>(); return p;
 }
 bool load_cam2robot_matrix(const std::string &,std::array<double,16> &matrix,std::string &) {
@@ -61,8 +61,8 @@ bool hardware_abort_requested() { return abort_test.load(); }
 bool can_io_faulted() { return false; }
 
 namespace wrist_servo {
-int hand_index(const Robot_Arm &arm) { return arm.can_id_list[0]==23?0:1; }
-Eigen::Matrix4d tool_transform(const Robot_Arm &) { return Eigen::Matrix4d::Identity(); }
+int hand_index(const Arm &arm) { return arm.can_id_list[0]==23?0:1; }
+Eigen::Matrix4d tool_transform(const Arm &) { return Eigen::Matrix4d::Identity(); }
 bool read_joint_feedback(int hand,Joints &q) {
     auto &p=plants[hand]; std::lock_guard<std::mutex> lock(p.mutex);
     const double now=monotonic_seconds(),dt=p.time>0?now-p.time:0;
@@ -83,7 +83,7 @@ void send_joint_reference(int hand,const Joints &q) {
     if(q(2)<0) unsafe_reference.store(true);
     p.command=q;
 }
-bool solve_local_pose(Robot_Arm &,const Joints &seed,const Vec3 &position,const Eigen::Matrix3d &,
+bool solve_local_pose(Arm &,const Joints &seed,const Vec3 &position,const Eigen::Matrix3d &,
                       const Config &,Joints &out,double &xyz,double &rotation) {
     out=seed; out.head<3>()=position.transpose(); xyz=0; rotation=0; return true;
 }
@@ -97,8 +97,8 @@ int main() {
     setenv("T170_ROOT",test_root.c_str(),1);
     unsetenv("T170_CONFIG_DIR"); unsetenv("T170_LOG_DIR");
     using namespace wrist_servo;
-    Robot_Arm left("synthetic","synthetic","left"),right("synthetic","synthetic","right");
-    Robot_Arm *arms[]={&left,&right};
+    Arm left("synthetic","synthetic","left"),right("synthetic","synthetic","right");
+    Arm *arms[]={&left,&right};
     for(auto &profile:g_move_cfg.visual_servo.profiles) {
         profile.mode="table";
         MapKnot a,b; a.height_m=-.01; b.height_m=.16;

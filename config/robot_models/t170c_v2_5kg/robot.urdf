@@ -1,0 +1,1651 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version:   Build Version: 1.6.9490.28216
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="T170C-2.0(5kg)-V1.0-xiangong">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.12450173 -0.0004576 -0.12281023"
+        rpy="0 0 0" />
+      <mass
+        value="130.55585" />
+      <inertia
+        ixx="2.463"
+        ixy="0.023782"
+        ixz="-0.17808"
+        iyy="3.0698"
+        iyz="-0.0079558"
+        izz="4.0272" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.34118 0.83922 0.41176 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="Fold_P1_S">
+    <inertial>
+      <origin
+        xyz="0.00084968 0.01122066 0.1915299"
+        rpy="0 0 0" />
+      <mass
+        value="8.2056319" />
+      <inertia
+        ixx="0.11234"
+        ixy="3.726E-05"
+        ixz="0.0014497"
+        iyy="0.10119"
+        iyz="-0.0031004"
+        izz="0.041756" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/Fold_P1_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.86667 0.86667 0.8902 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/Fold_P1_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Fold_P1"
+    type="revolute">
+    <origin
+      xyz="-0.00023538 0 0.095"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Fold_P1_S" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-1.57"
+      upper="0"
+      effort="411"
+      velocity="3.0353" />
+  </joint>
+  <link
+    name="Fold_P2_S">
+    <inertial>
+      <origin
+        xyz="-0.00053918 -0.00072063 0.21612903"
+        rpy="0 0 0" />
+      <mass
+        value="4.9156057" />
+      <inertia
+        ixx="0.16371"
+        ixy="5.06E-06"
+        ixz="0.00027226"
+        iyy="0.12569"
+        iyz="-0.002613"
+        izz="0.056267" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/Fold_P2_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.64706 0.61961 0.58824 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/Fold_P2_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Fold_P2"
+    type="revolute">
+    <origin
+      xyz="-0.00064323 0 0.26"
+      rpy="0 0 0" />
+    <parent
+      link="Fold_P1_S" />
+    <child
+      link="Fold_P2_S" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="3.05"
+      effort="411"
+      velocity="3.0353" />
+  </joint>
+  <link
+    name="WAIST_P_S">
+    <inertial>
+      <origin
+        xyz="0.00376631 0.00326106 0.04404227"
+        rpy="0 0 0" />
+      <mass
+        value="5.7755782" />
+      <inertia
+        ixx="0.024679"
+        ixy="0.00024327"
+        ixz="-0.001049"
+        iyy="0.02467"
+        iyz="0.00054966"
+        izz="0.012522" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_P_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_P_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="WAIST_P"
+    type="revolute">
+    <origin
+      xyz="-0.00098959 0 0.4"
+      rpy="0 0 0" />
+    <parent
+      link="Fold_P2_S" />
+    <child
+      link="WAIST_P_S" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-1.57"
+      upper="1.91"
+      effort="194"
+      velocity="3.77" />
+  </joint>
+  <link
+    name="WAIST_R_S">
+    <inertial>
+      <origin
+        xyz="0.0008161 0.00785518 -0.2341756"
+        rpy="0 0 0" />
+      <mass
+        value="8.0845834" />
+      <inertia
+        ixx="0.49565"
+        ixy="-2.83E-06"
+        ixz="0.00047791"
+        iyy="0.43225"
+        iyz="0.0044281"
+        izz="0.091182" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_R_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_R_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="WAIST_R"
+    type="revolute">
+    <origin
+      xyz="-0.00025942 0 0.105"
+      rpy="0 0 0" />
+    <parent
+      link="WAIST_P_S" />
+    <child
+      link="WAIST_R_S" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-0.52"
+      upper="0.52"
+      effort="102"
+      velocity="4.18879" />
+  </joint>
+  <link
+    name="WAIST_Y_S">
+    <inertial>
+      <origin
+        xyz="-0.00213724 -0.00114144 0.2193185"
+        rpy="0 0 0" />
+      <mass
+        value="11.183386" />
+      <inertia
+        ixx="0.17129"
+        ixy="0.00051864"
+        ixz="0.0032311"
+        iyy="0.14767"
+        iyz="0.00057615"
+        izz="0.072625" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="WAIST_Y"
+    type="revolute">
+    <origin
+      xyz="-0.00025977 0 0.105"
+      rpy="0 0 0" />
+    <parent
+      link="WAIST_R_S" />
+    <child
+      link="WAIST_Y_S" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.26"
+      upper="3.14"
+      effort="102"
+      velocity="4.1888" />
+  </joint>
+  <link
+    name="L_SHOULDER_P_S">
+    <inertial>
+      <origin
+        xyz="-0.00227426 0.06301753 -6.43E-06"
+        rpy="0 0 0" />
+      <mass
+        value="1.3517814" />
+      <inertia
+        ixx="0.0017709"
+        ixy="2.663E-05"
+        ixz="4.1E-07"
+        iyy="0.0011797"
+        iyz="1.1E-07"
+        izz="0.0016146" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_SHOULDER_P_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.77647 0.75686 0.73725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_SHOULDER_P_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_SHOULDER_P"
+    type="revolute">
+    <origin
+      xyz="-0.00081517 0.129 0.3295"
+      rpy="0 0 0" />
+    <parent
+      link="WAIST_Y_S" />
+    <child
+      link="L_SHOULDER_P_S" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="102"
+      velocity="4.1867" />
+  </joint>
+  <link
+    name="L_SHOULDER_R_S">
+    <inertial>
+      <origin
+        xyz="0.00434316 0.08943028 1.072E-05"
+        rpy="0 0 0" />
+      <mass
+        value="1.2813304" />
+      <inertia
+        ixx="0.0033373"
+        ixy="0.0003634"
+        ixz="-5.2E-07"
+        iyy="0.0015811"
+        iyz="9.1E-07"
+        izz="0.0035724" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_SHOULDER_R_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_SHOULDER_R_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_SHOULDER_R"
+    type="revolute">
+    <origin
+      xyz="0 0.071 0"
+      rpy="0 0 0" />
+    <parent
+      link="L_SHOULDER_P_S" />
+    <child
+      link="L_SHOULDER_R_S" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="102"
+      velocity="4.1867" />
+  </joint>
+  <link
+    name="L_SHOULDER_Y_S">
+    <inertial>
+      <origin
+        xyz="-0.00100622 0.09683089 0.00017842"
+        rpy="0 0 0" />
+      <mass
+        value="1.1449536" />
+      <inertia
+        ixx="0.0026511"
+        ixy="-4.465E-05"
+        ixz="8.1E-07"
+        iyy="0.0009705"
+        iyz="4.7E-06"
+        izz="0.002607" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_SHOULDER_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.77647 0.75686 0.73725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_SHOULDER_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_SHOULDER_Y"
+    type="revolute">
+    <origin
+      xyz="0 0.153 0"
+      rpy="0 0 0" />
+    <parent
+      link="L_SHOULDER_R_S" />
+    <child
+      link="L_SHOULDER_Y_S" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="66"
+      velocity="4.2913" />
+  </joint>
+  <link
+    name="L_ELBOW_Y_S">
+    <inertial>
+      <origin
+        xyz="-8.744E-05 0.07067426 0.00536625"
+        rpy="0 0 0" />
+      <mass
+        value="0.64984361" />
+      <inertia
+        ixx="0.0011351"
+        ixy="-2E-08"
+        ixz="8E-08"
+        iyy="0.00056482"
+        iyz="0.00013845"
+        izz="0.00095939" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_ELBOW_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_ELBOW_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_ELBOW_Y"
+    type="revolute">
+    <origin
+      xyz="0 0.117 0"
+      rpy="0 0 0" />
+    <parent
+      link="L_SHOULDER_Y_S" />
+    <child
+      link="L_ELBOW_Y_S" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.43"
+      upper="0.79"
+      effort="66"
+      velocity="4.2913" />
+  </joint>
+  <link
+    name="L_WRIST_P_S">
+    <inertial>
+      <origin
+        xyz="-4.781E-05 0.05345649 0.01971678"
+        rpy="0 0 0" />
+      <mass
+        value="0.71138467" />
+      <inertia
+        ixx="0.0014817"
+        ixy="6.8E-07"
+        ixz="4.3E-07"
+        iyy="0.00061979"
+        iyz="-0.00026688"
+        izz="0.0012947" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_WRIST_P_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.86667 0.86667 0.8902 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_WRIST_P_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_WRIST_P"
+    type="revolute">
+    <origin
+      xyz="0 0.121 0"
+      rpy="0 0 0" />
+    <parent
+      link="L_ELBOW_Y_S" />
+    <child
+      link="L_WRIST_P_S" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="11"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="L_WRIST_Y_S">
+    <inertial>
+      <origin
+        xyz="-0.00645217 1.574E-05 0.00239391"
+        rpy="0 0 0" />
+      <mass
+        value="0.43267847" />
+      <inertia
+        ixx="0.00018183"
+        ixy="1.8E-07"
+        ixz="-8.54E-06"
+        iyy="0.00025167"
+        iyz="4.4E-07"
+        izz="0.00021587" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_WRIST_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_WRIST_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_WRIST_Y"
+    type="revolute">
+    <origin
+      xyz="0 0.15 0"
+      rpy="0 0 0" />
+    <parent
+      link="L_WRIST_P_S" />
+    <child
+      link="L_WRIST_Y_S" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.04"
+      upper="1.04"
+      effort="11"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="L_WRIST_R_S">
+    <inertial>
+      <origin
+        xyz="-0.00265036 0.03835489 -0.00212229"
+        rpy="0 0 0" />
+      <mass
+        value="0.25533991" />
+      <inertia
+        ixx="0.00037926"
+        ixy="-3.72E-06"
+        ixz="-4.1E-07"
+        iyy="0.00037844"
+        iyz="2.589E-05"
+        izz="0.00065146" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_WRIST_R_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_WRIST_R_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_WRIST_R"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="L_WRIST_Y_S" />
+    <child
+      link="L_WRIST_R_S" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-1.75"
+      upper="1.57"
+      effort="11"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="L_HAND_S">
+    <inertial>
+      <origin
+        xyz="2.68E-06 -0.00060819 -0.0010828"
+        rpy="0 0 0" />
+      <mass
+        value="0.03100829" />
+      <inertia
+        ixx="7.1E-06"
+        ixy="0"
+        ixz="0"
+        iyy="1.423E-05"
+        iyz="1.7E-07"
+        izz="7.72E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_HAND_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_HAND_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_HAND"
+    type="fixed">
+    <origin
+      xyz="-0.0035 0.1012 0"
+      rpy="0 0 0" />
+    <parent
+      link="L_WRIST_R_S" />
+    <child
+      link="L_HAND_S" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="L_CAMERA_S">
+    <inertial>
+      <origin
+        xyz="0.01145964 -6.116E-05 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.03882702" />
+      <inertia
+        ixx="1.087E-05"
+        ixy="-1E-08"
+        ixz="0"
+        iyy="7.15E-06"
+        iyz="0"
+        izz="7.09E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_CAMERA_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/L_CAMERA_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="L_CAMERA"
+    type="fixed">
+    <origin
+      xyz="-0.0033805 0.080042 -0.048303"
+      rpy="-0.0027297 0.43633 1.5696" />
+    <parent
+      link="L_WRIST_R_S" />
+    <child
+      link="L_CAMERA_S" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="R_SHOULDER_P_S">
+    <inertial>
+      <origin
+        xyz="-0.00227426 -0.06301753 -6.39E-06"
+        rpy="0 0 0" />
+      <mass
+        value="1.3517814" />
+      <inertia
+        ixx="0.0017709"
+        ixy="-2.663E-05"
+        ixz="3.7E-07"
+        iyy="0.0011797"
+        iyz="-5E-08"
+        izz="0.0016146" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_SHOULDER_P_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.77647 0.75686 0.73725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_SHOULDER_P_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_SHOULDER_P"
+    type="revolute">
+    <origin
+      xyz="-0.00081517 -0.129 0.3295"
+      rpy="0 0 0" />
+    <parent
+      link="WAIST_Y_S" />
+    <child
+      link="R_SHOULDER_P_S" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="102"
+      velocity="4.1867" />
+  </joint>
+  <link
+    name="R_SHOULDER_R_S">
+    <inertial>
+      <origin
+        xyz="0.00434316 -0.08943028 1.079E-05"
+        rpy="0 0 0" />
+      <mass
+        value="1.2813304" />
+      <inertia
+        ixx="0.0033373"
+        ixy="-0.0003634"
+        ixz="-6.4E-07"
+        iyy="0.0015811"
+        iyz="-8.9E-07"
+        izz="0.0035724" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_SHOULDER_R_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_SHOULDER_R_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_SHOULDER_R"
+    type="revolute">
+    <origin
+      xyz="0 -0.071 0"
+      rpy="0 0 0" />
+    <parent
+      link="R_SHOULDER_P_S" />
+    <child
+      link="R_SHOULDER_R_S" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="102"
+      velocity="4.1867" />
+  </joint>
+  <link
+    name="R_SHOULDER_Y_S">
+    <inertial>
+      <origin
+        xyz="-0.00100521 -0.09683316 0.00017821"
+        rpy="0 0 0" />
+      <mass
+        value="1.1449085" />
+      <inertia
+        ixx="0.0026509"
+        ixy="4.455E-05"
+        ixz="8.1E-07"
+        iyy="0.00097045"
+        iyz="-4.69E-06"
+        izz="0.0026068" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_SHOULDER_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.77647 0.75686 0.73725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_SHOULDER_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_SHOULDER_Y"
+    type="revolute">
+    <origin
+      xyz="0 -0.153 0"
+      rpy="0 0 0" />
+    <parent
+      link="R_SHOULDER_R_S" />
+    <child
+      link="R_SHOULDER_Y_S" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="66"
+      velocity="4.2913" />
+  </joint>
+  <link
+    name="R_ELBOW_Y_S">
+    <inertial>
+      <origin
+        xyz="-8.8E-05 -0.07067426 0.00559621"
+        rpy="0 0 0" />
+      <mass
+        value="0.64984361" />
+      <inertia
+        ixx="0.0011334"
+        ixy="3E-08"
+        ixz="2.6E-07"
+        iyy="0.00056319"
+        iyz="-0.00014093"
+        izz="0.00095939" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_ELBOW_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_ELBOW_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_ELBOW_Y"
+    type="revolute">
+    <origin
+      xyz="0 -0.117 0"
+      rpy="0 0 0" />
+    <parent
+      link="R_SHOULDER_Y_S" />
+    <child
+      link="R_ELBOW_Y_S" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.79"
+      upper="2.43"
+      effort="66"
+      velocity="4.2913" />
+  </joint>
+  <link
+    name="R_WRIST_P_S">
+    <inertial>
+      <origin
+        xyz="-4.974E-05 -0.05345649 0.01971677"
+        rpy="0 0 0" />
+      <mass
+        value="0.71138467" />
+      <inertia
+        ixx="0.0014817"
+        ixy="-2.6E-07"
+        ixz="4.9E-07"
+        iyy="0.00061978"
+        iyz="0.00026688"
+        izz="0.0012947" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_WRIST_P_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.8902 0.8902 0.91373 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_WRIST_P_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_WRIST_P"
+    type="revolute">
+    <origin
+      xyz="0 -0.121 0"
+      rpy="0 0 0" />
+    <parent
+      link="R_ELBOW_Y_S" />
+    <child
+      link="R_WRIST_P_S" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="11"
+      velocity="6.17533" />
+  </joint>
+  <link
+    name="R_WRIST_Y_S">
+    <inertial>
+      <origin
+        xyz="-0.00645185 1.215E-05 0.00226447"
+        rpy="0 0 0" />
+      <mass
+        value="0.43267847" />
+      <inertia
+        ixx="0.0001821"
+        ixy="1.5E-07"
+        ixz="-1.002E-05"
+        iyy="0.00025152"
+        iyz="5.1E-07"
+        izz="0.00021628" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_WRIST_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_WRIST_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_WRIST_Y"
+    type="revolute">
+    <origin
+      xyz="0 -0.15 0"
+      rpy="0 0 0" />
+    <parent
+      link="R_WRIST_P_S" />
+    <child
+      link="R_WRIST_Y_S" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.04"
+      upper="1.04"
+      effort="11"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="R_WRIST_R_S">
+    <inertial>
+      <origin
+        xyz="0.00015561 -0.04181322 -0.00242561"
+        rpy="0 0 0" />
+      <mass
+        value="0.234056" />
+      <inertia
+        ixx="0.00033748"
+        ixy="-2.3E-05"
+        ixz="-2.69E-06"
+        iyy="0.00035116"
+        iyz="-2.251E-05"
+        izz="0.0005914" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_WRIST_R_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_WRIST_R_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_WRIST_R"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="R_WRIST_Y_S" />
+    <child
+      link="R_WRIST_R_S" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-1.57"
+      upper="1.75"
+      effort="11"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="R_HAND_S">
+    <inertial>
+      <origin
+        xyz="2.68E-06 0.00060819 -0.00108283"
+        rpy="0 0 0" />
+      <mass
+        value="0.03100829" />
+      <inertia
+        ixx="7.1E-06"
+        ixy="0"
+        ixz="0"
+        iyy="1.423E-05"
+        iyz="-1.7E-07"
+        izz="7.72E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_HAND_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_HAND_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_HAND"
+    type="fixed">
+    <origin
+      xyz="-0.0035 -0.1012 0"
+      rpy="0 0 0" />
+    <parent
+      link="R_WRIST_R_S" />
+    <child
+      link="R_HAND_S" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="R_CAMERA_S">
+    <inertial>
+      <origin
+        xyz="0.01145964 -6.116E-05 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.03882702" />
+      <inertia
+        ixx="1.087E-05"
+        ixy="-1E-08"
+        ixz="0"
+        iyy="7.15E-06"
+        iyz="0"
+        izz="7.09E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_CAMERA_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.75294 0.75294 0.75294 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/R_CAMERA_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="R_CAMERA"
+    type="fixed">
+    <origin
+      xyz="-0.0033805 -0.080042 -0.048303"
+      rpy="0 0.43633 -1.5696" />
+    <parent
+      link="R_WRIST_R_S" />
+    <child
+      link="R_CAMERA_S" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="NECK_Y_S">
+    <inertial>
+      <origin
+        xyz="-0.00024543 0.01191609 0.09586057"
+        rpy="0 0 0" />
+      <mass
+        value="0.38754634" />
+      <inertia
+        ixx="0.00040486"
+        ixy="1.8E-07"
+        ixz="7.7E-07"
+        iyy="0.00032218"
+        iyz="-6.029E-05"
+        izz="0.00018683" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_Y_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_Y_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="NECK_Y"
+    type="revolute">
+    <origin
+      xyz="-0.00081517 0 0.3295"
+      rpy="0 0 0" />
+    <parent
+      link="WAIST_Y_S" />
+    <child
+      link="NECK_Y_S" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="11"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="NECK_P_S">
+    <inertial>
+      <origin
+        xyz="-0.0025842 0.00406152 8.67E-06"
+        rpy="0 0 0" />
+      <mass
+        value="0.27350284" />
+      <inertia
+        ixx="8.106E-05"
+        ixy="-4.54E-06"
+        ixz="-2.2E-07"
+        iyy="9.386E-05"
+        iyz="0"
+        izz="0.00012329" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_P_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_P_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="NECK_P"
+    type="revolute">
+    <origin
+      xyz="-0.00040078 0 0.162"
+      rpy="0 0 0" />
+    <parent
+      link="NECK_Y_S" />
+    <child
+      link="NECK_P_S" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-0.52"
+      upper="0.52"
+      effort="4.8"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="NECK_R_S">
+    <inertial>
+      <origin
+        xyz="0.0204288 3.927E-05 0.08042815"
+        rpy="0 0 0" />
+      <mass
+        value="0.7078711" />
+      <inertia
+        ixx="0.0026882"
+        ixy="-9.9E-07"
+        ixz="0.00029767"
+        iyy="0.0031945"
+        iyz="9.8E-07"
+        izz="0.0026028" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_R_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_R_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="NECK_R"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="NECK_P_S" />
+    <child
+      link="NECK_R_S" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-0.52"
+      upper="0.52"
+      effort="4.8"
+      velocity="6.1753" />
+  </joint>
+  <link
+    name="NECK_CAMERA_S">
+    <inertial>
+      <origin
+        xyz="-0.03350653 7.766E-05 -0.0244498"
+        rpy="0 0 0" />
+      <mass
+        value="0.30970111" />
+      <inertia
+        ixx="0.00037244"
+        ixy="-1.85E-06"
+        ixz="-9.77E-06"
+        iyy="0.00053558"
+        iyz="-1.04E-06"
+        izz="0.00036383" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_CAMERA_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.86667 0.86667 0.8902 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/NECK_CAMERA_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="NECK_CAMERA"
+    type="fixed">
+    <origin
+      xyz="0.074893 0 0.10939"
+      rpy="0 0.34659 0" />
+    <parent
+      link="NECK_R_S" />
+    <child
+      link="NECK_CAMERA_S" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="WAIST_CAMERA_S">
+    <inertial>
+      <origin
+        xyz="-0.03350653 7.766E-05 -0.0244498"
+        rpy="0 0 0" />
+      <mass
+        value="0.30970111" />
+      <inertia
+        ixx="0.00037244"
+        ixy="-1.85E-06"
+        ixz="-9.77E-06"
+        iyy="0.00053558"
+        iyz="-1.04E-06"
+        izz="0.00036383" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_CAMERA_S.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.86667 0.86667 0.8902 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://T170C-2.0(5kg)-V1.0-xiangong/meshes/WAIST_CAMERA_S.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="WAIST_CAMERA"
+    type="fixed">
+    <origin
+      xyz="0.086603 0 0.061297"
+      rpy="0 0.57348 0" />
+    <parent
+      link="WAIST_Y_S" />
+    <child
+      link="WAIST_CAMERA_S" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

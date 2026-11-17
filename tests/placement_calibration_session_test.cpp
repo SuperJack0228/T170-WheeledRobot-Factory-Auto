@@ -5,7 +5,7 @@
 #include "t170/tasks/context.h"
 #include "t170/tasks/operations.h"
 #include "t170/app/maintenance.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/hardware/gripper.hpp"
 #include "t170/hardware/waist.h"
 #include "t170/vision/python_bridge.h"
@@ -40,18 +40,18 @@ bool motor_enable_id(std::uint32_t){no_hardware();return false;}
 bool right_arm_motors_locked(){return false;}
 MatrixXd TR(Matrix<double,1,6>){return Eigen::Matrix4d::Identity();}
 Matrix<double,1,6> T2PosEulerAngles(Matrix<double,4,4>){return Matrix<double,1,6>::Zero();}
-Matrix<double,1,6> arm_get_tcp_pos(Robot_Arm &){no_hardware();return Matrix<double,1,6>::Zero();}
-Matrix<double,1,7> arm_get_joint_pos(Robot_Arm &){no_hardware();return Matrix<double,1,7>::Zero();}
-int arm_line_move(Robot_Arm &,Matrix<double,1,6>&,double,bool){no_hardware();return -1;}
-bool record_arm_cartesian_arrival(Robot_Arm &,const Matrix<double,1,6>&,const char*,double){no_hardware();return false;}
-int arm_vertical_lift(Robot_Arm &,double,double,const std::function<void(double)>&){no_hardware();return -1;}
-int arm_return_after_lift(Robot_Arm &,const Matrix<double,1,7>&,const std::function<void()>&,double,double){no_hardware();return -1;}
-ArmLineMoveResult arm_dual_line_then_line_nostop(Robot_Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,
- Robot_Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,double,double,const std::function<void()>&,bool,const char*,bool,bool,int){no_hardware();return {-1,-1};}
+Matrix<double,1,6> arm_get_tcp_pos(Arm &){no_hardware();return Matrix<double,1,6>::Zero();}
+Matrix<double,1,7> arm_get_joint_pos(Arm &){no_hardware();return Matrix<double,1,7>::Zero();}
+int arm_line_move(Arm &,Matrix<double,1,6>&,double,bool){no_hardware();return -1;}
+bool record_arm_cartesian_arrival(Arm &,const Matrix<double,1,6>&,const char*,double){no_hardware();return false;}
+int arm_vertical_lift(Arm &,double,double,const std::function<void(double)>&){no_hardware();return -1;}
+int arm_return_after_lift(Arm &,const Matrix<double,1,7>&,const std::function<void()>&,double,double){no_hardware();return -1;}
+ArmLineMoveResult arm_dual_line_then_line_nostop(Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,
+ Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,double,double,const std::function<void()>&,bool,const char*,bool,bool,int){no_hardware();return {-1,-1};}
 int enable_head_calib_pose(){no_hardware();return -1;}
 int enable_head_far_pitch(){no_hardware();return -1;}
-Eigen::Matrix4d Robot_Arm::Forward_Kinematics(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return Eigen::Matrix4d::Identity();}
-bool Robot_Arm::Check_Joint_Limit(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return true;}
+Eigen::Matrix4d Arm::Forward_Kinematics(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return Eigen::Matrix4d::Identity();}
+bool Arm::Check_Joint_Limit(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return true;}
 RealSenseMultiCam &PosePipeline::cameras(){no_hardware();throw std::runtime_error("no camera");}
 SegPoseBridge &PosePipeline::bridge(){no_hardware();throw std::runtime_error("no vision");}
 CameraFrameData RealSenseMultiCam::grab_fresh(CameraSlot){no_hardware();return {};}
@@ -70,9 +70,9 @@ void send_joint_reference(int,const Joints&){no_hardware();}
 bool take_final_hold(int,Joints&){no_hardware();return false;}
 void hold_joint_reference(int,const Joints&){no_hardware();}
 void start_final_hold_repeat(){no_hardware();}
-bool ready_for_gripper(Robot_Arm&){no_hardware();return false;}
+bool ready_for_gripper(Arm&){no_hardware();return false;}
 void stage_tray_target(int,const TrayTarget&){no_hardware();}
-Eigen::Matrix4d tool_transform(const Robot_Arm&){no_hardware();return Eigen::Matrix4d::Identity();}
+Eigen::Matrix4d tool_transform(const Arm&){no_hardware();return Eigen::Matrix4d::Identity();}
 }
 namespace gripper {
 bool Gripper::hasSide(Side)const {no_hardware();return false;}
@@ -88,7 +88,7 @@ int main(int argc,char **argv) {
     check(argc==2,"repository required");
     const auto root=std::filesystem::temp_directory_path()/"t170-calibration-session-test";
     std::filesystem::remove_all(root);std::filesystem::create_directories(root/"config");
-    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","Robot_Arm_Model.yaml","right_hand_to_base_result.yaml","left_hand_to_base_result.yaml"})
+    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","Robot_Model.yaml","right_hand_to_base_result.yaml","left_hand_to_base_result.yaml"})
         std::filesystem::copy_file(std::filesystem::path(argv[1])/"config"/name,root/"config"/name);
     setenv("T170_ROOT",root.c_str(),1);unsetenv("T170_CONFIG_DIR");
     std::string error;check(load_move_box_config((root/"config/move_box_params.yaml").string(),g_move_cfg,error),error.c_str());

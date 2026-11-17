@@ -307,6 +307,16 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                 }
             };
             joints("ready_right_deg",c.ready_right); joints("ready_left_deg",c.ready_left);
+            if(!node || !node["ready_right_deg"] || !node["ready_left_deg"])
+                throw std::runtime_error("Deployment requires both taught ready targets");
+            const std::string coordinates=node["joint_coordinates"]?node["joint_coordinates"].as<std::string>():"legacy_device";
+            if(coordinates=="legacy_device") {
+                const auto binding=YAML::LoadFile((std::filesystem::path(path).parent_path()/"arm_binding.yaml").string());
+                for(const std::string side:{"left","right"}) {
+                    auto &q=side=="left"?c.ready_left:c.ready_right;
+                    for(int j=0;j<7;++j) q(j)=(q(j)-binding[side]["model_to_device_offset_rad"][j].as<double>())/binding[side]["model_to_device_direction"][j].as<double>();
+                }
+            } else if(coordinates!="sdk_mdh_model") throw std::runtime_error("Unknown ready joint coordinates");
             read_value(node,"max_joint_velocity_rad_s",c.max_joint_velocity_rad_s);
             read_value(node,"max_joint_acceleration_rad_s2",c.max_joint_acceleration_rad_s2);
             read_value(node,"max_joint_jerk_rad_s3",c.max_joint_jerk_rad_s3);
@@ -784,11 +794,16 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
                    n["hand"].as<int>()!=hand || n["robot_id"].as<std::string>()!=candidate.chassis.sequence_number ||
                    n["camera_serial"].as<std::string>()!=cameras["realsense"][side+"_hand"]["serial"].as<std::string>() ||
                    n["width"].as<int>()!=candidate.cameras.width || n["height"].as<int>()!=candidate.cameras.height ||
-                   n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")) ||
-                   n["model_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/"Robot_Arm_Model.yaml") ||
                    (schema==2 && (n["task"].as<std::string>()!=task || n["scope"].as<std::string>()!="tray_only" ||
                                   n["validation_kind"].as<std::string>()!="manual_at_D")))
                     throw std::runtime_error("料盘标定与任务/机器人/相机/工具模型不匹配: "+file.string());
+                if(n["model_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/"Robot_Model.yaml")) {
+                    candidate.pending_model_calibrations.push_back(file.string());
+                    std::cerr<<"[calibration_pending] model changed; ignored old geometry-dependent reference: "<<file<<'\n';
+                    continue;
+                }
+                if(n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")))
+                    throw std::runtime_error("手眼标定指纹不匹配: "+file.string());
                 wrist_servo::PlacementCalibrationProfile entry;
                 entry.universal=schema==2;
                 entry.image=candidate.visual_servo.profiles[(task=="placement"?2:0)+hand];
@@ -820,10 +835,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[arm_coordinates] sdk_mdh_model_rad pending_task_references="<<cfg.pending_model_calibrations.size()<<'\n';
     std::cout<<"[calibration] placement tilt families left="<<cfg.visual_servo.calibrated_placement[0].size()
              <<" right="<<cfg.visual_servo.calibrated_placement[1].size()<<"; tray grasp left="<<cfg.visual_servo.calibrated_tray_grasp[0].size()
              <<" right="<<cfg.visual_servo.calibrated_tray_grasp[1].size()<<" (tray-only; belt profiles unchanged)\n";
-    std::cout<<"[cfg] retract_motion fixed_ready_motor_rad right="<<cfg.retract_motion.ready_right
+    std::cout<<"[cfg] retract_motion fixed_ready_model_rad right="<<cfg.retract_motion.ready_right
              <<" left="<<cfg.retract_motion.ready_left<<" limits_v_a_j="
              <<cfg.retract_motion.max_joint_velocity_rad_s<<","<<cfg.retract_motion.max_joint_acceleration_rad_s2
              <<","<<cfg.retract_motion.max_joint_jerk_rad_s3<<" arrival_rad="

@@ -20,7 +20,7 @@
 #include "t170/skills/legacy/profiles.h"
 #include "t170/vision/realsense_camera.h"
 #include "t170/vision/python_bridge.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/vision/debug.h"
 #include "t170/hardware/waist.h"
 
@@ -114,7 +114,7 @@ bool gripper_grasp_empty(gripper::Gripper &g, gripper::Side side,
  *  before_close 在复核成功后、保位期间执行，用于重叠预规划收手。
  *  空抓由 empty_* 返回；失败码保留给调用者，禁止继续按成功收手。 */
 ArmLineMoveResult finish_servo_grasp(
-    gripper::Gripper &g, Robot_Arm &arm_r, Robot_Arm &arm_l,
+    gripper::Gripper &g, Arm &arm_r, Arm &arm_l,
     bool move_r, bool move_l, bool &empty_r, bool &empty_l,
     const char *tag, const std::function<void()> &before_close = {});
 
@@ -136,8 +136,8 @@ bool dual_grasp_targets_too_close(const HeadAssignState &st);
  *  row_pose_group 1/2/3/6：XYZ 仍用 standby，RPY 用对应 ready 姿态；其它值用 standby 原姿态。 */
 /** tray2_place_rpy=true 时统一用料盘放置第五行姿态，不读 grasp ready1236。 */
 bool move_arms_to_standby(
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     int row_pose_group = -1,
     bool tray2_place_rpy = false);
 
@@ -165,18 +165,18 @@ TrayZoneCount count_tray_zone_holes(
     const std::array<double, 16> &cam2robot);
 /** 料盘2精度测试：到 AP9 后合爪，按空孔从最前排一组一组伸手，不松爪。 */
 /** home 指令：安全抬离后走到 yaml home_tcp（默认 TCP 原点、RPY=0）。不走抓取 standby，也不用料盘左右分区卡 Y。 */
-bool move_arms_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l);
+bool move_arms_to_home(Arm &arm_r, Arm &arm_l);
 /** belt_ready：绝对走到该套 conveyor.tcp（准备姿态）。 */
 bool move_arms_to_belt_ready(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c);
-bool move_arms_to_belt_ready(Robot_Arm &arm_r, Robot_Arm &arm_l);
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c);
+bool move_arms_to_belt_ready(Arm &arm_r, Arm &arm_l);
 /** tcp 的 XYZ + grasp_rpy_deg。只摆手腕，不拍照、不夹取。 */
 bool move_arms_to_belt_grasp_rpy(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c);
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c);
 /** belt_place：绝对走到该套 conveyor.place_tcp（放置末端预览）。 */
 bool move_arms_to_belt_place(
-    Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c);
-bool move_arms_to_belt_place(Robot_Arm &arm_r, Robot_Arm &arm_l);
+    Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c);
+bool move_arms_to_belt_place(Arm &arm_r, Arm &arm_l);
 /** 完整放置：RPY 用 place_tcp，XYZ = 码原点 + R_识别 × offset（识别系 +X前 +Y左 +Z上）。 */
 Eigen::Matrix<double, 1, 6> make_belt_goal_right(
     const BeltDetectResult &det, const ConveyorStationConfig &c);
@@ -262,8 +262,8 @@ HeadAssignState detect_and_assign_head(
 
 
 ArmLineMoveResult run_head_approach_selective(
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     HeadAssignState &st,
     bool move_r,
     bool move_l);
@@ -272,12 +272,12 @@ bool on_hand_steady_timeout_abort(
     const HandMoveState &hs,
     bool enable_r,
     bool enable_l,
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l);
+    Arm &arm_r,
+    Arm &arm_l);
 
 HandMoveState run_hand_detect_and_validate(
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     RealSenseMultiCam &cameras,
     SegPoseBridge &bridge,
     HeadAssignState &st,
@@ -289,14 +289,14 @@ HandMoveState run_hand_detect_and_validate(
 
 ArmLineMoveResult run_hand_approach_and_grasp(
     gripper::Gripper &g,
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     HeadAssignState &st,
     HandMoveState &hs);
 
 void lift_grasped_selective(
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     RealSenseMultiCam &cameras,
     HeadAssignState &st,
     bool move_r,
@@ -378,8 +378,8 @@ struct GraspToStandbyResult
 
 GraspToStandbyResult run_grasp_to_standby(
     gripper::Gripper &g,
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     WaistRobot &waist,
     Eigen::Matrix<double, 1, 6> &posup_down_3_layer,
     RealSenseMultiCam &cameras,
@@ -402,8 +402,8 @@ GraspToStandbyResult run_grasp_to_standby(
  */
 
 void lift_grasped_after_pick(
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     RealSenseMultiCam &cameras,
     HeadAssignState &st,
     bool grasped_r,

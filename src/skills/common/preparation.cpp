@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "t170/vision/wrist_observer.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/feedback.h"
@@ -46,7 +46,7 @@ using std::thread;
 
 
 namespace move_box {
-void log_retract_arm_state(const char *tag, bool is_right, Robot_Arm &arm, bool enforce_zone = true);
+void log_retract_arm_state(const char *tag, bool is_right, Arm &arm, bool enforce_zone = true);
 Eigen::Matrix<double, 1, 6> make_standby_pos_right()
     {
         return g_move_cfg.standby.right;
@@ -92,7 +92,7 @@ bool joints_to_matrix7(const Eigen::RowVectorXd &q, Eigen::Matrix<double, 1, 7> 
         return true;
     }
 
-bool try_standby_ik(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal,
+bool try_standby_ik(Arm &arm, Eigen::Matrix<double, 1, 6> goal,
                         const Eigen::RowVectorXd &seed, double analytic_j2,
                         Eigen::RowVectorXd &q_out, int &ik_out)
     {
@@ -117,7 +117,7 @@ bool try_standby_ik(Robot_Arm &arm, Eigen::Matrix<double, 1, 6> goal,
         return true;
     }
 
-bool solve_home_joints(Robot_Arm &arm, bool is_right, Eigen::Matrix<double, 1, 6> goal,
+bool solve_home_joints(Arm &arm, bool is_right, Eigen::Matrix<double, 1, 6> goal,
                            Eigen::Matrix<double, 1, 7> &qd)
     {
         const Eigen::RowVectorXd q_now = arm_get_joint_pos(arm);
@@ -128,7 +128,7 @@ bool solve_home_joints(Robot_Arm &arm, bool is_right, Eigen::Matrix<double, 1, 6
         }
 
         // 垂臂当前关节离 standby 太远，不能当唯一种子。换零位/待机构型种子再解。
-        Eigen::RowVectorXd q_zero = Eigen::RowVectorXd::Zero(q_now.size());
+        Eigen::RowVectorXd q_zero = arm.to_model(Eigen::Matrix<double,1,7>::Zero());
         Eigen::RowVectorXd q_standby_seed = q_zero;
         if (is_right)
         {
@@ -141,12 +141,13 @@ bool solve_home_joints(Robot_Arm &arm, bool is_right, Eigen::Matrix<double, 1, 6
                 49.1 * rad, -32.4 * rad;
         }
 
+        q_standby_seed = arm.to_model(q_standby_seed);
         const Eigen::RowVectorXd seeds[3] = {q_now, q_zero, q_standby_seed};
         const char *seed_names[3] = {"当前关节", "零位", "待机构型"};
         const double j2_try[8] = {
             q_now(1),
-            -45.0 * rad, -30.0 * rad, -20.0 * rad, 0.0,
-            20.0 * rad, 30.0 * rad, 45.0 * rad};
+            q_zero(1)-45.0 * rad, q_zero(1)-30.0 * rad, q_zero(1)-20.0 * rad, q_zero(1),
+            q_zero(1)+20.0 * rad, q_zero(1)+30.0 * rad, q_zero(1)+45.0 * rad};
 
         Eigen::RowVectorXd q_sol;
         int last_ik = -1;
@@ -207,19 +208,20 @@ bool solve_home_joints(Robot_Arm &arm, bool is_right, Eigen::Matrix<double, 1, 6
         return true;
     }
 
-bool arm_pose_needs_joint_home(Robot_Arm &arm)
+bool arm_pose_needs_joint_home(Arm &arm)
     {
         const Eigen::Matrix<double, 1, 6> tcp = arm_get_tcp_pos(arm);
         const Eigen::Matrix<double, 1, 7> q = arm_get_joint_pos(arm);
         const bool near_body = tcp(0) < kFoldedNearBodyXMaxM;
         const bool very_low = tcp(2) < kFoldedLowZMaxM;
-        const bool elbow_folded = std::abs(q(1)) > kFoldedElbowAbsRad;
+        // Preserve the old posture heuristic's device-zero reference explicitly.
+        const bool elbow_folded = std::abs(arm.to_device(q)(1)) > kFoldedElbowAbsRad;
         return (near_body && very_low) || (very_low && elbow_folded);
     }
 
 bool retract_joint_to_standby(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         Eigen::Matrix<double, 1, 6> standby_r,
         Eigen::Matrix<double, 1, 6> standby_l,
         bool check_zone)
@@ -287,7 +289,7 @@ bool retract_joint_to_standby(
         return ok && !hardware_abort_requested();
     }
 
-void log_retract_arm_state(const char *tag, bool is_right, Robot_Arm &arm, bool enforce_zone)
+void log_retract_arm_state(const char *tag, bool is_right, Arm &arm, bool enforce_zone)
     {
         const Eigen::Matrix<double, 1, 6> tcp = arm_get_tcp_pos(arm);
         const Eigen::Matrix<double, 1, 7> q = arm_get_joint_pos(arm);
@@ -349,7 +351,7 @@ void clamp_retract_goal_y(bool is_right, Eigen::Matrix<double, 1, 6> &goal)
     }
 
 void log_retract_ik_preview(
-        Robot_Arm &arm,
+        Arm &arm,
         bool is_right,
         Eigen::Matrix<double, 1, 6> goal,
         const char *stage)
@@ -384,8 +386,8 @@ void log_retract_ik_preview(
     }
 
 bool retract_phase_move(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         Eigen::Matrix<double, 1, 6> goal_r,
         bool want_r,
         Eigen::Matrix<double, 1, 6> goal_l,
@@ -454,8 +456,8 @@ bool retract_phase_move(
     }
 
 bool move_arms_retract_to(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         Eigen::Matrix<double, 1, 6> standby_r,
         Eigen::Matrix<double, 1, 6> standby_l,
         bool check_zone,
@@ -670,8 +672,8 @@ bool move_arms_retract_to(
     }
 
 bool move_arms_to_standby(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         int row_pose_group,
         bool tray2_place_rpy)
     {
@@ -704,7 +706,7 @@ bool move_arms_to_standby(
             tray2_place_rpy ? "yaml standby（料盘2放置准备）" : "yaml standby（抓取准备）");
     }
 
-bool move_arms_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
+bool move_arms_to_home(Arm &arm_r, Arm &arm_l)
     {
         const Eigen::Matrix<double, 1, 6> home_r = make_home_tcp_right();
         const Eigen::Matrix<double, 1, 6> home_l = make_home_tcp_left();
@@ -729,7 +731,7 @@ bool move_arms_to_home(Robot_Arm &arm_r, Robot_Arm &arm_l)
     }
 
 bool move_arms_to_belt_ready(
-        Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c)
+        Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c)
     {
         const Eigen::Matrix<double, 1, 6> ready_r = c.tcp.right;
         const Eigen::Matrix<double, 1, 6> ready_l = c.tcp.left;
@@ -743,13 +745,13 @@ bool move_arms_to_belt_ready(
             arm_r, arm_l, ready_r, ready_l, false, "yaml conveyor.tcp 准备");
     }
 
-bool move_arms_to_belt_ready(Robot_Arm &arm_r, Robot_Arm &arm_l)
+bool move_arms_to_belt_ready(Arm &arm_r, Arm &arm_l)
     {
         return move_arms_to_belt_ready(arm_r, arm_l, g_move_cfg.conveyor);
     }
 
 bool move_arms_to_belt_grasp_rpy(
-        Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c)
+        Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c)
     {
         Eigen::Matrix<double, 1, 6> pose_r = c.tcp.right;
         Eigen::Matrix<double, 1, 6> pose_l = c.tcp.left;
@@ -770,7 +772,7 @@ bool move_arms_to_belt_grasp_rpy(
     }
 
 bool move_arms_to_belt_place(
-        Robot_Arm &arm_r, Robot_Arm &arm_l, const ConveyorStationConfig &c)
+        Arm &arm_r, Arm &arm_l, const ConveyorStationConfig &c)
     {
         const Eigen::Matrix<double, 1, 6> place_r = c.place_tcp.right;
         const Eigen::Matrix<double, 1, 6> place_l = c.place_tcp.left;
@@ -785,7 +787,7 @@ bool move_arms_to_belt_place(
             arm_r, arm_l, place_r, place_l, false, "yaml conveyor.place_tcp 放置");
     }
 
-bool move_arms_to_belt_place(Robot_Arm &arm_r, Robot_Arm &arm_l)
+bool move_arms_to_belt_place(Arm &arm_r, Arm &arm_l)
     {
         return move_arms_to_belt_place(arm_r, arm_l, g_move_cfg.conveyor);
     }

@@ -8,7 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 namespace orch {
 static int run_dispatch_mode_body()

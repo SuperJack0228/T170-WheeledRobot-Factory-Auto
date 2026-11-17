@@ -15,6 +15,11 @@ if (cmd == "dispatch_status")
 if (cmd == "snapshot")
     {
         Json::Value out = reply(true);
+        out["arm_backend"]="Ti5_Robotics_20261109";
+        out["arm_model"]=g_arm_r->definition().model_id;
+        out["arm_joint_coordinates"]="sdk_mdh_model_rad";
+        out["pending_model_calibrations"]=Json::Value(Json::arrayValue);
+        for(const auto &path:g_move_cfg.pending_model_calibrations)out["pending_model_calibrations"].append(path);
         out["right_tcp_m_deg"] = pose_json(arm_get_tcp_pos(*g_arm_r));
         out["left_tcp_m_deg"] = pose_json(arm_get_tcp_pos(*g_arm_l));
         out["grasped_right"] = orch::live_gripper_holding(true);

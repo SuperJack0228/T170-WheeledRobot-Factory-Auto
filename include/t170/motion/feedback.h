@@ -5,21 +5,21 @@
 #include <string>
 #include <tuple>
 #include <vector>
-class Robot_Arm;
+class Arm;
 #include "t170/motion/types.h"
 void arm_arrival_log_clear();
 
 std::vector<ArmArrivalRecord> arm_arrival_log_copy();
 
 bool record_arm_cartesian_arrival(
-    Robot_Arm &arm,
+    Arm &arm,
     const Eigen::Matrix<double, 1, 6> &goal,
     const char *stage = nullptr,
     double settle_sec = 15.0);
 
-void log_arm_encoder_command_vs_actual(Robot_Arm &arm, const char *tag);
+void log_arm_encoder_command_vs_actual(Arm &arm, const char *tag);
 
-Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Robot_Arm &arm);
+Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Arm &arm);
 
 
 

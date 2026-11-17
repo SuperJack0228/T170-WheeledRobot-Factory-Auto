@@ -37,8 +37,8 @@ void fill_goal_last_from_head_assign(
         Eigen::Matrix<double, 1, 6> &goal_last_r,
         Eigen::Matrix<double, 1, 6> &goal_last_l);
 void apply_adaptive_grasp_rpy_selective(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         HeadAssignState &st,
         bool move_r,
         bool move_l);

@@ -6,7 +6,7 @@
 #include "t170/common/pose_math.h"
 #include "t170/motion/kinematics_adapter.h"
 #include "t170/motion/feedback.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/skills/legacy/profiles.h"
 
@@ -29,7 +29,7 @@ using namespace std;
 namespace wrist_servo {
 using namespace detail;
 namespace detail {
-State measured(Robot_Arm &arm, Runtime &slot, double &read_ms) {
+State measured(Arm &arm, Runtime &slot, double &read_ms) {
     const double before = monotonic_seconds();
     Joints q;
     if(!read_joint_feedback(hand_index(arm),q)) throw std::runtime_error("joint_feedback_read_failed");

@@ -84,7 +84,7 @@ void begin_run(const std::string &robot,const std::string &server){
     // Snapshot external parameters/calibrations for later interpretation. Never copy credentials or vendor SDKs.
     const auto snapshot=dir/("run_"+current.run_id+"_config");std::filesystem::create_directories(snapshot,ec);
     unsigned errors=ec?1:0;
-    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","Robot_Arm_Model.yaml","left_hand_to_base_result.yaml","right_hand_to_base_result.yaml"}) {
+    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","Robot_Model.yaml","arm_binding.yaml","arm_model_metadata.yaml","arm_frames.yaml","left_hand_to_base_result.yaml","right_hand_to_base_result.yaml"}) {
         ec.clear();const auto source=t170::paths::config_file(name);
         if(std::filesystem::exists(source)){std::filesystem::copy_file(source,snapshot/name,std::filesystem::copy_options::overwrite_existing,ec);if(ec)++errors;}
     }

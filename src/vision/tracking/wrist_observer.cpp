@@ -415,7 +415,7 @@ void hand_shadow_bind(SegPoseBridge *bridge) {
     }
     engine.store(bridge);
 }
-void hand_shadow_ensure(int hand,Robot_Arm *arm,const Eigen::Matrix<double,1,6> &goal,
+void hand_shadow_ensure(int hand,Arm *arm,const Eigen::Matrix<double,1,6> &goal,
                         const char *tag,int cls) {
     if(hand<0 || hand>1 || !arm || !engine.load()) return;
     { std::lock_guard<std::mutex> lock(start_mutex);
@@ -423,7 +423,7 @@ void hand_shadow_ensure(int hand,Robot_Arm *arm,const Eigen::Matrix<double,1,6> 
     }
     hand_shadow_begin(hand,arm,goal,tag,cls);
 }
-void hand_shadow_begin(int hand,Robot_Arm *,const Eigen::Matrix<double,1,6> &,const char *,int) {
+void hand_shadow_begin(int hand,Arm *,const Eigen::Matrix<double,1,6> &,const char *,int) {
     if(hand<0 || hand>1) return;
     { std::lock_guard<std::mutex> lock(watch_mutex);
       const auto generation=watches[hand].generation+1;

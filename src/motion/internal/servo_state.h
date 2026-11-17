@@ -28,7 +28,7 @@ struct Runtime {
 extern Runtime slots[2];
 extern std::atomic<std::uint64_t> next_session;
 extern std::atomic<bool> group_failed;
-State measured(Robot_Arm &arm, Runtime &slot, double &read_ms);
+State measured(Arm &arm, Runtime &slot, double &read_ms);
 bool pair_too_close(int hand, const State &s, const Vec2 &goal, double clearance);
 void send(int hand, const Joints &q);
 }

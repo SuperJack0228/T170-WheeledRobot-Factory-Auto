@@ -8,7 +8,7 @@
 #include <limits>
 #include <string>
 #include <vector>
-class Robot_Arm;
+class Arm;
 class WaistRobot;
 class PosePipeline;
 namespace gripper {class Gripper;}
@@ -29,8 +29,8 @@ struct ArucoHit
 struct HwSession
 {
     gripper::Gripper *g = nullptr;
-    Robot_Arm *arm_r = nullptr;
-    Robot_Arm *arm_l = nullptr;
+    Arm *arm_r = nullptr;
+    Arm *arm_l = nullptr;
     WaistRobot *waist = nullptr;
     Eigen::Matrix<double, 1, 6> *layer3 = nullptr;
     PosePipeline *pipeline = nullptr;

@@ -8,7 +8,7 @@
 
 namespace move_box {
 ArmLineMoveResult finish_servo_grasp(
-    gripper::Gripper &g,Robot_Arm &arm_r,Robot_Arm &arm_l,
+    gripper::Gripper &g,Arm &arm_r,Arm &arm_l,
     bool move_r,bool move_l,bool &empty_r,bool &empty_l,
     const char *tag,const std::function<void()> &before_close) {
     ArmLineMoveResult out;

@@ -3,7 +3,7 @@
 #include <Eigen/Dense>
 #include <string>
 
-class Robot_Arm;
+class Arm;
 class SegPoseBridge;
 
 /** 绑定手相机推理引擎。传入空指针时停掉下降观测线程。 */
@@ -14,7 +14,7 @@ void hand_shadow_bind(SegPoseBridge *bridge);
  */
 void hand_shadow_begin(
     int hand,
-    Robot_Arm *arm,
+    Arm *arm,
     const Eigen::Matrix<double, 1, 6> &goal,
     const char *tag,
     int want_class = -1);
@@ -23,7 +23,7 @@ void hand_shadow_begin(
  *  want_class：0 工件抓取；1 在 tray_place 开启时用邻孔网格计算指定孔心；-1 不限。 */
 void hand_shadow_ensure(
     int hand,
-    Robot_Arm *arm,
+    Arm *arm,
     const Eigen::Matrix<double, 1, 6> &goal,
     const char *tag,
     int want_class = -1);

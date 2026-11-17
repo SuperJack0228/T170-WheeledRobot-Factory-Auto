@@ -79,6 +79,8 @@ bool motor_enable_id(uint32_t id);
 
 /** 位置模式保持/去目标（输出轴 rad）。头部到位后必须再写一次才能锁住。 */
 bool motor_set_pos_rad(uint32_t id, double rad);
+/** Raw device/output-shaft radians, before the arm model-coordinate adapter. */
+bool motor_read_pos_rad(uint32_t id, double &rad);
 
 
 

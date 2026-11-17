@@ -12,7 +12,7 @@
 #include "t170/hardware/gripper.hpp"
 #include "t170/hardware/waist.h"
 #include "t170/vision/python_bridge.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/retreat.h"
@@ -32,8 +32,8 @@ std::mutex config_mu;
 t170::calibration::PlacementSession placement_calibration;
 orch::HwSession session;
 std::unique_ptr<gripper::Gripper> grip;
-std::unique_ptr<Robot_Arm> arm_r;
-std::unique_ptr<Robot_Arm> arm_l;
+std::unique_ptr<Arm> arm_r;
+std::unique_ptr<Arm> arm_l;
 std::unique_ptr<WaistRobot> waist;
 std::unique_ptr<PosePipeline> pipeline;
 Eigen::Matrix<double, 1, 6> layer3;
@@ -49,8 +49,8 @@ extern std::mutex &g_config_mu;
 extern t170::calibration::PlacementSession &g_placement_calibration;
 extern orch::HwSession &g_session;
 extern std::unique_ptr<gripper::Gripper> &g_grip;
-extern std::unique_ptr<Robot_Arm> &g_arm_r;
-extern std::unique_ptr<Robot_Arm> &g_arm_l;
+extern std::unique_ptr<Arm> &g_arm_r;
+extern std::unique_ptr<Arm> &g_arm_l;
 extern std::unique_ptr<WaistRobot> &g_waist;
 extern std::unique_ptr<PosePipeline> &g_pipeline;
 extern Eigen::Matrix<double, 1, 6> &g_layer3;

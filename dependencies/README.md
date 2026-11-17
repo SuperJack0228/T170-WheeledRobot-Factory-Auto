@@ -6,8 +6,9 @@
 dependencies/
 ├── sdk/
 │   ├── arm/
-│   │   ├── include/Ti5_Arm.h
-│   │   └── lib/Ti5_Arm_2204.so
+│   │   ├── include/Ti5_Robotics.h
+│   │   └── lib/{aarch64,x86_64}-glibc227/libti5_robot.so
+│   ├── arm_legacy/                 旧手臂 SDK 原始归档，不参与构建
 │   ├── lower_body/                 腰腿源码、头、独立构建和自检
 │   ├── device/include/             设备 SDK 头文件交付副本
 │   └── chassis_seer/include/       底盘 SDK 头文件交付副本
@@ -20,7 +21,9 @@ dependencies/
 └── manifest.json                   当前交付文件摘要与外部依赖说明
 ```
 
-CMake 路径集中在 cmake/T170Dependencies.cmake。根目录原有 LowerBody/ 是转发兼容壳，现已删除；真正的腰腿源码在 sdk/lower_body，算法内容未改。SDK 接口名和现有协议不因迁移而改名。
+CMake 依赖路径集中在 cmake/T170Dependencies.cmake，新手臂库选择在 cmake/T170ArmSdk.cmake。根目录原有 LowerBody/ 是转发兼容壳，现已删除；真正的腰腿源码在 sdk/lower_body，算法内容未改。
+
+2026-11-17 手臂后端已切换为 Ti5_Robotics 20261109，不能再使用旧二进制直接替换库。具体来源见 [手臂 SDK](sdk/arm/README.md)，模型角、法兰与任务参考处理见 [接入说明](../docs/deployment/ARM_SDK_MIGRATION.md)。清单中手臂 active/archive 条目的 content_sha256 为按路径排序后 `path + NUL + file_sha256 + LF` 的 UTF-8 摘要，hash_scheme 单独声明；其他依赖条目保留原始摘要。
 
 ## 本地文件与机器人安装环境
 

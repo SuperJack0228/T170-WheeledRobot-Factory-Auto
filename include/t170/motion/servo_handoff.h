@@ -5,14 +5,14 @@
 #include <string>
 #include <tuple>
 #include <vector>
-class Robot_Arm;
+class Arm;
 #include "t170/motion/types.h"
 ArmLineMoveResult arm_dual_line_then_line_nostop(
-    Robot_Arm &arm_r,
+    Arm &arm_r,
     const Eigen::Matrix<double, 1, 6> &mid_r,
     const Eigen::Matrix<double, 1, 6> &goal_r,
     bool move_r,
-    Robot_Arm &arm_l,
+    Arm &arm_l,
     const Eigen::Matrix<double, 1, 6> &mid_l,
     const Eigen::Matrix<double, 1, 6> &goal_l,
     bool move_l,

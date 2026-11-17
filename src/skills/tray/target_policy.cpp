@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "t170/vision/wrist_observer.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/kinematics_adapter.h"
@@ -424,8 +424,8 @@ bool apply_adaptive_grasp_rpy_one(
     }
 
 void apply_adaptive_grasp_rpy_selective(
-        Robot_Arm &arm_r,
-        Robot_Arm &arm_l,
+        Arm &arm_r,
+        Arm &arm_l,
         HeadAssignState &st,
         bool move_r,
         bool move_l)

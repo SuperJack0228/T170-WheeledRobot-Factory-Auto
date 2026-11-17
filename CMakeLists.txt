@@ -10,9 +10,20 @@ include(cmake/T170Foundation.cmake)
 include(cmake/T170Motion.cmake)
 include(cmake/T170Skills.cmake)
 include(cmake/T170Factory.cmake)
+include(cmake/T170ArmSdk.cmake)
+option(T170_ARM_SDK_CHECK_ONLY "Build a calculation-only Linux SDK check, without any device library" OFF)
 option(T170_SERVO_TESTS_ONLY "Build hardware-independent regression tests" OFF)
 if(T170_SERVO_TESTS_ONLY)
     include(cmake/T170OfflineTests.cmake)
+    return()
+endif()
+if(T170_ARM_SDK_CHECK_ONLY)
+    find_package(Threads REQUIRED)
+    find_package(yaml-cpp REQUIRED)
+    t170_add_arm_support()
+    t170_add_vendor_arm()
+    add_executable(t170_arm_sdk_check tools/arm_sdk_check.cpp)
+    target_link_libraries(t170_arm_sdk_check PRIVATE t170_arm_vendor)
     return()
 endif()
 
@@ -31,6 +42,8 @@ list(APPEND CMAKE_PREFIX_PATH "${HUMAN_INTERACTION_ENV_ROOT}")
 find_package(Threads REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(yaml-cpp REQUIRED)
+t170_add_arm_support()
+t170_add_vendor_arm()
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -57,7 +70,6 @@ set(TI5_CAN_MINI_ROOT "/opt/ti5-can-mini" CACHE PATH "Robot SDK installation roo
 set(TI5_ROHAND_CODEC_ROOT "/opt/ti5-rohand-codec" CACHE PATH "Robot SDK installation root")
 set(TI5_DEX1_CODEC_ROOT "/opt/ti5-dex1-codec" CACHE PATH "Robot SDK installation root")
 set(TI5_AGV_SEER_ROOT "/opt/ti5-agv-seer" CACHE PATH "Robot SDK installation root")
-set(TI5_ARM_SOLVER_LIB "${T170_ARM_LIBRARY_DIR}/Ti5_Arm_2204.so")
 set(TI5_DEVICE_SDK_LIB "${TI5_DEVICE_SDK_ROOT}/lib/libcommunication_manager.so")
 set(TI5_MOTOR_CODEC_LIB "${TI5_MOTOR_CODEC_ROOT}/lib/libti5_motor.so")
 set(TI5_SERIAL_SDK_LIB "${TI5_SERIAL_ROOT}/lib/libserial_port.so")
@@ -127,7 +139,7 @@ target_link_directories(t170_robot_platform INTERFACE
     ${TI5_JINDI_CLIENT_ROOT}/lib
 )
 target_link_libraries(t170_robot_platform INTERFACE
-    ${TI5_ARM_SOLVER_LIB}
+    t170_arm_vendor
     ${UNITREE_MOTOR_LIB}
     ${TI5_DEVICE_SDK_LIB}
     ${TI5_AGV_SEER_LIB}
@@ -215,8 +227,8 @@ function(t170_add_robot_app target entry)
         $<TARGET_OBJECTS:t170_calibration> $<TARGET_OBJECTS:t170_dispatch_adapter>)
     target_link_libraries(${target} PRIVATE t170::runtime)
     set_target_properties(${target} PROPERTIES
-    BUILD_RPATH "${T170_ARM_LIBRARY_DIR}:${UNITREE_MOTOR_LIBRARY_DIR}:${T170_SERIALPORT_ROOT}/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
-    INSTALL_RPATH "${T170_ARM_LIBRARY_DIR}:${UNITREE_MOTOR_LIBRARY_DIR}:${T170_SERIALPORT_ROOT}/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
+    BUILD_RPATH "${TI5_ARM_SOLVER_DIRECTORY}:${UNITREE_MOTOR_LIBRARY_DIR}:${T170_SERIALPORT_ROOT}/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
+    INSTALL_RPATH "${TI5_ARM_SOLVER_DIRECTORY}:${UNITREE_MOTOR_LIBRARY_DIR}:${T170_SERIALPORT_ROOT}/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
     BUILD_RPATH_USE_ORIGIN ON
     )
     target_link_options(${target} PRIVATE "-Wl,--disable-new-dtags")

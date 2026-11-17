@@ -5,11 +5,11 @@
 #include <string>
 #include <tuple>
 #include <vector>
-class Robot_Arm;
+class Arm;
 #include "t170/motion/types.h"
 int arm_dual_cartesian_track(
-    Robot_Arm &arm_r,
-    Robot_Arm &arm_l,
+    Arm &arm_r,
+    Arm &arm_l,
     const Eigen::Matrix<double, 1, 6> &start_r,
     const Eigen::Matrix<double, 1, 6> &start_l,
     bool move_r,

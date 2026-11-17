@@ -6,7 +6,7 @@
 #include "t170/common/pose_math.h"
 #include "t170/motion/kinematics_adapter.h"
 #include "t170/motion/feedback.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/skills/legacy/profiles.h"
 
@@ -49,7 +49,7 @@ void observation_event(int hand,std::uint64_t session,const char *reason,const P
     }
     trace_writer().push(std::move(row));
 }
-void handoff_event(Robot_Arm &arm,const Joints &command,const Joints &previous,const char *reason) {
+void handoff_event(Arm &arm,const Joints &command,const Joints &previous,const char *reason) {
     const int hand=hand_index(arm); double read_ms=0;
     const auto state=measured(arm,slots[hand],read_ms);
     const Vec3 reference=arm_tcp_from_joints(arm,command).head<3>().transpose();

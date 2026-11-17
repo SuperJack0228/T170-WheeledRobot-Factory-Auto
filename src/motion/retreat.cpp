@@ -25,7 +25,7 @@ std::mutex g_staged_motion_mu[2];
 
 
 namespace {
-int plan_seeded_vertical_lift(Robot_Arm &arm, const wrist_servo::Joints &grasp, double lift_m,
+int plan_seeded_vertical_lift(Arm &arm, const wrist_servo::Joints &grasp, double lift_m,
                               double speed, Eigen::MatrixXd &trajectory, double &rise_m, std::string &detail)
 {
     detail="initial_fk_or_height";
@@ -128,7 +128,7 @@ int plan_seeded_vertical_lift(Robot_Arm &arm, const wrist_servo::Joints &grasp, 
 
 
 namespace {
-int execute_staged_motion(Robot_Arm &arm,const Eigen::MatrixXd &path,const char *stage,
+int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage,
                           const std::function<void(const wrist_servo::Joints &)> &progress={},
                           const std::function<bool(const wrist_servo::Joints &)> &arrived={},
                           double notify_at=-1,const std::function<void()> &on_notify={})
@@ -214,7 +214,7 @@ int execute_staged_motion(Robot_Arm &arm,const Eigen::MatrixXd &path,const char 
 
 
 namespace {
-int play_seeded_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
+int play_seeded_vertical_lift(Arm &arm,double lift_m,double speed,
                               const std::function<void(double)> &on_progress)
 {
     const int hand=arm_hand_side(arm);
@@ -244,7 +244,7 @@ int play_seeded_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
 
 
 namespace {
-int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready,
+int play_joint_return(Arm &arm,const wrist_servo::Joints &ready,
                       const std::function<void()> &on_started = {},
                       double notify_at = -1,double limit_scale = 1)
 {
@@ -259,7 +259,7 @@ int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready,
         {c.max_joint_velocity_rad_s*scale,c.max_joint_acceleration_rad_s2*scale,
          c.max_joint_jerk_rad_s3*scale});
     if(path.rows()<2) return -16;
-    std::cout<<"[retract] hand="<<hand<<" fixed_ready_motor_rad="<<ready
+    std::cout<<"[retract] hand="<<hand<<" fixed_ready_model_rad="<<ready
              <<" duration_s="<<(path.rows()-1)*k_arm_traj_dt
              <<" limit_scale="<<scale<<'\n';
     wrist_servo::task_event(hand,"return_plan","fixed_motor_joints_no_IK");
@@ -272,7 +272,7 @@ int play_joint_return(Robot_Arm &arm,const wrist_servo::Joints &ready,
 }
 
 
-int arm_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
+int arm_vertical_lift(Arm &arm,double lift_m,double speed,
                       const std::function<void(double)> &on_progress) {
     const int hand=arm_hand_side(arm);
     if(hand==1 && right_arm_motors_locked()) return 0;
@@ -282,7 +282,7 @@ int arm_vertical_lift(Robot_Arm &arm,double lift_m,double speed,
     orch::TimingSpan timer("arm_vertical_lift");const int code=play_seeded_vertical_lift(arm,lift_m,speed,on_progress);timer.set_ok(code==0);return code;
 }
 
-int arm_return_after_lift(Robot_Arm &arm,const Eigen::Matrix<double,1,7> &ready,
+int arm_return_after_lift(Arm &arm,const Eigen::Matrix<double,1,7> &ready,
                           const std::function<void()> &on_started,
                           double notify_at,double limit_scale) {
     if(arm_hand_side(arm)==1 && right_arm_motors_locked()) return 0;

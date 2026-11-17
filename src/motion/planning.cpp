@@ -150,13 +150,13 @@ void append_line_trajectory_fail_debug(
 }
 
 int arm_line_move(
-    Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, bool snap_reach)
+    Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, bool snap_reach)
 {
     if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
         return 0;
     clamp_cart_goal_z(pos, "arm_line_move(直线运动下发前)");
     const int hand = arm_hand_side(arm);
-    Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
+    Eigen::MatrixXd q_start = arm_read_model_joints(hand);
     if (hardware_abort_requested())
         return -4;
     if (can_io_faulted())
@@ -182,13 +182,13 @@ int arm_line_move(
     return exec;
 }
 
-int arm_line_move_settle(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms)
+int arm_line_move_settle(Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms)
 {
     if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
         return 0;
     clamp_cart_goal_z(pos, "arm_line_move_settle(直线运动下发前)");
     const int hand = arm_hand_side(arm);
-    Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
+    Eigen::MatrixXd q_start = arm_read_model_joints(hand);
     if (hardware_abort_requested())
         return -4;
     if (can_io_faulted())
@@ -243,13 +243,13 @@ int arm_line_move_settle(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_
     return 0;
 }
 
-int arm_line_move_hold_redundant(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
+int arm_line_move_hold_redundant(Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
 {
     if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
         return 0;
     clamp_cart_goal_z(pos, "arm_line_move_hold_redundant(直线运动下发前)");
     const int hand = arm_hand_side(arm);
-    Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
+    Eigen::MatrixXd q_start = arm_read_model_joints(hand);
     if (hardware_abort_requested())
         return -4;
     if (can_io_faulted())
@@ -279,9 +279,9 @@ int arm_line_move_hold_redundant(Robot_Arm &arm, Matrix<double, 1, 6> &pos, doub
 
 
 ArmLineMoveResult arm_dual_line_move(
-    Robot_Arm &arm_r,
+    Arm &arm_r,
     Matrix<double, 1, 6> &pos_r,
-    Robot_Arm &arm_l,
+    Arm &arm_l,
     Matrix<double, 1, 6> &pos_l,
     double cart_linear_velocity,
     bool snap_reach)
@@ -295,10 +295,10 @@ ArmLineMoveResult arm_dual_line_move(
 }
 
 ArmLineMoveResult arm_dual_line_move_selective(
-    Robot_Arm &arm_r,
+    Arm &arm_r,
     Matrix<double, 1, 6> &pos_r,
     const bool move_r,
-    Robot_Arm &arm_l,
+    Arm &arm_l,
     Matrix<double, 1, 6> &pos_l,
     const bool move_l,
     const double cart_linear_velocity,
@@ -371,7 +371,7 @@ int first_cruise_row(const Eigen::MatrixXd &traj)
 
 namespace t170::motion::detail {
 int plan_arm_line_from(
-    Robot_Arm &arm,
+    Arm &arm,
     Eigen::Matrix<double, 1, 6> goal,
     double vel_m_s,
     const Eigen::MatrixXd &q_start,
@@ -443,7 +443,7 @@ Eigen::MatrixXd concat_full_lines(const Eigen::MatrixXd &first, const Eigen::Mat
 
 
 namespace {
-Eigen::MatrixXd stitch_lift_then_return(Robot_Arm &arm, const Eigen::MatrixXd &first,
+Eigen::MatrixXd stitch_lift_then_return(Arm &arm, const Eigen::MatrixXd &first,
                                             const Eigen::MatrixXd &second)
 {
     const int n1=static_cast<int>(first.rows()), n2=static_cast<int>(second.rows());
@@ -500,7 +500,7 @@ Eigen::MatrixXd stitch_lift_then_return(Robot_Arm &arm, const Eigen::MatrixXd &f
 
 namespace t170::motion::detail {
 int plan_line_then_line(
-    Robot_Arm &arm,
+    Arm &arm,
     Eigen::Matrix<double, 1, 6> mid,
     Eigen::Matrix<double, 1, 6> goal,
     double vel_first_m_s,
@@ -529,7 +529,7 @@ int plan_line_then_line(
     }
     Eigen::MatrixXd q_start = (start != nullptr && start->rows() == 1 && start->cols() >= 6)
                                   ? *start
-                                  : arm_read_motor_joints(hand);
+                                  : arm_read_model_joints(hand);
     if (lift_then_retract && start != nullptr)
     {
         const Eigen::Matrix<double, 1, 6> held_pose = arm_tcp_from_joints(arm, q_start.row(0));
@@ -605,7 +605,7 @@ bool take_prepared_line(int hand, Eigen::MatrixXd &traj, int &ret)
         slot.have = false;
         return false;
     }
-    const Eigen::MatrixXd q_now = arm_read_motor_joints(hand);
+    const Eigen::MatrixXd q_now = arm_read_model_joints(hand);
     double mismatch =
         (q_now.cols() == slot.traj.cols())
             ? (q_now.row(0) - slot.traj.row(0)).cwiseAbs().maxCoeff()
@@ -648,15 +648,15 @@ void arm_discard_line_then_line_plan(int hand)
 
 
 
-int arm_transfer_move(Robot_Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
+int arm_transfer_move(Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
 {
     return arm_line_move(arm, pos, cart_linear_velocity);
 }
 
 ArmLineMoveResult arm_dual_transfer_move(
-    Robot_Arm &arm_r,
+    Arm &arm_r,
     Matrix<double, 1, 6> &pos_r,
-    Robot_Arm &arm_l,
+    Arm &arm_l,
     Matrix<double, 1, 6> &pos_l,
     double cart_linear_velocity)
 {
@@ -670,12 +670,12 @@ ArmLineMoveResult arm_dual_transfer_move(
 
 
 
-int arm_joint_move(Robot_Arm &arm, Matrix<double, 1, 7> &qd)
+int arm_joint_move(Arm &arm, Matrix<double, 1, 7> &qd)
 {
     const int hand = arm_hand_side(arm);
     if (hand == 1 && right_arm_motors_locked())
         return 0;
-    const Eigen::MatrixXd q_start = arm_read_motor_joints(hand);
+    const Eigen::MatrixXd q_start = arm_read_model_joints(hand);
     Eigen::MatrixXd q_end = qd;
     if (q_end.rows() != 1)
         q_end = q_end.transpose();
@@ -683,9 +683,12 @@ int arm_joint_move(Robot_Arm &arm, Matrix<double, 1, 7> &qd)
     const int ret = arm.Joint_Trajectory(q_start, q_end, traj);
     if (ret != 0)
     {
+        if(arm.Check_Joint_Limit(q_end.row(0))) return ret;
         std::cerr << "[arm] Joint_Trajectory ret=" << ret
-                  << "（起点可在模型限位外），改用不限位关节插补回目标\n";
-        traj = make_linear_joint_traj(q_start, q_end, k_arm_traj_dt);
+                  << " start outside model range; timed recovery to a valid target\n";
+        Eigen::MatrixXd knots(2,7);knots.row(0)=q_start.row(0);knots.row(1)=q_end.row(0);
+        const auto &d=arm.definition();
+        traj=t170::motion::time_joint_path(knots,k_arm_traj_dt,{d.velocity,d.acceleration,d.jerk});
     }
     return execute_arm_trajectory(traj, hand, k_arm_traj_dt);
 }

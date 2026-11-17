@@ -13,3 +13,5 @@
 本轮离线验证见 docs/validation/cleanup/RESULTS.md。现场伺服/调度成功率需另外记录；本轮不运行机器人。
 
 2026-11-17 依赖收口：同事交付 SDK 与通用库统一 dependencies/sdk 和 dependencies/libraries；七组根目录退出，旧腰腿兼容壳和空占位删除。原 SDK 内容与算法不因路径迁移升级，/opt 安装依赖继续明确保留。
+
+2026-11-17 后续 SDK 升级：正式手臂后端改为 Ti5_Robotics 20261109，旧库归档不再链接；新增 V2.0 3/5 kg 独立 URDF/MDH 型号，No.124 绑定 3 kg。运动链路采用模型角，硬件边界转换设备角；工具/手眼同步转换法兰定义，旧任务参考待复核。37 项离线 CTest 通过，Linux 真实动态库加载、完整机器人链接和实机任务仍待现场验证。详见 [接入说明](../deployment/ARM_SDK_MIGRATION.md) 及 [验证记录](../validation/arm_sdk/RESULTS.md)。

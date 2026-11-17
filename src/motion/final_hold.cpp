@@ -6,7 +6,7 @@
 #include "t170/common/pose_math.h"
 #include "t170/motion/kinematics_adapter.h"
 #include "t170/motion/feedback.h"
-#include "Ti5_Arm.h"
+#include "t170/motion/arm.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/skills/legacy/profiles.h"
 
