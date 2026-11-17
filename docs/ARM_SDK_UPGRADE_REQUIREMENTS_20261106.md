@@ -1,3 +1,5 @@
+> 历史工程记录：原日期与现场事实保留。当前运动实现见 docs/architecture/REPOSITORY_GUIDE.md；本轮未更换 SDK。旧源码链接指向对应历史版本。
+
 # T170 双臂运动学 SDK 评估与升级需求
 
 日期：2026-11-06。评估对象：`Robot_Arm`、`Ti5_Arm_2204.so` 及上层运动适配。当前本地 Git 基线：`6c5256e`。
@@ -318,11 +320,11 @@ struct SolveReport {
 ## 本地参考
 
 - [原运动栈评估及历史故障](ARM_KINEMATICS_ASSESSMENT.md)
-- [当前 V3 撤离](STAGED_RETRACT_V3.md)
-- [SDK 公开头文件](../include/Ti5_Arm.h)
-- [现行模型参数](../config/Robot_Arm_Model.yaml)
-- [连接器实现](../include/servo/trajectory.h)
-- [上层运动适配](../src/function.cpp)
+- [当前 V3 撤离](WRIST_VISUAL_SERVO_ALGORITHM.md)
+- [SDK 公开头文件](../dependencies/sdk/arm/include/Ti5_Arm.h)
+- [现行模型参数](https://github.com/SuperJack0228/T170-WheeledRobot-Factory-Auto/blob/9e023e775ecfb2d2742382f5a92427fc4f1e2907/config/Robot_Arm_Model.yaml)
+- [连接器实现](https://github.com/SuperJack0228/T170-WheeledRobot-Factory-Auto/blob/9e023e775ecfb2d2742382f5a92427fc4f1e2907/include/servo/trajectory.h)
+- [上层运动适配](https://github.com/SuperJack0228/T170-WheeledRobot-Factory-Auto/blob/9e023e775ecfb2d2742382f5a92427fc4f1e2907/src/function.cpp)
 - [局部 FK 求解器](../src/motion/pose_solver.cpp)
 
 另一份输入材料位于本机 `/Users/superjack/Downloads/ARM_IK_ELBOW_WRIST.md`，为 9 月现场记录，不属于本仓库当前运行规范。

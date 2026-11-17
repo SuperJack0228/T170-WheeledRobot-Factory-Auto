@@ -1,7 +1,8 @@
 #include "t170/vision/head_transform.h"
+#include "t170/common/paths.h"
 
 #include "t170/hardware/head.h"
-#include "move_box_config.h"
+#include "t170/skills/legacy/profiles.h"
 #include "t170/vision/python_bridge.h"
 
 #include <yaml-cpp/yaml.h>
@@ -43,7 +44,7 @@ void euler_zyx_to_R(double roll_deg, double pitch_deg, double yaw_deg, double R[
     const double cx = std::cos(rx), sx = std::sin(rx);
     const double cy = std::cos(ry), sy = std::sin(ry);
     const double cz = std::cos(rz), sz = std::sin(rz);
-    // R = Rz @ Ry @ Rx，与 free_calib / ti5 标定软件一致
+    // R = Rz @ Ry @ Rx，与 head_transform / ti5 标定软件一致
     const double rz_m[9] = {cz, -sz, 0.0, sz, cz, 0.0, 0.0, 0.0, 1.0};
     const double ry_m[9] = {cy, 0.0, sy, 0.0, 1.0, 0.0, -sy, 0.0, cy};
     const double rx_m[9] = {1.0, 0.0, 0.0, 0.0, cx, -sx, 0.0, sx, cx};
@@ -64,13 +65,13 @@ void euler_zyx_to_R(double roll_deg, double pitch_deg, double yaw_deg, double R[
         }
 }
 
-bool load_free_calib(std::string &err)
+bool load_head_geometry(std::string &err)
 {
     std::lock_guard<std::mutex> lock(g_calib_mu);
     if (g_calib_ok)
         return true;
 
-    const std::string params_path = project_root_dir() + "/free_calib/config/head_params.yaml";
+    const std::string params_path = t170::paths::config_file("head/geometry.yaml").string();
     YAML::Node params;
     try
     {
@@ -78,15 +79,15 @@ bool load_free_calib(std::string &err)
     }
     catch (const std::exception &e)
     {
-        err = std::string("读 free_calib head_params 失败: ") + e.what();
+        err = std::string("读 head_transform head_params 失败: ") + e.what();
         return false;
     }
 
     g_link_length_mm = params["link_length_mm"] ? params["link_length_mm"].as<double>() : 162.0;
-    std::string calib_name = "camera_to_head_connector_result.yaml";
+    std::string calib_name = "extrinsics.yaml";
     if (params["camera_to_head_yaml"])
         calib_name = params["camera_to_head_yaml"].as<std::string>();
-    const std::string calib_path = project_root_dir() + "/free_calib/config/" + calib_name;
+    const std::string calib_path = (t170::paths::config_directory()/"head"/calib_name).string();
 
     YAML::Node calib;
     try
@@ -118,7 +119,7 @@ bool load_free_calib(std::string &err)
 
     g_calib_ok = true;
     std::cout << std::fixed << std::setprecision(1)
-              << "[head_ext] 已加载 free_calib T_head_cam  link=" << g_link_length_mm << " mm\n";
+              << "[head_ext] 已加载 head_transform T_head_cam  link=" << g_link_length_mm << " mm\n";
     return true;
 }
 
@@ -132,7 +133,7 @@ bool compute_head_cam2robot(
     std::string &err)
 {
     err.clear();
-    if (!load_free_calib(err))
+    if (!load_head_geometry(err))
         return false;
 
     double R[9] = {};
@@ -164,7 +165,7 @@ bool load_head_cam2robot(std::array<double, 16> &out_m, std::string &err)
     if (compute_head_cam2robot(roll, pitch, yaw, out_m, err))
     {
         std::cout << std::fixed << std::setprecision(2)
-                  << "[head_ext] free_calib " << (from_enc ? "编码器" : "yaml头角")
+                  << "[head_ext] head_transform " << (from_enc ? "编码器" : "yaml头角")
                   << " rpy_deg=(" << yaw << "," << pitch << "," << roll << ")"
                   << std::setprecision(4)
                   << " t_m=(" << out_m[3] << "," << out_m[7] << "," << out_m[11] << ")\n";
@@ -173,7 +174,7 @@ bool load_head_cam2robot(std::array<double, 16> &out_m, std::string &err)
     const std::string compute_err = err;
     if (load_cam2robot_matrix(default_camera_to_robot_yaml_path(), out_m, err))
     {
-        std::cerr << "[head_ext] free_calib 失败(" << compute_err
+        std::cerr << "[head_ext] head_transform 失败(" << compute_err
                   << ")，回退静态 camera_to_base_result.yaml\n";
         err.clear();
         return true;

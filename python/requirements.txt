@@ -1,0 +1,5 @@
+# Vision/calibration dependencies; exact robot versions remain to be locked.
+numpy>=1.23
+opencv-python>=4.8
+ultralytics>=8.0
+PyYAML>=6.0

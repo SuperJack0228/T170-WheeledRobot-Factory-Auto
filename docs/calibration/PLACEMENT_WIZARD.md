@@ -40,7 +40,7 @@ python3 web_debug/server.py --host 0.0.0.0 --port 8080
 
 ## 外置数据与生产接入
 
-文件位于 `$T170_CONFIG_DIR/calibration/`；未配置覆盖时使用工程 `config/calibration/`：
+文件位于 `$T170_CONFIG_DIR/calibration/`；运行目录链接到选中机器人的 `config/calibration/<robot_id>/tasks/`：
 
 ```text
 grasp/left.yaml
@@ -55,8 +55,8 @@ placement/right.yaml
 - 生产料盘目标使用对应任务/手的标定XY，替代旧整盘XY和逐行XY；Z不在本次标定中重算。
 - 抓取参考只在料盘抓取显式标记的会话中注入配置副本。普通/传送带class-0会话不读取料盘抓取标定；标记一次消费，动作作用域退出时清除，原全局参考保持原值。
 - 放置使用同一手的单份参考，所有行采用统一姿态。抓取按要求保留不同姿态，并沿用现有高度映射，不新增跨姿态自动辨识算法；远近行效果仍需实际验证。
-- 同手/任务新文件优先于旧 `*_tilt_*.yaml`，旧文件不删除；在没有新文件时，旧放置文件仍按原倾角匹配读取。`*_before_*.yaml` 是备份，不参与加载。
-- 保存与加载不自动打开 `visual_servo.tray_place.enabled` 等生产开关。当前现场配置放置伺服仍关闭；要验证放置手相机闭环，应明确在生产配置启用该开关，且 `cameras.hand_descent_correct=true`。
+- 仅加载每手/任务 canonical 文件；旧倾角文件回退已退役，历史 before 备份已外部归档。标定工具后续生成的备份仍可用于人工回滚，不参与加载。
+- 保存与加载不自动打开 `visual_servo.tray_place.enabled` 等生产开关。料盘闭环必须启用该开关，且 `cameras.hand_descent_correct=true`。
 - 相机、工具模型、夹持方式或统一放置姿态改变后需重新标定。一次人工标定不能自动消除全部位姿相关的运动学/手眼误差。
 
 ## 记录、停止和验证

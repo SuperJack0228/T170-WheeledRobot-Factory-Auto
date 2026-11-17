@@ -19,11 +19,11 @@ std::string project_root_dir();
 std::string default_cameras_yaml_path();
 std::string default_pose_yaml_path();
 std::string default_cylinder_pose_root();
-std::string default_online_pose_root();
+
 std::string default_aruco_pose_yaml_path();
-std::string default_board_yf100_root();
+
 std::string default_board_yf100_yaml_path();
-std::string default_board_belt_root();
+
 std::string default_board_belt_yaml_path();
 std::string default_camera_to_robot_yaml_path();
 std::string default_left_hand_to_robot_yaml_path();

@@ -58,12 +58,23 @@ class CalibrationHTTPTest(unittest.TestCase):
         except urllib.error.HTTPError as e:return e.code,e.read()
     def setUp(self):
         self.state.requests.clear();self.state.running=False;self.state.active=False
+    def test_deployment_generated_config_cannot_be_overwritten(self):
+        from unittest.mock import patch
+        with patch.dict(web.os.environ, {'T170_DEPLOYMENT':'selected-profile'}):
+            self.assertEqual(self.request('/api/config', {'file':'motion','content':'bad','confirm':'save_config'})[0],409)
+            self.assertEqual(self.request('/api/fields', {'file':'motion','values':{'x':'1'},'confirm':'save_config'})[0],409)
+        self.assertEqual([r["cmd"] for r in self.state.requests],["calibration_status","calibration_status"])
     def test_wizard_is_independent_static_route(self):
         status,data=self.request('/calibration',token=False)
         self.assertEqual(status,200);self.assertIn('calibration.js'.encode(),data)
         self.assertEqual(self.state.requests,[])
     def test_read_requires_authentication(self):
         self.assertEqual(self.request('/api/calibration',token=False)[0],401)
+    def test_capabilities_use_authenticated_robot_transport(self):
+        self.assertEqual(self.request('/api/capabilities',token=False)[0],401)
+        self.assertEqual(self.state.requests,[])
+        self.assertEqual(self.request('/api/capabilities')[0],200)
+        self.assertEqual(self.state.requests,[{'cmd':'capabilities'}])
     def test_forward_action_with_session_and_id(self):
         body={'action':'jog','session':'session-1','request_id':'id-2','dx_mm':.2}
         self.assertEqual(self.request('/api/calibration',body)[0],200)

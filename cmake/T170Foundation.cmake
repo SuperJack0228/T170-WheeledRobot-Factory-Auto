@@ -1,17 +1,21 @@
 # First-step modules contain one implementation each. No runtime/SDK in control or math.
 if(NOT TARGET Eigen3::Eigen)
     add_library(Eigen3::Eigen INTERFACE IMPORTED)
-    target_include_directories(Eigen3::Eigen INTERFACE "${PROJECT_SOURCE_DIR}/eigen3")
+    target_include_directories(Eigen3::Eigen INTERFACE "${T170_EIGEN_INCLUDE_DIR}")
 endif()
-add_library(t170_common STATIC src/common/paths.cpp src/common/logging.cpp src/common/servo_types.cpp
-    src/common/task_timing.cpp)
+add_library(t170_common STATIC src/common/paths.cpp src/common/logging.cpp src/common/servo_types.cpp)
 add_library(t170::common ALIAS t170_common)
 target_include_directories(t170_common PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(t170_common PUBLIC Eigen3::Eigen)
 target_compile_definitions(t170_common PRIVATE T170_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
 execute_process(COMMAND git describe --always --dirty --abbrev=12 WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     OUTPUT_VARIABLE T170_TELEMETRY_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-target_compile_definitions(t170_common PRIVATE T170_GIT_COMMIT="${T170_TELEMETRY_COMMIT}" T170_METRICS_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+add_library(t170_telemetry STATIC src/telemetry/dispatch_metrics.cpp src/telemetry/factory_status.cpp
+    src/telemetry/console_capture.cpp)
+add_library(t170::telemetry ALIAS t170_telemetry)
+target_include_directories(t170_telemetry PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(t170_telemetry PUBLIC t170::common Threads::Threads)
+target_compile_definitions(t170_telemetry PRIVATE T170_GIT_COMMIT="${T170_TELEMETRY_COMMIT}" T170_METRICS_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
 target_link_libraries(t170_common PUBLIC Threads::Threads)
 
 
@@ -30,13 +34,19 @@ add_library(t170::motion_math ALIAS t170_motion_math)
 target_include_directories(t170_motion_math PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(t170_motion_math PUBLIC t170::control)
 
+# Legacy pose/transform utilities: Eigen and the standard library only.
+add_library(t170_pose_math STATIC src/common/pose_math.cpp)
+add_library(t170::pose_math ALIAS t170_pose_math)
+target_include_directories(t170_pose_math PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(t170_pose_math PUBLIC Eigen3::Eigen)
+
 # Transitional name, not a second implementation.
 add_library(t170_servo_core INTERFACE)
 add_library(t170::servo_core ALIAS t170_servo_core)
 target_link_libraries(t170_servo_core INTERFACE t170::motion_math)
 
 function(t170_add_configuration)
-    add_library(t170_configuration STATIC src/common/config.cpp src/servo/config.cpp)
+    add_library(t170_configuration STATIC src/common/config.cpp src/servo/config.cpp src/config/effective.cpp)
     target_compile_definitions(t170_configuration PRIVATE T170_BUILD_CONFIGURATION="${CMAKE_BUILD_TYPE}")
     add_library(t170::configuration ALIAS t170_configuration)
     target_include_directories(t170_configuration PUBLIC ${PROJECT_SOURCE_DIR}/include)
@@ -46,6 +56,8 @@ function(t170_add_configuration)
     else()
         target_link_libraries(t170_configuration PUBLIC yaml-cpp)
     endif()
+    add_executable(t170_config_dump tools/config_dump.cpp)
+    target_link_libraries(t170_config_dump PRIVATE t170::configuration)
 endfunction()
 
 function(t170_add_observation_support)

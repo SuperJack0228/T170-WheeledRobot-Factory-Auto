@@ -3,7 +3,7 @@
 #include <array>
 #include <string>
 
-/** free_calib：T_base_cam = Trans(0,0,L) @ Rz(yaw)Ry(pitch)Rx(roll) @ T_head_cam。
+/** head_transform：T_base_cam = Trans(0,0,L) @ Rz(yaw)Ry(pitch)Rx(roll) @ T_head_cam。
  *  平移输出为米，与 load_cam2robot_matrix 一致。 */
 
 bool compute_head_cam2robot(

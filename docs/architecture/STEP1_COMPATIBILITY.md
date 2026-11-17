@@ -1,3 +1,7 @@
+> Skills续行：move_box_runtime/grasp_to_standby/grasp_execution 的实现已经归入 src/skills，原头转发至 skills/legacy。当前调用规范见 [SKILLS_INTERFACE_V1.md](SKILLS_INTERFACE_V1.md)。
+
+> 2026-11-16更新：下文是第一步时的兼容记录。function.cpp、servo/runtime.cpp 的运动实现已经归入 src/motion；原头文件继续转发。当前边界与构建以 [MOTION_SPLIT.md](REPOSITORY_GUIDE.md) 和 CMake 为准。
+
 # 第一步兼容入口与临时边界
 
 基线 `e205e9e`，分支 `wrist-servo`。本步只迁移与解耦，不更改机器人动作、参数或调度语义。

@@ -1,0 +1,1130 @@
+[
+  {
+    "symbol": "stop_announce_locked",
+    "old_line": 63,
+    "destination": "app/audio",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "9c67d059aea3874c6d4eb853be8c6b6fea91f45c0f24949195fd3419097ee361",
+    "normalized_new_sha256": "9c67d059aea3874c6d4eb853be8c6b6fea91f45c0f24949195fd3419097ee361"
+  },
+  {
+    "symbol": "play_boot_clip",
+    "old_line": 76,
+    "destination": "app/audio",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "7d0d5d22e854e3a8637f1700441f5b9067916c80520440781fd22ac9a2596686",
+    "normalized_new_sha256": "7d0d5d22e854e3a8637f1700441f5b9067916c80520440781fd22ac9a2596686"
+  },
+  {
+    "symbol": "boot_announce",
+    "old_line": 148,
+    "destination": "app/audio",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "7f738130c56f1e09c14e447dbcae1798a9c28f207a0a40f4f6d0eb3f80b3f9b4",
+    "normalized_new_sha256": "7f738130c56f1e09c14e447dbcae1798a9c28f207a0a40f4f6d0eb3f80b3f9b4"
+  },
+  {
+    "symbol": "waist_rotate_deg",
+    "old_line": 214,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "8e4dffbab148fe8aa783ab930c1caae3adc6a136efb4dfbc5595f110ce36ee36",
+    "normalized_new_sha256": "8e4dffbab148fe8aa783ab930c1caae3adc6a136efb4dfbc5595f110ce36ee36"
+  },
+  {
+    "symbol": "apply_fixed_belt_origin_z",
+    "old_line": 222,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e4da17c739670dfcfb35fd0c38ebb7ad5f7d0979500757b3432629d08fb5115f",
+    "normalized_new_sha256": "e4da17c739670dfcfb35fd0c38ebb7ad5f7d0979500757b3432629d08fb5115f"
+  },
+  {
+    "symbol": "conveyor_waist_and_head",
+    "old_line": 242,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "5ef36384eb403266ac872ef581a8be132b60b2b0e59747223850d5b1b692116b",
+    "normalized_new_sha256": "5ef36384eb403266ac872ef581a8be132b60b2b0e59747223850d5b1b692116b"
+  },
+  {
+    "symbol": "belt_yolo_class_zh",
+    "old_line": 332,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "cac2ab7656b36e325f6b0d655e487b2e360e4aa5de0044935949da1bf1372d8d",
+    "normalized_new_sha256": "cac2ab7656b36e325f6b0d655e487b2e360e4aa5de0044935949da1bf1372d8d"
+  },
+  {
+    "symbol": "belt_grasp_yolo_class_ok",
+    "old_line": 348,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "bb30fc3a86d64aff71845d70efec2b826cdfb015577024284f876ffc86ec6d63",
+    "normalized_new_sha256": "bb30fc3a86d64aff71845d70efec2b826cdfb015577024284f876ffc86ec6d63"
+  },
+  {
+    "symbol": "log_gripper_qs",
+    "old_line": 391,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "4547cb92287ba0cbdbd1cd499f7b9598db60950d5ccd1dc660d63288be5388e5",
+    "normalized_new_sha256": "4547cb92287ba0cbdbd1cd499f7b9598db60950d5ccd1dc660d63288be5388e5"
+  },
+  {
+    "symbol": "station_name_matches",
+    "old_line": 410,
+    "destination": "tasks/navigation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "c53e4e866d31dfbe00ca42587f4feec7ba27d18e817bbfec9efdf464e7caa9ac",
+    "normalized_new_sha256": "c53e4e866d31dfbe00ca42587f4feec7ba27d18e817bbfec9efdf464e7caa9ac"
+  },
+  {
+    "symbol": "chassis_seer",
+    "old_line": 429,
+    "destination": "tasks/navigation",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "b64dabeb7926a4f190b117e78a7741034eba612a3cd1bf69a281f8f4ce9f034f",
+    "normalized_new_sha256": "c7f735200b8fcfe52d5cef324a0ffaf941c90955ae9837a52a606aa4f3c10c5c"
+  },
+  {
+    "symbol": "ensure_chassis",
+    "old_line": 435,
+    "destination": "tasks/navigation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e8238930325e69c368c73008222889c468239f190da130d2398728f1d733109b",
+    "normalized_new_sha256": "e8238930325e69c368c73008222889c468239f190da130d2398728f1d733109b"
+  },
+  {
+    "symbol": "stage_dispatch_map_name",
+    "old_line": 460,
+    "destination": "tasks/map_sync",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "354ff52925de73e857b7f58ee22408b42944749c836c8117c864e011715a9406",
+    "normalized_new_sha256": "354ff52925de73e857b7f58ee22408b42944749c836c8117c864e011715a9406"
+  },
+  {
+    "symbol": "load_dispatch_map_if_updated",
+    "old_line": 518,
+    "destination": "tasks/map_sync",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "062d19cfffcf58c50cb13599fe40f3d5cd7c8fdc0b0c7468207e08d1711ea06a",
+    "normalized_new_sha256": "062d19cfffcf58c50cb13599fe40f3d5cd7c8fdc0b0c7468207e08d1711ea06a"
+  },
+  {
+    "symbol": "read_pose_before_dispatch",
+    "old_line": 572,
+    "destination": "tasks/map_sync",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "24393d6274d7fa78d6507c92fbdf56fea87eedef6453ec6a9e435295861457a2",
+    "normalized_new_sha256": "24393d6274d7fa78d6507c92fbdf56fea87eedef6453ec6a9e435295861457a2"
+  },
+  {
+    "symbol": "report_dispatch_map_fault",
+    "old_line": 601,
+    "destination": "tasks/map_sync",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "9f1254db47384c8555ad2945385db7603b0bb9cb0b53de677e01e4f5352fcaf8",
+    "normalized_new_sha256": "9f1254db47384c8555ad2945385db7603b0bb9cb0b53de677e01e4f5352fcaf8"
+  },
+  {
+    "symbol": "finish_dispatch_map",
+    "old_line": 613,
+    "destination": "tasks/map_sync",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "65c2cd7ca843d56ffe0673ea5a76ab9238c56fee073f8821e14422bfd2130157",
+    "normalized_new_sha256": "035296d9daa898e1771e1fbf6c5e7235bd5013de59603a568b8875d373b66ee3"
+  },
+  {
+    "symbol": "chassis_location_station",
+    "old_line": 647,
+    "destination": "tasks/navigation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "2d568c5413defe91db9b46b4ffea2dbd3d960070cd82d97b6ff20b678970c299",
+    "normalized_new_sha256": "2d568c5413defe91db9b46b4ffea2dbd3d960070cd82d97b6ff20b678970c299"
+  },
+  {
+    "symbol": "publish_dispatch_pose",
+    "old_line": 661,
+    "destination": "tasks/status_reporter",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "2c80fd6bf707cdf8c5100ce2a6568ee8d4d51af9df85246a7ade8710260292ac",
+    "normalized_new_sha256": "e4b9fb97b541987a761f582e52d7e0743669d07c527b7999b1f33d811c939baf"
+  },
+  {
+    "symbol": "publish_dispatch_battery",
+    "old_line": 671,
+    "destination": "tasks/status_reporter",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "91f1b5b7855dc8b77f7deb9a0ab0576335ac12a9980545e5b726dfdbba9b00fe",
+    "normalized_new_sha256": "b6f30290728eec13e4306965131d3f3e0f0c02c0f7c49d8ef848c4b2b42f66ea"
+  },
+  {
+    "symbol": "chassis_status_loop",
+    "old_line": 682,
+    "destination": "tasks/status_reporter",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "ed00c5c06b013970b46c44dc0ddeed9272ac5bc258bda67d224dbf700509822a",
+    "normalized_new_sha256": "bffecfd10259e840734dcdadae3ee9396ec1d574ab83d706aa638c4ae9f8a318"
+  },
+  {
+    "symbol": "note_station_arrived",
+    "old_line": 707,
+    "destination": "tasks/navigation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "525c2f7e14451fa3442066a58dca95b3da56f371bcdb306e08fc776d028b5ee1",
+    "normalized_new_sha256": "525c2f7e14451fa3442066a58dca95b3da56f371bcdb306e08fc776d028b5ee1"
+  },
+  {
+    "symbol": "chassis_goto_station",
+    "old_line": 713,
+    "destination": "tasks/navigation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "3b545713ffeaf236da88b635369dae85bbf2661936da8695961992414c4eb778",
+    "normalized_new_sha256": "3b545713ffeaf236da88b635369dae85bbf2661936da8695961992414c4eb778"
+  },
+  {
+    "symbol": "start_belt_depart_after_right",
+    "old_line": 917,
+    "destination": "tasks/overlap",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "a2f5ba1e38f2ad5aaaa92faf5f5450b872ac6dce9df3c07fa0f08d1e83934a6e",
+    "normalized_new_sha256": "a2f5ba1e38f2ad5aaaa92faf5f5450b872ac6dce9df3c07fa0f08d1e83934a6e"
+  },
+  {
+    "symbol": "start_tray2_waist_after_right_arrived",
+    "old_line": 943,
+    "destination": "tasks/overlap",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e139ab8ef2f1785eee68fabaa06b55130927da97a5139da0f50e237d288a7a42",
+    "normalized_new_sha256": "e139ab8ef2f1785eee68fabaa06b55130927da97a5139da0f50e237d288a7a42"
+  },
+  {
+    "symbol": "take_belt_depart",
+    "old_line": 971,
+    "destination": "tasks/overlap",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "999aa82667804ee49909c2cc477817a44899a981dcbeb23e6ae1cce9e0a1f346",
+    "normalized_new_sha256": "999aa82667804ee49909c2cc477817a44899a981dcbeb23e6ae1cce9e0a1f346"
+  },
+  {
+    "symbol": "take_tray2_waist",
+    "old_line": 982,
+    "destination": "tasks/overlap",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "2cb721b9333639a3a62fe12c90be3460408344412688c046547f93c39e0b00b3",
+    "normalized_new_sha256": "2cb721b9333639a3a62fe12c90be3460408344412688c046547f93c39e0b00b3"
+  },
+  {
+    "symbol": "live_gripper_holding",
+    "old_line": 998,
+    "destination": "tasks/holding_state",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "beed748f181971cc33e2a5341fddf65f3284e1e651a78e44c516f411ed7966fb",
+    "normalized_new_sha256": "beed748f181971cc33e2a5341fddf65f3284e1e651a78e44c516f411ed7966fb"
+  },
+  {
+    "symbol": "clear_last_grasped",
+    "old_line": 1020,
+    "destination": "tasks/holding_state",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "35571a76d2330c403a9d10c580fa8ed237cee9faffbbadddd56febc467f1bb58",
+    "normalized_new_sha256": "35571a76d2330c403a9d10c580fa8ed237cee9faffbbadddd56febc467f1bb58"
+  },
+  {
+    "symbol": "wave_grip_ratio",
+    "old_line": 1036,
+    "destination": "tasks/holding_state",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "a938a4af6eed846ff712235d7f24a6fda778963d997737db4f49ec9918b598a2",
+    "normalized_new_sha256": "a938a4af6eed846ff712235d7f24a6fda778963d997737db4f49ec9918b598a2"
+  },
+  {
+    "symbol": "home_waist_upright",
+    "old_line": 1053,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "6f62ec3e0ce8f0ed9402408693be165090d3e251387fab7c0ae6e10f8abb6c83",
+    "normalized_new_sha256": "6f62ec3e0ce8f0ed9402408693be165090d3e251387fab7c0ae6e10f8abb6c83"
+  },
+  {
+    "symbol": "go_home",
+    "old_line": 1076,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "ff65587829574932efe5d2fe60d7e533e869042dc2e5fb709795c1872605ae1b",
+    "normalized_new_sha256": "ff65587829574932efe5d2fe60d7e533e869042dc2e5fb709795c1872605ae1b"
+  },
+  {
+    "symbol": "go_home_arms_keep_waist_z",
+    "old_line": 1125,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "2526257207c7ccfe0ad64959324e6ba087b44eae2e16e86c3569938e45c17980",
+    "normalized_new_sha256": "2526257207c7ccfe0ad64959324e6ba087b44eae2e16e86c3569938e45c17980"
+  },
+  {
+    "symbol": "go_grasp_ready",
+    "old_line": 1150,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "0838d89792cbc13f4226838b64d6cf95378b910acbd79f8b6a5ef77b56e0e01e",
+    "normalized_new_sha256": "0838d89792cbc13f4226838b64d6cf95378b910acbd79f8b6a5ef77b56e0e01e"
+  },
+  {
+    "symbol": "go_tray2_ready",
+    "old_line": 1202,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "c982346be068e8682014d43d6dfcdcaff14cd231ae252ca906d80ee67ea090df",
+    "normalized_new_sha256": "c982346be068e8682014d43d6dfcdcaff14cd231ae252ca906d80ee67ea090df"
+  },
+  {
+    "symbol": "go_waist_debug",
+    "old_line": 1254,
+    "destination": "app/maintenance/body_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "332172caadec7f7a771435a85ea756a4a270711c64d4bc41298caf6b8737fb8c",
+    "normalized_new_sha256": "332172caadec7f7a771435a85ea756a4a270711c64d4bc41298caf6b8737fb8c"
+  },
+  {
+    "symbol": "go_waist_cycle",
+    "old_line": 1334,
+    "destination": "app/maintenance/body_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "4c3583734e791ada4f74937475abc83b00b79738c933a99757e7e487ac84c3b3",
+    "normalized_new_sha256": "4c3583734e791ada4f74937475abc83b00b79738c933a99757e7e487ac84c3b3"
+  },
+  {
+    "symbol": "go_belt_ready",
+    "old_line": 1410,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "04a14ba7cee5a268b1644e804f5f021c621f2cf5472110f2bdb1c2b4cf8e4ae6",
+    "normalized_new_sha256": "04a14ba7cee5a268b1644e804f5f021c621f2cf5472110f2bdb1c2b4cf8e4ae6"
+  },
+  {
+    "symbol": "go_belt_ready",
+    "old_line": 1426,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e980d40efa175dd48caa218b9b815eba6688dc23ab26fb778853ef2172d03628",
+    "normalized_new_sha256": "e980d40efa175dd48caa218b9b815eba6688dc23ab26fb778853ef2172d03628"
+  },
+  {
+    "symbol": "go_belt_place",
+    "old_line": 1431,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "84bdc9fd8f4942b3633e880250f97579076f8a908cd7f989ebc678e1db765adc",
+    "normalized_new_sha256": "84bdc9fd8f4942b3633e880250f97579076f8a908cd7f989ebc678e1db765adc"
+  },
+  {
+    "symbol": "go_belt_place",
+    "old_line": 1447,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "ba70104087584a72256645047b564715c9894823d27af7f7118a70c7cd2e18d8",
+    "normalized_new_sha256": "ba70104087584a72256645047b564715c9894823d27af7f7118a70c7cd2e18d8"
+  },
+  {
+    "symbol": "go_belt_grasp_rpy",
+    "old_line": 1452,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "1c4461a3d7333c4146638aed51866788660c0b60a816122aba84611df49d3db0",
+    "normalized_new_sha256": "1c4461a3d7333c4146638aed51866788660c0b60a816122aba84611df49d3db0"
+  },
+  {
+    "symbol": "go_belt_grasp_rpy",
+    "old_line": 1473,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "b6b8faea163a733381c0e96f66701fa28c78be3e3b318a0f11c80f00ead6fa37",
+    "normalized_new_sha256": "b6b8faea163a733381c0e96f66701fa28c78be3e3b318a0f11c80f00ead6fa37"
+  },
+  {
+    "symbol": "wait_capture_enter",
+    "old_line": 1488,
+    "destination": "app/maintenance/capture",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "6a0960b82ac08cc8af14c12cd5105490b2063bb533397e8a84cbfdadb1172cf7",
+    "normalized_new_sha256": "6a0960b82ac08cc8af14c12cd5105490b2063bb533397e8a84cbfdadb1172cf7"
+  },
+  {
+    "symbol": "save_raw_camera_frame",
+    "old_line": 1536,
+    "destination": "app/maintenance/capture",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "3cde30e28074759a093c67a347f41946e1016fc32450057eb2dfb5af7db93670",
+    "normalized_new_sha256": "3cde30e28074759a093c67a347f41946e1016fc32450057eb2dfb5af7db93670"
+  },
+  {
+    "symbol": "save_raw_head_frame",
+    "old_line": 1570,
+    "destination": "app/maintenance/capture",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "837580f8329c0047fd2ca3b0f89d5d76715e47ff4f7e5e5b00262b8918d2cee9",
+    "normalized_new_sha256": "837580f8329c0047fd2ca3b0f89d5d76715e47ff4f7e5e5b00262b8918d2cee9"
+  },
+  {
+    "symbol": "capture_right_hand_belt_pictures",
+    "old_line": 1579,
+    "destination": "app/maintenance/capture",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "7ccd4bb826757c6fe6033b62c2a48aa6b44ddbca3f114c471fd1646704492811",
+    "normalized_new_sha256": "7ccd4bb826757c6fe6033b62c2a48aa6b44ddbca3f114c471fd1646704492811"
+  },
+  {
+    "symbol": "capture_head_dataset",
+    "old_line": 1628,
+    "destination": "app/maintenance/capture",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e9045c1525ca61e70adc8fda5caf6fa130c6a29c010c1f627716975f0e5f97bf",
+    "normalized_new_sha256": "e9045c1525ca61e70adc8fda5caf6fa130c6a29c010c1f627716975f0e5f97bf"
+  },
+  {
+    "symbol": "cam_to_marker",
+    "old_line": 1775,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "9a2935b509a54efa94640221ab63c224f671f6a7dd3eb175b0df4fef814625fe",
+    "normalized_new_sha256": "9a2935b509a54efa94640221ab63c224f671f6a7dd3eb175b0df4fef814625fe"
+  },
+  {
+    "symbol": "belt_box_iou",
+    "old_line": 1803,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "1c0931a29b0b18a822076a25f76bd6ec54f33c82b5f3bbe0b27b0abe0c919d19",
+    "normalized_new_sha256": "1c0931a29b0b18a822076a25f76bd6ec54f33c82b5f3bbe0b27b0abe0c919d19"
+  },
+  {
+    "symbol": "merge_overlapping_belt_parts",
+    "old_line": 1823,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "a5cc6ec2cd50ec78cb2a3b3b23ac95d99908832bb507cc91f0cc511fe17bf528",
+    "normalized_new_sha256": "a5cc6ec2cd50ec78cb2a3b3b23ac95d99908832bb507cc91f0cc511fe17bf528"
+  },
+  {
+    "symbol": "detect_belt_parts_full",
+    "old_line": 1899,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "d22256c554f88be0cafd81b5109dd76e1a18785db64ffc035b274d3b5fc08fd5",
+    "normalized_new_sha256": "d22256c554f88be0cafd81b5109dd76e1a18785db64ffc035b274d3b5fc08fd5"
+  },
+  {
+    "symbol": "belt_part_in_grasp_window",
+    "old_line": 2022,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "00ca032f59a9c96295775c5c1f01a40e6c022a53572b2133d5528afbefca4795",
+    "normalized_new_sha256": "00ca032f59a9c96295775c5c1f01a40e6c022a53572b2133d5528afbefca4795"
+  },
+  {
+    "symbol": "log_belt_used_box",
+    "old_line": 2028,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e5f7807300d964723262dd04e703c63c5b2b2e1809e0e1130609b7926363e5fb",
+    "normalized_new_sha256": "e5f7807300d964723262dd04e703c63c5b2b2e1809e0e1130609b7926363e5fb"
+  },
+  {
+    "symbol": "classify_belt_grasp_window",
+    "old_line": 2057,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "ebab8e3220cd5e19920f582a3caa7973583f9b958a76e537f010dd8054df3740",
+    "normalized_new_sha256": "ebab8e3220cd5e19920f582a3caa7973583f9b958a76e537f010dd8054df3740"
+  },
+  {
+    "symbol": "match_parts_to_queries",
+    "old_line": 2091,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "1b927d3ff07d098cf0e8faab12142685cad48aaf72150bea361a1b07731ae135",
+    "normalized_new_sha256": "1b927d3ff07d098cf0e8faab12142685cad48aaf72150bea361a1b07731ae135"
+  },
+  {
+    "symbol": "skill_legacy_code",
+    "old_line": 2168,
+    "destination": "tasks/conveyor_place",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "6fbb248121f77a575008e60b58dbd4115bd70ff87d2f6f5c622b547bf15a7cff",
+    "normalized_new_sha256": "6fbb248121f77a575008e60b58dbd4115bd70ff87d2f6f5c622b547bf15a7cff"
+  },
+  {
+    "symbol": "go_belt_station",
+    "old_line": 2177,
+    "destination": "tasks/conveyor_place",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "3ea9e9d77ee9be018dc9628937bc8d8e2d8b17e989c3a417d22e7e37cefc3d15",
+    "normalized_new_sha256": "3ea9e9d77ee9be018dc9628937bc8d8e2d8b17e989c3a417d22e7e37cefc3d15"
+  },
+  {
+    "symbol": "go_belt_station",
+    "old_line": 2470,
+    "destination": "tasks/conveyor_place",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e41df58a4187f1fbce3d520d15a204cc8b32be241f5b8c02d68c98a097b5b4de",
+    "normalized_new_sha256": "e41df58a4187f1fbce3d520d15a204cc8b32be241f5b8c02d68c98a097b5b4de"
+  },
+  {
+    "symbol": "go_belt",
+    "old_line": 2475,
+    "destination": "tasks/conveyor_place",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "b37268ccc89acd3099077abde7352b10850b9ffb675129731aa570be4304b8b4",
+    "normalized_new_sha256": "b37268ccc89acd3099077abde7352b10850b9ffb675129731aa570be4304b8b4"
+  },
+  {
+    "symbol": "go_belt_grasp_attempt",
+    "old_line": 2502,
+    "destination": "tasks/conveyor_grasp",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "8b4daf7dc2ff283404c080affd223f17dde623d371a3aa0ab3580bc669aeda80",
+    "normalized_new_sha256": "8b4daf7dc2ff283404c080affd223f17dde623d371a3aa0ab3580bc669aeda80"
+  },
+  {
+    "symbol": "belt_recheck_after_empty",
+    "old_line": 3007,
+    "destination": "tasks/conveyor_grasp",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "9f8f3870414e0045e06dc758d67d218b6373b4391bd1a5362a6993c3b4810b50",
+    "normalized_new_sha256": "9f8f3870414e0045e06dc758d67d218b6373b4391bd1a5362a6993c3b4810b50"
+  },
+  {
+    "symbol": "go_belt_grasp",
+    "old_line": 3090,
+    "destination": "tasks/conveyor_grasp",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "6aada1d4220cd0991729712e6e5b6dab8ad3ad8935880f55b1e3e477ae1f6020",
+    "normalized_new_sha256": "6aada1d4220cd0991729712e6e5b6dab8ad3ad8935880f55b1e3e477ae1f6020"
+  },
+  {
+    "symbol": "go_belt_grasp",
+    "old_line": 3155,
+    "destination": "tasks/conveyor_grasp",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "0fcfc5c7deac735528553b07e777109c6cf65ea30e58b6797db8182000084545",
+    "normalized_new_sha256": "0fcfc5c7deac735528553b07e777109c6cf65ea30e58b6797db8182000084545"
+  },
+  {
+    "symbol": "chassis_goto_belt2_and_ready",
+    "old_line": 3161,
+    "destination": "tasks/conveyor_routing",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "b28d980e97b1db0ca4760e8d3d0805dad5c12d1b3a7107b43db29df67a31bf6b",
+    "normalized_new_sha256": "b28d980e97b1db0ca4760e8d3d0805dad5c12d1b3a7107b43db29df67a31bf6b"
+  },
+  {
+    "symbol": "go_belt2_ready",
+    "old_line": 3177,
+    "destination": "tasks/conveyor_routing",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "bae21a28c0f7b993daad59dd21be43da72db63383bf8e5fb054b5511918e6b37",
+    "normalized_new_sha256": "bae21a28c0f7b993daad59dd21be43da72db63383bf8e5fb054b5511918e6b37"
+  },
+  {
+    "symbol": "go_belt2_grasp_rpy",
+    "old_line": 3182,
+    "destination": "tasks/conveyor_routing",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "3f114634bb457c25e9838313517a3e7e7508b7ba1d7691c1004b653bdbc06513",
+    "normalized_new_sha256": "3f114634bb457c25e9838313517a3e7e7508b7ba1d7691c1004b653bdbc06513"
+  },
+  {
+    "symbol": "go_belt2",
+    "old_line": 3187,
+    "destination": "tasks/conveyor_routing",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "ada221d56634b3af86e2d40a3369541ed0a86d7feca8edbec2a680d2b7bd318c",
+    "normalized_new_sha256": "ada221d56634b3af86e2d40a3369541ed0a86d7feca8edbec2a680d2b7bd318c"
+  },
+  {
+    "symbol": "go_belt2_place",
+    "old_line": 3201,
+    "destination": "tasks/conveyor_routing",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e3fc00a887f9847de1a0f7cbdec554d7e53eca3d4c7bf49121bb6dd3631b38cf",
+    "normalized_new_sha256": "e3fc00a887f9847de1a0f7cbdec554d7e53eca3d4c7bf49121bb6dd3631b38cf"
+  },
+  {
+    "symbol": "go_belt2_grasp",
+    "old_line": 3206,
+    "destination": "tasks/conveyor_routing",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "b1defcf7cc7bb250b66e9a16832a017c3ff2b2886148ff2c07eb6f97268e1918",
+    "normalized_new_sha256": "b1defcf7cc7bb250b66e9a16832a017c3ff2b2886148ff2c07eb6f97268e1918"
+  },
+  {
+    "symbol": "go_waist_jog",
+    "old_line": 3222,
+    "destination": "app/maintenance/body_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "96c8eaaede66af7b3baeec685069474e40a8fe76d52b5193c277dd0b5f25798f",
+    "normalized_new_sha256": "96c8eaaede66af7b3baeec685069474e40a8fe76d52b5193c277dd0b5f25798f"
+  },
+  {
+    "symbol": "vision_grasp_with_engine",
+    "old_line": 3260,
+    "destination": "tasks/tray_grasp",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "14da7f6036c946406d80730eea1549b0493044ea298e39a5a0ab00b8d18e9d5c",
+    "normalized_new_sha256": "14da7f6036c946406d80730eea1549b0493044ea298e39a5a0ab00b8d18e9d5c"
+  },
+  {
+    "symbol": "vision_grasp_existing_pipeline",
+    "old_line": 3800,
+    "destination": "tasks/tray_grasp",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "3ca0fa59d52aadf9a73278906731a9acca9ad90e2581641094683fe3f1fc6040",
+    "normalized_new_sha256": "3ca0fa59d52aadf9a73278906731a9acca9ad90e2581641094683fe3f1fc6040"
+  },
+  {
+    "symbol": "vision_grasp_once",
+    "old_line": 3805,
+    "destination": "app/maintenance/tray_commands",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "5335604316748570ec4956696d25c20ec0010cf349bd4228e4363b733eb65656",
+    "normalized_new_sha256": "5335604316748570ec4956696d25c20ec0010cf349bd4228e4363b733eb65656"
+  },
+  {
+    "symbol": "vision_servo_dual_once",
+    "old_line": 3810,
+    "destination": "app/maintenance/tray_commands",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "4c5938e2d90289a3610f4cec273b7bbde16b19cc6967e731bffcf9629dedb142",
+    "normalized_new_sha256": "4c5938e2d90289a3610f4cec273b7bbde16b19cc6967e731bffcf9629dedb142"
+  },
+  {
+    "symbol": "vision_grasp_image",
+    "old_line": 3824,
+    "destination": "app/maintenance/tray_commands",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "b6565abcca34e754e33f3ef363a7cb7a54690a1f20ff4beed0aca6f1badf2e9c",
+    "normalized_new_sha256": "b6565abcca34e754e33f3ef363a7cb7a54690a1f20ff4beed0aca6f1badf2e9c"
+  },
+  {
+    "symbol": "vision_grasp_track",
+    "old_line": 3829,
+    "destination": "app/maintenance/tray_commands",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "ec8c51429462d4c6032f995d91124694b34ea79bf2d3c91aedb4a1ea3a1b3771",
+    "normalized_new_sha256": "ec8c51429462d4c6032f995d91124694b34ea79bf2d3c91aedb4a1ea3a1b3771"
+  },
+  {
+    "symbol": "tray_servo_jitter_test",
+    "old_line": 3835,
+    "destination": "app/maintenance/tray_commands",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "41f18c38382842a8443c7bbfd9fc14f07d1812ae48797b57e97bae839f7ba3e5",
+    "normalized_new_sha256": "41f18c38382842a8443c7bbfd9fc14f07d1812ae48797b57e97bae839f7ba3e5"
+  },
+  {
+    "symbol": "vision_place_tray2",
+    "old_line": 3876,
+    "destination": "tasks/tray_place",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "5097d963abc93dbeb2f03373599e14083fdb93f51437cb28a4f13a7d34f4acea",
+    "normalized_new_sha256": "5097d963abc93dbeb2f03373599e14083fdb93f51437cb28a4f13a7d34f4acea"
+  },
+  {
+    "symbol": "vision_place_tray2_precision",
+    "old_line": 4204,
+    "destination": "app/maintenance/tray_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "de6b5f527d3a7976dae527b7c464c167e5c9238220366c1b792c7c925e138992",
+    "normalized_new_sha256": "de6b5f527d3a7976dae527b7c464c167e5c9238220366c1b792c7c925e138992"
+  },
+  {
+    "symbol": "wait_tray2_center_key",
+    "old_line": 4355,
+    "destination": "app/maintenance/tray_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "9b1256513ded337860bf9617df1a07898344625698f556c2e7e9ac167993269e",
+    "normalized_new_sha256": "9b1256513ded337860bf9617df1a07898344625698f556c2e7e9ac167993269e"
+  },
+  {
+    "symbol": "detect_tray2_origin",
+    "old_line": 4385,
+    "destination": "app/maintenance/tray_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "27c71514ca7999d205b0410eb9fb65bb83868afdcfecadb878ca6ba0ff75d890",
+    "normalized_new_sha256": "27c71514ca7999d205b0410eb9fb65bb83868afdcfecadb878ca6ba0ff75d890"
+  },
+  {
+    "symbol": "arm_to_tray_center",
+    "old_line": 4423,
+    "destination": "app/maintenance/tray_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "69b62b310c649647bb1b1538de6af66c30ded79ad4005b3f7b8fb035de3efb7f",
+    "normalized_new_sha256": "69b62b310c649647bb1b1538de6af66c30ded79ad4005b3f7b8fb035de3efb7f"
+  },
+  {
+    "symbol": "vision_tray2_center",
+    "old_line": 4452,
+    "destination": "app/maintenance/tray_diagnostics",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "db86d66f650537d014c71ea68374457dfabcd826b0821a3888403397d154b04d",
+    "normalized_new_sha256": "db86d66f650537d014c71ea68374457dfabcd826b0821a3888403397d154b04d"
+  },
+  {
+    "symbol": "vision_belt2_then_tray2",
+    "old_line": 4530,
+    "destination": "app/maintenance/manual_cycles",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "bd97aeb95960984e14bd0e992f4b04a9895fd6336526d9cbe8b18c09c6b6d99e",
+    "normalized_new_sha256": "bd97aeb95960984e14bd0e992f4b04a9895fd6336526d9cbe8b18c09c6b6d99e"
+  },
+  {
+    "symbol": "vision_grasp_then_belt",
+    "old_line": 4569,
+    "destination": "app/maintenance/manual_cycles",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "af97334fb78ded42570d743349245cb5c9e37458faf645feebf3f5bf2968aea4",
+    "normalized_new_sha256": "af97334fb78ded42570d743349245cb5c9e37458faf645feebf3f5bf2968aea4"
+  },
+  {
+    "symbol": "prepare_next_grasp_upper",
+    "old_line": 4692,
+    "destination": "app/maintenance/manual_cycles",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "2ed297a7e752bba62bec6cd618a93927e588ce1c1d49470b70710e4cc1cad869",
+    "normalized_new_sha256": "2ed297a7e752bba62bec6cd618a93927e588ce1c1d49470b70710e4cc1cad869"
+  },
+  {
+    "symbol": "vision_grasp_belt1",
+    "old_line": 4702,
+    "destination": "app/maintenance/manual_cycles",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e84fc9fee0788a0ef9c9e31e5aaa0820ffed4ddb8fd91ae7daa452e969e6c155",
+    "normalized_new_sha256": "e84fc9fee0788a0ef9c9e31e5aaa0820ffed4ddb8fd91ae7daa452e969e6c155"
+  },
+  {
+    "symbol": "pose16_to_T",
+    "old_line": 4775,
+    "destination": "app/maintenance/vision_inspection",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "0939d8a85b58fe90015142cf93d74db7fdd388ba828d0f39b537f93388a1beda",
+    "normalized_new_sha256": "0939d8a85b58fe90015142cf93d74db7fdd388ba828d0f39b537f93388a1beda"
+  },
+  {
+    "symbol": "make_aruco_hit",
+    "old_line": 4784,
+    "destination": "app/maintenance/vision_inspection",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "71886f56af6b66ab96b793494795fa6161ed00d738c9b5f6cc15ed8e80e7fdcf",
+    "normalized_new_sha256": "71886f56af6b66ab96b793494795fa6161ed00d738c9b5f6cc15ed8e80e7fdcf"
+  },
+  {
+    "symbol": "print_aruco_hit",
+    "old_line": 4818,
+    "destination": "app/maintenance/vision_inspection",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "400acfe1faa890823ee6202c5b6c53eb54f0085132130114dccb027ef1ee44c4",
+    "normalized_new_sha256": "400acfe1faa890823ee6202c5b6c53eb54f0085132130114dccb027ef1ee44c4"
+  },
+  {
+    "symbol": "detect_head_aruco",
+    "old_line": 4834,
+    "destination": "app/maintenance/vision_inspection",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e753a7805f93f77f19adce012ecdcc9fa9c937fec986189a6a28a0a353b4bbc0",
+    "normalized_new_sha256": "e753a7805f93f77f19adce012ecdcc9fa9c937fec986189a6a28a0a353b4bbc0"
+  },
+  {
+    "symbol": "vision_aruco_detect_pipeline",
+    "old_line": 4877,
+    "destination": "app/maintenance/vision_inspection",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "1cdcfbe0c99f2370f5d63e313bf424a9a66d459c8ad8f3098e87c9e391f13497",
+    "normalized_new_sha256": "1cdcfbe0c99f2370f5d63e313bf424a9a66d459c8ad8f3098e87c9e391f13497"
+  },
+  {
+    "symbol": "vision_tray_holes_pipeline",
+    "old_line": 4917,
+    "destination": "app/maintenance/vision_inspection",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "dd58e177eacf6052cadf0de24da7ef514abd8912dbff7d1537a65d8b143b14ec",
+    "normalized_new_sha256": "dd58e177eacf6052cadf0de24da7ef514abd8912dbff7d1537a65d8b143b14ec"
+  },
+  {
+    "symbol": "dispatch_port",
+    "old_line": 5014,
+    "destination": "tasks/assignment",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "871ed45ed62acdfaa18a475baf522fdfd8922c3271fe8d648b8d7bfe0ec8c4ae",
+    "normalized_new_sha256": "871ed45ed62acdfaa18a475baf522fdfd8922c3271fe8d648b8d7bfe0ec8c4ae"
+  },
+  {
+    "symbol": "read_task_points",
+    "old_line": 5021,
+    "destination": "tasks/assignment",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "0855b6e23a270a2a92efc9e149640d4959858813e1e6e8ec8909d0d2d5034f0f",
+    "normalized_new_sha256": "0855b6e23a270a2a92efc9e149640d4959858813e1e6e8ec8909d0d2d5034f0f"
+  },
+  {
+    "symbol": "task_points_ready",
+    "old_line": 5042,
+    "destination": "tasks/assignment",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "c35ab7506697b25c17631ff85ad42ca91dc593832af358f91b8f6063b3cb951c",
+    "normalized_new_sha256": "c35ab7506697b25c17631ff85ad42ca91dc593832af358f91b8f6063b3cb951c"
+  },
+  {
+    "symbol": "dispatch_back_to_tray",
+    "old_line": 5066,
+    "destination": "tasks/recovery",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "16f71f6c7fda940ec389b412a7300350d4db6ec8da0107d701fc7f48fb36a10b",
+    "normalized_new_sha256": "16f71f6c7fda940ec389b412a7300350d4db6ec8da0107d701fc7f48fb36a10b"
+  },
+  {
+    "symbol": "dispatch_note_state",
+    "old_line": 5089,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "91d4622ead8d3e6e6eb8928b02ea0f42a7aef604bfef3555c4a322d5512840a5",
+    "normalized_new_sha256": "91d4622ead8d3e6e6eb8928b02ea0f42a7aef604bfef3555c4a322d5512840a5"
+  },
+  {
+    "symbol": "dispatch_idle_station",
+    "old_line": 5098,
+    "destination": "tasks/assignment",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "4b1c0c9ec1900976b319d0748bf770447bbe745e11377a3c2807021b99aae3e1",
+    "normalized_new_sha256": "4b1c0c9ec1900976b319d0748bf770447bbe745e11377a3c2807021b99aae3e1"
+  },
+  {
+    "symbol": "dispatch_apply",
+    "old_line": 5107,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "6457f16fe71cf026027e55f1be9155fa3b7e1d7bb36a3df9af127316b582ec83",
+    "normalized_new_sha256": "6457f16fe71cf026027e55f1be9155fa3b7e1d7bb36a3df9af127316b582ec83"
+  },
+  {
+    "symbol": "dispatch_report_qr_fail",
+    "old_line": 5119,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "a675e67076c8fc44c02a37099ac153d1d8e7c4ab15d5b558e5159670c7e089cb",
+    "normalized_new_sha256": "a675e67076c8fc44c02a37099ac153d1d8e7c4ab15d5b558e5159670c7e089cb"
+  },
+  {
+    "symbol": "dispatch_reapply_after_qr",
+    "old_line": 5131,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "277516ced61d12e3c3232eb2cde24185bef84441a50115e8237e4978a6002766",
+    "normalized_new_sha256": "277516ced61d12e3c3232eb2cde24185bef84441a50115e8237e4978a6002766"
+  },
+  {
+    "symbol": "dispatch_wait_system",
+    "old_line": 5149,
+    "destination": "tasks/recovery",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "f18fbcb094efce89d0dbd6b7861dd8a49b4b50777971707fa22c08249bb1c7d6",
+    "normalized_new_sha256": "f18fbcb094efce89d0dbd6b7861dd8a49b4b50777971707fa22c08249bb1c7d6"
+  },
+  {
+    "symbol": "dispatch_exception_state",
+    "old_line": 5174,
+    "destination": "tasks/recovery",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e16f2858b207af6cdb1ec968fc07bc8e1cd49307842eeade966bffe7fbf429be",
+    "normalized_new_sha256": "e16f2858b207af6cdb1ec968fc07bc8e1cd49307842eeade966bffe7fbf429be"
+  },
+  {
+    "symbol": "dispatch_report",
+    "old_line": 5209,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "8f71bbfa57ce0bbaefde7d7de32d46aa357cba4fb8d04fc0be0d4d08800b7d2f",
+    "normalized_new_sha256": "8f71bbfa57ce0bbaefde7d7de32d46aa357cba4fb8d04fc0be0d4d08800b7d2f"
+  },
+  {
+    "symbol": "dispatch_report_now",
+    "old_line": 5236,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "3b2586a4d09dff7dc7e988cfa3d335f17dd1a332e79dd31c405adb5187337a66",
+    "normalized_new_sha256": "3b2586a4d09dff7dc7e988cfa3d335f17dd1a332e79dd31c405adb5187337a66"
+  },
+  {
+    "symbol": "dispatch_report_after",
+    "old_line": 5262,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "732b2884382e2a67305660d54ef32dd612628b1b8c1060880e78b850f4a81178",
+    "normalized_new_sha256": "732b2884382e2a67305660d54ef32dd612628b1b8c1060880e78b850f4a81178"
+  },
+  {
+    "symbol": "dispatch_send",
+    "old_line": 5290,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "fe04919f698727e8616d8087e6e25da212b3e354bf33b9782501c4d687638258",
+    "normalized_new_sha256": "fe04919f698727e8616d8087e6e25da212b3e354bf33b9782501c4d687638258"
+  },
+  {
+    "symbol": "plan_unload_hands",
+    "old_line": 5309,
+    "destination": "tasks/assignment",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "4edff08cf479b5694b1e4ff29d517f866059e9b06e578e08800e1e5b4300db6e",
+    "normalized_new_sha256": "4edff08cf479b5694b1e4ff29d517f866059e9b06e578e08800e1e5b4300db6e"
+  },
+  {
+    "symbol": "dispatch_pick_one",
+    "old_line": 5343,
+    "destination": "tasks/pick_sequence",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "dfa3765a35f8c7839374d108122b8afe8e39654e3734c0641480db4446a291de",
+    "normalized_new_sha256": "dfa3765a35f8c7839374d108122b8afe8e39654e3734c0641480db4446a291de"
+  },
+  {
+    "symbol": "count_fallen_near_place_points",
+    "old_line": 5444,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "593a06e3fbac75b9cbb1595728993f73f9bbc8013ef5ff322ef122d06ea08f92",
+    "normalized_new_sha256": "593a06e3fbac75b9cbb1595728993f73f9bbc8013ef5ff322ef122d06ea08f92"
+  },
+  {
+    "symbol": "confirm_belt_place_not_fallen",
+    "old_line": 5539,
+    "destination": "tasks/conveyor_perception",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "b4d8074b587572a45f98d34a50e67b58d5ec3977a35b94e57ab9c94b2cef80ea",
+    "normalized_new_sha256": "b4d8074b587572a45f98d34a50e67b58d5ec3977a35b94e57ab9c94b2cef80ea"
+  },
+  {
+    "symbol": "dispatch_report_ex",
+    "old_line": 5570,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "46206031c7ed9125284a94eb0b7ba46f2d84ad9692c19ec0aa84b0d6ed2a8024",
+    "normalized_new_sha256": "46206031c7ed9125284a94eb0b7ba46f2d84ad9692c19ec0aa84b0d6ed2a8024"
+  },
+  {
+    "symbol": "dispatch_belt_vision_again",
+    "old_line": 5581,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "d52c1a39352c72678526be333252a5b538c6ef253623938717ab63a4ae6b1548",
+    "normalized_new_sha256": "d52c1a39352c72678526be333252a5b538c6ef253623938717ab63a4ae6b1548"
+  },
+  {
+    "symbol": "dispatch_place_belt",
+    "old_line": 5600,
+    "destination": "tasks/place_sequence",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "9c29b0422b6b01ab37e025c9aa8b04c537ea1832fd754dcb33814ef8137fe5af",
+    "normalized_new_sha256": "9c29b0422b6b01ab37e025c9aa8b04c537ea1832fd754dcb33814ef8137fe5af"
+  },
+  {
+    "symbol": "apply_pick_half",
+    "old_line": 5687,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "645cbd28bc96a73d5f78d12021a4c5f96c2d8b2f1d77282edc75a6d426955bbf",
+    "normalized_new_sha256": "645cbd28bc96a73d5f78d12021a4c5f96c2d8b2f1d77282edc75a6d426955bbf"
+  },
+  {
+    "symbol": "apply_pick_well",
+    "old_line": 5692,
+    "destination": "tasks/dispatch_feedback",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "b6e7469d3dbcbf75aaa4fa1fa0a322ba36e0dd83a0a79511a966629add22ec7c",
+    "normalized_new_sha256": "b6e7469d3dbcbf75aaa4fa1fa0a322ba36e0dd83a0a79511a966629add22ec7c"
+  },
+  {
+    "symbol": "tcp_near_ready",
+    "old_line": 5697,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "13b78072b94997925576b1050c2552fced391a23fdbad5b4299a560617ed546f",
+    "normalized_new_sha256": "13b78072b94997925576b1050c2552fced391a23fdbad5b4299a560617ed546f"
+  },
+  {
+    "symbol": "arms_at_belt_ready",
+    "old_line": 5706,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "cd55566bb753bd326fbf757dbc350595fede71a5dcc5191dc850f159fb12d601",
+    "normalized_new_sha256": "cd55566bb753bd326fbf757dbc350595fede71a5dcc5191dc850f159fb12d601"
+  },
+  {
+    "symbol": "chassis_already_at",
+    "old_line": 5716,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "a68ee96fac6b76b3f773d2552b80b6a8b626868eb908ca4abceebee97bbbc7f2",
+    "normalized_new_sha256": "a68ee96fac6b76b3f773d2552b80b6a8b626868eb908ca4abceebee97bbbc7f2"
+  },
+  {
+    "symbol": "belt_ready_to_pick",
+    "old_line": 5722,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "928a63d41fe1ab542e65175d9af87b0babccd06ae590651928cb926560a04e7f",
+    "normalized_new_sha256": "928a63d41fe1ab542e65175d9af87b0babccd06ae590651928cb926560a04e7f"
+  },
+  {
+    "symbol": "drive_belt_ready",
+    "old_line": 5731,
+    "destination": "tasks/preparation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "7cbe872a0ec7429cde5fdbb0b37c3bb9e9b8de4bc66e79d6745df9fc3eb3f777",
+    "normalized_new_sha256": "7cbe872a0ec7429cde5fdbb0b37c3bb9e9b8de4bc66e79d6745df9fc3eb3f777"
+  },
+  {
+    "symbol": "dispatch_pick_pair",
+    "old_line": 5760,
+    "destination": "tasks/pick_sequence",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "e53ddfaf37d29eaa8156595cbc4ca758f2a544a0f1a5578bc794dcacbbfda19d",
+    "normalized_new_sha256": "e53ddfaf37d29eaa8156595cbc4ca758f2a544a0f1a5578bc794dcacbbfda19d"
+  },
+  {
+    "symbol": "place_while_driving",
+    "old_line": 5861,
+    "destination": "tasks/place_sequence",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "040550cfd9bc86bf9d90a86513058021c0ebd7504e46c2fffd83815abc27a61e",
+    "normalized_new_sha256": "040550cfd9bc86bf9d90a86513058021c0ebd7504e46c2fffd83815abc27a61e"
+  },
+  {
+    "symbol": "set_body_motors",
+    "old_line": 5944,
+    "destination": "tasks/charging",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "1270f9f4f91e09d7aa4c5d0e15b1a26b44bfdf31b88fd0a505e36ab885ea519d",
+    "normalized_new_sha256": "470f77db9e717722129dde233ffb8ab6f371c11cfa14f90939143e5955130b4b"
+  },
+  {
+    "symbol": "stop_chassis_charging",
+    "old_line": 5983,
+    "destination": "tasks/charging",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "eadd5f98123ec6eca07d96126aeffaa0257166412c83ee91b0fb397da213d157",
+    "normalized_new_sha256": "5ebb5a5bb5a67fde9257c14e60bcb60c554c7f33209aecc479d7ad32cf4e1d84"
+  },
+  {
+    "symbol": "resolve_charge_station",
+    "old_line": 5998,
+    "destination": "tasks/assignment",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "af92ef040157c56fe4789c3882b554985a9f68f02fdfe5aea94882b3372e9dc4",
+    "normalized_new_sha256": "af92ef040157c56fe4789c3882b554985a9f68f02fdfe5aea94882b3372e9dc4"
+  },
+  {
+    "symbol": "run_charge_flow",
+    "old_line": 6007,
+    "destination": "tasks/charging",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "d05c332727cc395fb0f22fb0d8758b45250978c89cf2126a03c505bee6727290",
+    "normalized_new_sha256": "d05c332727cc395fb0f22fb0d8758b45250978c89cf2126a03c505bee6727290"
+  },
+  {
+    "symbol": "dispatch_charge",
+    "old_line": 6210,
+    "destination": "tasks/charging",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "85b198a96693c8069f0737c606ee420c8a6136f145ec95ecc4ea86d4648b0273",
+    "normalized_new_sha256": "85b198a96693c8069f0737c606ee420c8a6136f145ec95ecc4ea86d4648b0273"
+  },
+  {
+    "symbol": "dispatch_load",
+    "old_line": 6215,
+    "destination": "tasks/load",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "602b0424d99aa8345cb75e9e4a4427e7abaa0f560c636a374258a44c90267c83",
+    "normalized_new_sha256": "602b0424d99aa8345cb75e9e4a4427e7abaa0f560c636a374258a44c90267c83"
+  },
+  {
+    "symbol": "dispatch_transfer",
+    "old_line": 6327,
+    "destination": "tasks/transfer",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "5b267a2e73a8af22838c382b80531c8202df1278dcbc9001f0622dd01a270ee7",
+    "normalized_new_sha256": "5b267a2e73a8af22838c382b80531c8202df1278dcbc9001f0622dd01a270ee7"
+  },
+  {
+    "symbol": "dispatch_unload",
+    "old_line": 6384,
+    "destination": "tasks/unload",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "1302695f19b3c2ed3c688a9b1220bd3b62a7d2ee3996e0e3ccda44374fcc07f7",
+    "normalized_new_sha256": "1302695f19b3c2ed3c688a9b1220bd3b62a7d2ee3996e0e3ccda44374fcc07f7"
+  },
+  {
+    "symbol": "inbox_start",
+    "old_line": 6473,
+    "destination": "integration/dispatch/inbox",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "4e94369187edbac80fa98586f1a04d0b45946b4f4858d605af0512b5d1814c34",
+    "normalized_new_sha256": "4e94369187edbac80fa98586f1a04d0b45946b4f4858d605af0512b5d1814c34"
+  },
+  {
+    "symbol": "inbox_poll",
+    "old_line": 6491,
+    "destination": "integration/dispatch/inbox",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "bf37ded3cf32c068019625a8f4b90d2e658e623321bdd59bf8d35d300600cb88",
+    "normalized_new_sha256": "bf37ded3cf32c068019625a8f4b90d2e658e623321bdd59bf8d35d300600cb88"
+  },
+  {
+    "symbol": "inbox_join",
+    "old_line": 6500,
+    "destination": "integration/dispatch/inbox",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "3b760a336b92f8794c3d26f7addeb2585e2bc8c6b0991745d96deb93917fab4d",
+    "normalized_new_sha256": "3b760a336b92f8794c3d26f7addeb2585e2bc8c6b0991745d96deb93917fab4d"
+  },
+  {
+    "symbol": "inbox_wait",
+    "old_line": 6505,
+    "destination": "integration/dispatch/inbox",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "67d8de40a8a9d7e9f8d1cea803413ba8713193979991155f6b89a0fb0c4d64e6",
+    "normalized_new_sha256": "67d8de40a8a9d7e9f8d1cea803413ba8713193979991155f6b89a0fb0c4d64e6"
+  },
+  {
+    "symbol": "run_charge_test",
+    "old_line": 6520,
+    "destination": "app/maintenance/charge",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "ccd300cbd3d7e48958277104d01626608644ae911601d811d08333a0331abfa6",
+    "normalized_new_sha256": "ccd300cbd3d7e48958277104d01626608644ae911601d811d08333a0331abfa6"
+  },
+  {
+    "symbol": "start_chassis_status_reporter",
+    "old_line": 6535,
+    "destination": "tasks/status_reporter",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "1b709224e3fd3f77c355da59541ff6e433c73abc3ee5de3628b56187a6e3ec2b",
+    "normalized_new_sha256": "539504816f4a59daf253a1d21fa422e15f26081d4fc6b06e5ea29de4406ab50f"
+  },
+  {
+    "symbol": "run_dispatch_mode_body",
+    "old_line": 6541,
+    "destination": "tasks/automation",
+    "equivalent_after_port_substitutions": false,
+    "normalized_old_sha256": "42eb67a4e17bde6fd7711f520632e565100c73b72fe5cfb9745745726517d150",
+    "normalized_new_sha256": "9f712233e462861e6fedf6469d8dd73a9271a5a1db98125f20352c2f9c2b0a2c"
+  },
+  {
+    "symbol": "run_dispatch_mode",
+    "old_line": 7038,
+    "destination": "tasks/automation",
+    "equivalent_after_port_substitutions": true,
+    "normalized_old_sha256": "9e3e70ee7cb048157fd170c955b1163f7435d2b8703efc1753ffdcef20cdb7a9",
+    "normalized_new_sha256": "9e3e70ee7cb048157fd170c955b1163f7435d2b8703efc1753ffdcef20cdb7a9"
+  }
+]

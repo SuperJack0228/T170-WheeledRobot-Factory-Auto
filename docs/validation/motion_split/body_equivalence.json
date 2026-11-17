@@ -1,0 +1,904 @@
+{
+  "baseline_commit": "9e023e775ecfb2d2742382f5a92427fc4f1e2907",
+  "comparison": "function bodies C++ tokens including string literals; comments/whitespace ignored",
+  "before_functions": 179,
+  "after_functions": 179,
+  "equal": true,
+  "functions": [
+    {
+      "symbol": "Axispos2T",
+      "body_sha256": "ff56804d2c9e1971901b654bfc171885c478c778b695c05158e902d4762dcb90",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "MDHTrans",
+      "body_sha256": "cb5c8ed27b4864e329f5a9b4178e22a648b81989dae3d96658b172c1e55e3a1b",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "Pitch_Rotation",
+      "body_sha256": "bf752c10c57627c8e5fce72d48bc436544eede39ca58ead921053ccf9c7436fd",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "Quaterniond2EulerAngles",
+      "body_sha256": "21b3716d18e3e8438cb8f3fdde01bbaa7b1b6666a2fc37daab6d8e64ca8a4c0c",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "Roll_Rotation",
+      "body_sha256": "98761dba0c5d0330f1b406f596691bd8b10c708135f5487168e48b3ca02b18b5",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "Rot_zyx",
+      "body_sha256": "835621dc813ff0b2228fd25d444a66427a32c2801d957751687c4c7cc1c51cc4",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "T2Axis",
+      "body_sha256": "d3fe0d5f8651bb4666497e79c82b5ddde62e452026c151ba594970c7ec84e732",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "T2Axispos",
+      "body_sha256": "2ed870cd5a9371f4064f74527a46cc2cbfbe3692d0b16a0cdb093c2b98fc4bd2",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "T2PosEulerAngles",
+      "body_sha256": "8cb115f0224237ee7845120c30191bf92b427ff39e91f7d44ae7ad72339cc534",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "TR",
+      "body_sha256": "b2dee11d5ca82b1fcaff13602a84a83b790e720419f92d92140ffbafa73005bb",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "Transl_xyz",
+      "body_sha256": "3278684f03e1cf8dbbe6188fcbc34609dc7b1361b73f45d51e60aae4145fe566",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "Yaw_Rotation",
+      "body_sha256": "b0282949d4772dfbda58a59e0e7f90156310ab753d92ed35eba79282cf072ea5",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "append_line_trajectory_fail_debug",
+      "body_sha256": "3eeb4248c727f7061b9cc8ab8cc5083f61db436c412c4ead7a9e4b1d9a925bc2",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_arrival_log_clear",
+      "body_sha256": "785962d19a560175023445c7fa8b9f4c906f45b46653e418a7c027c14d6138a1",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_arrival_log_copy",
+      "body_sha256": "622e70ba7f95da0c90793f79aa08e2d8ba89fb0e80fe67edb4afaac7393c00a2",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_at_last_command",
+      "body_sha256": "1b2d11e2e7d3432f2f4dd7b297f3eccd8730740834b828dbf65cdc2e01c0631d",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_base_visual_from_joints",
+      "body_sha256": "72e266af1705e5f81f113591062b503af62b9fe02460858518ad9a373c748c53",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_bow",
+      "body_sha256": "68289e05f3aa5f269dfee027598a425a1c9529da0f85041c74dfac043d3bdb23",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "arm_camera_axes_in_base",
+      "body_sha256": "d660ff88c7fb6d959544c7bafe13b1b2a87d34bd51deff691379cd6797c70d9a",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_creep_unreached_joints",
+      "body_sha256": "45b2e8c5484af6d472ae63fd5b24910c1d42e180772278ff572699ee60e34f5e",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_discard_line_then_line_plan",
+      "body_sha256": "8b2beaa5bd6978d223a7ee5a8adbcc4f22d1dac67660dfc685041dda0111aa6f",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_dual_cartesian_track",
+      "body_sha256": "20915573ff3fd709747647b6bde387273156507c052ec9161b5f69c1c9612d33",
+      "destination": "src/motion/cartesian_tracking.cpp"
+    },
+    {
+      "symbol": "arm_dual_line_move",
+      "body_sha256": "e68a9b6f3301988c47f273e789d2f41b943c3f97f6ac3eea16d62110465cd412",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_dual_line_move_hold_redundant_selective",
+      "body_sha256": "65d6d590e5539d9e726f38f139d9c3d0911c86bca71597b9c7099875ece22dea",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_dual_line_move_selective",
+      "body_sha256": "fe57fe2a8adc4c03eda8cc8ce40e7541e9b24a74d2608e1c84846b86f3e7a623",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_dual_line_then_line_nostop",
+      "body_sha256": "8ff73b32764492355f73b9d891e1917deb71196cd2d0c8302d3436413fd0da92",
+      "destination": "src/motion/servo_handoff.cpp"
+    },
+    {
+      "symbol": "arm_dual_transfer_move",
+      "body_sha256": "94fee2fba0ac45ba68173095731fd94400a1f1ec11d25a9615d2a1d3c67307f3",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_dual_transfer_move_selective",
+      "body_sha256": "d2309c61e25407b954e36e2beb10bef7adf525a1b57e0904d47f3b37e248874b",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_fk_links",
+      "body_sha256": "5894dc23b1e2c8b6f55647d1fd4699669c48df501e11878b25a358cceaec1038",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_fk_tcp_from_encoders",
+      "body_sha256": "db2beeea0269771a8040482a8089ad5fbc271b42de952ff69f851d5d704431dc",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_flange_tool",
+      "body_sha256": "fa68a0df801effa7c30d3aaf72beb548bbc90d9e9fb2a3aac24ad3b8979a66f6",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_get_base_visual_pos",
+      "body_sha256": "010f803a02348de9d6386fb27b5b2301e8226257aaf1cca4968c16b2161d570c",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_get_joint_pos",
+      "body_sha256": "7f870c2b72ac1f9c7cfd213ea1ae7c7e6a9991c5e4c6473e1e63cf6a339bdd5f",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_get_link_fk",
+      "body_sha256": "ff9f171e1e7817a0aaa0d837b54c002313401f60b551c2cd12115da83257c23a",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_get_tcp_pos",
+      "body_sha256": "80d4dea12d23d349ab77443b48a8131b6e06b40b2e0e00027d2071631a7a5c20",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_hand_label",
+      "body_sha256": "ef09ec05f5f6020da4a68a5159ad7ef83e36ec7506409e81d7aa418bcb38304d",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_hand_side",
+      "body_sha256": "0f8aabc8de3d3e495a52d063235f18511b9a82bf8ede4140001772b47373fa25",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_joint_move",
+      "body_sha256": "4e8056d5ab78bd636ac20ff9eec06a7572be170a9b022d65c25d635a67512ab1",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_line_move",
+      "body_sha256": "64a90c0b352a08aab6b28f00f78288efe663ab106b072c9424b7427c13e839b9",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_line_move_hold_redundant",
+      "body_sha256": "62df60ad7cafcc593d507a59e35243d6fe5fdcdbe7630085bdb845065501b8f5",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_line_move_set_debug_stage",
+      "body_sha256": "248915319e3d2a781a8943e600fe7c95458bbcd89d213e892caca07a736884a5",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_line_move_settle",
+      "body_sha256": "144f65e70e48c5dc4a7b6fa1dbc229b707e0e1db5986e46611f2b58d4a5182d6",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_motors_all_stopped",
+      "body_sha256": "239bd209ed7a00efedb3b3f392cd80c3f379a56527269b2163a6184318d986ce",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_motors_at_commanded_position",
+      "body_sha256": "22770d022d2e7bc315694871b843b43044db901d641a11e88eb07336da96a546",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_read_motor_joints",
+      "body_sha256": "3e0e76fa80c35f97d80e0b0e0aecc522cf4b0e4ed29b29c29669a690a923af77",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "arm_reorient_limited",
+      "body_sha256": "8be96394e6288f4d54977e8a0de415dab4c15e389181592359e9557cc81054bd",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_return_after_lift",
+      "body_sha256": "c733f6381a4de1a6f78fbc9a69ea95d12023aef870e72b40b4b745edae50bb76",
+      "destination": "src/motion/retreat.cpp"
+    },
+    {
+      "symbol": "arm_start_line_then_line_plan",
+      "body_sha256": "048d49f88ed741a724a17c934f1252898e9dffc896a790238feb89e0391a5a38",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_tcp_from_joints",
+      "body_sha256": "3e05730e0f75b76754aaf87a0312d10ba2827db7d91bb7da07f20f8db3ab8f74",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "arm_transfer_move",
+      "body_sha256": "490d2faaf1158827d0bdbf425587a4f5541107fe3c2a87bf2e1a531d9e4792e3",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "arm_vertical_lift",
+      "body_sha256": "50c7cf6f77776fc8c2d478d53151745f1e22aa78c712a2f687c4627e04a9bd9f",
+      "destination": "src/motion/retreat.cpp"
+    },
+    {
+      "symbol": "arm_wave_hang",
+      "body_sha256": "c9d715297ac5f5cf7a6e2e3caeb636bb1ed05f3c7fb3ad28acd00b90a2136e17",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "arm_wave_right",
+      "body_sha256": "18aa8b81f59599e1c5f4a9896a99e21cf8d070bacad212a126975116f7002834",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "arm_welcome",
+      "body_sha256": "c6ba4cf555f2e40c1e1a3b97c234ef9f67a6bd7243a13cf3d1c3e4ccfc4ce077",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "arms_encoder_reach_ok",
+      "body_sha256": "420c9c4aed4913b4e231a6e2c97b7e1eac55365a794ab22eaad57a8be78b2b75",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "begin_session",
+      "body_sha256": "fbb9ef53ad2ce78300f6d9c683941d39ef403f75ff8c298b6f7fe5bac632048e",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "bow_blend_arm",
+      "body_sha256": "8218a2d20a8e2a88a64d56803f9a76e0f0da16cd60329f6cf0ca251b2295dab4",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "bow_blend_waist",
+      "body_sha256": "d2c81e8779f46feb00065c5f7ea1a6454052ed8234611194b10e869847915e45",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "bow_play",
+      "body_sha256": "d6726242b7707f4c95aa26842e3145b27fe926ec3de80d7ae9c5a8a06f95e32e",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "bow_read_waist",
+      "body_sha256": "acda0c4ec0ea4bfbf00a707512694376d0809500017412e63eb7506aef401754",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "bow_rest_via",
+      "body_sha256": "da872c3775277cb144dd903e8b3cd7b89f79f0329ac0c486c315b332f9fc2228",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "bow_send_waist",
+      "body_sha256": "54b50cb21e7ef783f855262d099bb40c8ab53c930a38a524a578bce8bbe8e930",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "bridge_from_hold",
+      "body_sha256": "edb6b446d598b7cf055eaa7e6cd42aa3708116bc68a2d4af7fa2de4f84b2e664",
+      "destination": "src/motion/trajectory_executor.cpp"
+    },
+    {
+      "symbol": "calc_segment_weight",
+      "body_sha256": "22e20665a22939a68a98c216128887b2c2f2c2003e616faa5fce22488ba7eeb5",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "calculateTf",
+      "body_sha256": "e8a0dd4500549b6ff1e487849c671821329d80b9657ef879235455b9db827393",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "camera_at_capture",
+      "body_sha256": "7aff02304c3509c10ac3d5c5646b06bdad66851df4a212c7732b3347158a7c34",
+      "destination": "src/motion/observation_session.cpp"
+    },
+    {
+      "symbol": "check_arm_encoder_reach",
+      "body_sha256": "e8b82b7ec486af55ae988d3ab759194914d859441d34f0d8702479a47f689e4c",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "circular_interp",
+      "body_sha256": "345fa6ec3ebfceb5953a245a1bbb8aa5b5d2941ba91ff2d6f9649b4af778c447",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "clamp_cart_goal_z",
+      "body_sha256": "81f2523b569b5926ca0fca7a532750ff06c504c9c47faf2fb6e15395cbd6ec71",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "completed_xy",
+      "body_sha256": "70f531773eeb38214c800101773a2f1e0a2ccf8027e30d0b941d3be6f30c974d",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "compose_base_visual",
+      "body_sha256": "0e51146b3bddb21203f14f60339dbbe40041a3b46c0a318bbd722549777de1f2",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "compute_link_fk",
+      "body_sha256": "defea8793a52c07017db548d371cb650281a684d610889f010a8ce23a78036d3",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "concat_full_lines",
+      "body_sha256": "2aff2e282f849492381cfa2db08ecedd083bf8b19824d339a9c9e571901bcfb1",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "descent_commanded_xy",
+      "body_sha256": "d2d2f97a8ad7b7286fc85fa9029eb871d5b111556a916bc34c2ef3bfd3ae6af9",
+      "destination": "src/motion/servo_handoff.cpp"
+    },
+    {
+      "symbol": "encoder_cnt_to_rad",
+      "body_sha256": "752767ff343b04fe166a2f32eea72485a1ee661f1bad46afed61e1c50825acf0",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "end_session",
+      "body_sha256": "76b0ca3df29f1eef9e434cecc4b8a1de76213d5a6fde1865c2264c62772e39c1",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "execute_arm_trajectory",
+      "body_sha256": "2734604ffed470afe54ef0c1e3edefa53dec24a796e37bda300c61678e6afddc",
+      "destination": "src/motion/trajectory_executor.cpp"
+    },
+    {
+      "symbol": "execute_descent_table",
+      "body_sha256": "b0387bdbc1ed8811e12ac0b39b4e278f008d5d35ed15d25d6bf2dfc027ba7b38",
+      "destination": "src/motion/servo_handoff.cpp"
+    },
+    {
+      "symbol": "execute_staged_motion",
+      "body_sha256": "e8ba1ae88fc47e3727a5f7bec1c0022e1ac9f8a7bf88bc7a8cb76e9109325731",
+      "destination": "src/motion/retreat.cpp"
+    },
+    {
+      "symbol": "extractCoordinates",
+      "body_sha256": "cd31aac9530b39871edf0e9841b344183e9861aed77cd9352e2c947780eafbc9",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "first_cruise_row",
+      "body_sha256": "3ca6900562a110770bb0cc535be831e80a8250de3881e7b446fece66c64d2eda",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "fkine",
+      "body_sha256": "1ac21cdf9577fcf4ed6488cd3b6015c1405b8cf3be648141c4e936445c65f706",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "getFileColumns",
+      "body_sha256": "891e4d3a4cfa4efa17585b29e847f4a4926ff7bf7cf3287a9547be1d1fd50c38",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "getFileRows",
+      "body_sha256": "8ca1a366a965ddb94b6718fdc9eeaadad1a45d8bc74f5dea8de29774c728f314",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "getMatrix",
+      "body_sha256": "8cb376b32cdf7ef8d34736b60c739d82ee4b5bffb2484c35a0986e2ebd6e8b59",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "group_is_failed",
+      "body_sha256": "a42a6b39a2bac52f2b67f52f81c552d31b0ad10eb49b9b44c5268e4de4ddf67b",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "hand_index",
+      "body_sha256": "f30da39a9fc349167ff50df373e3033c7c0711129dcd5d9c779ea57b6957f15b",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "handoff_event",
+      "body_sha256": "fb8669f8091ac3e236b74f71d825dae5fbffa4064e3656073b632c24e2dc3529",
+      "destination": "src/motion/motion_events.cpp"
+    },
+    {
+      "symbol": "hold_joint_reference",
+      "body_sha256": "d3113d4c7e72d2e50b7c0b8a71caab593cc35f0fa731d5dbf7c01da1c238cda4",
+      "destination": "src/motion/final_hold.cpp"
+    },
+    {
+      "symbol": "invalidate_result",
+      "body_sha256": "fb408ef2409c6dccd8f3c57471a7f3aa554ebc361e572c67badec35a4b12a14d",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "joint_range_normalize",
+      "body_sha256": "19a036240c92e392408a6dfcecc72327f6c40d844f97ee85155912bcc6788bf8",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "last_cruise_row",
+      "body_sha256": "bb97c1131cfb95ce59d4d41aa594bf42ad3de57d22b0b48962d8c949c7b169b9",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "last_failure",
+      "body_sha256": "7d9838bdb3179718e56366bf3593207088b847183f31eaa73a81c5951caa68f2",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "lift_connector_validity",
+      "body_sha256": "37f0048f51c46252fe3644cbe5f31d4901b6fe7b47fdaded04ccbc8bf45886e4",
+      "destination": "src/motion/trajectory_executor.cpp"
+    },
+    {
+      "symbol": "line_interp",
+      "body_sha256": "45d8ac76c7e248933656b20adfe1a13f1c59e62c0a14ba47d74a45a6bbbd4770",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "log_arm_encoder_command_vs_actual",
+      "body_sha256": "890e2faea7f6abbe5fb374f7bc3c335953447ad5f6d4f412556fc2212d4f2da6",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "log_arm_link_fk",
+      "body_sha256": "e5ca84bd1c4d1e8b2eea2ea35c0d806bba4bbf78ac9e980ee903aa573627e732",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "log_arms_motor_position_reach",
+      "body_sha256": "ca7fefc2f9d24fc54f1d9abe3dca90d5a51cc2e1ae91dcfae66bbb51ce5e8e69",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "log_arms_motor_running_speeds",
+      "body_sha256": "f888fae87461ce8aeadf1e5e2a7a82ac7cdf80a54e74d062b5c8b7fd77e6f75e",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "log_cycle_banner",
+      "body_sha256": "d58f681bccdd6e89d1be021c8062b8f78e1951d338ab30d0fa44cdabfd83df98",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "log_motor_running_speeds",
+      "body_sha256": "0753ec75bff7d197b1a87ff40ee4d4e711b3bc1834a67e851635a40e18e98f16",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "log_phase_banner",
+      "body_sha256": "4cf98338163afffc1bd298fc213a26696d7170634230b92c00ce88c40ebe1b31",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "make_linear_joint_traj",
+      "body_sha256": "241f517fce079596af7d169fc2861ceaede3484b22ebffae2b2bee3eded888e7",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "measured",
+      "body_sha256": "4bdcaaec860be57453c1899be5dfb09571ef0e2102857e6e0ad6693ab68eac7c",
+      "destination": "src/motion/servo_feedback.cpp"
+    },
+    {
+      "symbol": "motor_joint_speed_counts_stopped",
+      "body_sha256": "12c2d18a10a9ea06b866d150e5e418fce3cffee29034e3c9804a157d4e21cfa7",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "multiplyWithDOF",
+      "body_sha256": "e329ce7d36bd3690465278b2915aa29d2fcc06558d36829fc1f5f0041a1888a1",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "neck_to_eye",
+      "body_sha256": "7761ec3c311a60a23e4f5e7ff9aabf72e801189baaada10166c3eaee0d815190",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "observation_context",
+      "body_sha256": "ce31768454af3927d100a717a5c0cb4c5000d729ca132f87693e7ab984ddfb82",
+      "destination": "src/motion/observation_session.cpp"
+    },
+    {
+      "symbol": "observation_event",
+      "body_sha256": "46214e50fac8729136c9dca166fd92619be65f5b1d48703df2effc67d8bc1cce",
+      "destination": "src/motion/motion_events.cpp"
+    },
+    {
+      "symbol": "pair_too_close",
+      "body_sha256": "3ec75b40a99ae687f620dd4c05ed16e8d7bb309813450103827fec7ec598a98c",
+      "destination": "src/motion/servo_state.cpp"
+    },
+    {
+      "symbol": "peek_final_hold",
+      "body_sha256": "e106776f38c95eaceb3fea37dbd333c0e366d27bd726fcccfa23590370c565fb",
+      "destination": "src/motion/final_hold.cpp"
+    },
+    {
+      "symbol": "pinv",
+      "body_sha256": "1dc5ab2c3dbe2f082a9160ba38e15faadc4fa38369dad5454e109dde407db052",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "plan_arm_line_from",
+      "body_sha256": "e9bdedc39366e679f7e4ee27a1b240d57baf78d3586f71a4810949101f476f39",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "plan_line_then_line",
+      "body_sha256": "973e3a81b77216c0f74258233dee26be259db1edb641eed832cc15f50fff756d",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "plan_seeded_vertical_lift",
+      "body_sha256": "8b14cb92392a1229dd520138f690b9441a1490925cf7aa02715a199eed6dfd2c",
+      "destination": "src/motion/retreat.cpp"
+    },
+    {
+      "symbol": "play_joint_return",
+      "body_sha256": "b1fb73662540b067b6a3a07119666ae983b774e77a5b0336053b36da488afce6",
+      "destination": "src/motion/retreat.cpp"
+    },
+    {
+      "symbol": "play_seeded_vertical_lift",
+      "body_sha256": "11362d80104cbdde1578578a0b7dcbf6f35b8637e546835d068f5a31757e3926",
+      "destination": "src/motion/retreat.cpp"
+    },
+    {
+      "symbol": "pose6_to_csv",
+      "body_sha256": "3d6ee74b1ea1b8d977fd2252103930dc913ddc90c41880dae598555640ece244",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "prepare_group",
+      "body_sha256": "b9b1552d9f28edf2f255ebe8720cad15f25d801f39b14a9bd63329c4eb3fd607",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "quinticInterp",
+      "body_sha256": "a32155dc01f286a6b846ebb43d42d4b9bdd57726244a3f857c02e208775b7263",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "quinticInterp_CartSpace",
+      "body_sha256": "502c9234bf2d1a261252294ac5102761b325d0308ea6325e35baeca5f3c6fb7c",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "quinticInterp_JointSpace",
+      "body_sha256": "502c9234bf2d1a261252294ac5102761b325d0308ea6325e35baeca5f3c6fb7c",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "rad_to_encoder_cnt",
+      "body_sha256": "9556394d81ec8c3f4f00adcd57ece1a8c1b7333a9d1f8778433a696ba4f82517",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "read_joint_feedback",
+      "body_sha256": "84ab0650051e205920967aca4e4d4d4ce753b00c07340553e238d93648bddca0",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "ready_for_gripper",
+      "body_sha256": "839babfa2594bc36cb73757d9f97704b172fd8bfa9af503d5893450b26927174",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "record_arm_cartesian_arrival",
+      "body_sha256": "18e27b0d66639b8d3b7f19e88ed8583f7ab09439c9368aab8a9c4947fea2a3cf",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "record_gripper_check",
+      "body_sha256": "ea1a1db74ab0874ce39452698408754651f0d3925eefceeee6b4c0f4b9039a0c",
+      "destination": "src/motion/motion_events.cpp"
+    },
+    {
+      "symbol": "repeat_final_hold",
+      "body_sha256": "8c358e01cd3a3836fad0c105eb8305baa44bfe08ca318c0fcc0d22e30394611a",
+      "destination": "src/motion/final_hold.cpp"
+    },
+    {
+      "symbol": "report_tray_view",
+      "body_sha256": "8a57a2b7d96be410f8e847231c69358f32de6318bca69d3a73a8ed6164e560e9",
+      "destination": "src/motion/observation_session.cpp"
+    },
+    {
+      "symbol": "reset_arm_encoder_reach_state",
+      "body_sha256": "d9d003ef2978e184f881b05fde55a968f7316c7c87d6d92ada9c3d9f6edc78b5",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "retract_connector_limits",
+      "body_sha256": "c4e977bbdeeb7447beae3d33132517167be3d49c16cfac3cfc3e049aa9f67d17",
+      "destination": "src/motion/trajectory_executor.cpp"
+    },
+    {
+      "symbol": "rotationMatrixToEulerAngles",
+      "body_sha256": "3d0d042f22e03dc3967354ea1a185653a1f744ebb62fda91b471b45fb19cfdf9",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "run_descent",
+      "body_sha256": "e0b277be4438addb5265555e43b3da2386e9b13a3aee0e1cfb1fdb5507e4516e",
+      "destination": "src/motion/servo_executor.cpp"
+    },
+    {
+      "symbol": "sample_approach_state",
+      "body_sha256": "c9f8b1aa2da5efb6d37f45d654510ed6c0dd2a993d2d96e7358ed62c475a422e",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "save_arm_last_commanded_position",
+      "body_sha256": "0a2a863a10d25e77a958aa97915e0e21303e9446747170f75df643c89912b283",
+      "destination": "src/motion/trajectory_executor.cpp"
+    },
+    {
+      "symbol": "send",
+      "body_sha256": "4ef06bd80ebc463f6cf7401e3e43083c3575287696e589ba02b71f844335a40b",
+      "destination": "src/motion/servo_state.cpp"
+    },
+    {
+      "symbol": "send_joint_reference",
+      "body_sha256": "4ae01de2958d3302f1f7a13f756303848ba149b4002ade3ab26932c502eb9fae",
+      "destination": "src/motion/trajectory_executor.cpp"
+    },
+    {
+      "symbol": "servo_apply_pose",
+      "body_sha256": "04f6cf607bbc1dfecb7d08f71450a81a3354afa5ff4d3614ec198236815411fc",
+      "destination": "src/motion/cartesian_tracking.cpp"
+    },
+    {
+      "symbol": "servo_init_side",
+      "body_sha256": "2ace556041356b445df3a5410d72f31901f5d45e85478032250ec242d346a180",
+      "destination": "src/motion/cartesian_tracking.cpp"
+    },
+    {
+      "symbol": "servo_step_side",
+      "body_sha256": "ffa44d3f312e7aa7a111ffb7b3db4948fe34a0118b07ae183f56b074ddf51441",
+      "destination": "src/motion/cartesian_tracking.cpp"
+    },
+    {
+      "symbol": "skew",
+      "body_sha256": "94e719a5b72504dca0d1eb008370db0b5564de7c4d0b4b6d661a10908422e466",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "slerp_interp",
+      "body_sha256": "a8b9e63f02266393418b71b04a585253f607814a94976fb52d8b116ac7d34203",
+      "destination": "src/common/pose_math.cpp"
+    },
+    {
+      "symbol": "solve_local_pose",
+      "body_sha256": "a9ea22b0b0f0d03b3250e71009cfcff5a978c36ce22612f64b86a2f4dc26d6af",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "stage_belt_grasp_reference",
+      "body_sha256": "b61d0769204d4b09f4431bc618f3a89561d79bac8657fa130af3bf8ebb49806a",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "stage_tray_grasp",
+      "body_sha256": "cc9cb7a2954223cc3febb99b1120aceb8ebf362070eab031587debf5602318b2",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "stage_tray_target",
+      "body_sha256": "eddba76fef39bc15cbf27578a74615daa6745a5f9c17f92cfee666d745cbb037",
+      "destination": "src/motion/servo_session.cpp"
+    },
+    {
+      "symbol": "start_final_hold_repeat",
+      "body_sha256": "db606ebeea71b15f342a3724853bb16960af65da77b2b318dbd9caa969a3acb6",
+      "destination": "src/motion/final_hold.cpp"
+    },
+    {
+      "symbol": "stitch_lift_then_return",
+      "body_sha256": "0360a0d4b4c176371a3bbadc4291e6dbd7dbba7653d3d497837b8d441102dfe0",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "submit_observation",
+      "body_sha256": "d32dcca29d97e190d6c4f65adabbb661105f78f77a03646b78bab89bec9b617b",
+      "destination": "src/motion/observation_session.cpp"
+    },
+    {
+      "symbol": "t170_accum",
+      "body_sha256": "754959e94dedbe366611aac39db72f7a2bd80738676aad8b78aaaf78a4a32437",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "t170_mdh_from_yaml",
+      "body_sha256": "ad8483818f9a33155cc28535f244d12cdd5ac4a4ec3ffcdb7bd2d079adfb7684",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "t170_pick_mdh",
+      "body_sha256": "e090e7d5fb9e8ff7ff997fc1588dc7a058a14899318816bfc3e91888bcb646cd",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "t170_q_model",
+      "body_sha256": "75144c4ca2531e66f1b055cff40f9c28b9818fd974ea2e08df06e1fed99ed682",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "t170_tcp_err",
+      "body_sha256": "d860a6383f8910fe71614751be305751e716b713ce6981426429209b8833ff5d",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "take_final_hold",
+      "body_sha256": "094cd6e74be4daf7bfba19c975e10be6faaceee19077c00988e6f39c4c45e38c",
+      "destination": "src/motion/final_hold.cpp"
+    },
+    {
+      "symbol": "take_prepared_line",
+      "body_sha256": "6550dff6fdc2bdf25b68bf3129e71261e6673c7d91e94c04d8eded7c340893f4",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "task_event",
+      "body_sha256": "442e70d2f1ade0caaca363471cf866b9a63186abd42e1b38c21785f3fb89ff70",
+      "destination": "src/motion/motion_events.cpp"
+    },
+    {
+      "symbol": "tool_transform",
+      "body_sha256": "bb80a5459408ddf7e32d17f8b79058dab25d2163e4ab36cf140136bd113032f3",
+      "destination": "src/motion/kinematics_adapter.cpp"
+    },
+    {
+      "symbol": "traj_joint_step",
+      "body_sha256": "2bbdde9d4dbd23175ac88cb5fd08a7f7fd12b5954a802160be5609dbe4ee0968",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "traj_peak_step",
+      "body_sha256": "4baff9f11b4d4ce54b82d2afc9cf082cf6733a3383dad165b06e85182bb009da",
+      "destination": "src/motion/planning.cpp"
+    },
+    {
+      "symbol": "wait_arms_motors_stopped",
+      "body_sha256": "2ffc7a14553a66d3fdbe504d8056943a3d5dfa95af4834aeaa2fb7d4cc6514ae",
+      "destination": "src/motion/feedback.cpp"
+    },
+    {
+      "symbol": "wave_check_traj",
+      "body_sha256": "4ccdb16f09f4f549b9688fbb48dc66d37273ee294fe625e2256998490af07c72",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_goto",
+      "body_sha256": "9a899599de3d9f53de575d2047f2a21e932381bf06291f53a4dab46d1ec6ebee",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_head_pitch_deg",
+      "body_sha256": "dc7cb52f48fc08184d065210110ab045480a03aa40cb9c9f24247fa347730514",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_head_zero",
+      "body_sha256": "0fe0685bf0b1b586baf2a4f7f704fe0c7a93b8f051c5a000c58e651a46a6a79a",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_log_over_limit",
+      "body_sha256": "05252dd3cd7a45a697ae583418be587c5c429e80441dad6969d7f683dc74aa68",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_model_rad",
+      "body_sha256": "e527cc1b13b8d8fbc8beb9880ee5a048aeeeaff73188de7cf89e40603d2ae8ce",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_one",
+      "body_sha256": "8d8781e1d57740134131486fb1163b60cabbe3f4f3da427a349a68e1d00c653b",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_pause_ms",
+      "body_sha256": "b5b80e112ac2c8ce45c5152e81a6634476f3379750216729b591f5b44a560a39",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_play",
+      "body_sha256": "eee101e29d8c70571f161b2da9c93c12ce9155c89a974217bd97ab01df160b40",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_play_lift",
+      "body_sha256": "6b0e4af3e0e716e52c8e4199985d06dee6e587231b85df4f73ceb8610da0b788",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_q",
+      "body_sha256": "7eaabfd662d333a0ec3f29ac1138a2f60dbd851731a15521253d2263f8fb768b",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_quintic",
+      "body_sha256": "a2be035afcbf9a179df55855634ff23e8291ef038b27d67236a5bdbe7231c372",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_quintic_s",
+      "body_sha256": "863f1380d7809eb5e7f50f393e8b36d8fd6938f6c9556d0572d22450ca7d0b93",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_sine_for",
+      "body_sha256": "43b4030efbbc09d0703e88eae781ec4164947127ea7353b633bfcc6bab2b2a7a",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_sine_traj",
+      "body_sha256": "d29614bfab5c616d82db8a64d59895f8ab22eee228442728222baf288c784f9a",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_via",
+      "body_sha256": "6062f16937e6f00b7ea35e5b8072c4b8f905af1c16e7da23ff8ac0a5f24d93b8",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_waist_to",
+      "body_sha256": "3aae8f54266c1643ae1b034a354a59b17f2a9ce2aa2eb86628558d45279a6f70",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    },
+    {
+      "symbol": "wave_waist_yaw_deg",
+      "body_sha256": "70643134d4fb2c8a9cd83fe3f4f23f20f36ec608e2057724d915ba013f18f80c",
+      "destination": "src/app/diagnostic_gestures.cpp"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 // Production phase coordinator, synthetic SDK adapters: no hardware is accessed.
-#include "move_box_runtime.h"
-#include "servo/runtime.h"
+#include "t170/skills/legacy/runtime.h"
+#include "t170/motion/servo.h"
 #include <atomic>
 #include <condition_variable>
 #include <iostream>

@@ -83,9 +83,9 @@ ready_after_mark() {
 
 for attempt in 1 2 3; do
     mark="BOOTMARK attempt=${attempt} pid=$$ time=$(date +%s)"
-    log "开机启动 --dispatch 第${attempt}次"
+    log "开机启动 --production 第${attempt}次"
     echo "$mark" >> "$LOG"
-    "$BIN" --dispatch >> "$LOG" 2>&1 &
+    "$BIN" --production >> "$LOG" 2>&1 &
     child=$!
     while kill -0 "$child" 2>/dev/null; do
         if ready_after_mark "$mark"; then

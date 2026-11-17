@@ -1,18 +1,40 @@
 // Real session command gates with non-operational hardware adapters.
 // No motion, CAN, camera or SDK is opened in this test.
 #include "t170/calibration/placement_session.h"
-#include "robot_runtime.h"
-#include "function.h"
-#include "move_box_runtime.h"
-#include "move_box_config.h"
-#include "servo/runtime.h"
+#include "t170/calibration/commands.h"
+#include "t170/tasks/context.h"
+#include "t170/tasks/operations.h"
+#include "t170/app/maintenance.h"
+#include "Ti5_Arm.h"
+#include "t170/hardware/gripper.hpp"
+#include "t170/hardware/waist.h"
+#include "t170/vision/python_bridge.h"
+#include "t170/common/units.h"
+#include "t170/motion/cartesian_tracking.h"
+#include "t170/motion/feedback.h"
+#include "t170/motion/kinematics_adapter.h"
+#include "t170/motion/planning.h"
+#include "t170/common/pose_math.h"
+#include "t170/motion/retreat.h"
+#include "t170/motion/servo_handoff.h"
+#include "t170/skills/legacy/runtime.h"
+#include "t170/skills/legacy/profiles.h"
+#include "t170/motion/servo.h"
 #include "t170/vision/pipeline.h"
 #include <filesystem>
+#include <future>
+#include <thread>
 #include <iostream>
 #include <stdexcept>
+
+using Eigen::Matrix;
+using Eigen::MatrixXd;
+using std::string;
+using std::thread;
 MoveBoxConfig g_move_cfg;
 namespace {bool aborted=false;int hardware_calls=0;void no_hardware(){++hardware_calls;throw std::runtime_error("test hardware adapter must not run");}}
 bool hardware_abort_requested(){return aborted;}
+void hardware_abort_clear(){aborted=false;}
 bool can_io_faulted(){return false;}
 bool motor_enable_id(std::uint32_t){no_hardware();return false;}
 bool right_arm_motors_locked(){return false;}
@@ -102,6 +124,26 @@ int main(int argc,char **argv) {
     }
     check(hardware_calls==0,"task ordering check touched hardware");
     check(!call("prepare","expired")["ok"].asBool(),"ended session accepted motion");
+    // Exercise the extracted JSON command boundary against the real session.
+    std::mutex hardware_mutex,config_mutex;std::atomic<bool> abort_flag{true};bool stopping=false;
+    t170::calibration::CommandContext context{session,hardware,hardware_mutex,config_mutex,abort_flag,[&]{return stopping;}};
+    Json::Value command;command["cmd"]="calibration_status";aborted=true;
+    check(t170::calibration::handle_command(command,context)["software_stopped"].asBool(),"status lost stop state");
+    command["cmd"]="placement_calibration";command["action"]="begin";
+    check(!t170::calibration::handle_command(command,context)["ok"].asBool(),"stopped begin admitted");
+    command["action"]="reset_stop";
+    check(!t170::calibration::handle_command(command,context)["ok"].asBool(),"stop reset without acknowledgement");
+    command["acknowledged"]=true;stopping=true;
+    check(!t170::calibration::handle_command(command,context)["ok"].asBool(),"process stopping gate lost");
+    stopping=false;
+    // Another thread owns the hardware gate; status stays readable but mutation is rejected.
+    std::promise<void> locked,release;auto release_future=release.get_future();
+    std::thread busy([&]{std::lock_guard<std::mutex> guard(hardware_mutex);locked.set_value();release_future.wait();});
+    locked.get_future().wait();const bool rejected_busy=!t170::calibration::handle_command(command,context)["ok"].asBool();
+    release.set_value();busy.join();check(rejected_busy && aborted,"busy action reset software stop");
+    check(t170::calibration::handle_command(command,context)["ok"].asBool() && !aborted && !abort_flag,
+          "acknowledged idle reset failed");
+    check(hardware_calls==0,"command boundary touched hardware");
     check(std::filesystem::exists(root/"debug_picture/calibration"/id/"events.jsonl"),"event log missing");
     std::filesystem::remove_all(root);std::cout<<"session ordering, stop, replay and no-motion exit checks passed\n";
  } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}

@@ -32,7 +32,6 @@ void hand_shadow_ensure(
 void hand_shadow_end(int hand);
 
 /** 为真时，竖直下降段把未标注的彩色图写入仓库 hand_descent_raw。接近段不存。 */
-void hand_shadow_set_descent_raw(bool enable);
 
 /** 追加一行到 logs/hand_track.csv。手相机跟随和伺服共用，方便事后看有没有把点交给电机。 */
 void hand_track_log(const std::string &hand, const std::string &result, const std::string &detail);

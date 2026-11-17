@@ -41,7 +41,7 @@ public:
     void stop();
 
     static const char *slot_name(CameraSlot slot);
-    static CameraSlot slot_from_choice(int choice);
+
 
     /** 服务已打开相机后的那台对象。未启动时为空。 */
     static RealSenseMultiCam *live();

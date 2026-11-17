@@ -1,4 +1,5 @@
 #include "t170/hardware/waist.h"
+#include "t170/common/pose_math.h"
 #include "t170/hardware/device_bus.h"
 
 #include <algorithm>
@@ -72,10 +73,7 @@ void WaistRobot::logJoints(const char *tag, const Joints5 &q) const
               << T(2, 3) << ")\n";
 }
 
-Matrix<double, 1, 6> WaistRobot::getTool()
-{
-    return TR(tool);
-}
+
 
 WaistRobot::Joints5 WaistRobot::readJoints()
 {
@@ -319,44 +317,4 @@ int WaistRobot::jogJoint(int joint_1based, double dq_rad, double vel)
     const int rc = moveJToJoint(q, vel);
     logJoints("jog后", readJoints());
     return rc;
-}
-
-int WaistRobot::moveYawAbsDeg(double yaw_deg, double vel)
-{
-    if (!std::isfinite(yaw_deg))
-    {
-        std::cerr << "[waist] yaw 无效\n";
-        return -1;
-    }
-    if (hardware_abort_requested())
-        return -3;
-
-    enable_waist_motors();
-    Joints5 q = readJoints();
-    const double q0 = q(LowerBody::WaistYaw);
-    const double q1 = std::clamp(yaw_deg * rad, limit(0, LowerBody::WaistYaw), limit(1, LowerBody::WaistYaw));
-    if (std::abs(q1 - q0) <= 1e-3)
-    {
-        std::cout << std::fixed << std::setprecision(2)
-                  << "[waist] 回转已在 " << (q0 / rad) << " deg，跳过\n";
-        return 0;
-    }
-    q(LowerBody::WaistYaw) = q1;
-    if (vel < 1e-3)
-        vel = 0.15;
-    std::cout << std::fixed << std::setprecision(2)
-              << "[waist] 回转 " << (q0 / rad) << " → " << (q1 / rad)
-              << " deg（+Z 向左为正），只动 yaw\n";
-    const int rc = moveJToJoint(q, vel);
-    logJoints("回转后", readJoints());
-    return rc;
-}
-
-int WaistRobot::moveJToPos(Matrix<double, 1, 6> &posd, double vel)
-{
-    Joints5 qd = readJoints();
-    const int ret = ik(posd, qd);
-    if (ret != 0)
-        return ret;
-    return moveJToJoint(qd, vel);
 }

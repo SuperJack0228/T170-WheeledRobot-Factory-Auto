@@ -6,7 +6,7 @@
    - **传送带已落地**：整图 YOLO，检测框中心转到码系。抓取窗口写死在 `robot_runtime.cpp`：x∈[-0.05, 0.05] m、y∈[0.10, 0.13] m。0 个不抓；1 个只右手（右臂锁定则左手）；≥2 双手先右。手臂仍走到 `grasp_offset`。放置是放置点 ±3 cm 内没有零件才放。调试图 `T170_VISION_DEBUG≥1` → `picture_debug/head/belt_yolo_det_*.jpg`。`yolo_roi_enable` 只是检测开关。定位仍用码。
    - 料盘：定位仍 ArUco；YOLO 仍按 class 挂孔（去 class / 有无+占用 **延期**）。
 2. 整理视觉模块逻辑，添加模型预热，二维码与 YOLO 写成并行模块。
-   - **权威约定**：[`vision_modules_draft.md`](vision_modules_draft.md)（含 M1–M5 / S0–S8 状态表）。
+   - **权威约定**：[`vision_modules_draft.md`](https://github.com/SuperJack0228/T170-WheeledRobot-Factory-Auto/blob/9e023e775ecfb2d2742382f5a92427fc4f1e2907/docs/vision_modules_draft.md)（含 M1–M5 / S0–S8 状态表）。
    - **已落地**：A/B/C/D/Detect；**M1–M5 薄封装（S3–S6）** → `include/vision/{camera,dl,marker,pose,pipeline}.h`。
    - **已落地 S8**：进程启动空图预热，拍照不再加载权重；料盘和传送带整图是 YOLO 与二维码并行。抓放决策在有码位姿之后，用框中心的码系坐标，不再裁切 ROI。
    - **尚未做**：目录大搬家（S7）；料盘有无语义（S2 延期）。

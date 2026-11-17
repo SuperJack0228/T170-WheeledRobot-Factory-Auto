@@ -1,0 +1,851 @@
+standby:
+  right:
+    -
+      - 0.45
+      - -0.3
+      - -0.25
+      - 0
+      - 0.7853981633974483
+      - 0.6981317007977318
+  left:
+    -
+      - 0.45
+      - 0.3
+      - -0.25
+      - 0
+      - 0.7853981633974483
+      - -0.6981317007977318
+home_tcp:
+  right:
+    -
+      - 0.45
+      - -0.35
+      - -0.1
+      - 0
+      - 0
+      - 0
+  left:
+    -
+      - 0.45
+      - 0.35
+      - -0.1
+      - 0
+      - 0
+      - 0
+tray:
+  z_ref_m: -0.618
+  z_ref_waist_z_m: 0.55
+  part_above_tray_m: 0.015
+  z_refine_max_m: 0.003
+  fuse_frames: 3
+head:
+  yaw_deg: 0
+  pitch_deg: 40
+  far_pitch_deg: 47
+  roll_deg: 0
+  speed_deg_s: 25
+head_grasp:
+  hover_above_m: 0.12
+  goal_z_base: -0.3
+  goal_x_offset: 0.04
+  goal_y_offset: 0
+  goal_z_extra: 0.26
+  right_goal_x_offset: 0.04
+  right_goal_y_offset: 0.01
+  right_grasp_z_offset_m: -0.005
+  right_rx_deg: 0
+  right_ry_deg: 60
+  right_rz_deg: 45
+  left_rx_deg: 0
+  left_ry_deg: 60
+  left_rz_deg: -45
+  left_row_rpy_deg:
+    - rx: 0
+      ry: 55
+      rz: -60
+    - rx: 5
+      ry: 55
+      rz: -50
+    - rx: 0
+      ry: 55
+      rz: -40
+  right_row_rpy_deg:
+    - rx: 0
+      ry: 55
+      rz: 60
+    - rx: 5
+      ry: 55
+      rz: 50
+    - rx: 0
+      ry: 55
+      rz: 40
+  left_row6_rpy_deg:
+    rx: 0
+    ry: 40
+    rz: -30
+  right_row6_rpy_deg:
+    rx: 0
+    ry: 40
+    rz: 30
+  approach_nostop: false
+  adaptive_pitch_down_deg: 45
+  adaptive_yaw_max_deg: 55
+  adaptive_min_horiz_m: 0.05
+  adaptive_approach_xyz_tol_m: 0.03
+  adaptive_approach_rpy_tol_deg: 12
+  head_approach_z_descend: 0.05
+  hand_descend_z: 0.07
+  grasp_z_offset_m: -0.001
+  nearest_row_grasp_z_offset_m: -0.005
+  use_row_offset: false
+  left_row_offset:
+    - x: 0.005
+      y: 0.007
+      z: 0.01
+    - x: 0.005
+      y: 0
+      z: 0.005
+    - x: 0.002
+      y: -0.005
+      z: 0
+    - x: 0.01
+      y: 0.008
+      z: 0.005
+    - x: 0.01
+      y: 0
+      z: -0.005
+    - x: 0.005
+      y: 0
+      z: -0.003
+  right_row_offset:
+    - x: 0.009
+      y: 0.013
+      z: 0.01
+    - x: 0.01
+      y: 0.007
+      z: 0.007
+    - x: 0.013
+      y: 0.01
+      z: 0.003
+    - x: 0.01
+      y: 0.01
+      z: 0.005
+    - x: 0.01
+      y: 0.005
+      z: 0
+    - x: 0.005
+      y: 0.005
+      z: -0.008
+  use_hand_camera: false
+  hand_match_xy_max_m: 0.05
+  hand_xy_refine_max_m: 0.03
+  hand_right:
+    offset_x: 0
+    offset_y: 0
+  hand_left:
+    offset_x: 0
+    offset_y: 0
+  lift_after_grasp_z: 0.08
+  bezier_endpoint_xyz_tol_m: 0.008
+  bezier_endpoint_rpy_tol_deg: 3
+  approach_vel_m_s: 0.4
+  descend_vel_m_s: 0.1
+  lift_vel_m_s: 0.25
+  return_vel_m_s: 0.4
+  retract_lift_vel_m_s: 0.4
+  rise_waist_with_lift: true
+  waist_lift_start_clearance_m: 0.015
+  retract_arrival_tolerance_m: 0.008
+  retract_arrival_timeout_s: 2
+  retract_connector_speed_rad_s: 1.5
+  retract_connector_accel_rad_s2: 6
+  retract_connector_jerk_rad_s3: 80
+  retract_connector_max_s: 0.5
+  pre_grasp_settle_sec: 0.15
+  hand_detect_invalid_redo_max: 10
+retract_motion:
+  ready_right:
+    -
+      - 0.9222999922347539
+      - 0.3161999915868737
+      - -0.8438999942213864
+      - 1.7748999989917265
+      - 1.3035000070632987
+      - -0.9187000063064203
+      - 0.14139999610530057
+  ready_left:
+    -
+      - -0.7898999958568724
+      - -0.3642000017686367
+      - 0.6600999990123942
+      - -1.7745000044337547
+      - -1.2215999955811516
+      - 0.9855999949718123
+      - -0.17739999501497655
+  max_joint_velocity_rad_s: 0.9
+  max_joint_acceleration_rad_s2: 2.5
+  max_joint_jerk_rad_s3: 20
+  arrival_joint_tolerance_rad: 0.12
+  settle_timeout_s: 4
+  feedback_timeout_s: 0.5
+  stable_samples: 3
+grasp_valid:
+  z_min: -0.65
+  z_max: -0.05
+  x_min: 0.1
+  x_max: 0.8
+  right_y_min: -0.5
+  right_y_max: 0.28
+  left_y_min: -0.28
+  left_y_max: 0.5
+grasp_zone:
+  y_side_split: 0.08
+  y_max_abs: 0.5
+  x_min: 0.1
+  x_max: 0.8
+  edge_margin_frac: 0.08
+  cam_xy_over_z_max: 0.5
+  front_row_tolerance_m: 0.025
+  column_split_y: 0
+  hole_pitch_m: 0.075
+  column_count: 6
+  min_simultaneous_col_delta: 3
+  far_row_max: 3
+waist:
+  layer3_home:
+    -
+      - 0
+      - 0
+      - 0.6
+      - 0
+      - 0
+      - 0
+  stagger_step_x: 0.0556
+  stagger_max_steps: 0
+  move_settle_sec: 0.5
+  x_min: -0.3
+  x_max: 0.3
+  z_min: 0.35
+  z_max: 0.67
+  grasp_object_z_min: -0.4
+  grasp_lower_z: 0.16
+  ready_z_m: 0.36
+  ready_forward_m: 0.03
+  far_row_forward_m: 0.2
+conveyor:
+  waist_x: 0.15
+  waist_z: 0.63
+  head_yaw_deg: 0
+  head_pitch_deg: 38
+  head_roll_deg: 0
+  tcp:
+    right:
+      -
+        - 0.45
+        - -0.25
+        - -0.2
+        - 0
+        - 0.7853981633974483
+        - 0.5235987755982988
+    left:
+      -
+        - 0.45
+        - 0.25
+        - -0.2
+        - 0
+        - 0.7853981633974483
+        - -0.5235987755982988
+  place_tcp:
+    right:
+      -
+        - 0.45
+        - -0.3
+        - -0.25
+        - 0
+        - 0.7853981633974483
+        - 1.0471975511965976
+    left:
+      -
+        - 0.45
+        - 0.3
+        - -0.25
+        - 0
+        - 0.7853981633974483
+        - -1.0471975511965976
+  offset_right:
+    x: 0
+    y: 0.01
+    z: 0.01
+  offset_left:
+    x: -0.06
+    y: -0.015
+    z: 0.01
+  prefer_belt: belt0
+  grasp_rpy_left:
+    rx: 0
+    ry: 50
+    rz: -30
+  grasp_rpy_right:
+    rx: 0
+    ry: 50
+    rz: 50
+  grasp_offset_left:
+    x: 0.083
+    y: 0.11
+    z: 0.01
+  grasp_offset_right:
+    x: 0
+    y: 0.12
+    z: 0
+  grasp_tcp:
+    right:
+      -
+        - 0.55
+        - -0.3
+        - -0.15
+        - 0
+        - 0
+        - 0
+    left:
+      -
+        - 0.55
+        - 0.3
+        - -0.15
+        - 0
+        - 0
+        - 0
+  grasp_hover_above_m: 0.1
+  place_hover_above_m: 0.06
+  place_approach_vel_m_s: 0.35
+  place_retract_vel_m_s: 0.4
+  grasp_approach_vel_m_s: 0.3
+  grasp_retract_vel_m_s: 0.6
+  grasp_descend_vel_m_s: 0.18
+  next_hand_clearance_m: 0.05
+  next_hand_clearance_timeout_s: 4
+  place_base_z_bias_m: 0
+  grasp_waist_yaw_deg: 0
+  grasp_ready_close_ratio: 0.4
+  yolo_roi_enable: true
+  yolo_min_conf: 0.25
+  yolo_part_class_ids:
+    - 0
+    - 2
+  grasp_yolo_enable: false
+  grasp_yolo_class_id: 0
+  use_fixed_origin_z: true
+  fixed_origin_z_m: -0.29
+  fixed_origin_ref_waist_z_m: 0.63
+  photo_after_arrival_sec: 2
+  grasp_photo_settle_sec: 1
+conveyor2:
+  waist_x: 0.15
+  waist_z: 0.63
+  head_yaw_deg: 0
+  head_pitch_deg: 38
+  head_roll_deg: 0
+  tcp:
+    right:
+      -
+        - 0.45
+        - -0.25
+        - -0.2
+        - 0
+        - 0.7853981633974483
+        - 0.5235987755982988
+    left:
+      -
+        - 0.45
+        - 0.25
+        - -0.2
+        - 0
+        - 0.7853981633974483
+        - -0.5235987755982988
+  place_tcp:
+    right:
+      -
+        - 0.45
+        - -0.3
+        - -0.25
+        - 0
+        - 0.7853981633974483
+        - 1.0471975511965976
+    left:
+      -
+        - 0.45
+        - 0.3
+        - -0.25
+        - 0
+        - 0.7853981633974483
+        - -1.0471975511965976
+  offset_right:
+    x: 0
+    y: 0.008
+    z: -0.005
+  offset_left:
+    x: -0.06
+    y: -0.015
+    z: -0.005
+  prefer_belt: belt0
+  grasp_rpy_left:
+    rx: 0
+    ry: 50
+    rz: -45
+  grasp_rpy_right:
+    rx: -2
+    ry: 50
+    rz: 60
+  grasp_offset_left:
+    x: 0.072
+    y: 0.109
+    z: -0.01
+  grasp_offset_right:
+    x: -0.03
+    y: 0.135
+    z: -0.016
+  grasp_tcp:
+    right:
+      -
+        - 0.55
+        - -0.3
+        - -0.15
+        - 0
+        - 0
+        - 0
+    left:
+      -
+        - 0.55
+        - 0.3
+        - -0.15
+        - 0
+        - 0
+        - 0
+  grasp_hover_above_m: 0.09
+  place_hover_above_m: 0.06
+  place_approach_vel_m_s: 0.3
+  place_retract_vel_m_s: 0.4
+  grasp_approach_vel_m_s: 0.3
+  grasp_retract_vel_m_s: 0.6
+  grasp_descend_vel_m_s: 0.18
+  next_hand_clearance_m: 0.05
+  next_hand_clearance_timeout_s: 4
+  place_base_z_bias_m: 0
+  grasp_waist_yaw_deg: 0
+  grasp_ready_close_ratio: 0.3
+  yolo_roi_enable: true
+  yolo_min_conf: 0.25
+  yolo_part_class_ids:
+    - 0
+    - 2
+  grasp_yolo_enable: false
+  grasp_yolo_class_id: 0
+  use_fixed_origin_z: true
+  fixed_origin_z_m: -0.29
+  fixed_origin_ref_waist_z_m: 0.63
+  photo_after_arrival_sec: 2
+  grasp_photo_settle_sec: 1
+tray2_place:
+  retract_lift_m: 0.08
+  retract_lift_vel_m_s: 0.4
+  retract_return_vel_m_s: 0.4
+  pre_open_settle_sec: 0
+  open_tolerance_rad: 0.5
+  open_timeout_ms: 1500
+  release_q_rad: 3
+  left_row_rpy_deg:
+    - rx: 0
+      ry: 55
+      rz: -50
+    - rx: 0
+      ry: 55
+      rz: -50
+    - rx: 0
+      ry: 55
+      rz: -50
+  right_row_rpy_deg:
+    - rx: 0
+      ry: 55
+      rz: 50
+    - rx: 0
+      ry: 55
+      rz: 50
+    - rx: 0
+      ry: 55
+      rz: 50
+  left_row6_rpy_deg:
+    rx: 0
+    ry: 40
+    rz: -30
+  right_row6_rpy_deg:
+    rx: 0
+    ry: 40
+    rz: 30
+  goal_x_offset: 0.04
+  goal_y_offset: 0.01
+  grasp_z_offset_m: -0.008
+  right_goal_x_offset: 0.04
+  right_goal_y_offset: 0.01
+  right_grasp_z_offset_m: -0.008
+  nearest_row_z_offset_m: 0
+  use_row_offset: true
+  left_row_offset:
+    - x: 0.002
+      y: 0.007
+      z: 0.004
+    - x: 0.005
+      y: 0.004
+      z: 0.002
+    - x: 0.001
+      y: -0.003
+      z: 0
+    - x: 0.008
+      y: 0.006
+      z: 0.003
+    - x: 0.005
+      y: 0
+      z: -0.002
+    - x: 0.006
+      y: -0.002
+      z: -0.001
+  right_row_offset:
+    - x: 0.002
+      y: 0.012
+      z: 0.004
+    - x: 0.005
+      y: 0.01
+      z: 0.002
+    - x: 0.002
+      y: 0.003
+      z: 0
+    - x: 0.007
+      y: 0.008
+      z: -0.005
+    - x: 0.007
+      y: 0.012
+      z: -0.005
+    - x: 0.009
+      y: 0.008
+      z: -0.005
+  far_row_forward_m: 0.22
+chassis:
+  host: 192.168.192.5
+  robot_type: T170C2.0
+  sequence_number: TH-T170C-0124
+  tray_station: AP1
+  dispatch_wait_station: AP14
+  charge_station: CP11
+  charge_wait_station: AP12
+  charge_done_percent: 95
+  tray2_station: AP4
+  belt_station: AP2
+  out_station: AP3
+  nav_timeout_ms: 600000
+stagger:
+  head_x_threshold: 0.8
+vision_detect:
+  head_grasp: 2
+  right_hand_grasp: 2
+  left_hand_grasp: 2
+cameras:
+  width: 1280
+  height: 720
+  head_fps: 15
+  hand_fps: 15
+  hand_live_preview: false
+  hand_descent_correct: true
+  left_gripper_u: 588
+  left_gripper_v: 458
+  right_gripper_u: 712
+  right_gripper_v: 458
+visual_servo:
+  calibrated_placement:
+    -
+      - image:
+          mode: geometry
+          reference_px:
+            -
+              - 590.9537420350567
+            -
+              - 443.84269024037366
+          reference_height_m: 0
+          plane_relative_reference: true
+          constrain_reference_tilt: false
+          reference_roll_rad: 0.0013732912951021253
+          reference_pitch_rad: 0.961129314778574
+          reference_tcp_above_plane_m: 0.013979665129011998
+          feature_z_offset_m: 0
+          min_depth_m: 0.015
+          max_depth_m: 0.65
+          knots:
+            []
+        head_xy_bias:
+          -
+            - 0.05096148254574558
+          -
+            - 0.00855697438925068
+        universal: true
+    -
+      - image:
+          mode: geometry
+          reference_px:
+            -
+              - 679.7795318402028
+            -
+              - 471.4057643068592
+          reference_height_m: 0
+          plane_relative_reference: true
+          constrain_reference_tilt: false
+          reference_roll_rad: 0.0015051423599337986
+          reference_pitch_rad: 0.9594186794349869
+          reference_tcp_above_plane_m: 0.016720900170464847
+          feature_z_offset_m: 0
+          min_depth_m: 0.015
+          max_depth_m: 0.65
+          knots:
+            []
+        head_xy_bias:
+          -
+            - 0.04691589905143029
+          -
+            - 0.022059895602235577
+        universal: true
+  calibrated_tray_grasp:
+    -
+      - image:
+          mode: geometry
+          reference_px:
+            -
+              - 586.0440985732814
+            -
+              - 442.94069018395413
+          reference_height_m: 0
+          plane_relative_reference: true
+          constrain_reference_tilt: false
+          reference_roll_rad: 0.0863775974641291
+          reference_pitch_rad: 0.9599232705405432
+          reference_tcp_above_plane_m: 0.004574045920718139
+          feature_z_offset_m: 0
+          min_depth_m: 0.015
+          max_depth_m: 0.65
+          knots:
+            []
+        head_xy_bias:
+          -
+            - 0.05207335273919103
+          -
+            - -0.002959728379185968
+        universal: true
+    -
+      - image:
+          mode: geometry
+          reference_px:
+            -
+              - 697.2762645914397
+            -
+              - 465.3533560350986
+          reference_height_m: 0
+          plane_relative_reference: true
+          constrain_reference_tilt: false
+          reference_roll_rad: 0.0913496527807226
+          reference_pitch_rad: 0.9602269167295855
+          reference_tcp_above_plane_m: 0.013263115381361323
+          feature_z_offset_m: 0
+          min_depth_m: 0.015
+          max_depth_m: 0.65
+          knots:
+            []
+        head_xy_bias:
+          -
+            - 0.05177625702347105
+          -
+            - 0.012538920705296788
+        universal: true
+  belt_place_enabled: false
+  belt_grasp_enabled: true
+  require_dual: false
+  tray_place:
+    enabled: true
+    board_config: board_yf100_aruco/config.yaml
+    association_gate_m: 0.03
+    reprojection_gate_px: 3
+    circle_residual_m: 0.0015
+    max_plane_update_m: 0.03
+    min_neighbors: 2
+    rectified_pixels_per_m: 2000
+    xy_only: true
+    affine_enabled: true
+    observe_at_B: true
+    observe_timeout_s: 6
+    observation_age_s: 0.6
+    target_hold_s: 1.2
+    alignment_extension_s: 2
+    confirm_stable_s: 0.08
+    tracking_max_neighbors: 6
+    tracking_scan_limit: 12
+    affine_min_scale: 0.65
+    affine_max_scale: 1.5
+    affine_max_rotation_rad: 0.35
+    max_extrapolation_pitches: 2.5
+    orange_rim_enabled: true
+    occupied_orange_rims: true
+    rim_min_radius_ratio: 0.55
+    rim_max_radius_ratio: 1.6
+    min_coverage_bins: 12
+    global_acquisition: true
+    boundary_enabled: true
+    global_search_m: 0.09
+    global_match_gate_m: 0.009
+    global_ambiguity_margin: 0.75
+    global_max_hypotheses: 4000
+    reacquire_after_frames: 2
+    partial_rims: true
+    partial_acquire_min_neighbors: 4
+    partial_acquire_confirm_frames: 2
+    partial_acquire_stability_m: 0.004
+    partial_min_bins: 7
+    single_neighbor_max_frames: 4
+    single_neighbor_step_m: 0.006
+    single_neighbor_budget_m: 0.01
+    single_neighbor_max_age_s: 0.6
+    observe_recovery_after_s: 1.2
+    observe_recovery_lift_m: 0.02
+    observe_recovery_speed_m_s: 0.025
+    save_debug_images: true
+    debug_image_period_s: 0.25
+  period_s: 0.01
+  kp: 1.5
+  kd: 0.2
+  max_xy_speed_m_s: 0.04
+  max_xy_accel_m_s2: 0.2
+  max_z_accel_m_s2: 0.25
+  brake_delay_s: 0.08
+  model_uncertainty_m: 0.0005
+  xy_tolerance_m: 0.002
+  settle_speed_m_s: 0.003
+  z_tolerance_m: 0.001
+  commit_height_m: 0.008
+  freeze_height_m: 0.03
+  commit_speed_m_s: 0.06
+  commit_timeout_s: 5
+  grasp_height_margin_m: 0.002
+  grasp_z_accept_above_m: 0.006
+  grasp_z_feedback_tolerance_m: 0.001
+  grasp_xy_accept_m: 0.006
+  grasp_relax_after_s: 0.35
+  finish_speed_m_s: 0.008
+  finish_stable_s: 0.04
+  place_xy_accept_m: 0.004
+  place_lock_height_m: 0.065
+  place_visibility_floor_m: 0.05
+  place_goal_stability_m: 0.0025
+  place_lock_frames: 2
+  place_finish_speed_m_s: 0.01
+  place_height_margin_m: 0.001
+  place_z_accept_above_m: 0.005
+  alignment_time_margin_s: 0.12
+  acquire_descent_m: 0.02
+  handoff_distance_m: 0.015
+  handoff_speed_m_s: 0.03
+  max_correction_m: 0.035
+  innovation_gate_m: 0.012
+  goal_filter_alpha: 0.65
+  max_observation_age_s: 0.35
+  max_clock_uncertainty_s: 0.12
+  feedback_age_budget_s: 0.02
+  loss_timeout_s: 1.5
+  task_timeout_s: 18
+  max_tick_gap_s: 0.15
+  max_state_gap_s: 0.06
+  max_reference_lead_m: 0.012
+  hard_reference_lead_m: 0.025
+  following_timeout_s: 0.5
+  enforce_sdk_joint_limits: false
+  max_joint_excursion_rad: 0.7
+  max_joint_lead_rad: 0.08
+  max_joint_speed_rad_s: 0.45
+  max_joint_accel_rad_s2: 2
+  max_orientation_error_rad: 0.05235987756
+  solver_position_tolerance_m: 0.0006
+  solver_rotation_tolerance_rad: 0.00872664626
+  max_solver_failures: 5
+  stable_frames: 2
+  min_confidence: 0.45
+  belt_min_confidence: 0.25
+  acquire_radius_px: 180
+  track_radius_px: 100
+  pair_clearance_m: 0.1
+  log_period_s: 0.05
+  profiles:
+    - mode: geometry
+      reference_px:
+        -
+          - 588
+        -
+          - 458
+      reference_height_m: 0
+      plane_relative_reference: false
+      constrain_reference_tilt: false
+      reference_roll_rad: 0
+      reference_pitch_rad: 0
+      reference_tcp_above_plane_m: 0
+      feature_z_offset_m: 0
+      min_depth_m: 0.015
+      max_depth_m: 0.65
+      knots:
+        []
+    - mode: geometry
+      reference_px:
+        -
+          - 712
+        -
+          - 458
+      reference_height_m: 0
+      plane_relative_reference: false
+      constrain_reference_tilt: false
+      reference_roll_rad: 0
+      reference_pitch_rad: 0
+      reference_tcp_above_plane_m: 0
+      feature_z_offset_m: 0
+      min_depth_m: 0.015
+      max_depth_m: 0.65
+      knots:
+        []
+    - mode: geometry
+      reference_px:
+        -
+          - 588
+        -
+          - 458
+      reference_height_m: 0
+      plane_relative_reference: false
+      constrain_reference_tilt: false
+      reference_roll_rad: 0
+      reference_pitch_rad: 0
+      reference_tcp_above_plane_m: 0
+      feature_z_offset_m: 0
+      min_depth_m: 0.015
+      max_depth_m: 0.65
+      knots:
+        []
+    - mode: geometry
+      reference_px:
+        -
+          - 788
+        -
+          - 498
+      reference_height_m: 0
+      plane_relative_reference: false
+      constrain_reference_tilt: false
+      reference_roll_rad: 0
+      reference_pitch_rad: 0
+      reference_tcp_above_plane_m: 0
+      feature_z_offset_m: 0
+      min_depth_m: 0.015
+      max_depth_m: 0.65
+      knots:
+        []
+gripper_check:
+  enable: true
+  empty_q_rad: 0.5
+  hold_q_max_rad: 3
+  max_empty_retry: 2

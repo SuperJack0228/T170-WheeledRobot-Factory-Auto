@@ -201,7 +201,7 @@ public:
   void stop();
 
   /** @brief 是否已成功 connect() */
-  bool isConnected() const;
+
 
   /** @brief 控制线程是否在运行 */
   bool isRunning() const { return running_.load(); }
@@ -226,7 +226,7 @@ public:
   void setAngle(Side side, double angle_deg);
 
   /** @brief 双手同时 setAngle */
-  void setBothAngles(double left_deg, double right_deg);
+
 
   /** @brief 经典张开（target_q=open_position_rad，立即 q_cmd） */
   void open(Side side);
@@ -255,8 +255,7 @@ public:
                    std::chrono::milliseconds timeout = std::chrono::seconds(3));
 
   /** @brief 经典双手张开并等待 */
-  bool openBothAndWait(double tolerance_rad = 0.2,
-                       std::chrono::milliseconds timeout = std::chrono::seconds(3));
+
 
   /**
    * @brief 经典闭合并阻塞等待
@@ -269,8 +268,7 @@ public:
                     std::chrono::milliseconds timeout = std::chrono::seconds(3));
 
   /** @brief 经典双手闭合并等待 */
-  bool closeBothAndWait(double ratio = 1.0, double tolerance_rad = 0.2,
-                        std::chrono::milliseconds timeout = std::chrono::seconds(3));
+
 
   /**
    * @brief 经典夹取：全速闭合 + 轮询 |torque|
@@ -281,8 +279,7 @@ public:
                              std::chrono::milliseconds timeout = std::chrono::seconds(5));
 
   /** @brief 经典双手夹取（左右独立判力矩） */
-  GraspFeedback graspBothAndWait(double max_torque_nm = -1.0,
-                                 std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   // =========================================================================
   // Soft 接口 — ros2_170D 软力矩（斜率 + kp/kd 反算，不删经典接口）
@@ -301,34 +298,28 @@ public:
   void closeSoftBoth(double ratio = 1.0);
 
   /** @brief Soft 张开并阻塞等待到位 */
-  bool openSoftAndWait(Side side, double tolerance_rad = 0.2,
-                       std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   /** @brief Soft 双手张开并等待 */
-  bool openSoftBothAndWait(double tolerance_rad = 0.2,
-                           std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   /** @brief Soft 闭合并阻塞等待到位 */
-  bool closeSoftAndWait(Side side, double ratio = 1.0, double tolerance_rad = 0.2,
-                        std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   /** @brief Soft 双手闭合并等待 */
-  bool closeSoftBothAndWait(double ratio = 1.0, double tolerance_rad = 0.2,
-                            std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   /**
    * @brief Soft 夹取：closeSoft + 等 PositionReached 或软限位持续触顶
    * @param max_torque_nm <=0 时用 config.soft_torque_limit_nm（仅用于判接触，限位在控制线程）
    */
-  GraspFeedback graspSoftAndWait(Side side, double max_torque_nm = -1.0,
-                                 std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   /** @brief Soft 双手夹取 */
-  GraspFeedback graspSoftBothAndWait(double max_torque_nm = -1.0,
-                                     std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   /** @brief 该侧是否处于 Soft 力矩控制路径（openSoft/closeSoft 等会自动开启） */
-  bool isSoftTorqueActive(Side side) const;
+
 
   // =========================================================================
   // 状态读取与阻塞等待（通用）
@@ -342,8 +333,7 @@ public:
    * @param target_deg 目标角度
    * @param tolerance_deg 容差 (°)
    */
-  bool waitFor(Side side, double target_deg, double tolerance_deg = 0.05,
-               std::chrono::milliseconds timeout = std::chrono::seconds(5));
+
 
   /**
    * @brief 按关节角 q (rad) 阻塞等待
@@ -361,7 +351,7 @@ public:
    * @brief 交互式标定：手动紧闭后按 s + Enter
    * @see https://support.unitree.com/home/zh/dex1-1_gripper/dex1_1
    */
-  bool calibrateInteractive();
+
 
   /**
    * @brief 标定单侧（需已手动紧闭到机械极限）
@@ -377,7 +367,7 @@ public:
    * @brief 开启/关闭遥操模式
    * @note 关闭后由 open/close 等经典接口驱动；Soft 遥操用 setTeleopSoftMode
    */
-  void setTeleopMode(bool enabled);
+
 
   /** @brief 是否处于经典或 Soft 遥操模式 */
   bool teleopMode() const { return teleop_mode_.load(); }
@@ -386,20 +376,20 @@ public:
    * @brief 经典遥操：ratio 0=全开，1=全合，立即返回
    * @note 自动 setTeleopMode(true)；往闭合且 |torque|≥grasp_torque_limit_nm 时锁 q
    */
-  void setTeleopRatio(Side side, double ratio);
+
 
   /** @brief 经典遥操双手 */
-  void setTeleopBoth(double left_ratio, double right_ratio);
+
 
   /** @brief 读经典遥操状态（可随时轮询） */
-  TeleopFeedback teleopFeedback(Side side) const;
+
 
   // =========================================================================
   // Soft 遥操（非阻塞，ros2 kp/kd 反算限位）
   // =========================================================================
 
   /** @brief 开启/关闭 Soft 遥操（与经典遥操互斥，后设者优先） */
-  void setTeleopSoftMode(bool enabled);
+
 
   /** @brief 是否 Soft 遥操模式 */
   bool teleopSoftMode() const { return teleop_soft_mode_.load(); }
@@ -407,13 +397,13 @@ public:
   /**
    * @brief Soft 遥操：ratio 0~1，控制线程内 soft_slew + applySoftTorqueLimit
    */
-  void setTeleopSoftRatio(Side side, double ratio);
+
 
   /** @brief Soft 遥操双手 */
-  void setTeleopSoftBoth(double left_ratio, double right_ratio);
+
 
   /** @brief 读 Soft 遥操状态（字段含义同 TeleopFeedback） */
-  TeleopFeedback teleopSoftFeedback(Side side) const;
+
 
 private:
   struct SideImpl;

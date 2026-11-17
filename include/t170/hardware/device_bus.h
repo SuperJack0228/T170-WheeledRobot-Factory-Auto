@@ -16,9 +16,8 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #endif
-#include <string>
 #include <vector>  // 添加 vector 头文件
-#include <thread>  
+#include <thread>
 
 using namespace std;
 
@@ -36,9 +35,9 @@ typedef struct {
     uint8_t Mode;
 } CAN_CONFIG;
 
-bool set_can_bitrate(const std::string &ifname, uint32_t bitrate);
 
-bool init_can_channel(int channel, const CAN_CONFIG &config);
+
+
 
 bool init_socketcan();
 
@@ -47,10 +46,10 @@ std::string device_scan_error();
 
 void close_can_channels();
 
-bool send_can_frame(int channel, uint32_t can_id, const uint8_t *data, uint8_t dlc);
-bool receive_can_frame_timeout(int channel, uint8_t *data);
-bool can_channel_ready(int channel);
-bool can_motion_ready();
+
+
+
+
 
 /** 右臂 CAN 16–22。kLockRightArmMotors=true 时不绑定、不使能、不收发。 */
 bool right_arm_motors_locked();
@@ -81,7 +80,7 @@ bool motor_enable_id(uint32_t id);
 /** 位置模式保持/去目标（输出轴 rad）。头部到位后必须再写一次才能锁住。 */
 bool motor_set_pos_rad(uint32_t id, double rad);
 
-void toIntArray(int number, uint8_t *res, int size);
+
 
 int socketcan_sendcommand(int channel, int cannum, uint32_t *can_idlist, uint8_t command, int *data);
 
@@ -117,15 +116,15 @@ void get_motor_speed(int *data, int a);
 void set_motor_speed(int *data, int a);
 
 
-void set_motor_addspeed(int *data, int a);
 
-void get_motor_addspeed(int *data, int a);
+
+
 
 void set_motor(int *data, uint8_t command,int a);
 
-void set_motor_singn_mode(int *data,uint8_t command, int a);
 
-void set_motor_current_zero();
+
+
 
 
 void set_waist_motor_position(int *data);
@@ -168,8 +167,8 @@ int smooth_motor_move_deg(
     double speed_deg_per_s,
     int dt_ms = 20);
 
-bool init_socketcan_can2();
-void close_can_channels2();
+
+
 
 
 

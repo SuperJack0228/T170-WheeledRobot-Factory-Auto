@@ -2,7 +2,7 @@
 #include "t170/common/config.h"
 #include "t170/calibration/identity.h"
 #include "t170/calibration/tray_policy.h"
-#include "move_box_config.h"
+#include "t170/skills/legacy/profiles.h"
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
 #include <fstream>
@@ -72,6 +72,11 @@ int main(int argc,char **argv) {
     check(load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),error.c_str());
     check(calibrated_placement_for(loaded.visual_servo,1,.2,.7)->universal,"canonical reference still restricted to tilt");
     check(loaded.visual_servo.calibrated_placement[1].size()==1,"new and obsolete placement references were combined");
+    std::filesystem::rename(root/"calibration/placement/right.yaml",root/"calibration/placement/right.saved");
+    MoveBoxConfig without_canonical;
+    check(load_move_box_config((root/"move_box_params.yaml").string(),without_canonical,error),error.c_str());
+    check(without_canonical.visual_servo.calibrated_placement[1].empty(),"retired tilt backup was loaded without canonical reference");
+    std::filesystem::rename(root/"calibration/placement/right.saved",root/"calibration/placement/right.yaml");
     check(calibrated_tray_grasp_for(loaded.visual_servo,1)->head_xy_bias.x()==-.004,"tray grasp compensation missing");
     for(int i=0;i<4;++i) check(loaded.visual_servo.profiles[i].reference_px==base.visual_servo.profiles[i].reference_px,
                              "loading tray catalog changed a global/belt image reference");

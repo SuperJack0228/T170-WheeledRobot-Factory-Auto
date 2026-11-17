@@ -1,172 +1,148 @@
-> 2026-11-05：料盘放置改为B点观察、邻孔仿射对准、锁定后下放；工位参考盘面替代头相机Z/法向。实现及实机待验证项见 [放置V4](docs/TRAY_PLACE_B_ALIGN_V4.md)。
-
-> 2026-11-05：两阶段撤离V3已实现，当前15项离线检查通过，实机待验证。固定关节中转位、时间规划、反馈完成及测试方式见 [STAGED_RETRACT_V3](docs/STAGED_RETRACT_V3.md)。
->
-> 2026-11-04：第一步模块迁移已完成本地实现和14项离线检查。当前结构、兼容入口及机器人环境待验证项见 [第一步整理报告](docs/architecture/STEP1_REPORT.md)。下文旧路径和历史流程说明尚待第三步统一收口。
-
-> 当前主程序：`t170_factory`。基础组件迁移及新构建命令见 [基础组件迁移说明](docs/FOUNDATION_MIGRATION.md)。下文历史流程说明仍应结合实际源码核对。
-
-# T170C
-
-**轮式双臂圆柱件上下料**
-
-现场自主完成毛坯上料、工序间转运、成品下料和回桩充电。头相机认码定位，检测框决定伸哪只手，双臂抹角伸到固定抓放点，再把结果交回调度。
-
-[调度流程](docs/dispatch_flow.md) · [视觉模块](docs/vision_modules_draft.md) · [现场参数](docs/AI_HANDOFF.md)
+<div align="center">
+  <h1>T170 Factory Automation</h1>
+  <p><b>轮式双臂机器人工厂上下料系统</b></p>
+  <p>调度任务执行 · 双臂视觉伺服 · 标定与运维</p>
+  <p>
+    <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?style=flat-square" alt="C++20">
+    <img src="https://img.shields.io/badge/Python-3-3776AB?style=flat-square" alt="Python 3">
+    <img src="https://img.shields.io/badge/Platform-Linux%20ARM64-333333?style=flat-square" alt="Linux ARM64">
+  </p>
+  <p>
+    <a href="docs/architecture/REPOSITORY_GUIDE.md">系统架构</a> ·
+    <a href="docs/deployment/CONFIGURATION.md">部署配置</a> ·
+    <a href="docs/calibration/PLACEMENT_WIZARD.md">标定流程</a> ·
+    <a href="docs/README.md">技术文档</a>
+  </p>
+</div>
 
 ---
 
-## 它在产线上做什么
+## 系统概述
 
-T170C 停在待命点，等调度下发任务和工位。点位由调度给出，机器人按任务把圆柱件从料架送到传送带，再送到下一道传送带，最后放入成品盘。
+面向 T170 轮式双臂机器人的 CNC 工厂上下料应用。系统接收外部调度任务，完成导航、目标识别、抓取、放置及任务反馈，支持上料、工序转运、成品下料和充电流程。
 
 ```text
-料架  ——上料——▶  传送带一  ——转运——▶  传送带二  ——下料——▶  成品盘
+料盘一 ── 上料 ──▶ 半加工工位 ── 转运 ──▶ 精加工工位 ── 下料 ──▶ 料盘二
 ```
 
-| 任务 | 机器人完成的事 |
-|------|----------------|
-| 上料 | 在料架按有料孔抓取，驶向上料点的同时申请放置，放到传送带一 |
-| 转运 | 在传送带一按检测窗口抓取，路上申请放置，放到传送带二 |
-| 下料 | 在传送带二抓取，放入成品盘的空孔 |
-| 充电 | 回准备姿态，去充电点充到设定电量，再停到充电等待点 |
+机器人身份、设备与标定独立配置，作业点位由调度下发。机器人与机床不固定绑定。
 
-抓取结束上报 `PICK_UP_DONE`，放置结束上报 `PLACE_DONE`，整段任务完成后再上报 `DONE`。料架被拿空、成品盘没有空孔，会分别告诉调度。
+| 子系统 | 职责 |
+| --- | --- |
+| 任务执行 | 调度接入、导航、上下料编排、充电与异常恢复 |
+| 视觉定位 | 头相机粗定位、手相机 XY 伺服、邻孔与部分孔环辅助放置 |
+| 动作技能 | 料盘及传送带抓放，统一输入输出、逐手结果与取消接口 |
+| 运动执行 | 轨迹规划、局部 IK、反馈、保位及抬升收手交接 |
+| 标定运维 | 料盘抓放补偿与参考点校准、Web 单步控制和状态显示 |
+| 运行统计 | 伺服 CSV、调度事件、阶段耗时与离线报告 |
 
----
+当前为首版工程集成阶段，采用源码部署；安装包与发布验收尚未完成。
 
-## 设计原则
-
-1. **码定位，框决策。** 料盘孔位和传送带坐标系来自头相机 ArUco。YOLO 只回答类别和框的位置，抓放点仍是码加上配置好的偏移。
-2. **一次拍照，当场决定。** 传送带不再预看。整图检测之后，按二维码坐标系里的窗口决定不伸手、只伸右手，或先右后左。
-3. **动作和调度叠在一起。** 底盘出发、申请放置、收手、降腰按各自的节拍并行，不把整段任务切成互相等待的停车。
-4. **视觉和运动分开。** 相机、检测、检码、位姿、编排是五层模块。抓放策略、逆解和抹角留在动作层。
-
----
-
-## 亮点
-
-**码系窗口里的双手分配**  
-传送带工件用整图检测。框中心转到二维码坐标系后，落入 x ∈ [-0.05, 0.05] m、y ∈ [0.10, 0.13] m 的才计入。窗口里没有件就不伸手；一件只出右手；两件及以上先右后左。手臂走到预先标定的 `grasp_offset`，保持抓取姿态一致。重叠的立件框和倒件框按 IoU 0.5 合成一个零件，不把同一个工件数成两个。
-
-**立件、空孔、倒件三类**  
-同一套检测权重区分立件、空孔和倒件。料架抓取挑选立件，成品盘放置挑选空孔。传送带第一次拍照把立件和倒件都当作可抓零件，先按窗口件数伸手。
-
-**空抓之后再看一眼**  
-夹爪报空，手臂回到准备位后再拍一张，仍看同一个窗口。确认还立着，就在窗口里再抓一次。确认是倒件，上报 `1301` 并留在原地，等现场把零件扶正。已经夹住的那只手保持闭合、不再移动，只让空着的手补抓。
-
-**放置后再确认**  
-上料和转运放完、两手收回准备位之后，头相机再拍一张。只检查这次用过的放置点，x、y 各 ±3 cm。范围内没有倒件，才向调度发送完成。
-
-**头相机与双手相机同时在线**  
-头部 D435I 负责认码和检测。左右 D405 随服务一起打开。抓取或放置伸手时，大约走到一半存一张，编码器确认停稳后再存一张清晰帧。照片写在 `picture_debug/right_hand` 和 `picture_debug/left_hand`，不插入检测，也不改轨迹。
-
-**连续伸手**  
-传送带和料盘的接近段用抹角轨迹一次下发：直线走到目标上方前方，末段收进最终点，中间不停车。规划失败就停在当前结果上，不退回两段各停一次的直线。
-
-**检测和认码并行**  
-传送带拍照时，整图 YOLO 与 ArUco 解算同时进行。有了码的位姿之后，再用框中心做窗口和 ±3 cm 门禁。
-
-**和调度的节拍**  
-上料在离开料架时就申请放置，转运在驶向第二条传送带时申请放置。申请超过 20 秒仍直接放置。转运和下料的抓取不再单独申请，到站拍一张就伸手。任务完成后原地再听 20 秒，有下一条就连做。
-
----
-
-## 一条物料怎么被送走
-
-**上料。** 头相机用料盘 ArUco 定孔，YOLO 标出立件。可以两手一起抓。最后一只手收起时，底盘已经朝上料点出发，并申请放置。传送带一的放置点 ±3 cm 内没有别的零件才放下。放完再确认没有倒件，然后报告完成。
-
-**转运。** 到传送带一后只拍一次。窗口决定伸哪只手，抓完报告 `PICK_UP_DONE`。最后一次合爪成功后两秒，底盘开往传送带二，同时申请放置。放置高度在基座 Z 上再低 5 mm。放完确认倒件，再报告完成。
-
-**下料。** 到传送带二后按同一窗口抓取，收回料盘放置准备姿态。合爪成功两秒后驶向成品盘，按空孔放下。左右都没有空孔时通知调度料盘已满。放置结束后才报告整段任务完成。
-
-**充电。** 手臂回到准备位，腰降到通过高度，去充电点。电量达到设定值后断开充电、重新使能，停在充电等待点。
-
----
-
-## 视觉分工
-
-| 层 | 职责 | 代码 |
-|----|------|------|
-| 相机 | 头、右手、左手三路 RealSense，序列号和分辨率分开配置 | `include/vision/camera.h` |
-| 检测 | 立件、空孔、倒件；输出框和粗位置 | `include/vision/dl.h` |
-| 标志 | 头相机 ArUco，给出料盘和传送带的坐标系 | `include/vision/marker.h` |
-| 位姿 | 手眼、孔网、多帧融合，把检测挂到孔或码系 | `include/vision/pose.h` |
-| 编排 | 取帧、检测与检码并行、把结果交给动作层 | `include/vision/pipeline.h` |
-
-料盘孔的平面位置来自码，不来自检测框中心。传送带的抓取窗口和放置门禁用码系里的框中心。
-
----
-
-## 机体
-
-| 部分 | 配置 |
-|------|------|
-| 手臂 | 左右各 7 轴，工具长度 0.260 m |
-| 腰与头 | 腰腿 5 轴，头部 3 电机 |
-| 夹爪 | DEX1，双爪 |
-| 底盘 | 仙工导航底盘 |
-| 头相机 | Intel RealSense D435I |
-| 手相机 | 左右各一台 Intel RealSense D405，1280×720 |
-| 计算 | Jetson，C++17，不使用 ROS 2 |
-
-常用工位：料盘一、传送带一、传送带二、成品盘、待命点、充电点和充电等待点。实际去哪一站，以调度当次下发的点名为准。
-
----
-
-## 软件布局
+## 软件架构
 
 ```text
-T170Clean
-├── orchestrator/cpp/          调度任务、传送带抓放、上报
-├── src/                       轨迹、腰、相机、视觉桥
-├── include/vision/            相机 / 检测 / 标志 / 位姿 / 编排
-├── feeding_cylindrical_parts_alg/   三类检测权重与参数
-├── board_yf100_aruco/         料盘码与孔融合
-├── config/                    工位、速度、相机序列号
-├── web_debug/                 本机状态页
-├── tools/debug_client.py      本机动作客户端
-└── docs/                      流程与参数说明
+调度接口 → 任务编排 → 动作技能 → 运动规划与执行 → 硬件适配
+                        ↑              ↑
+                     视觉观测 ──→ 伺服控制
+
+应用层负责设备装配与生命周期，统计模块记录任务状态及执行过程。
 ```
 
-运行程序是 `build_robot/t170_factory`，只接受本机 `127.0.0.1:8099` 的调试命令。
+```text
+apps/                  主程序入口
+src/                   应用、任务、技能、运动、控制、视觉及硬件实现
+include/t170/          模块接口
+python/                Python 视觉算法与部署配置工具
+config/                公共、型号、工厂、单机及标定配置
+assets/                模型与音频资源
+dependencies/          SDK、预编译库及通用依赖
+cmake/                 模块构建清单与依赖路径
+deploy/                生产、维护启动脚本及服务模板
+web_debug/             Web 调试台与标定页面
+tools/                 控制客户端、预检及日志分析
+tests/                 离线回归与测试样本
+examples/skills/       标准技能接口示例
+docs/                  架构、部署、算法与验证文档
+packaging/             安装打包预留
+```
 
----
+模块边界见 [仓库指南](docs/architecture/REPOSITORY_GUIDE.md)，技能契约见 [接口规范](docs/architecture/SKILLS_INTERFACE_V1.md)。
 
-## 在机器人上运行
+## 环境与构建
+
+| 项目 | 要求 |
+| --- | --- |
+| 目标平台 | Linux ARM64，匹配 T170 机器人运行环境 |
+| 构建工具 | CMake ≥ 3.16，支持 C++20 的编译器 |
+| C++ 依赖 | OpenCV、yaml-cpp、JsonCpp、librealsense2、pybind11、Python 开发库 |
+| Python 依赖 | 见 [requirements.txt](python/requirements.txt) |
+| 机器人依赖 | 手臂、腰腿、设备、底盘及调度 SDK，见 [依赖清单](dependencies/README.md) |
+
+在已配置 SDK 与视觉环境的机器人主机上执行：
 
 ```bash
-cmake --build /home/ti5robot/T170Clean/build_robot -j2 --target t170_factory
-./build_robot/t170_factory
+cmake -S . -B build_robot -DCMAKE_BUILD_TYPE=Release
+cmake --build build_robot -j4
 ```
 
-另一个终端：
+生成 `build_robot/t170_factory` 和配置校验工具 `build_robot/t170_config_dump`。Python 环境通过 CMake 参数 `HUMAN_INTERACTION_ENV_ROOT` 指定；启动脚本使用的 Python 可通过 `T170_PYTHON` 指定。
+
+## 运行入口
 
 ```bash
-python3 tools/debug_client.py home
-python3 tools/debug_client.py dispatch
-python3 tools/debug_client.py abort
+# 维护模式：初始化设备，等待单步、标定或人工命令
+./deploy/run_maintenance.sh
+
+# 生产模式：初始化设备，进入自动调度
+./deploy/run_production.sh
 ```
 
-`home` 把腰、头和双臂收到准备姿态，底盘保持不动。`dispatch` 开始对接调度。`abort` 请求停掉当前动作，进程继续留在第一个终端里。
+同一机器人仅运行一个主程序进程。启动脚本读取 `config/deployment.yaml`，合成独立运行目录并输出 `T170_RUNTIME_DIR`。
 
-调试图：
+Web 调试台使用同一运行目录，在另一终端启动；将路径替换为主程序启动输出中的实际值：
 
 ```bash
-T170_VISION_DEBUG=1 ./build_robot/t170_factory
+T170_RUNTIME_DIR=/absolute/path/to/runtime ./deploy/run_web.sh
 ```
 
-头相机检测框写在 `picture_debug/head/`。手相机伸手照片写在 `picture_debug/right_hand/` 和 `picture_debug/left_hand/`。
+Web 默认端口为 `8080`，机器人命令端口为 `8099`。参数、模式及显式部署入口见 [部署指南](docs/deployment/CONFIGURATION.md)。
 
-工位、速度和抓放偏移在 `config/move_box_params.yaml`。检测权重由 `feeding_cylindrical_parts_alg/config/pose_params.yaml` 指向 `models/best1015.pt`。
+## 配置管理
 
----
+| 路径 | 内容 |
+| --- | --- |
+| `config/deployment.yaml` | 当前部署选择 |
+| `config/deployments/` | 配置层与资源引用清单 |
+| `config/defaults/` | 公共控制与策略参数 |
+| `config/robot_models/` | 型号规格与运动学模型 |
+| `config/sites/` | 工厂工位、料盘、传送带与视觉配置 |
+| `config/robots/` | 单机身份、设备、相机与准备位 |
+| `config/calibration/` | 单机手眼、抓放补偿与参考点 |
 
-## 文档
+参数和标定保持外置。修改来源配置后重新生成运行目录并加载；运行目录中的合成文件不作为长期调参入口。当前合成器按字段唯一归属合并，重复定义会被拒绝。
+
+日志、调试图和报告保存在运行目录；部署来源与生效参数分别记录于 `deployment_resolved.json`、`effective_config.yaml`。
+
+## 离线验证
+
+在具备测试依赖的开发环境中执行，无需连接机器人：
+
+```bash
+cmake -S . -B build_tests -DT170_SERVO_TESTS_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build_tests -j4
+ctest --test-dir build_tests --output-on-failure
+```
+
+离线检查覆盖控制、轨迹交接、孔位定位、配置、标定、技能、任务接口和统计。完整 SDK 链接、实机精度、连续运行成功率及节拍单独验收。
+
+## 技术文档
 
 | 文档 | 内容 |
-|------|------|
-| [docs/dispatch_flow.md](docs/dispatch_flow.md) | 四段任务的信号、抓取窗口、放置门禁 |
-| [docs/vision_modules_draft.md](docs/vision_modules_draft.md) | 五层视觉模块和当前数据流 |
-| [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md) | 站点、速度、调试命令和现场参数 |
-| [docs/README.md](docs/README.md) | 文档目录 |
+| --- | --- |
+| [系统架构](docs/architecture/REPOSITORY_GUIDE.md) | 模块职责、调用关系与目录说明 |
+| [配置与部署](docs/deployment/CONFIGURATION.md) | 配置来源、运行目录与启动方式 |
+| [视觉伺服](docs/WRIST_VISUAL_SERVO_ALGORITHM.md) | 图像映射、控制、目标定位与动作交接 |
+| [技能接口](docs/architecture/SKILLS_INTERFACE_V1.md) | 标准输入输出、阶段、错误与逐手结果 |
+| [料盘标定](docs/calibration/PLACEMENT_WIZARD.md) | 抓取与放置校准流程 |
+| [调度流程](docs/dispatch_flow.md) | 上料、转运、下料及充电交互 |
+| [发布验收](docs/architecture/RELEASE_ACCEPTANCE.md) | 构建、部署、回滚与现场验收要求 |

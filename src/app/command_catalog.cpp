@@ -1,0 +1,83 @@
+#include "t170/app/commands.h"
+namespace t170::app {
+const std::vector<CommandSpec> &command_catalog(){static const std::vector<CommandSpec> values{
+        {"Audio1",CommandGroup::Diagnostic,false},
+        {"Audio2",CommandGroup::Diagnostic,false},
+        {"Audio3",CommandGroup::Diagnostic,false},
+        {"Audio4",CommandGroup::Diagnostic,false},
+        {"Audio5",CommandGroup::Diagnostic,false},
+        {"abort",CommandGroup::Operation,true},
+        {"aruco_detect",CommandGroup::Diagnostic,false},
+        {"belt",CommandGroup::Maintenance,false},
+        {"belt2",CommandGroup::Maintenance,false},
+        {"belt2_grasp",CommandGroup::Maintenance,false},
+        {"belt2_grasp_rpy",CommandGroup::Maintenance,false},
+        {"belt2_place",CommandGroup::Maintenance,false},
+        {"belt2_ready",CommandGroup::Maintenance,false},
+        {"belt_grasp",CommandGroup::Maintenance,false},
+        {"belt_grasp_rpy",CommandGroup::Maintenance,false},
+        {"belt_picture",CommandGroup::Retired,false},
+        {"belt_place",CommandGroup::Maintenance,false},
+        {"belt_ready",CommandGroup::Maintenance,false},
+        {"bow",CommandGroup::Maintenance,false},
+        {"calibration_status",CommandGroup::Calibration,true},
+        {"cap_belt",CommandGroup::Retired,false},
+        {"cap_belt2",CommandGroup::Retired,false},
+        {"cap_belt_hand",CommandGroup::Retired,false},
+        {"cap_tray",CommandGroup::Retired,false},
+        {"cap_tray2",CommandGroup::Retired,false},
+        {"capabilities",CommandGroup::Operation,true},
+        {"charge",CommandGroup::Maintenance,false},
+        {"cycle3",CommandGroup::Retired,false},
+        {"detect_tray_holes",CommandGroup::Diagnostic,false},
+        {"dispatch",CommandGroup::Operation,true},
+        {"dispatch_exit",CommandGroup::Operation,true},
+        {"dispatch_status",CommandGroup::Operation,true},
+        {"grasp_belt",CommandGroup::Retired,false},
+        {"grasp_belt1",CommandGroup::Retired,false},
+        {"grasp_ready",CommandGroup::Maintenance,false},
+        {"grasp_ready1",CommandGroup::Maintenance,false},
+        {"grasp_ready2",CommandGroup::Maintenance,false},
+        {"grasp_ready3",CommandGroup::Maintenance,false},
+        {"grasp_ready6",CommandGroup::Maintenance,false},
+        {"home",CommandGroup::Maintenance,false},
+        {"ping",CommandGroup::Operation,true},
+        {"placement_calibration",CommandGroup::Calibration,false},
+        {"reload_config",CommandGroup::Operation,true},
+        {"snapshot",CommandGroup::Operation,true},
+        {"tray2",CommandGroup::Maintenance,false},
+        {"tray2_auto",CommandGroup::Maintenance,false},
+        {"tray2_place",CommandGroup::Maintenance,false},
+        {"tray2_precision",CommandGroup::Retired,false},
+        {"tray2center",CommandGroup::Retired,false},
+        {"tray2ready",CommandGroup::Maintenance,false},
+        {"tray2ready1",CommandGroup::Maintenance,false},
+        {"tray2ready2",CommandGroup::Maintenance,false},
+        {"tray2ready3",CommandGroup::Maintenance,false},
+        {"tray2ready6",CommandGroup::Maintenance,false},
+        {"tray2test",CommandGroup::Retired,false},
+        {"tray_servo_test",CommandGroup::Retired,false},
+        {"vision_grasp",CommandGroup::Maintenance,false},
+        {"vision_grasp_image",CommandGroup::Retired,false},
+        {"vision_grasp_once",CommandGroup::Maintenance,false},
+        {"vision_grasp_track",CommandGroup::Retired,false},
+        {"vision_servo_dual_once",CommandGroup::Diagnostic,false},
+        {"waist1",CommandGroup::Maintenance,false},
+        {"waist2",CommandGroup::Maintenance,false},
+        {"waist_cycle",CommandGroup::Maintenance,false},
+        {"waist_jog",CommandGroup::Maintenance,false},
+        {"wave",CommandGroup::Maintenance,false},
+        {"wave_ready",CommandGroup::Maintenance,false},
+        {"welcome",CommandGroup::Maintenance,false}
+    };return values;}
+const CommandSpec *find_command(std::string_view name){for(const auto &entry:command_catalog())if(entry.name==name)return &entry;return nullptr;}
+bool command_allowed(Mode mode,std::string_view name){const auto *entry=find_command(name);return entry && entry->group!=CommandGroup::Retired && (mode==Mode::Maintenance || entry->production);}
+bool command_collects_arrivals(std::string_view name) {
+    if(!find_command(name))return false;
+    for(auto query:{"ping","abort","dispatch_exit","dispatch_status","capabilities",
+                    "calibration_status","placement_calibration","Audio1","Audio2","Audio3","Audio4","Audio5"})
+        if(name==query)return false;
+    return true;
+}
+const char *group_name(CommandGroup group){switch(group){case CommandGroup::Operation:return "operation";case CommandGroup::Calibration:return "calibration";case CommandGroup::Maintenance:return "maintenance";case CommandGroup::Diagnostic:return "diagnostic";case CommandGroup::Retired:return "retired";}return "unknown";}
+}

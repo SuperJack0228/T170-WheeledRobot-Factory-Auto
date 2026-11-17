@@ -22,8 +22,8 @@ def main():
     root = paths.root
     config_dir = paths.config_dir
     config = yaml.safe_load((config_dir / "move_box_params.yaml").read_text())
-    vision_root = root / "feeding_cylindrical_parts_alg"
-    vision = yaml.safe_load((vision_root / "config/pose_params.yaml").read_text())
+    vision_root = root
+    vision = yaml.safe_load((paths.config_file("vision/pose_params.yaml")).read_text())
     errors = []
     if not config.get("cameras", {}).get("hand_descent_correct"):
         errors.append("cameras.hand_descent_correct 未开启")
@@ -31,9 +31,9 @@ def main():
         errors.append("旧 use_hand_camera 必须关闭，新伺服通过 hand_descent_correct 开启")
     if config.get("head_grasp", {}).get("descend_vel_m_s", 0) <= 0:
         errors.append("下降速度必须为正数")
-    resources = [config_dir / "Robot_Arm_Model.yaml", root / "lib/Ti5_Arm_2204.so", config_dir / "left_hand_to_base_result.yaml",
+    resources = [config_dir / "Robot_Arm_Model.yaml", root / "dependencies/sdk/arm/lib/Ti5_Arm_2204.so", config_dir / "left_hand_to_base_result.yaml",
                  config_dir / "right_hand_to_base_result.yaml", config_dir / "move_box_params.yaml",
-                 config_dir / "realsense_cameras.yaml", vision_root / "config/pose_params.yaml"]
+                 config_dir / "realsense_cameras.yaml", paths.config_file("vision/pose_params.yaml")]
     for key in ("model", "hand_model"):
         value = vision.get("segmentation", {}).get(key)
         if not value:

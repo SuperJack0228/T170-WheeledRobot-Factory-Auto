@@ -1,11 +1,24 @@
 #include "t170/calibration/placement_session.h"
 #include "t170/calibration/identity.h"
 #include "t170/calibration/tray_policy.h"
-#include "robot_runtime.h"
-#include "function.h"
-#include "move_box_runtime.h"
-#include "move_box_config.h"
-#include "servo/runtime.h"
+#include "t170/tasks/context.h"
+#include "t170/tasks/operations.h"
+#include "t170/app/maintenance.h"
+#include "Ti5_Arm.h"
+#include "t170/hardware/gripper.hpp"
+#include "t170/hardware/waist.h"
+#include "t170/vision/python_bridge.h"
+#include "t170/common/units.h"
+#include "t170/motion/cartesian_tracking.h"
+#include "t170/motion/feedback.h"
+#include "t170/motion/kinematics_adapter.h"
+#include "t170/motion/planning.h"
+#include "t170/common/pose_math.h"
+#include "t170/motion/retreat.h"
+#include "t170/motion/servo_handoff.h"
+#include "t170/skills/legacy/runtime.h"
+#include "t170/skills/legacy/profiles.h"
+#include "t170/motion/servo.h"
 #include "t170/motion/pose_solver.h"
 #include "t170/hardware/head.h"
 #include "t170/hardware/device_bus.h"
@@ -25,6 +38,10 @@
 #include <thread>
 #include <cmath>
 #include <algorithm>
+
+using std::string;
+using std::thread;
+using std::get;
 
 namespace t170::calibration {
 namespace {
@@ -226,10 +243,10 @@ struct PlacementSession::Impl {
         double zoff=0;
         if(grasp) {
             const auto &p=g_move_cfg.head_grasp;
-            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m)+(p.use_row_offset?(hand?p.right_row_offset[4].z:p.left_row_offset[4].z):0.0);
+            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m);
         } else {
             const auto &p=g_move_cfg.tray2_place;
-            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m)+(p.use_row_offset?(hand?p.right_row_offset[4].z:p.left_row_offset[4].z):0.0);
+            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m);
         }
         const auto &r=rpy();Pose upright;
         upright<<selected.base.x(),selected.base.y(),move_box::expected_object_top_z()+zoff,r.rx*M_PI/180,r.ry*M_PI/180,r.rz*M_PI/180;

@@ -1,5 +1,5 @@
 #include "t170/control/visual_servo.h"
-#include "move_box_config.h"
+#include "t170/skills/legacy/profiles.h"
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
 #include <iostream>

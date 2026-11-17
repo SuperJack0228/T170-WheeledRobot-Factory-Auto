@@ -1,8 +1,14 @@
+#include "t170/app/lifecycle.h"
 #include "t170/vision/python_bridge.h"
-#include "t170/common/task_timing.h"
+#include "t170/telemetry/dispatch_metrics.h"
 #include "t170/vision/head_transform.h"
-#include "move_box_config.h"
-#include "function.h"
+#include "t170/skills/legacy/profiles.h"
+#include "Ti5_Arm.h"
+#include "t170/common/units.h"
+#include "t170/motion/cartesian_tracking.h"
+#include "t170/common/pose_math.h"
+#include "t170/motion/retreat.h"
+#include "t170/motion/servo_handoff.h"
 #include "t170/vision/wrist_observer.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/debug.h"
@@ -33,58 +39,12 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+using std::string;
+using std::thread;
+using std::get;
+
 namespace py = pybind11;
 using namespace vision_bridge_detail;
-
-namespace
-{
-
-std::atomic<bool> g_app_stop{false};
-std::atomic<bool> g_app_cleanup{false};
-
-void on_sigint(int)
-{
-    // 信号处理函数里只能做原子写。::close() 会 down CAN，不能在这里调用。
-    hardware_abort_request();
-    g_app_stop.store(true, std::memory_order_release);
-    if (g_app_cleanup.load(std::memory_order_acquire))
-        _Exit(130);
-}
-
-} // namespace
-
-void request_app_stop()
-{
-    g_app_stop.store(true, std::memory_order_relaxed);
-}
-
-bool app_stop_requested()
-{
-    return g_app_stop.load(std::memory_order_relaxed);
-}
-
-void install_app_sigint_handler()
-{
-    struct sigaction sa{};
-    sa.sa_handler = on_sigint;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0; // 不要 SA_RESTART，让 accept/poll 被信号打断
-    sigaction(SIGINT, &sa, nullptr);
-    sigaction(SIGTERM, &sa, nullptr);
-}
-
-void mark_app_cleanup_started()
-{
-    g_app_cleanup.store(true, std::memory_order_release);
-}
-
-void interruptible_sleep_ms(int ms)
-{
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
-    while (!app_stop_requested() && !hardware_abort_requested() &&
-           std::chrono::steady_clock::now() < deadline)
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-}
 
 namespace
 {
@@ -271,7 +231,7 @@ bool SegPoseBridge::init(const std::string &pose_config_path, const std::string 
         impl_->belt_ready = false;
         impl_->algorithm_input_cls = types_mod.attr("AlgorithmInput");
 
-        std::cout << "CirclePoseEngine 已加载 (feeding_cylindrical_parts_alg), 配置: "
+        std::cout << "CirclePoseEngine 已加载 (t170_vision.detection), 配置: "
                   << pose_config_path << "\n"
                   << "  头相机/料盘/传送带 " << std::string(py::str(impl_->engine.attr("model_path")))
                   << "\n  手相机 " << std::string(py::str(impl_->hand_engine.attr("model_path")))
@@ -737,14 +697,7 @@ BeltDetectResult SegPoseBridge::run_belt_detect(
     return result;
 }
 
-TrayDetectResult SegPoseBridge::run_tray_annotate(
-    const CameraFrameData &frame,
-    const PoseDetectionRecords &yolo,
-    bool show_visualization,
-    CameraSlot vis_slot)
-{
-    return run_tray_annotate_multiframe({frame}, yolo, show_visualization, vis_slot);
-}
+
 
 TrayDetectResult SegPoseBridge::run_tray_annotate_multiframe(
     const std::vector<CameraFrameData> &frames,
@@ -1325,224 +1278,7 @@ bool reject_head_image_edge(
 
 } // namespace
 
-void assign_hand_targets_in_robot_frame(
-    const PoseDetectionRecords &records,
-    const std::array<double, 16> &cam2robot,
-    double right_hand_pos[3],
-    double left_hand_pos[3],
-    HeadHandAssignZones *out_zones)
-{
-    if (out_zones)
-    {
-        out_zones->r_from_side = false;
-        out_zones->l_from_side = false;
-        out_zones->r_from_middle = false;
-        out_zones->l_from_middle = false;
-    }
-    auto set_invalid = [](double pos[3]) {
-        pos[0] = -1.0;
-        pos[1] = 0.0;
-        pos[2] = 0.0;
-    };
-    auto set_pos = [](double pos[3], double x, double y, double z) {
-        pos[0] = x;
-        pos[1] = y;
-        pos[2] = z;
-    };
 
-    set_invalid(right_hand_pos);
-    set_invalid(left_hand_pos);
-
-    struct Candidate
-    {
-        double x = 0.0;
-        double y = 0.0;
-        double z = 0.0;
-        float confidence = 0.f;
-        size_t index = 0;
-    };
-
-    const auto &valid = g_move_cfg.grasp_valid;
-    const double kSplitY = column_split_y();
-    const double kCamXyOverZ = g_move_cfg.grasp_zone.cam_xy_over_z_max;
-
-    std::vector<Candidate> left_zone;
-    std::vector<Candidate> right_zone;
-    left_zone.reserve(records.size());
-    right_zone.reserve(records.size());
-
-    std::cout << "\n--- robot 基座系 → 列分区 (右列1-3 y<=" << kSplitY
-              << ", 左列4-6 y>" << kSplitY
-              << ", 策略=基座x最近, 同排容差="
-              << g_move_cfg.grasp_zone.front_row_tolerance_m
-              << "m, 同时最小列差=" << g_move_cfg.grasp_zone.min_simultaneous_col_delta
-              << ") ---\n";
-
-    for (size_t i = 0; i < records.size(); ++i)
-    {
-        const auto &t = records[i].target;
-        const std::string name =
-            t.class_name.empty() ? ("cls" + std::to_string(t.class_id)) : t.class_name;
-
-        if (!t.success)
-        {
-            std::cout << "[" << i << "] " << name << " 跳过(FAIL: " << t.message << ")\n";
-            continue;
-        }
-        if (t.class_id != kGraspDetectClassId)
-        {
-            std::cout << "[" << i << "] " << name << " 跳过(非抓取类 class=" << t.class_id << ")\n";
-            continue;
-        }
-
-        const std::array<double, 16> pose_robot = transform_pose_cam_to_robot(cam2robot, t.pose_4x4);
-        const double x = pose_robot[3];
-        const double y = pose_robot[7];
-        const double z = pose_robot[11];
-        const double cx = t.pose_4x4[3];
-        const double cy = t.pose_4x4[7];
-        const double cz = t.pose_4x4[11];
-
-        auto log_drop = [&](const char *reason)
-        {
-            std::cout << "[" << i << "] " << name
-                      << " 过滤(" << reason << " x=" << std::fixed << std::setprecision(4) << x
-                      << " y=" << y << " z=" << z
-                      << " cam=" << cx << "," << cy << "," << cz << ")\n";
-        };
-
-        if (x < valid.x_min || x > valid.x_max)
-        {
-            log_drop("工作包络x");
-            continue;
-        }
-        if (kCamXyOverZ > 1e-9 && cz > 1e-6)
-        {
-            const double ax = std::abs(cx / cz);
-            const double ay = std::abs(cy / cz);
-            if (ax > kCamXyOverZ || ay > kCamXyOverZ)
-            {
-                log_drop("画面张角");
-                continue;
-            }
-        }
-
-        Candidate c{x, y, z, t.confidence, i};
-        const int col = tray_column_index_from_y(y);
-        if (arm_y_allowed_right(y))
-        {
-            if (y < valid.right_y_min || y > valid.right_y_max)
-            {
-                log_drop("工作包络y");
-                continue;
-            }
-            right_zone.push_back(c);
-        }
-        else if (arm_y_allowed_left(y))
-        {
-            if (y < valid.left_y_min || y > valid.left_y_max)
-            {
-                log_drop("工作包络y");
-                continue;
-            }
-            left_zone.push_back(c);
-        }
-        else
-        {
-            log_drop("列分区");
-            continue;
-        }
-
-        std::cout << "[" << i << "] " << name
-                  << " conf=" << std::setprecision(3) << t.confidence
-                  << " x=" << std::setprecision(4) << x
-                  << " y=" << y
-                  << " z=" << z
-                  << " col=" << col
-                  << (arm_y_allowed_right(y) ? " 右区\n" : " 左区\n");
-    }
-
-    auto pick_best = [](const std::vector<Candidate> &zone, int *used_index) -> const Candidate * {
-        const double row_tol = std::max(0.0, g_move_cfg.grasp_zone.front_row_tolerance_m);
-        double front_x = std::numeric_limits<double>::infinity();
-        for (const Candidate &c : zone)
-        {
-            if (used_index != nullptr && *used_index == static_cast<int>(c.index))
-                continue;
-            front_x = std::min(front_x, c.x);
-        }
-
-        const Candidate *best = nullptr;
-        for (const Candidate &c : zone)
-        {
-            if (used_index != nullptr && *used_index == static_cast<int>(c.index))
-                continue;
-            if (c.x > front_x + row_tol)
-                continue;
-            if (best == nullptr || c.confidence > best->confidence ||
-                (std::abs(c.confidence - best->confidence) < 1e-6f && c.x < best->x))
-                best = &c;
-        }
-        return best;
-    };
-
-    int right_index = -1;
-    int left_index = -1;
-
-    if (const Candidate *pick = pick_best(right_zone, nullptr))
-    {
-        set_pos(right_hand_pos, pick->x, pick->y, pick->z);
-        right_index = static_cast<int>(pick->index);
-        if (out_zones)
-        {
-            out_zones->r_from_side = true;
-            out_zones->r_from_middle = false;
-        }
-    }
-
-    if (const Candidate *pick = pick_best(left_zone, nullptr))
-    {
-        set_pos(left_hand_pos, pick->x, pick->y, pick->z);
-        left_index = static_cast<int>(pick->index);
-        if (out_zones)
-        {
-            out_zones->l_from_side = true;
-            out_zones->l_from_middle = false;
-        }
-    }
-
-    std::cout << "右手: ";
-    if (right_hand_pos[0] < 0.0)
-        std::cout << "无效\n";
-    else
-    {
-        std::cout << "x=" << std::setprecision(4) << right_hand_pos[0]
-                  << " y=" << right_hand_pos[1]
-                  << " z=" << right_hand_pos[2]
-                  << " col=" << tray_column_index_from_y(right_hand_pos[1]) << " (右三列)\n";
-    }
-
-    std::cout << "左手: ";
-    if (left_hand_pos[0] < 0.0)
-        std::cout << "无效\n";
-    else
-    {
-        std::cout << "x=" << std::setprecision(4) << left_hand_pos[0]
-                  << " y=" << left_hand_pos[1]
-                  << " z=" << left_hand_pos[2]
-                  << " col=" << tray_column_index_from_y(left_hand_pos[1]) << " (左三列)\n";
-    }
-
-    std::cout << "\n--- 头部分配目标：相机 4x4 / 基座 1x6 ---\n";
-    if (right_index >= 0)
-        print_head_target_cam4x4_robot6("右手目标", records[static_cast<size_t>(right_index)].target, cam2robot);
-    else
-        std::cout << "[右手目标] 无有效分配\n";
-    if (left_index >= 0)
-        print_head_target_cam4x4_robot6("左手目标", records[static_cast<size_t>(left_index)].target, cam2robot);
-    else
-        std::cout << "[左手目标] 无有效分配\n";
-}
 
 bool transform_grasp_detection_to_pose(
     const PoseDetectionRecord &record,
@@ -1686,47 +1422,7 @@ SegPoseBridge &PosePipeline::bridge()
     return *bridge_;
 }
 
-void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id)
-{
-    std::cout << "\n========== " << slot_label << " | 算法 " << algorithm_id << " ==========\n";
-    if (!result.ok)
-    {
-        std::cout << "失败: " << result.message << "\n";
-        return;
-    }
 
-    if (result.targets.empty())
-    {
-        std::cout << "未检测到目标\n";
-        return;
-    }
-
-    for (size_t i = 0; i < result.targets.size(); ++i)
-    {
-        const auto &t = result.targets[i];
-        const double tx = t.pose_4x4[3];
-        const double ty = t.pose_4x4[7];
-        const double tz = t.pose_4x4[11];
-        const std::string status = t.success ? "OK" : ("FAIL(" + t.message + ")");
-        const std::string name = t.class_name.empty() ? ("cls" + std::to_string(t.class_id)) : t.class_name;
-
-        std::cout << "[" << i << "] " << name
-                  << " algo=" << t.algorithm_id
-                  << " conf=" << std::fixed << std::setprecision(3) << t.confidence
-                  << " r=" << std::setprecision(4) << t.radius_m << "m "
-                  << status
-                  << " pos_m=(" << std::setprecision(4) << tx << "," << ty << "," << tz << ")\n";
-
-        std::cout << "pose_4x4 (row-major, m):\n";
-        for (int r = 0; r < 4; ++r)
-        {
-            std::cout << "  ";
-            for (int c = 0; c < 4; ++c)
-                std::cout << std::setw(11) << std::setprecision(6) << t.pose_4x4[static_cast<size_t>(r * 4 + c)] << " ";
-            std::cout << "\n";
-        }
-    }
-}
 
 int algorithm_id_for_slot(CameraSlot slot)
 {
@@ -1787,11 +1483,7 @@ PoseDetectionRecords pose_records_from_run(
     return records;
 }
 
-std::vector<CameraFrameData> grab_head_fused_frames(RealSenseMultiCam &cameras, int fuse_n)
-{
-    vision::RealSenseCameraBackend cam(cameras);
-    return vision::grab_head_fused(cam, fuse_n);
-}
+
 
 HeadTrayPerception perceive_tray_from_frames(
     SegPoseBridge &bridge,
@@ -1879,63 +1571,4 @@ PoseDetectionRecords detect_pose_at_slot(
     }
 
     return records;
-}
-
-void append_pose_records(
-    PoseDetectionRecords &records,
-    const char *slot_name,
-    int frame_algorithm_id,
-    const PoseRunResult &result)
-{
-    if (!result.ok)
-        return;
-
-    for (const PoseTargetResult &t : result.targets)
-    {
-        PoseDetectionRecord rec;
-        rec.slot_name = slot_name ? slot_name : "";
-        rec.frame_algorithm_id = frame_algorithm_id;
-        rec.target = t;
-        records.push_back(std::move(rec));
-    }
-}
-
-void print_pose_records_summary(const char *slot_title, const PoseDetectionRecords &records)
-{
-    std::cout << "\n--- " << slot_title << " (" << records.size() << " 条) ---\n";
-    if (records.empty())
-    {
-        std::cout << "(无)\n";
-        return;
-    }
-
-    for (size_t i = 0; i < records.size(); ++i)
-    {
-        const auto &rec = records[i];
-        const auto &t = rec.target;
-        const double tx = t.pose_4x4[3];
-        const double ty = t.pose_4x4[7];
-        const double tz = t.pose_4x4[11];
-        const std::string name = t.class_name.empty() ? ("cls" + std::to_string(t.class_id)) : t.class_name;
-        const std::string status = t.success ? "OK" : ("FAIL(" + t.message + ")");
-
-        std::cout << "[" << i << "] " << name
-                  << " cls=" << t.class_id
-                  << " algo=" << t.algorithm_id
-                  << " frame_algo=" << rec.frame_algorithm_id
-                  << " conf=" << std::fixed << std::setprecision(3) << t.confidence
-                  << " r=" << std::setprecision(4) << t.radius_m << "m "
-                  << status
-                  << " pos_m=(" << std::setprecision(4) << tx << "," << ty << "," << tz << ")\n";
-
-        std::cout << "  pose_4x4:\n";
-        for (int r = 0; r < 4; ++r)
-        {
-            std::cout << "    ";
-            for (int c = 0; c < 4; ++c)
-                std::cout << std::setw(11) << std::setprecision(6)
-                          << t.pose_4x4[static_cast<size_t>(r * 4 + c)] << " ";
-            std::cout << "\n";
-        }
-    }
 }

@@ -9,7 +9,7 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
 const WEB_API = 6;
-const UI_VERSION = "1.3.0";
+const UI_VERSION = "1.4.0";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -23,6 +23,32 @@ const taskName = { load: "上料", transfer: "转运", unload: "下料" };
 const plan = [];
 let configFile = "motion";
 let logSeq = 0;
+let commandCapabilities = null;
+let capabilitiesCheckedAt = 0;
+function commandPermitted(cmd) {
+  if (!commandCapabilities) return true;
+  return commandCapabilities.commands.some((entry) => entry.name === cmd && entry.allowed);
+}
+async function refreshCapabilities() {
+  if (Date.now() - capabilitiesCheckedAt < 5000) return;
+  capabilitiesCheckedAt = Date.now();
+  try {
+    const data = await api("/api/capabilities");
+    if (!Array.isArray(data.commands)) return;
+    commandCapabilities = data;
+    const production = data.mode === "production";
+    const notice = $("modeNotice");
+    notice.hidden = false;
+    notice.textContent = production
+      ? "生产模式：开放调度运行控制和状态查询。手动动作、单步与标定请使用维护入口。"
+      : "维护模式：不会开机自动进入调度，可执行标定、单步和诊断。";
+    document.querySelectorAll(".cmd").forEach((button) => {
+      button.disabled = !commandPermitted(button.dataset.command);
+      button.title = button.disabled ? "请通过维护入口执行此命令" : "";
+    });
+    if ($("runPlan")) $("runPlan").disabled = production;
+  } catch (_) { /* Older services still return their existing UI status. */ }
+}
 
 function toast(message) {
   const el = $("toast");
@@ -89,6 +115,7 @@ async function refreshStatus() {
     chip.className = `pill ${health.robot_online ? "ok" : "bad"}`;
     $("metricService").textContent = health.robot_online ? "在线" : "离线";
     if (!health.robot_online) return;
+    await refreshCapabilities();
     const data = await api("/api/status");
     const job = await api("/api/job");
     $("statusLead").textContent = data.busy
@@ -131,6 +158,7 @@ function renderPlan() {
 }
 
 async function sendCommand(cmd) {
+  if (!commandPermitted(cmd)) throw new Error("该命令仅在维护模式开放");
   const result = await api("/api/command", { method: "POST", body: { cmd, confirm: cmd } });
   $("motionResult").textContent = JSON.stringify(result, null, 2);
   toast(result.ok ? "已完成" : (result.error || "没有完成"));
@@ -340,7 +368,7 @@ document.querySelectorAll(".cmd").forEach((el) => el.addEventListener("click", a
   el.disabled = true;
   try { await sendCommand(cmd); }
   catch (error) { toast(error.message); }
-  finally { el.disabled = false; }
+  finally { el.disabled = !commandPermitted(cmd); }
 }));
 
 $("stopButton").addEventListener("click", async () => {

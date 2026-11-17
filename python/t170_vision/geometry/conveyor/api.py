@@ -1,7 +1,7 @@
 """Head-camera conveyor ArUco API (DICT_5X5). Independent of the tray board.
 
 Uses the package-relative conveyor detector, independent of the tray detector.
-Legacy board_belt_aruco entry points only forward to this implementation.
+Canonical conveyor API; configuration is resolved through the deployment manifest.
 """
 
 from __future__ import annotations
@@ -14,7 +14,8 @@ from typing import Any
 import cv2
 import numpy as np
 
-HERE = load_paths().root / "board_belt_aruco"
+DEFAULT_CONFIG_PATH = load_paths().config_file("vision/belt.yaml")
+HERE = DEFAULT_CONFIG_PATH.parent
 from . import detector as online
 
 _cfg = None
@@ -23,7 +24,7 @@ _detector = None
 
 def init(config_path: str | Path | None = None) -> str:
     global _cfg, _detector
-    path = Path(config_path) if config_path else HERE / "config.yaml"
+    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
     _cfg = online.load_config(path)
     _detector = online.make_detector(online.get_aruco_dictionary(_cfg.dictionary))
     names = ",".join(b.name for b in _cfg.belts)

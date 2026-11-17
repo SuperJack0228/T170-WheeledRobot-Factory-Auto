@@ -1,0 +1,109 @@
+{
+  "platform": "macOS AppleClang",
+  "tests": [
+    {
+      "test": "common_paths_test",
+      "passed": true
+    },
+    {
+      "test": "visual_servo_test",
+      "passed": true
+    },
+    {
+      "test": "visual_servo_runtime_test",
+      "passed": true
+    },
+    {
+      "test": "retract_trajectory_test",
+      "passed": true
+    },
+    {
+      "test": "retreat_gate_test",
+      "passed": true
+    },
+    {
+      "test": "grasp_execution_test",
+      "passed": true
+    },
+    {
+      "test": "visual_servo_config_test",
+      "passed": true
+    },
+    {
+      "test": "tray_place_latency_test",
+      "passed": true
+    },
+    {
+      "test": "tray_acquisition_test",
+      "passed": true
+    },
+    {
+      "test": "tray_localizer_test",
+      "passed": true
+    },
+    {
+      "test": "python_runtime_paths_test",
+      "passed": true
+    },
+    {
+      "test": "lower_body_self_test",
+      "passed": true
+    },
+    {
+      "test": "public_module_headers_test",
+      "passed": true
+    },
+    {
+      "test": "model_registry_test",
+      "passed": true
+    },
+    {
+      "test": "python_vision_package_test",
+      "passed": true
+    },
+    {
+      "test": "module_boundaries_test",
+      "passed": true
+    },
+    {
+      "test": "joint_motion_test",
+      "passed": true
+    },
+    {
+      "test": "pose_math_test",
+      "passed": true
+    },
+    {
+      "test": "placement_calibration_math_test",
+      "passed": true
+    },
+    {
+      "test": "placement_calibration_web_test",
+      "passed": true
+    },
+    {
+      "test": "placement_calibration_session_test",
+      "passed": true
+    },
+    {
+      "test": "calibration_hole_test",
+      "passed": true
+    },
+    {
+      "test": "dispatch_metrics_test",
+      "passed": true
+    },
+    {
+      "test": "dispatch_report_test",
+      "passed": true
+    },
+    {
+      "test": "deployment_test",
+      "passed": true
+    }
+  ],
+  "passed": 25,
+  "failed": 0,
+  "robot_sdk_link": false,
+  "robot_field_test": false
+}

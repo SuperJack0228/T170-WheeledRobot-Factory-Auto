@@ -10,7 +10,7 @@
  *  目录：debug_picture/head、right、left，原图在 debug_picture/original/<槽位>。
  *  文件名以日期开头：YYYYMMDD_HHMMSS_mmm_<内容>.jpg
  *
- *  兼容旧名 kDebugVisualize：见 move_box_runtime.h。
+ *  兼容旧名 kDebugVisualize：见 t170/skills/legacy/runtime.h。
  */
 
 #include <string>
@@ -28,7 +28,7 @@ bool vision_debug_save_pairs();
 bool vision_debug_gui();
 
 /** 当前级别 0/1/2。 */
-int vision_debug_level();
+
 
 /** 工程根下 debug_picture 目录（无尾斜杠）。 */
 std::string vision_debug_root_dir();
@@ -40,4 +40,3 @@ std::string vision_debug_record_path(const char *slot, const char *stem);
 std::string vision_debug_make_path(const char *slot, const char *stem);
 
 /** 有额外标注开关时返回路径，否则空串。 */
-std::string vision_debug_annotate_path(const char *slot, const char *stem);

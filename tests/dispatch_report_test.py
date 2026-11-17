@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-spec=importlib.util.spec_from_file_location('report',Path(__file__).resolve().parents[1]/'tools/dispatch_report.py')
+spec=importlib.util.spec_from_file_location('report',Path(__file__).resolve().parents[1]/'tools/analysis/dispatch_report.py')
 r=importlib.util.module_from_spec(spec);spec.loader.exec_module(r)
 class ReportTests(unittest.TestCase):
     def event(self,kind,mid='',**kw):return dict(type=kind,run_id='run',mission_id=mid,mission='LOAD',metrics={},**kw)

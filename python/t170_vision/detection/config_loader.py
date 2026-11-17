@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from .paths import PROJECT_ROOT, resolve_model_path
+from t170_common.paths import load_paths
 
 from .types import ALGO_IDS, ALGO_PNP
 
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "pose_params.yaml"
+DEFAULT_CONFIG_PATH = load_paths().config_file("vision/pose_params.yaml")
 DEFAULT_ALGORITHM_ID = ALGO_PNP
 
 
@@ -199,14 +200,14 @@ def load_pose_params(config_path: str | Path | None = None) -> PoseParams:
     pnp_global = _parse_pnp(root.get("algorithm_pnp"))
     centroid_global = _parse_centroid(root.get("algorithm_centroid"))
 
-    model_raw = seg_node.get("model", "models/best1015.pt")
+    model_raw = seg_node.get("model", "assets/models/best1015.pt")
     model_path = resolve_model_path(model_raw)
-    hand_raw = seg_node.get("hand_model", "models/best1103.pt")
+    hand_raw = seg_node.get("hand_model", "assets/models/best1103.pt")
     hand_model_path = resolve_model_path(hand_raw)
     if not hand_model_path.is_file():
         raise FileNotFoundError(
             f"手相机 YOLO 不存在: {hand_model_path}\n"
-            f"请检查 segmentation.hand_model 或放置到 models/best1103.pt"
+            f"请检查 segmentation.hand_model 或放置到 assets/models/best1103.pt"
         )
 
     class_ids = seg_node.get("class_ids")

@@ -19,7 +19,7 @@ dist/
 .venv/
 venv/
 env/
-# 本地编译产物放在 build/ 与 build_robot/；lib/ 中的机器人预编译库需要保留
+# 本地编译产物放在 build/ 与 build_robot/；dependencies/ 中的交付库需要保留
 build_robot/
 build_servo_tests/
 build/**/*.a
@@ -62,15 +62,16 @@ picture_debug/
 belt_picture/
 hand_descent_raw/
 左右手夹取/
-*.jpg
-*.jpeg
-*.png
-*.bmp
+/logs/
+/debug_picture/
+/reports/
+/tmp_calib_session_swap/
+/runtime/
 
 # --- YOLO / vision weights ---
 # best.pt 约 125MB，超过 GitHub 100MB 单文件上限，不能入库。
 # 在用的 best1015.pt、best1027.pt 不忽略。
-feeding_cylindrical_parts_alg/models/best.pt
+assets/models/best.pt
 
 # --- archives / accidental dumps ---
 *.zip
@@ -101,3 +102,6 @@ log/
 # --- OS ---
 Thumbs.db
 Desktop.ini
+
+# Calibration tool history is local; canonical left/right YAML stays tracked.
+config/calibration/**/*_before_*.yaml

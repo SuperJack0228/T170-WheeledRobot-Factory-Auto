@@ -1,0 +1,698 @@
+{
+  "old_functions": 137,
+  "unchanged_bodies": 133,
+  "instrumented_functions": [
+    "detect_and_assign_head",
+    "run_head_approach_selective",
+    "run_hand_detect_and_validate",
+    "run_hand_approach_and_grasp"
+  ],
+  "comparison": "C++ tokens including literals, ignoring comments and whitespace",
+  "destination_map": [
+    {
+      "symbol": "count_zone_from_tray",
+      "sha256": "0e86929854f2d5188d33bb2889f88512bdaa46f4b23cb5ee85afdce912cd92a7",
+      "path": "src/skills/tray/perception.cpp"
+    },
+    {
+      "symbol": "count_tray_zone_holes",
+      "sha256": "0f11467f6dc81f03563a2a73cd405bcfd77b58530b56b12264e0a183876a6af1",
+      "path": "src/skills/tray/perception.cpp"
+    },
+    {
+      "symbol": "assign_from_tray_holes",
+      "sha256": "99ab7e255f91f15e03ba812075aad34d07304018f1808154ed2a888b5ef17456",
+      "path": "src/skills/tray/perception.cpp"
+    },
+    {
+      "symbol": "fill_head_assign_from_frame",
+      "sha256": "a81c85d9fcf56bf8c7dd026f94049787d539c38b9c9f95aeea370dd174f835ad",
+      "path": "src/skills/tray/perception.cpp"
+    },
+    {
+      "symbol": "detect_and_assign_head",
+      "sha256": "0d83258c3d60bb012d907b19fab73bad6f18a108e87267fb31c70eb97d56236d",
+      "path": "src/skills/tray/perception.cpp"
+    },
+    {
+      "symbol": "detect_and_assign_head_keep_grasped",
+      "sha256": "f27b4b1c241aa579e146122c12dba2f5e2fc2881c4a40870f0f2d945a49b2921",
+      "path": "src/skills/tray/perception.cpp"
+    },
+    {
+      "symbol": "run_hand_approach_and_grasp",
+      "sha256": "46f4ac95f98268f8ffbf9e918d4562038c2e10bd683a68365e4b926502c98861",
+      "path": "src/skills/tray/descent.cpp"
+    },
+    {
+      "symbol": "waist_x_arm_goal_comp",
+      "sha256": "e4913464e4beafd0db98497ec3229c4ceb8cb5a856a23eba59e6798c08ff4f4b",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_stagger_forward",
+      "sha256": "004bb2a6f10cb1987da9bc5a47777899cc12ace5d7839a03b1942af2dd47c5e8",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_ensure_far_row_forward",
+      "sha256": "8fb35c4a9be110b4aa010bf70390b5dd6a4a3c6dd7c4c90ed9e5ea72e9ff4c97",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "apply_grasp_stagger_waist_comp",
+      "sha256": "460be985a05c2b03fb6748b413214ff88d745554724a816745adec8756852bf4",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_step_forward",
+      "sha256": "346b87cc4e243329ba45517a28c2984b4235842c5ec5e5f27de34ce2e9487449",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "restore_waist_layer3_x",
+      "sha256": "1fc4f5756208fcc0894b0faffb6a9272c5574198e54253596595e436e565206c",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "ensure_waist_layer3_x_home",
+      "sha256": "8586b5a2a94c78c9aa617edb51899dac7afc0b026f83036f2f07c5abce5f02c2",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "ensure_waist_ready_start",
+      "sha256": "788cc40982b19af80e4a31b7ff522e42ecb7d685fd9e5c8e8ae5152ea0dece0a",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "stagger_target_side_graspable",
+      "sha256": "4027c5b5fc939c9a4f86878e8edf20d58e1a2f0977ac53e895f45ad6585107d2",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "stagger_target_side_x_strict_ok",
+      "sha256": "ed37cc7de30ffc0e36e0addfad559cff844af2abe03f951c534ff3f4978e4d84",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "stagger_waist_budget_exhausted",
+      "sha256": "6f23c2dbd741a6589f3cb2be49a9cefee8c442135e3ac8ed6585c64747b109bf",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "advance_waist_stagger_side",
+      "sha256": "650006149e733b172502939dc063c3704a71eb95b43fa388c57050b49c24a410",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "advance_waist_stagger_dual_hands",
+      "sha256": "bd2001b034ab8ed7d78c9eac4deda9313a933f61196551516abd1b2e522c2e4c",
+      "path": "src/skills/tray/reach_coordination.cpp"
+    },
+    {
+      "symbol": "tray2_visited_key",
+      "sha256": "974b12fff67b8ab192a8bf41f6102bb1d5c93c8860ad5851b0228f22b69e0e3b",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "set_tray_hole_task",
+      "sha256": "b1e5a43c90834ec6329180e502a241a7e0e28fd241c9cedef1d3d4a1a0b96f75",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "set_tray2_precision_test",
+      "sha256": "98d5a79d8932c7518e2f684a8b860fb86fb10baffb9af0bf8d10656ae3e26a3d",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray2_precision_test",
+      "sha256": "ec944d0f612c505871fd4f74213e2918d687712f060f21bc920409c4275fe6f9",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray2_precision_clear_visited",
+      "sha256": "eb532df8aed56e1b969e994d4af6372f076235c8c73f1e9976640a49ec5d27f1",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray2_precision_mark_visited",
+      "sha256": "8dbc9cd0d417dfe1c461fb1d353c092be54df5c37c9b3edf0747d6f3f2986668",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray2_precision_visited",
+      "sha256": "b1ca2888b9744a9907f4b34e09c304a32ff5571d8bc4c3bb9e91020e744fb985",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray_hole_task",
+      "sha256": "def7589f876db8aca53f827a9b2b977823c4e385e168ff1692da52fbee316a98",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray1_far_band_active",
+      "sha256": "47357ffae71bc23b51c6d3aa1e9ecdef84f82a6516f05484f17e0436b0fe5540",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray1_far_band_set",
+      "sha256": "a09c7ed129a43eea805de5f97ddb8b7758791ac2c3226fd88fe65915363d6462",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray1_far_band_clear",
+      "sha256": "1289643fe0ef2f591e081b121abb25630dbfcd8f0af0cc6f84d46982da04787f",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray_assign_class_id",
+      "sha256": "e3e10d101f311465310ebe320748f1ef59d8a9195ef06568992a8a1ef17b52f7",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "placement_calibration_frame",
+      "sha256": "a639464fed824c50e9a59b86e39b57c990a7cbb588a9237b2d7ea442348c783d",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray2_place_active",
+      "sha256": "27930346d9c3e1b711a9dbd9ff35cba5bc49baefe90c3114e179d0a98ce3761c",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "active_tray_calibration",
+      "sha256": "040a756e9ebb7bf69e4a57ed4b4bb716f11218576f8e5626e5578fe16ed75276",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "active_goal_x_offset",
+      "sha256": "c9e8a55db6e3c9d007718eb2752494997fbe293cc40b6dc0d982ecc8ba2e9909",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "active_goal_y_offset",
+      "sha256": "7813cce69dfa0743c9bb169c90ff2b356191018da4c6f7c1b8d35fa79a5615a7",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "active_row_offset",
+      "sha256": "f06b0ec8e78f4d7ce671c3436ca44fb181311762b56944b17a8e4750cc820b02",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "active_nearest_row_z",
+      "sha256": "c9880a539648488be29ae46a51bb29e69c7ff62945d67857d6cd0ee2e8830559",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "active_goal_z_offset",
+      "sha256": "b8243c8ebab7de0e9ab8e5b910a59b5a3bb8095ab5c27353d8e8707c644386c4",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "goal_z_in_range",
+      "sha256": "525cab246aa7184f4189d361e9aea342cfb8a900ab5e7096f018165613fa065f",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "goal_pos_valid_right",
+      "sha256": "fb6653ec3e79c9da6754088e9f2989113eb1196ccac8981c5944071a1a1f3075",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "goal_pos_valid_left",
+      "sha256": "ea515f2607befcc59fb7e896dc339161a79414e2624f555e739f23bb0c91b693",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "grasp_goal_side_blocked",
+      "sha256": "1e2e0217e673068473314d7e8210f584032d0b97bd6a5f793a92bbd3fa406d77",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "drop_if_y_split_blocks",
+      "sha256": "fab1d4083e768c92ec1f9da017ce80e9e6cc37102c7704bdb42acf6b5c3d22d0",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "drop_if_y_split_blocks",
+      "sha256": "6825e1de6cfb9a76c38758281642370a20d9b52aeb112c57f61aea93c2d51a56",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "head_hand_detected",
+      "sha256": "ba186761b5c0fcb50fc5b75f3290fde9806d205feb56e70bddb0c51babf2e573",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "head_x_needs_stagger",
+      "sha256": "c9b65a55920b1d4429cb1a535b2454d6b5cedb7dc98ad73f2b5cb6033479a717",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "stagger_waist_steps_for_excess",
+      "sha256": "666f956dfe5e130e1a02e49a5343256c05d231a148c0d16a39f6203997092114",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tray_z_ref_now",
+      "sha256": "2a9ebae16fc76662bde1281e22af62bdd47faa1772be629e03cbb3e83d47cf4e",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "expected_object_top_z",
+      "sha256": "d5ce25bd174a3e1dc8ddb42d295460dcc3240bfba43b9eea331f67560a0d087d",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "refined_object_top_z",
+      "sha256": "ccf2b1189b1ee0821296b60f86827dbee442d2dfeb3a596a57a6113dcb96c046",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "hover_z_from_object",
+      "sha256": "0fa2f844b2b4b26739d7e6da5adece12569dde34840353a2cbeb14df9cba0207",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "fill_goal_last_from_head_assign",
+      "sha256": "7ca70514ae8ccd6544ed682902b5c626ff5c1a1c9f44d88562d53ef45b759d63",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "apply_adaptive_grasp_rpy_one",
+      "sha256": "6c1a597051ae168fbe5d41e6e22eef0eade48013134678d1e6be73cbe7d2bdbe",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "apply_adaptive_grasp_rpy_selective",
+      "sha256": "418084323a835241b02effa99b07d8f8cc7a92697bdce7ab3baa5848f377678b",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "head_move_allowed_right",
+      "sha256": "b84cc3859976d329c6f8a9960a5417e7806ee9c081c4587f82a640d6fd0880e0",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "head_move_allowed_left",
+      "sha256": "1ef785215ce5f23cb2c1a2f2c44226cb03962db7396ea1ef965200520a411cac",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "apply_hand_hover_z_if_valid",
+      "sha256": "d2b0e717db08900e52ecba2746335afb24f103c39e73f9866a02696d4a6fc601",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "record_hand_object_z",
+      "sha256": "fed32d9bbc16c74598b3d4bf959813861e0780ce138ce964e1d9f685b6f756ab",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "log_hand_grasp_heights",
+      "sha256": "d58f09231cd696ed46c0fefc05186c83d7614b283c5392c824b342705ad7b9a7",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "apply_final_grasp_z_from_hand",
+      "sha256": "1e6ba7b641b2e9c39df657231e55b2618a7b5109451190e1e507c79b5d2b1602",
+      "path": "src/skills/tray/target_policy.cpp"
+    },
+    {
+      "symbol": "tcp_matches_goal_pose",
+      "sha256": "e0fbe2f64f0117544d043531c7751445ce8639ee648d379f65af0eca354d6d0f",
+      "path": "src/skills/tray/approach.cpp"
+    },
+    {
+      "symbol": "run_head_approach_selective",
+      "sha256": "6337e7f4e57aacabc7fa745d909ec643d37824fad18ffd11c5810637b38fbc20",
+      "path": "src/skills/tray/approach.cpp"
+    },
+    {
+      "symbol": "on_hand_steady_timeout_abort",
+      "sha256": "d87551ca0780e81e417def9f409f2a12fe531698a84508e5c833b3aa4a001026",
+      "path": "src/skills/tray/approach.cpp"
+    },
+    {
+      "symbol": "log_arm_skip_right",
+      "sha256": "0c23c86de7c5551a95b00698f90a851865302afcb85c744b6c025bdae35a34dd",
+      "path": "src/skills/tray/selection.cpp"
+    },
+    {
+      "symbol": "log_arm_skip_left",
+      "sha256": "6495c091595ab892c56826a8a241b43550d7aaf6bdf1a77e97d41887405bb17a",
+      "path": "src/skills/tray/selection.cpp"
+    },
+    {
+      "symbol": "dual_grasp_targets_too_close",
+      "sha256": "961596dc1041cdb647c3a2a35575daa958768543177ebb3f2340e0f2c95781cc",
+      "path": "src/skills/tray/selection.cpp"
+    },
+    {
+      "symbol": "grasp_snapshot_from_state",
+      "sha256": "16b70c4a9be9c3a72d7f4d8aca12b485fe9a520352f68f24ae696abdb8b2f63a",
+      "path": "src/skills/tray/selection.cpp"
+    },
+    {
+      "symbol": "apply_head_assign_keep_grasped",
+      "sha256": "7424967741bfa1d9725d9a8722866219941012c6fa6eeea2e59b2317f35a90ad",
+      "path": "src/skills/tray/selection.cpp"
+    },
+    {
+      "symbol": "head_grasp_simultaneous",
+      "sha256": "fc6ca0ef171e0fc4809823b09822d880f42133e16c693043b5db71f8d029ccf3",
+      "path": "src/skills/tray/selection.cpp"
+    },
+    {
+      "symbol": "refresh_head_move_flags",
+      "sha256": "6e0055d7eb96a5229f6ba12183c163479f75d5f59cc2751ecda5e2cb8339f19b",
+      "path": "src/skills/tray/selection.cpp"
+    },
+    {
+      "symbol": "clamp_signed_abs",
+      "sha256": "c71f98f793a2d990486055b6b67f22972d2c6d7d3136129e05ed9806721fbdda",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "apply_hand_xy_refine_keep_hole",
+      "sha256": "286cb2818687ac9e9c31686bdda231890e1a4898eaf46e214446a71862a4b5f2",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "apply_hand_base_to_goal",
+      "sha256": "bee49b5f425ef65abedc9cca46bfffeb38020f885d20ab12762d2b3170754d92",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "update_hand_goal_xy_from_base",
+      "sha256": "0f1fa10acd2af230ae61e805c61d93349e143fa186a8bc21be1fa897fee7d6d5",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "select_hand_target_matching_head",
+      "sha256": "3490a0f3cb615c511746ecd845e6ceb9bf24c5fa8b52e21d64694b5f93f0292f",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "hand_move_allowed_right",
+      "sha256": "fdf67e0a42a67cfd29b29b548b25a7845ea947910e0613fd674750d4b0b7c728",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "hand_move_allowed_left",
+      "sha256": "f4fca2a57ae8bfc9c9137e0a4775f9ca330f0847e613bd5f9de0f427888ca338",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "log_arm_traj_plan_fail",
+      "sha256": "633a2ed03464453b04af96d638b9c09e1a5df020b74652790323cc01e8103962",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "run_hand_detect_and_validate",
+      "sha256": "42e4b2985bbd1f7ff4399ea9d509d87125f8092bc69dbc27ae602586c70c88b7",
+      "path": "src/skills/tray/hand_refinement.cpp"
+    },
+    {
+      "symbol": "make_standby_pos_right",
+      "sha256": "17ae3ceb0f06179af7f12ddfd9cc71cfe88bb67f8e8e3663051339fb68539645",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "make_standby_pos_left",
+      "sha256": "f0173ac2cfca403fa08924b05f081ac9adaad639c7e56d9aadf9eeed1976db05",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "make_home_tcp_right",
+      "sha256": "7e761386c5253c883b544b86b6c5685804b9bc6a955b334ce6be63ee49770c96",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "make_home_tcp_left",
+      "sha256": "2c5a8db771b1c8dbdf5edcdd7dd697b17c52d4dff5c0faf6db0c640124482dec",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "joints_to_matrix7",
+      "sha256": "b852cfff7704f11908769add5506eba1011039a799ec2a718088c6ef0e8b318c",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "try_standby_ik",
+      "sha256": "f4a00a7014aa7d749911569fd400e98c5e86e3994529e385be477f602b7a917a",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "solve_home_joints",
+      "sha256": "0c517f333fbdab76e5bfd3ca738c616546411f6b8426cda66334454c45fe9555",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "arm_pose_needs_joint_home",
+      "sha256": "e102070dbe8c87299f4f932ae9613f9c5125d69c4e57d73ce1e11064a97bc023",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "retract_joint_to_standby",
+      "sha256": "7e06638cb1e6d1b35e183dcdf1389daf35a98a95431265e54a8fefafc802dcdc",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "log_retract_arm_state",
+      "sha256": "55318d8b1112eeafd5cdcfbacd8fd62947123f5d4881164f2d9a26680b0b2887",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "copy_current_rpy",
+      "sha256": "4b32320e12d729cdc9d60a777953cb99931b5f8cc257b2f39ebc6dffe3a07535",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "retract_xyz_close",
+      "sha256": "19f4a0cca79f25c4c76f49ca8e365b93a1ad7155ed0f68fd6325d7a72335984e",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "retract_rpy_close",
+      "sha256": "f45b888403b83089bc3d7278632abd931478a214f87d4a3182c0b2d4f5600fc6",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "clamp_retract_goal_y",
+      "sha256": "46786ec57762f091fe29b6193dab8eb21d25f58fa8fc2300d68d0e91c8132e7c",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "log_retract_ik_preview",
+      "sha256": "ca7e2a8b5d52dfe21a1dd9001c76a11bc73eb14bb12a5b16936910e9aad52b5e",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "retract_phase_move",
+      "sha256": "da5e03ed98dd4d5a136234ccc1f92b31f29af13f89a6f4d04025f4615c6051ac",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_retract_to",
+      "sha256": "dfd33f9dec6e8cd3667a34cc1d8459e6506376e92888c334d9a88d3397648bba",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_to_standby",
+      "sha256": "f4d321f3abe8cf3370cffdb09f919a51735f3fc9975f5901b9b91e7260408659",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_to_home",
+      "sha256": "ba99ba6fa0f8587ccffd35b51fe089e4526dd385c0d6cc3c5dfe87bd05834875",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_to_belt_ready",
+      "sha256": "fc60aaf766cb6eedea5ef9ca0c9613fcfb59d767592a56cbd91fe37c815a5958",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_to_belt_ready",
+      "sha256": "6b2dc35e5b6be998a2cc562fc86e87b885c227f56724d901609f8315d4955f44",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_to_belt_grasp_rpy",
+      "sha256": "e090a585fd69659f8f69f7ba894238d6c4dd8bc4da853c062f9c7b9864c7ad4c",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_to_belt_place",
+      "sha256": "74b4db43e2ebc58cca56985b67f58c83d427ffbab2ba269dc886aa8f3dd8ed95",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_to_belt_place",
+      "sha256": "14adb4e7a09109c26b2efa17d64c3869e950bab768cdc548364be55c6c5caf11",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_one_arm_line_to",
+      "sha256": "a25114e6afca66f1ac2d28d56bb614cb1529da87927c16b5aea80e729cadbc23",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_tcp_to_standby",
+      "sha256": "545bc42627d482092e2c9473a2ca2f34bbfb130f46cb1321d9776c67237b2454",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "move_arms_tcp_to_home",
+      "sha256": "94571ce19e4e79becace0cc52584dccba82cb700023e151f2a689fdeb40dd558",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "rotate_arms_in_place_to_standby_rpy",
+      "sha256": "9490a76a4d5c2cb8d6553b7506afb568e6c5443cbac6cdf233040a637b09191d",
+      "path": "src/skills/common/preparation.cpp"
+    },
+    {
+      "symbol": "clamp_waist_layer3_xyz",
+      "sha256": "2939aa4660126d907dcf9c4f24de24741b2af60b141d825df18b3865e51de7ad",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_is_synced",
+      "sha256": "9f6e757eee9cd68ebcd3725b57cb5a7a17edf5188f14d29c827a4e6d32674f5d",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_set_synced",
+      "sha256": "80736c9ff732b61dddaac7815756a46a3cc5081596a82b35cafc2617cbcf2390",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "sync_waist_layer3_from_encoders",
+      "sha256": "fdbb54a987344be32e81543406a2c24493c9d73a12daed90db4d761b49fbbd0c",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "read_arrived_pose",
+      "sha256": "8fc505e1bb30608044b2c66bb6f50cc34a3b998b2f7b83f301e2310fda7be160",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_move_z_only",
+      "sha256": "7d3b3cdffa4322310cf9fb7e35e38c1ca6a82d352b0e2b4bf110f9c249679787",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_move_x_only",
+      "sha256": "61ba93c3b642cb741c29935cce5071e9dc71dd63c53a723070a37ee72e78df8a",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "waist_layer3_lower_z",
+      "sha256": "a8a0ae293db599ddf2a070367f9ccfcd514529c9e29b701ae36097befb7d01c3",
+      "path": "src/skills/common/waist_coordination.cpp"
+    },
+    {
+      "symbol": "gripper_grasp_empty",
+      "sha256": "021b6bbbbd12e41a4506fe0993138582c00e10999cb5a9141f42784692519150",
+      "path": "src/skills/common/gripper_feedback.cpp"
+    },
+    {
+      "symbol": "wrap_pi",
+      "sha256": "3d342c89a7bd2df6d3c8421654cc76b1bd2be7d29a875644a11bcfd58d674db5",
+      "path": "src/skills/common/waist_frame.cpp"
+    },
+    {
+      "symbol": "rot_x",
+      "sha256": "7f60b74638e882bca91a5b17856bbcd8445fda5cabe6e43dd07b039cb409f441",
+      "path": "src/skills/common/waist_frame.cpp"
+    },
+    {
+      "symbol": "rot_y",
+      "sha256": "5785e199a74640186466f565fee4790f371b2ae854f533e7256c9bc4e625ced6",
+      "path": "src/skills/common/waist_frame.cpp"
+    },
+    {
+      "symbol": "rot_z",
+      "sha256": "8066303d7c9b879bfa1bdfbb458d3b547c7e6b04bbf1686e5ad754a105700f0e",
+      "path": "src/skills/common/waist_frame.cpp"
+    },
+    {
+      "symbol": "remember_waist_attitude",
+      "sha256": "7b2a6e24897c08535e0f63d2bc0de1f81bc4baa9bc78d932ceffe5d25dad03fd",
+      "path": "src/skills/common/waist_frame.cpp"
+    },
+    {
+      "symbol": "arm_goal_in_real_waist_frame",
+      "sha256": "5f970f284aa028bb96be501334be22f1adf3d079bd215f704eaffdf72b01cfa3",
+      "path": "src/skills/common/waist_frame.cpp"
+    },
+    {
+      "symbol": "lift_grasped_selective",
+      "sha256": "4b3d167fbe7ba17a7f8ff4c5e0a4855e081378f882685b8484cbee9ad35d3ff1",
+      "path": "src/skills/common/lift.cpp"
+    },
+    {
+      "symbol": "lift_grasped_after_pick",
+      "sha256": "b17a1d3a3c1da353fa69c56a964758013a8582b545cd5bdd28177c1a2ccef878",
+      "path": "src/skills/common/lift.cpp"
+    },
+    {
+      "symbol": "apply_belt_place_offset",
+      "sha256": "f978ee2f9759bb30d428152f3cd3f22b8c2546179525b3e3fdb1217f1136edab",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_goal_right",
+      "sha256": "f69f0bbe7f40c22b50db2a587adde9e96915057f177bcd51306a860d1064f2e9",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_goal_left",
+      "sha256": "d866a569213cae3b47e7380c15d4cbe04e4166663be21f1f36dc44ed2b2ad4db",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_goal_right",
+      "sha256": "5884ad8850604a0217174cc29ea3def666e10c514413b944f826f053f07b34c8",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_goal_left",
+      "sha256": "6feed1d1c752e0557ef7bd16f4ced6a2ba7fcaaecd1dd577f07a6fb84b81ca44",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_goal_right",
+      "sha256": "fba281affa6a5cc87866754fcf58d8558135cae228aba444e77ed418c577dea1",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_goal_left",
+      "sha256": "858b7010d749ba5b2201380789e212654741f230b976addb8f2866204c9df8e5",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_grasp_goal",
+      "sha256": "9eaeb9bf32920c6f17732d0bf6ab4a9e261d2b8041780f1a954a0cc72bec2111",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "make_belt_grasp_goal",
+      "sha256": "cc7e7a50d5788cda580ce5104bcb85abf1e6098b5bfa5ccfababf849e9818f69",
+      "path": "src/skills/conveyor/targets.cpp"
+    },
+    {
+      "symbol": "run_hand_hover_track",
+      "sha256": "179446048ba100c1c5031e3e9ad8b225b6a42d391fa2a7f63b1463fcd80238a7",
+      "path": "src/app/tray_diagnostics.cpp"
+    },
+    {
+      "symbol": "run_tray_servo_jitter_test",
+      "sha256": "21f3c4c3f1da15c02c10e4b32668f480eb1e88b4f6affb29fe8ef8516bd7f1d8",
+      "path": "src/app/tray_diagnostics.cpp"
+    }
+  ]
+}

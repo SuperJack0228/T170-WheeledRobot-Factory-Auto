@@ -1,6 +1,0 @@
-cmake_minimum_required(VERSION 3.16)
-project(LowerBodyCompatibility LANGUAGES CXX)
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  option(LOWER_BODY_BUILD_EXAMPLES "Build library diagnostics" ON)
-endif()
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../libs/lower_body" "${CMAKE_CURRENT_BINARY_DIR}/lower_body")

@@ -1,8 +1,14 @@
 // Integration regression with an explicitly synthetic plant and SDK adapters.
 // Exercises the production runtime/queues/history/PD/limits together; not T170 kinematics.
-#include "servo/runtime.h"
-#include "function.h"
-#include "move_box_config.h"
+#include "t170/motion/servo.h"
+#include "Ti5_Arm.h"
+#include "t170/common/units.h"
+#include "t170/motion/cartesian_tracking.h"
+#include "t170/motion/kinematics_adapter.h"
+#include "t170/common/pose_math.h"
+#include "t170/motion/retreat.h"
+#include "t170/motion/servo_handoff.h"
+#include "t170/skills/legacy/profiles.h"
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -13,6 +19,12 @@
 #include <thread>
 #include <condition_variable>
 #include <vector>
+
+using Eigen::Matrix;
+using Eigen::MatrixXd;
+using std::vector;
+using std::string;
+using std::thread;
 
 MoveBoxConfig g_move_cfg;
 namespace {
