@@ -28,7 +28,6 @@ namespace t170::app::detail {
 struct State {
 std::atomic<bool> abort{false};
 std::mutex hw_mu;
-std::mutex config_mu;
 t170::calibration::PlacementSession placement_calibration;
 orch::HwSession session;
 std::unique_ptr<gripper::Gripper> grip;

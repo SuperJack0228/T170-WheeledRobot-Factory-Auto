@@ -1,4 +1,5 @@
 #include "internal/state.h"
+#include "t170/config/access.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/debug.h"
 #include <cmath>
@@ -17,6 +18,7 @@ bool init_hardware(std::string &err)
               << " config=" << t170::paths::config_directory()
               << " logs=" << t170::paths::log_directory() << std::endl;
     print_move_box_config(g_move_cfg);
+    t170::config::capture_startup_resources(t170::paths::config_directory().string());
     // Pure algorithm construction/readback before enabling grippers or motion.
     const std::string arm_yaml=t170::paths::config_file("Robot_Model.yaml").string();
     const auto arm_model=YAML::LoadFile(t170::paths::config_file("arm_model_metadata.yaml").string())["model_id"].as<std::string>();

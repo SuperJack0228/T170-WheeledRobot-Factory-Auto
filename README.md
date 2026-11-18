@@ -8,6 +8,7 @@
     <img src="https://img.shields.io/badge/Platform-Linux%20ARM64-333333?style=flat-square" alt="Linux ARM64">
   </p>
   <p>
+    <a href="docs/REPOSITORY_MAP.md">目录地图</a> ·
     <a href="docs/architecture/REPOSITORY_GUIDE.md">系统架构</a> ·
     <a href="docs/deployment/CONFIGURATION.md">部署配置</a> ·
     <a href="docs/calibration/PLACEMENT_WIZARD.md">标定流程</a> ·
@@ -141,8 +142,10 @@ ctest --test-dir build_tests --output-on-failure
 
 | 文档 | 内容 |
 | --- | --- |
+| [目录地图](docs/REPOSITORY_MAP.md) | 快速定位模块、参数和常见问题入口 |
 | [系统架构](docs/architecture/REPOSITORY_GUIDE.md) | 模块职责、调用关系与目录说明 |
 | [配置与部署](docs/deployment/CONFIGURATION.md) | 配置来源、运行目录与启动方式 |
+| [新机器人快速部署](docs/deployment/NEW_ROBOT_DEPLOYMENT_GUIDE.md) | 同环境下切换 3/5 kg、编号和标定，启动服务/Web、修改抓放高度 |
 | [双臂机型配置](docs/deployment/ARM_MODELS.md) | 3/5 kg URDF、模型角、工具和设备绑定 |
 | [SDK 接入](docs/deployment/ARM_SDK_MIGRATION.md) | 新库替换、坐标转换与现场验证顺序 |
 | [视觉伺服](docs/WRIST_VISUAL_SERVO_ALGORITHM.md) | 图像映射、控制、目标定位与动作交接 |

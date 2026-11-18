@@ -59,9 +59,13 @@ def resolve(root, manifest, output):
         if not p.is_file():raise ValueError('Mapped resource must be a file: '+name)
         inputs[name]=sha(p)
     calibration=source(doc['calibration_directory'])
+    missing_task_calibrations=[]
     for task in ['grasp','placement']:
         for hand in ['left','right']:
             p=calibration/task/(hand+'.yaml')
+            if not p.exists():
+                missing_task_calibrations.append(task+'/'+hand+'.yaml')
+                continue # New robot maintenance/bootstrap: never copy another robot's results.
             text=p.read_text()
             data=json.loads(text) if text.lstrip().startswith('{') else yaml.safe_load(text)
             if data.get('robot_id')!=doc['robot_id']:raise ValueError('Calibration belongs to another robot')
@@ -126,7 +130,7 @@ def resolve(root, manifest, output):
             alias.parent.mkdir(parents=True, exist_ok=True)
             alias.symlink_to(os.path.relpath(target, alias.parent), target_is_directory=target.is_dir())
         (temp/"web_compat_paths.json").write_text(json.dumps(web_aliases,indent=2)+"\n")
-        record={'schema_version':1,'manifest':str(manifest),'robot_id':doc['robot_id'],'robot_model':doc['robot_model'],'site_id':doc['site_id'],'task_assignment':'dispatch','parameter_sources':provenance,'input_sha256':inputs,'resource_root':str(root),'runtime_root':str(output),'mode':'source-tree-overlay'}
+        record={'schema_version':1,'manifest':str(manifest),'robot_id':doc['robot_id'],'robot_model':doc['robot_model'],'site_id':doc['site_id'],'task_assignment':'dispatch','parameter_sources':provenance,'input_sha256':inputs,'resource_root':str(root),'runtime_root':str(output),'mode':'source-tree-overlay','missing_task_calibrations':missing_task_calibrations}
         if selected_arm_model is not None:record['selected_arm_model']=selected_arm_model
         (temp/'deployment_resolved.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
         temp.rename(output)

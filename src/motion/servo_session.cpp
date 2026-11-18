@@ -99,6 +99,8 @@ bool begin_session(Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,cons
         slot.context.active=true; slot.context.session=next_session.fetch_add(1);
         slot.context.desired_rotation=TR(goal).block<3,3>(0,0);
         slot.context.final_z=goal(2); slot.context.target_class=cls; slot.context.profile=profile;
+        slot.context.algorithm_id=hand==1 ? g_move_cfg.vision_detect.right_hand_grasp :
+                                           g_move_cfg.vision_detect.left_hand_grasp;
         slot.context.task_tag=tag?tag:"descent";
         if(cls==0 && tag && std::strncmp(tag,"belt",4)==0)
             cfg.min_confidence=cfg.belt_min_confidence;

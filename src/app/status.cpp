@@ -63,7 +63,8 @@ Json::Value dispatch_status_json()
         const auto fl = g_grip->feedback(gripper::Side::Left);
         out["gripper_q_right"] = fr.position_rad;
         out["gripper_q_left"] = fl.position_rad;
-        out["gripper_hold_thresh"] = g_move_cfg.gripper_check.empty_q_rad;
+        { std::lock_guard<std::mutex> lock(g_config_mu);
+          out["gripper_hold_thresh"] = g_move_cfg.gripper_check.empty_q_rad; }
     }
 
     Json::Value t1;

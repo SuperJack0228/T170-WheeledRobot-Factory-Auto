@@ -305,7 +305,7 @@ void observe(int hand) {
 
         return; // no YOLO call and no closest-box fallback for tray placement
     }
-    try { result=bridge->run_yolo(frame,algorithm_id_for_slot(camera),false,camera,-1,SegEngineId::Hand); }
+    try { result=bridge->run_yolo(frame,context.algorithm_id,false,camera,-1,SegEngineId::Hand); }
     catch(const std::exception &ex) { result.ok=false; result.message=ex.what(); }
     obs.completed_s=wrist_servo::monotonic_seconds();
     obs.infer_ms=(obs.completed_s-infer_start)*1000;

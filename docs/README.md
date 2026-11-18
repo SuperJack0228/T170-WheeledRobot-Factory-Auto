@@ -2,8 +2,14 @@
 
 当前代码与配置是事实来源，历史文档仅用于现场溯源。
 
+- **[同环境新机快速部署与调参](deployment/NEW_ROBOT_DEPLOYMENT_GUIDE.md)**：复用 No.124 环境和主要参数，只改机型/编号、导入标定、启动服务与网页，以及抓放高度偏置。
+- [仓库目录地图](REPOSITORY_MAP.md)：新工程师快速浏览目录、调用主线和参数入口。
 - [仓库和模块指南](architecture/REPOSITORY_GUIDE.md)：目录、调用关系、各模块职责与剩余工作。
+- [2026-11-18 仓库复核](validation/repository_review_20261118/RESULTS.md)：关键链路、发现的问题与本轮验证边界。
 - [配置与启动](deployment/CONFIGURATION.md)：唯一数据来源、No124 包、运行目录、生产/维护与网页同源。
+- [参数档案与重载](deployment/PARAMETER_OPERATIONS.md)：查询参数归属、安全重载及新机器人档案切换。
+- [完整执行流水线](architecture/PIPELINE_AND_RUNTIME.md)：取图、C++/Python 桥接、推理并发与 ROS 2 对比。
+- [3/5 kg 型号配置](deployment/ARM_MODELS.md)、[新 SDK 接入](deployment/ARM_SDK_MIGRATION.md)：当前模型角、设备绑定和现场验证入口。
 - [手相机伺服](WRIST_VISUAL_SERVO_ALGORITHM.md)：三种抓放路线、映射/控制与撤离交接。
 - [技能接口 v1](architecture/SKILLS_INTERFACE_V1.md)：类型化输入输出、阶段/取消及逐手结果。
 - [标定向导](calibration/PLACEMENT_WIZARD.md)、[头变换](calibration/HEAD_TRANSFORM.md)。

@@ -1,4 +1,5 @@
 #include "internal/state.h"
+#include "t170/config/access.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/debug.h"
 #include <cmath>
@@ -23,14 +24,15 @@ if (cmd == "abort" || cmd == "dispatch_exit")
     }
 if (cmd == "reload_config")
     {
-        if(g_placement_calibration.active()) return reply(false,"标定期间不能重载正式配置");
-        std::lock_guard<std::mutex> config_lock(g_config_mu);
-        if(g_placement_calibration.active()) return reply(false,"标定期间不能重载正式配置");
-        std::string err;
-        if (!load_move_box_config(default_move_box_config_path(), g_move_cfg, err))
-            return reply(false, err);
-        Json::Value out = reply(true);
-        out["charge_done_percent"] = g_move_cfg.chassis.charge_done_percent;
+        const auto result=t170::config::reload_when_idle(g_hw_mu,
+            []{return g_placement_calibration.active();},app_stop_requested,
+            default_move_box_config_path(),g_move_cfg);
+        Json::Value out = reply(result.ok,result.error);
+        out["code"]=result.code;
+        if(result.ok) {
+            std::lock_guard<std::mutex> lock(g_config_mu);
+            out["charge_done_percent"] = g_move_cfg.chassis.charge_done_percent;
+        }
         return out;
     }
 if (cmd.size() == 6 && cmd.compare(0, 5, "Audio") == 0 && cmd[5] >= '1' && cmd[5] <= '5')

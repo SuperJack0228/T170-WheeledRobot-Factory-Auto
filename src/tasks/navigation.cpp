@@ -1,4 +1,5 @@
 #include "internal/runtime.h"
+#include "t170/config/access.h"
 #include "t170/telemetry/dispatch_metrics.h"
 #include <algorithm>
 #include <cctype>
@@ -30,11 +31,15 @@ Chassis &chassis_seer() {return t170::tasks::services().chassis;}
 
 bool ensure_chassis()
 {
+    static std::mutex connection_mutex;
+    std::lock_guard connection_lock(connection_mutex);
     Chassis &robot = chassis_seer();
     if (robot.IsConnected())
         return true;
     static bool logged_fail = false;
-    robot.SetHost(g_move_cfg.chassis.host);
+    std::string host;
+    { std::lock_guard lock(t170::config::access_mutex());host=g_move_cfg.chassis.host; }
+    robot.SetHost(host);
     if (!robot.Connect())
     {
         if (!logged_fail)
@@ -46,7 +51,7 @@ bool ensure_chassis()
         return false;
     }
     logged_fail = false;
-    std::cout << "[orch] 底盘已连接 " << g_move_cfg.chassis.host << "\n";
+    std::cout << "[orch] 底盘已连接 " << host << "\n";
     return true;
 }
 

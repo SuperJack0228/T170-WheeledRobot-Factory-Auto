@@ -74,7 +74,7 @@ def main():
           "m; grasp allowance:", servo.get("grasp_xy_accept_m", .006), "m")
     print("SERVO additional joint-limit gate:", servo.get("enforce_sdk_joint_limits", False),
           "; local joint excursion:", servo.get("max_joint_excursion_rad", .70), "rad")
-    print("新 Arm 逆解和轨迹始终按所选模型限位求解；上述开关仅控制伺服附加检查。")
+    print("新 Arm 普通逆解/轨迹检查模型限位；独立的伺服局部求解受上述开关控制，两段规则目前不同。")
     print("此处 PROFILE 为源配置；任务参考有效性及 pending_model_calibrations 以 C++ 配置加载结果为准。")
     print("geometry 是初始几何估计，不等于已经实测标定；本工具不验证实际精度或设备连接。")
     for error in errors:

@@ -2,6 +2,10 @@
 
 更新：2026-11-17。已统一资源来源并接入新手臂 SDK，尚未制作安装包。
 
+部署一台新机器人时，先按 [新机器人完整部署引导](NEW_ROBOT_DEPLOYMENT_GUIDE.md) 建档、导入真实基础标定，再进行启动。本文保留现有配置机制和 No.124 示例。
+
+2026-11-18：已补充空闲重载的统一读写保护及参数来源查询工具；操作方法见 [参数档案与重载](PARAMETER_OPERATIONS.md)。新机器人首次维护准备允许缺失四份抓放参考，缺失项写入部署记录，仍需完成现场标定。
+
 ## 配置不是编译进程序的常量
 
 `config/defaults/factory_baseline.yaml` 是共有控制/策略；`robot_models/t170/` 是型号和运动模型；`sites/current_factory/` 是工厂料盘、传送带、导航与视觉参数；`robots/TH-T170C-0124/` 是身份、相机 SN、设备和准备位；`calibration/TH-T170C-0124/` 是头/手眼及料盘抓放结果。`deployments/TH-T170C-0124.yaml` 选择这些真实输入。

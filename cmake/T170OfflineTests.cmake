@@ -26,6 +26,9 @@
         find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d objdetect)
     endif()
     t170_add_configuration()
+    add_executable(config_reload_test tests/config_reload_test.cpp)
+    target_link_libraries(config_reload_test PRIVATE t170::configuration)
+    add_test(NAME config_reload_test COMMAND config_reload_test ${T170_TEST_RUNTIME})
     t170_add_observation_support()
     # Compile real SDK-adapter/planner/player translation units against their public
     # declarations. No fake SDK implementation is linked; robot linking is a separate gate.

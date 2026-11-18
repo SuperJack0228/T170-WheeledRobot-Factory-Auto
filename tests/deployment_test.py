@@ -113,6 +113,18 @@ class DeploymentTest(unittest.TestCase):
    eye0=np.array(old['a. matrix']);eye1=np.array(new['a. matrix']);eye0[:3,3]*=.001;eye1[:3,3]*=.001
    tcp0=np.array(pose_matrix([.26,0,0,0,0,0]));tcp1=np.array(pose_matrix(sdk[side]['tool']))
    np.testing.assert_allclose(np.linalg.inv(tcp0)@eye0,np.linalg.inv(tcp1)@eye1,rtol=0,atol=1e-12)
+ def test_missing_task_calibrations_allow_maintenance_bootstrap(self):
+  fake=self.base/'source';shutil.copytree(ROOT/'config',fake/'config')
+  directory=fake/self.doc['calibration_directory']
+  for file in directory.glob('*/*.yaml'):file.unlink()
+  out=self.base/'bootstrap';record=resolve(fake,self.manifest(),out)
+  self.assertEqual(len(record['missing_task_calibrations']),4)
+  self.assertEqual(list((out/'config/calibration').glob('*/*.yaml')),[])
+  subprocess.run([DUMP,str(out/'config/move_box_params.yaml'),str(out/'effective.yaml')],check=True,capture_output=True)
+ def test_parameter_index_locates_canonical_owner(self):
+  result=subprocess.run([sys.executable,str(ROOT/'tools/parameter_index.py'),'visual_servo.kp'],check=True,capture_output=True,text=True)
+  self.assertIn('visual_servo.kp = ',result.stdout)
+  self.assertIn(str(ROOT/'config/defaults/factory_baseline.yaml'),result.stdout)
  def test_no_fixed_robot_workcell_binding(self):
   robot=yaml.safe_load((ROOT/'config/robots/TH-T170C-0124/identity.yaml').read_text())
   self.assertEqual(set(robot['chassis']),{'host','robot_type','sequence_number'})

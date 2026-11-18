@@ -1,4 +1,5 @@
 #include "internal/runtime.h"
+#include "t170/config/access.h"
 #include "t170/skills/conveyor.h"
 
 #include "t170/telemetry/factory_status.h"
@@ -76,8 +77,9 @@ bool live_gripper_holding(bool is_right)
     // q：0=全合，≈5.5=全开。夹零件约 0.8～1.6；松爪/准备态约 4.3～5.5；空抓合到底约 0.03。
     // 实时持件必须落在 [empty_q_rad, hold_q_max_rad]，张开的高 q 不能算持件。
     const double q = fb.position_rad;
-    const double q_lo = g_move_cfg.gripper_check.empty_q_rad;
-    const double q_hi = g_move_cfg.gripper_check.hold_q_max_rad;
+    double q_lo,q_hi;
+    { std::lock_guard lock(t170::config::access_mutex());
+      q_lo=g_move_cfg.gripper_check.empty_q_rad;q_hi=g_move_cfg.gripper_check.hold_q_max_rad; }
     return q >= q_lo && q <= q_hi;
 }
 

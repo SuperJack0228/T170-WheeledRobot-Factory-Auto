@@ -8,7 +8,7 @@ namespace gripper { class Gripper; }
 
 namespace t170::skills {
 using Pose = Eigen::Matrix<double, 1, 6>; // x/y/z metres, rx/ry/rz radians; current arm base.
-using Joints = Eigen::Matrix<double, 1, 7>; // Motor joint radians.
+using Joints = Eigen::Matrix<double, 1, 7>; // SDK model joint radians; converted only at arm IO.
 struct ConveyorHooks {
     std::function<void(const char *)> log_gripper;
     std::function<void()> on_released;

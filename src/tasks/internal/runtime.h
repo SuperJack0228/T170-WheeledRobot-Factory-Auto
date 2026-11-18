@@ -1,4 +1,5 @@
 #pragma once
+#include "t170/config/access.h"
 #include "t170/skills/types.h"
 // Transitional host bridges between task implementations. No vendor SDK headers.
 #include "t170/tasks/context.h"
@@ -141,8 +142,12 @@ struct TaskPoints
 struct StationOverride
 {
     ChassisConfig saved;
-    explicit StationOverride(const ChassisConfig &now) : saved(now) {}
-    ~StationOverride() { g_move_cfg.chassis = saved; }
+    explicit StationOverride(const ChassisConfig &now) {
+        std::lock_guard lock(t170::config::access_mutex());saved=now;
+    }
+    ~StationOverride() {
+        std::lock_guard lock(t170::config::access_mutex());g_move_cfg.chassis=saved;
+    }
 };
 enum class DispatchNote
 {

@@ -1,6 +1,6 @@
 # 仓库、模块与运行资源
 
-更新：2026-11-17。以本地源码为准；现场行为基线为 `9e023e7`，本次为该基线之后的整理工作区，尚未完成机器人端全量构建和实机回归。
+更新：2026-11-18；当前源码基线 `b78a061`。先看 [目录地图](../REPOSITORY_MAP.md) 快速导航，再按本文深入。新 SDK 已接入源码，尚未完成机器人端全量构建和新版本实机回归；本轮源码复核与剩余问题见 [复核记录](../validation/repository_review_20261118/RESULTS.md)。
 
 ## 先理解这条调用链
 
@@ -24,9 +24,10 @@
 | `python/t170_vision/` | Python 检测/几何/头变换实现；保留 PnP 与 mask 路线 |
 | `python/t170_common/` | 路径与部署配置合成，无电机初始化 |
 | `src/calibration/` | 料盘抓/放标定引擎、命令与动作锁；页面仍在 web_debug |
-| `src/telemetry/` | 伺服日志、调度计时、状态面板和控制台捕获 |
+| `src/telemetry/` | 调度计时、状态面板和控制台捕获；伺服 CSV 实现在 common/servo_trace.cpp |
 | `src/config/` | 生效参数快照/对比；现有解析器仍在 common/config.cpp、servo/config.cpp |
-| `src/common/` | 路径、日志、位姿数学和现有共用配置类型 |
+| `src/common/` | 路径、日志、位姿数学、伺服 CSV 和现有共用配置解析/类型 |
+| `src/servo/` | 仍在使用的伺服参数解析器，与 control 的纯计算职责分开 |
 | `src/hardware/` | 电机总线、夹爪、腰头、底盘、全身使能的适配 |
 | `config/` | 明文外置参数、真实标定、部署选择与 schema，见部署指南 |
 | `assets/models/` | 当前两份模型；archive/ 和 legacy/ 保留历史模型，未自动启用 |
@@ -45,13 +46,15 @@
 
 ## 模块内部怎样读
 
-motion 的 `planning.cpp` 生成轨迹，`trajectory_executor.cpp` 播放，`feedback.cpp` 读取实际状态；`servo_*`、`observation_session.cpp`、`final_hold.cpp` 管理闭环和指令交接；`retreat.cpp` 管理竖直脱离及关节准备位返回。局部 IK 在 `pose_solver.cpp`，手臂 SDK 适配在 `kinematics_adapter.cpp`。
+motion 的 `planning.cpp` 生成轨迹，`trajectory_executor.cpp` 播放，`feedback.cpp` 读取实际状态；`servo_*`、`observation_session.cpp`、`final_hold.cpp` 管理闭环和指令交接；`retreat.cpp` 管理竖直脱离及关节准备位返回。新 SDK 的直接包装在 `vendor_arm.cpp`，项目自有 Arm/连续 IK 在 `arm.cpp`，部署模型读取在 `arm_configuration.cpp`，唯一正常电机角转换边界在 `arm_io.cpp`。`kinematics_adapter.cpp` 提供连杆/工具和局部伺服求解适配，实际伺服局部数学迭代在 `pose_solver.cpp`。
 
 skills 的公开接口是 `include/t170/skills/{tray,conveyor,types}.h`。输入包含目标、左右手选择、持件状态及元数据；输出为逐手结果、阶段、错误码及副作用，详见 [接口 v1](SKILLS_INTERFACE_V1.md)。`skills/legacy/` 中仍有正在使用的内部运行结构，并非可随意删除的废弃实现。
 
 tasks 的 `automation.cpp` 分派任务；`load/transfer/unload/charging` 是任务流程；`assignment` 读取动态点位，`navigation` 判断到站，`pick_sequence/place_sequence` 排列申请与动作通知。`robot_client_adapter.cpp` 和 `chassis_seer.cpp` 分别隔离厂商调度/底盘头。
 
 应用 State 持有设备和服务，任务借用端口。主程序不直接计算像素修正，也不在每个技能里重建一套设备。
+
+这些是职责划分，尚不是完全解耦的独立组件：任务/技能仍读共享参数，部分旧运行结构继续使用。普通 Arm 轨迹与局部视觉伺服的限位策略目前不同。重载已补充空闲排他和后台配置读取保护，完整任务参数快照仍待后续推进，详见本轮复核记录和参数操作指南。
 
 ## 保留和退役边界
 
