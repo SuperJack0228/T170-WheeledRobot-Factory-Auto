@@ -34,15 +34,19 @@ import yaml
 
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
-WEB_API_VERSION = 6
-UI_VERSION = "1.4.0"
+WEB_API_VERSION = 7
+UI_VERSION = "2.0.0"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from t170_common.paths import load_paths
+from web_debug.profiles import ProfileStore
+from web_debug.actions import catalog as action_catalog
 
 RUNTIME_PATHS = load_paths()
 PROJECT_ROOT = RUNTIME_PATHS.root
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
+PROFILE_STORE = ProfileStore(Path(__file__).resolve().parents[1])
 CONFIG_FILES = {
     "motion": RUNTIME_PATHS.config_dir / "move_box_params.yaml",
     "tray_code": PROJECT_ROOT / "board_yf100_aruco" / "config.yaml",
@@ -388,13 +392,8 @@ ALLOWED_COMMANDS = {
     "reload_config",
     "aruco_detect",
     "vision_grasp",
-    "vision_grasp_image",
     "vision_grasp_once",
     "vision_servo_dual_once",
-    "vision_grasp_track",
-    "tray_servo_test",
-    "grasp_belt",
-    "grasp_belt1",
     "dispatch",
     "charge",
     "home",
@@ -411,8 +410,6 @@ ALLOWED_COMMANDS = {
     "tray2",
     "tray2_auto",
     "tray2_place",
-    "tray2_precision",
-    "tray2test",
     "waist1",
     "waist2",
     "waist_cycle",
@@ -431,8 +428,6 @@ ALLOWED_COMMANDS = {
     "bow",
     "welcome",
     "wave_ready",
-    "cycle3",
-    "tray2center",
     "detect_tray_holes",
     "abort",
     "dispatch_exit",
@@ -777,9 +772,39 @@ class DebugHandler(BaseHTTPRequestHandler):
                         query.get("revision", [""])[0] != str(current.get("head_image_revision" if head else "image_revision"))):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "标定图像已更新"})
                     return
-                path = (PROJECT_ROOT / str(current.get("head_image_path" if head else "image_path", ""))).resolve()
-                path.relative_to((PICTURE_ROOT / "calibration").resolve())
+                runtime = current.get("runtime_root")
+                if not runtime:
+                    runtime = self.state.robot_request({"cmd": "ping"}, timeout=3.0).get("runtime_root")
+                if not runtime or not Path(runtime).is_absolute():
+                    raise ValueError("机器人未提供有效运行目录，请更新并重启机器人服务")
+                root = Path(runtime).resolve(strict=True)
+                name = str(current.get("head_image_path" if head else "image_path", ""))
+                path = (root / name).resolve()
+                path.relative_to((root / "debug_picture/calibration").resolve())
+                if not name or not path.is_file():
+                    self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "当前会话图像文件不存在，请重新拍摄"})
+                    return
                 self._send(HTTPStatus.OK, path.read_bytes(), "image/jpeg")
+                return
+            if parsed.path == "/api/actions":
+                capabilities = self.state.robot_request({"cmd": "capabilities"}, timeout=3.0)
+                if not capabilities.get("ok"):
+                    raise RobotClientError(capabilities.get("error", "无法读取当前动作目录"))
+                self._json(HTTPStatus.OK, action_catalog(capabilities))
+                return
+            if parsed.path == "/api/profiles":
+                result = PROFILE_STORE.list()
+                try:
+                    live = self.state.robot_request({"cmd": "ping"}, timeout=3.0)
+                    result["active"] = {key: live.get(key) for key in ("mode", "runtime_root", "config_dir")}
+                    runtime = Path(str(live.get("runtime_root", "")))
+                    record = runtime / "deployment_resolved.json"
+                    if runtime.is_absolute() and record.is_file():
+                        record_data = json.loads(record.read_text(encoding="utf-8"))
+                        result["active"].update({key: record_data.get(key) for key in ("robot_id", "robot_model", "manifest")})
+                except RobotClientError:
+                    result["active"] = None
+                self._json(HTTPStatus.OK, result)
                 return
             if parsed.path == "/api/capabilities":
                 self._json(HTTPStatus.OK, self.state.robot_request({"cmd": "capabilities"}, timeout=3.0))
@@ -837,7 +862,9 @@ class DebugHandler(BaseHTTPRequestHandler):
                     {
                         "ok": True,
                         "file": file_id,
-                        "note": CONFIG_NOTES.get(file_id, ""),
+                        "note": ("当前为分层部署的运行参数快照；请修改来源 YAML 并重新生成运行目录。"
+                                 if os.environ.get("T170_DEPLOYMENT") else CONFIG_NOTES.get(file_id, "")),
+                        "editable": not bool(os.environ.get("T170_DEPLOYMENT")),
                         "groups": read_field_groups(file_id),
                     },
                 )
@@ -922,6 +949,8 @@ class DebugHandler(BaseHTTPRequestHandler):
             self._serve_static(parsed.path)
         except (OSError, RobotClientError) as exc:
             self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": str(exc)})
+        except ValueError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
         except Exception as exc:  # noqa: BLE001
             self.state.log(f"GET {parsed.path} 出错: {type(exc).__name__}: {exc}", "error")
             self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
@@ -988,6 +1017,27 @@ class DebugHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = self._parse_json()
+            if parsed.path == "/api/profiles":
+                if not self.state.begin_action("保存机器人档案"):
+                    self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "请等待当前网页动作完成"})
+                    return
+                try:
+                    try:
+                        ping = self.state.robot_request({"cmd": "ping"}, timeout=3.0)
+                    except RobotClientError:
+                        ping = None
+                    if ping is not None:
+                        if not ping.get("ok") or ping.get("mode") != "maintenance":
+                            raise ValueError("请退出生产服务，使用维护模式修改下次启动档案")
+                        calibration = self.state.robot_request({"cmd": "calibration_status"}, timeout=3.0)
+                        if not calibration.get("ok") or calibration.get("active"):
+                            raise ValueError("请先结束标定会话")
+                    result = PROFILE_STORE.update(payload)
+                    self.state.log("机器人档案: " + json.dumps(result, ensure_ascii=False), "profile")
+                finally:
+                    self.state.end_action()
+                self._json(HTTPStatus.OK, result)
+                return
             if parsed.path == "/api/calibration":
                 allowed = {"reset_stop", "begin", "prepare", "detect", "move_d", "jog", "observe",
                            "record_aligned", "release", "capture", "reference", "save", "return_ready", "end"}

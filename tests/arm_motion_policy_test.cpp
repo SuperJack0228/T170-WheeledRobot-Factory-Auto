@@ -92,10 +92,12 @@ int main(int argc,char **argv) {
         for(Arm *arm:{&right,&left}) {
             const auto &d=arm->definition();const auto home=arm->Forward_Kinematics(d.home);
             Eigen::Vector3d xyz(.45,d.hand==1?-.35:.35,-.1);
-            // 3 kg Home J2 is 8 deg more outward, so the nominal TCP shifts with it.
-            if(id=="t170c_v2_3kg") xyz<<0.44899191,d.hand==1?-0.36509325:0.36509325,-0.07686968;
             require((home.topRightCorner<3,1>()-xyz).norm()<1e-4,"Home configured FK mismatch");
+            require(Eigen::AngleAxisd(home.topLeftCorner<3,3>()).angle()<1e-5,"Outward Home tilted TCP");
+            require(std::abs(arm->elbow_position(d.home).y())>.30,"Home elbow did not open outward");
             require(arm->elbow_position(d.home).z()<-.20,"Home elbow must be below shoulder");
+            require((d.home-d.preferred).norm()<1e-12,"Home/preferred configuration drift");
+            require(std::abs(d.elbow_outward_ratio-.5)<1e-12,"Outward IK policy drift");
             for(double delta:{-.10,.10}) {
                 ArmJoints start=d.home;start(0)+=delta;start(3)-=.1;Eigen::MatrixXd path;
                 require(arm->Joint_Trajectory(start,d.home,path)==0,"joint Home planning");

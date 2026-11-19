@@ -8,6 +8,7 @@ import unittest
 import urllib.request
 import urllib.error
 import types
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 # These routing tests do not parse YAML; a sentinel also permits stock Python.
@@ -25,11 +26,21 @@ class FakeState:
         self.requests = []
         self.running = False
         self.active = False
+        self.runtime = None
+        self.mode = 'maintenance'
     def robot_request(self, payload, timeout=None):
         self.requests.append(dict(payload))
         if payload['cmd'] == 'calibration_status':
             return {'ok':True,'active':self.active,'session':'session-1','image_revision':3,
-                    'image_path':'../../etc/passwd'}
+                    'image_path':'debug_picture/calibration/session-1/frame_3.jpg' if self.runtime else '../../etc/passwd',
+                    'head_image_path':'debug_picture/calibration/session-1/head.jpg',
+                    'head_image_revision':2,'runtime_root':str(self.runtime) if self.runtime else ''}
+        if payload['cmd'] == 'ping':
+            return {'ok':True,'mode':self.mode,'runtime_root':str(self.runtime) if self.runtime else ''}
+        if payload['cmd'] == 'capabilities':
+            return {'ok':True,'mode':self.mode,'commands':[
+                {'name':'home','allowed':self.mode=='maintenance','group':'maintenance'},
+                {'name':'tray_servo_test','allowed':False,'group':'retired'}]}
         return {'ok':True,'session':'session-1','phase':'prepared'}
     def begin_action(self, title):
         if self.running:return False
@@ -58,6 +69,7 @@ class CalibrationHTTPTest(unittest.TestCase):
         except urllib.error.HTTPError as e:return e.code,e.read()
     def setUp(self):
         self.state.requests.clear();self.state.running=False;self.state.active=False
+        self.state.runtime=None;self.state.mode='maintenance'
     def test_deployment_generated_config_cannot_be_overwritten(self):
         from unittest.mock import patch
         with patch.dict(web.os.environ, {'T170_DEPLOYMENT':'selected-profile'}):
@@ -95,5 +107,36 @@ class CalibrationHTTPTest(unittest.TestCase):
         self.assertEqual(self.request('/api/calibration/image?session=session-1&revision=2')[0],409)
     def test_frozen_image_cannot_escape_calibration_directory(self):
         self.assertNotEqual(self.request('/api/calibration/image?session=session-1&revision=3')[0],200)
+    def test_images_follow_robot_runtime_across_restarts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for session in ['runtime-one','runtime-two']:
+                self.state.runtime=Path(folder)/session
+                directory=self.state.runtime/'debug_picture/calibration/session-1'
+                directory.mkdir(parents=True)
+                (directory/'frame_3.jpg').write_bytes(('hand-'+session).encode())
+                (directory/'head.jpg').write_bytes(('head-'+session).encode())
+                status,data=self.request('/api/calibration/image?session=session-1&revision=3')
+                self.assertEqual((status,data),(200,('hand-'+session).encode()))
+                status,data=self.request('/api/calibration/image?kind=head&session=session-1&revision=2')
+                self.assertEqual((status,data),(200,('head-'+session).encode()))
+    def test_actions_are_filtered_by_current_cpp_catalog(self):
+        status,data=self.request('/api/actions')
+        self.assertEqual(status,200)
+        actions=[a for group in json.loads(data)['groups'] for a in group['actions']]
+        self.assertEqual([a['name'] for a in actions],['home'])
+        self.state.mode='production'
+        self.assertFalse(json.loads(self.request('/api/actions')[1])['groups'][0]['actions'][0]['allowed'])
+    def test_profile_changes_require_maintenance_and_no_calibration(self):
+        from unittest.mock import patch
+        with patch.object(web.PROFILE_STORE,'update') as update:
+            self.state.mode='production'
+            self.assertEqual(self.request('/api/profiles',{'action':'select'})[0],400)
+            self.state.mode='maintenance';self.state.active=True
+            self.assertEqual(self.request('/api/profiles',{'action':'select'})[0],400)
+            update.assert_not_called()
+            self.state.active=False
+            update.return_value={'ok':True,'restart_required':True}
+            self.assertEqual(self.request('/api/profiles',{'action':'select'})[0],200)
+            update.assert_called_once()
 
 if __name__=='__main__':unittest.main()

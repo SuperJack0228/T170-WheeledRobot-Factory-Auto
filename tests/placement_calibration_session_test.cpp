@@ -101,6 +101,7 @@ int main(int argc,char **argv) {
     check(!call("save")["ok"].asBool(),"save before session accepted");
     check(call("begin")["ok"].asBool() && session.active(),"begin failed");
     const auto id=session.status()["session"].asString();
+    check(session.status()["runtime_root"].asString()==root.string(),"image runtime identity missing");
     for(const auto &a:{"grip","move_d","jog","observe","record_coarse","lower_c","record_aligned","release","capture","reference","verify_run","return_ready","save"}) {
         check(!call(a,a)["ok"].asBool(),"out-of-order action accepted");
         check(hardware_calls==0,"out-of-order action reached hardware");

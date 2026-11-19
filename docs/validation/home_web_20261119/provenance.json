@@ -1,0 +1,21 @@
+{
+  "base_commit": "3cfb6b9a900289c1151b86e9fdc98c5a66481837",
+  "reference_only": true,
+  "hardware_connected": false,
+  "ctest_total": 41,
+  "ctest_passed": 41,
+  "browser": "local Chrome with fake HTTP APIs",
+  "sha256": {
+    "config/robot_models/t170c_v2_3kg/motion_policy.yaml": "4ea104ef2603bb0efd80bfae7e91141d3aadb200192fc7c875ac81d0b8ae170b",
+    "config/robot_models/t170c_v2_5kg/motion_policy.yaml": "ecaf07bd30f9988d1ec476b7be605913c0e6e1e69082536a6cb8553434d43ff6",
+    "src/calibration/placement_session.cpp": "fd710e009616399740f1ea0eab69fe76fa96bec457ffd5c126fdb3af621f1e01",
+    "deploy/runtime_context.sh": "8cfb9d9395b49bce3b74d0b77155afa4be3e7e616f4ce916dbed49ed543a60e8",
+    "web_debug/server.py": "e95a1f04152f8d334aa78bbe986d4644226c15af08728988c964884be8b5a838",
+    "web_debug/profiles.py": "56939ee64522e6cae468d77c358c8a2d84f0d59fd6d0039430da64f07df3bbb2",
+    "web_debug/actions.py": "80a8c25d7d897eab86aa6479338db417b423a98a0427fc60693c5a4f4b9279ff",
+    "web_debug/static/app.js": "c45fc7b0d2b0e2907963df7b00fe159d16cfb09ef875ade14e502d361121ef7c",
+    "web_debug/static/calibration.js": "ee2e6f4cd975fe15f73e7c44f343efac1f94b8b053eb2357cfb2fd610e47f0e0",
+    "web_debug/static/index.html": "beb180c1696589af6a07f19b7cee53077754d753c9c2bb66af3d0a46f13e8a97",
+    "web_debug/static/styles.css": "1a54ef9d6bb607c16694c2f6ffb50d5909ef65124dd1d0a9bc222495338ac5dd"
+  }
+}

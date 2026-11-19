@@ -90,6 +90,9 @@ struct PlacementSession::Impl {
     void state(const std::string &p,int s) {phase=p;step=s;publish();}
     void publish() {
         Json::Value v(Json::objectValue);v["ok"]=true;v["active"]=active.load();v["session"]=id;
+        // Images belong to this exact runtime, including when the Web process
+        // survives a robot-service restart into a different session directory.
+        v["runtime_root"]=project_root_dir();
         v["hand"]=hand;v["task"]=grasp?"grasp":"placement";v["scope"]="tray_only";v["step"]=step;v["phase"]=phase;v["held"]=held;
         v["interrupted"]=interrupted.load();v["robot_row"]=5;v["from_left_col"]=hand?5:2;v["row"]=row;v["col"]=col;
         v["d_clearance_mm"]=clearance*1000;v["holes"]=candidates;v["validated"]=!saved_file.empty();v["field_verified"]=false;
@@ -98,7 +101,7 @@ struct PlacementSession::Impl {
         v["reference_px"]=array(reference.transpose());v["reference_tcp_above_plane_mm"]=reference_above_plane*1000;
         v["nominal_tcp"]=array(nominal);v["aligned_tcp"]=array(aligned);v["current_tcp"]=array(latest);v["plane_z_m"]=plane;v["reference_pose_tcp"]=array(reference_pose);
         v["head_image_revision"]=Json::UInt64(head_revision);
-        if(head_revision)v["head_image_path"]=std::filesystem::relative(directory/"head.jpg",project_root_dir()).string();
+        if(head_revision)v["head_image_path"]=std::filesystem::relative(directory/("head_"+std::to_string(head_revision)+".jpg"),project_root_dir()).string();
         v["image_tcp_z_m"]=reference_pose(2);v["image_revision"]=Json::UInt64(image_revision);v["width"]=frozen.width;v["height"]=frozen.height;
         v["reference_fit_residual"]=reference_fit_residual;v["reference_coverage"]=reference_coverage;v["have_reference"]=have_reference;v["reference_method"]=reference_method;v["feature_plane_z_m"]=feature_plane;
         if(image_revision) v["image_path"]=std::filesystem::relative(directory/("frame_"+std::to_string(image_revision)+".jpg"),project_root_dir()).string();
@@ -226,7 +229,11 @@ struct PlacementSession::Impl {
         const auto result=vision::perceive_tray_head(hw->pipeline->cameras(),hw->pipeline->bridge(),options);
         require(result.tray.ok,"头相机未定位到料盘: "+result.tray.message);
         if(!result.tray.save_path.empty() && std::filesystem::is_regular_file(result.tray.save_path)) {
-            std::filesystem::copy_file(result.tray.save_path,directory/"head.jpg",std::filesystem::copy_options::overwrite_existing);++head_revision;
+            // Publish only after a complete copy. Re-detection must not overwrite
+            // the image still referenced by the previous frozen revision.
+            const auto pending=directory/"head_pending.jpg";
+            std::filesystem::copy_file(result.tray.save_path,pending,std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::rename(pending,directory/("head_"+std::to_string(head_revision+1)+".jpg"));++head_revision;
         }
         holes=result.tray.holes;const auto selected=teaching_hole(anchors(),hand);row=selected.row;col=selected.col;
         candidates=Json::Value(Json::arrayValue);Json::Value c(Json::objectValue);

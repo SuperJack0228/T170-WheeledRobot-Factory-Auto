@@ -8,8 +8,8 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
-const WEB_API = 6;
-const UI_VERSION = "1.4.0";
+const WEB_API = 7;
+const UI_VERSION = "2.0.0";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -25,8 +25,11 @@ let configFile = "motion";
 let logSeq = 0;
 let commandCapabilities = null;
 let capabilitiesCheckedAt = 0;
+let profileData = null;
+let actionsMode = null;
+let statusRefreshing = false;
 function commandPermitted(cmd) {
-  if (!commandCapabilities) return true;
+  if (!commandCapabilities) return false;
   return commandCapabilities.commands.some((entry) => entry.name === cmd && entry.allowed);
 }
 async function refreshCapabilities() {
@@ -37,6 +40,7 @@ async function refreshCapabilities() {
     if (!Array.isArray(data.commands)) return;
     commandCapabilities = data;
     const production = data.mode === "production";
+    applyMode(data.mode);
     const notice = $("modeNotice");
     notice.hidden = false;
     notice.textContent = production
@@ -47,7 +51,38 @@ async function refreshCapabilities() {
       button.title = button.disabled ? "请通过维护入口执行此命令" : "";
     });
     if ($("runPlan")) $("runPlan").disabled = production;
-  } catch (_) { /* Older services still return their existing UI status. */ }
+    if (actionsMode !== data.mode) {
+      const catalog = await api("/api/actions");
+      renderActions(catalog);
+      actionsMode = data.mode;
+    }
+  } catch (_) { /* Keep controls disabled until a valid catalog is available. */ }
+}
+
+function applyMode(mode) {
+  const production = mode === "production";
+  const maintenance = mode === "maintenance";
+  document.body.dataset.mode = mode;
+  $("modeChip").textContent = production ? "生产模式" : maintenance ? "维护模式" : "模式未知";
+  $("modeChip").className = `pill ${production ? "ok" : "maintenance"}`;
+  $("taskTab").textContent = production ? "生产调度" : "任务联调";
+  $("taskHeading").textContent = production ? "生产调度" : "任务联调";
+  $("taskLead").textContent = production ? "查看调度任务和执行状态，由工厂调度分配任务。" : "维护模式下按顺序验证上料、转运与下料技能，不自动进入调度。";
+  $("dispatchMonitor").hidden = !production;
+  $("automaticTaskCard").hidden = !production;
+  $("manualTaskCard").hidden = !maintenance;
+  document.querySelector('[data-page="motion"]').hidden = !maintenance;
+  $("calibrationLink").hidden = !maintenance;
+  if (production && $("page-motion").classList.contains("active")) showPage("status");
+  $("applyProfile").disabled = !maintenance;
+  $("createProfile").disabled = !maintenance;
+}
+
+function renderActions(catalog) {
+  $("actionGroups").innerHTML = catalog.groups.map((group) => {
+    const body = `<div class="action-group-head"><h2>${esc(group.title)}</h2><p class="hint">${esc(group.description)}</p></div><div class="action-list">${group.actions.map((action) => `<button class="cmd action-button" data-command="${esc(action.name)}" ${action.allowed ? "" : "disabled"}><strong>${esc(action.label)}</strong><span>${esc(action.description)}</span></button>`).join("")}</div>`;
+    return group.id === "service" ? `<details class="card"><summary>${esc(group.title)}</summary>${body}</details>` : `<article class="card action-group">${body}</article>`;
+  }).join("");
 }
 
 function toast(message) {
@@ -86,7 +121,8 @@ function showPage(name) {
   if (name === "config") loadConfig();
   if (name === "vision") loadVision();
   if (name === "logs") loadLogs().catch(() => {});
-  if (name === "dispatch") refreshDispatch();
+  if (name === "dispatch" && commandCapabilities?.mode === "production") refreshDispatch();
+  if (name === "profiles") loadProfiles(!profileData).catch((error) => toast(error.message));
 }
 
 function checkVersion(health) {
@@ -106,6 +142,8 @@ function checkVersion(health) {
 }
 
 async function refreshStatus() {
+  if (statusRefreshing) return;
+  statusRefreshing = true;
   try {
     const health = await api("/api/health");
     checkVersion(health);
@@ -114,7 +152,13 @@ async function refreshStatus() {
     chip.textContent = health.robot_online ? "已连接" : "未连接";
     chip.className = `pill ${health.robot_online ? "ok" : "bad"}`;
     $("metricService").textContent = health.robot_online ? "在线" : "离线";
-    if (!health.robot_online) return;
+    if (!health.robot_online) {
+      commandCapabilities = null; actionsMode = null;
+      document.querySelectorAll(".cmd").forEach((button) => { button.disabled = true; });
+      $("activeRobot").textContent = "机器人服务离线";
+      $("modeChip").textContent = "离线";
+      return;
+    }
     await refreshCapabilities();
     const data = await api("/api/status");
     const job = await api("/api/job");
@@ -149,7 +193,7 @@ async function refreshStatus() {
     $("serviceChip").textContent = "未连接";
     $("serviceChip").className = "pill bad";
     $("metricService").textContent = "离线";
-  }
+  } finally { statusRefreshing = false; }
 }
 
 function renderPlan() {
@@ -183,13 +227,15 @@ async function loadConfig() {
     return;
   }
   $("configNote").textContent = data.note || "";
+  const editable = data.editable === true && commandCapabilities?.mode === "maintenance";
+  $("saveConfig").disabled = !editable;
   form.innerHTML = data.groups.map((group) => `
     <h2 class="group">${esc(group.title)}</h2>
     <article class="card">
       ${group.fields.map((field) => `
         <label class="field">
           <span>${esc(field.label)}${field.unit ? `<small>${esc(field.unit)}</small>` : ""}<small class="key">${esc(field.key)}</small></span>
-          <input data-key="${esc(field.key)}" data-orig="${esc(field.value ?? "")}" value="${esc(field.value ?? "")}"${
+          <input ${editable ? "" : "readonly"} data-key="${esc(field.key)}" data-orig="${esc(field.value ?? "")}" value="${esc(field.value ?? "")}"${
             field.value === null || field.value === undefined ? ` placeholder="文件里没有"` : ""}>
         </label>`).join("")}
     </article>`).join("");
@@ -362,14 +408,16 @@ async function loadLogs() {
 
 document.querySelectorAll(".tab[data-page]").forEach((el) => el.addEventListener("click", () => showPage(el.dataset.page)));
 
-document.querySelectorAll(".cmd").forEach((el) => el.addEventListener("click", async () => {
+document.addEventListener("click", async (event) => {
+  const el = event.target.closest(".cmd[data-command]");
+  if (!el || el.disabled) return;
   const cmd = el.dataset.command;
   if (!window.confirm(`执行 ${el.textContent.trim()}？`)) return;
   el.disabled = true;
   try { await sendCommand(cmd); }
   catch (error) { toast(error.message); }
   finally { el.disabled = !commandPermitted(cmd); }
-}));
+});
 
 $("stopButton").addEventListener("click", async () => {
   try { await api("/api/command", { method: "POST", body: { cmd: "abort" } }); toast("已请求停止"); }
@@ -467,6 +515,63 @@ $("saveConfig").addEventListener("click", async () => {
 const versionEl = $("uiVersion");
 if (versionEl) versionEl.textContent = `T170C Web Debug  v${UI_VERSION}`;
 
+function modelLabel(model) {
+  return model === "t170c_v2_3kg" ? "T170C V2 · 3 kg" : model === "t170c_v2_5kg" ? "T170C V2 · 5 kg" : (model || "机型未知");
+}
+function selectedProfileDetail() {
+  const profile = profileData?.profiles.find((entry) => entry.manifest === $("profileSelect").value);
+  if (!profile) return;
+  $("profileModel").value = profile.robot_model;
+  $("newRobotHost").value = profile.host;
+  $("profileDetail").textContent = `底盘 ${profile.host} · 标定目录 ${profile.calibration_directory}` +
+    (profile.missing_files.length ? `。启用前需导入本机文件：${profile.missing_files.join("；")}` : "");
+}
+async function loadProfiles(refreshForm = true) {
+  const data = await api("/api/profiles");
+  profileData = data;
+  const active = data.active;
+  const current = active ? `${active.robot_id || "当前服务"} · ${modelLabel(active.robot_model)}` : "主服务未运行";
+  $("profileActive").textContent = current;
+  $("activeRobot").textContent = active?.robot_id || (active ? "当前服务" : "机器人服务离线");
+  $("activeModel").textContent = active ? modelLabel(active.robot_model) : "";
+  const selected = data.profiles.find((entry) => entry.manifest === data.selected_manifest);
+  $("profileSelected").textContent = selected ? `${selected.robot_id} · ${modelLabel(selected.robot_model)}` : "未选择";
+  // Model edits are staged until restart. Compare runtime identity/model rather
+  // than just manifest name: editing the same manifest must show a restart cue.
+  if (active && selected && (active.robot_id !== selected.robot_id || active.robot_model !== selected.robot_model)) {
+    $("profileSelected").textContent += " · 等待重启主服务";
+  }
+  $("applyProfile").disabled = !!active && active.mode !== "maintenance";
+  $("createProfile").disabled = !!active && active.mode !== "maintenance";
+  if (refreshForm) {
+    $("profileSelect").innerHTML = data.profiles.map((profile) => `<option value="${esc(profile.manifest)}" ${profile.manifest === data.selected_manifest ? "selected" : ""}>${esc(profile.robot_id)} · ${modelLabel(profile.robot_model)}</option>`).join("");
+    selectedProfileDetail();
+  }
+}
+$("openProfiles").onclick = () => showPage("profiles");
+$("profileSelect").onchange = selectedProfileDetail;
+async function saveProfile(action) {
+  if (!profileData) return;
+  const payload = {action, expected_manifest: profileData.selected_manifest,
+    manifest: $("profileSelect").value, robot_model: $("profileModel").value,
+    template: $("profileSelect").value, robot_id: $("newRobotId").value.trim(), host: $("newRobotHost").value.trim()};
+  const button = $(action === "create" ? "createProfile" : "applyProfile");
+  button.disabled = true;
+  try {
+    const result = await api("/api/profiles", {method: "POST", body: payload});
+    $("profileMessage").textContent = result.message;
+    toast(result.message);
+    await loadProfiles();
+    if (action === "create" && result.manifest) {
+      $("profileSelect").value = result.manifest;
+      selectedProfileDetail();
+    }
+  } catch (error) { $("profileMessage").textContent = error.message; toast(error.message); }
+  finally { button.disabled = profileData?.active?.mode === "production"; }
+}
+$("applyProfile").onclick = () => saveProfile("select");
+$("createProfile").onclick = () => saveProfile("create");
+
 function bindHandStream(id, slot, enabled) {
   const img = $(id);
   const empty = $(id + "Empty");
@@ -516,6 +621,8 @@ function setHandLivePreview(enabled) {
 }
 
 setInterval(refreshStatus, 1000);
-setInterval(() => { if ($("page-dispatch").classList.contains("active")) refreshDispatch(); }, 1000);
+setInterval(() => loadProfiles(false).catch(() => {}), 10000);
+setInterval(() => { if ($("page-dispatch").classList.contains("active") && commandCapabilities?.mode === "production") refreshDispatch(); }, 1000);
 setInterval(() => { if ($("page-logs").classList.contains("active")) loadLogs().catch(() => {}); }, 1500);
 refreshStatus();
+loadProfiles().catch((error) => { $("profileMessage").textContent = error.message; });
