@@ -15,6 +15,9 @@ bool read_joint_feedback(int hand,Joints &q) {
 }
 void send_joint_reference(int hand,const Joints &q) {
     if((hand!=0 && hand!=1) || !q.allFinite()) throw std::runtime_error("invalid_joint_reference");
+    const auto bounds=t170::motion::effective_arm_bounds(t170::motion::arm_definition(hand));
+    if((q.array()<bounds.minimum.array()-1e-8).any() || (q.array()>bounds.maximum.array()+1e-8).any())
+        throw std::runtime_error("joint_reference_outside_effective_limits");
     const auto device=t170::motion::model_to_device(hand,q);
     const auto &d=t170::motion::arm_definition(hand);int counts[7];
     for(int j=0;j<7;++j) {

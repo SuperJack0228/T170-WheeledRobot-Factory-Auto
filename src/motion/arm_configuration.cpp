@@ -46,12 +46,34 @@ ArmDefinition load_arm_definition(const std::string &file,const std::string &sid
     const auto limits=binding["trajectory_limits"];
     d.velocity=limits["velocity_rad_s"].as<double>();d.acceleration=limits["acceleration_rad_s2"].as<double>();d.jerk=limits["jerk_rad_s3"].as<double>();
     for(double v:{d.velocity,d.acceleration,d.jerk}) if(!std::isfinite(v)||v<=0) throw std::runtime_error("Invalid arm trajectory limits");
+    d.preferred=(d.minimum+d.maximum)*.5;
+    if(const auto policy=binding["motion_policy"];policy) {
+        if(policy["joint_coordinates"].as<std::string>()!="sdk_mdh_model_deg")throw std::runtime_error("Invalid motion policy coordinates");
+        d.home=row<7>(policy[side]["home_deg"],"home joints")*M_PI/180;
+        d.preferred=row<7>(policy[side]["preferred_deg"],"preferred joints")*M_PI/180;
+        d.posture_gain=policy["posture_gain"].as<double>();d.elbow_gain=policy["elbow_gain"].as<double>();d.limit_gain=policy["limit_gain"].as<double>();
+        d.elbow_outward_ratio=policy["elbow_outward_ratio"].as<double>();
+        for(const auto &q:{d.home,d.preferred})if((q.array()<d.minimum.array()).any() || (q.array()>d.maximum.array()).any())throw std::runtime_error("Motion policy outside model limits");
+        for(double v:{d.posture_gain,d.elbow_gain,d.limit_gain,d.elbow_outward_ratio})if(!std::isfinite(v)||v<0)throw std::runtime_error("Invalid posture policy gain");
+    }
+    d.limits=std::make_shared<ArmLimitState>();d.limits->bounds={d.minimum,d.maximum,false};
     d.ideal_t7=true;
     const double al[7]={M_PI/2,M_PI/2,M_PI/2,-M_PI/2,M_PI/2,-M_PI/2,-M_PI/2};
     const double off[7]={M_PI/2,-M_PI/2,M_PI/2,0,0,-M_PI/2,0};
     for(int i=0;i<7;++i) if(std::abs(d.mdh(i,0)-al[i])>1e-9 || std::abs(d.mdh(i,1))>1e-9 ||
         std::abs(d.mdh(i,3)-off[i])>1e-9 || ((i==1||i==3||i==5||i==6)&&std::abs(d.mdh(i,2))>1e-9)) d.ideal_t7=false;
     return d;
+}
+ArmBounds effective_arm_bounds(const ArmDefinition &d) {
+    if(!d.limits)return {d.minimum,d.maximum,false};
+    std::lock_guard lock(d.limits->mutex);return d.limits->bounds;
+}
+ArmBounds intersect_device_bounds(const ArmDefinition &d,const ArmJoints &low,const ArmJoints &high) {
+    if(!low.allFinite() || !high.allFinite() || (low.array()>=high.array()).any())throw std::runtime_error("Invalid device arm limits");
+    const ArmJoints a=(low-d.motor_offset).cwiseQuotient(d.motor_direction),b=(high-d.motor_offset).cwiseQuotient(d.motor_direction);
+    ArmBounds result{d.minimum.cwiseMax(a.cwiseMin(b)),d.maximum.cwiseMin(a.cwiseMax(b)),true};
+    if((result.minimum.array()>=result.maximum.array()).any())throw std::runtime_error("Device/model arm limits have empty intersection");
+    return result;
 }
 const ArmDefinition &arm_definition(int hand) {
     if(hand!=0 && hand!=1) throw std::runtime_error("Invalid arm hand index");

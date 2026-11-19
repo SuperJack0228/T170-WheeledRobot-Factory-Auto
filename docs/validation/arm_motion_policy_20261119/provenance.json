@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-19",
+  "base_commit": "7213bea98d34fd2789979cf4f8d8663cc3c59554",
+  "working_tree": "uncommitted integration changes",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "native_linux_sdk_run": false,
+  "hardware_access": false,
+  "backend": "independent MDH FK",
+  "ordinary_ctest": 38,
+  "loopback_ctest": 2,
+  "sha256": {
+    "src/motion/arm.cpp": "309d9abb3d33b128f3f1dc83317bf840e8c835d391b8c95d48ae0d10be9242a9",
+    "src/motion/arm_configuration.cpp": "54dac2523611dcfcc31dde444d50a8ed1453704513e2be0abfc6cd52c762036d",
+    "src/motion/bounded_ik.cpp": "7939c68f2b9ef739a7e36fecf3ca4458538c1299e3de0956dd6bf76a2c97df3e",
+    "src/motion/pose_solver.cpp": "af50854fdf87a5ef97ddba546c4e4e947703906ace2cfc3cee2e2647ccae5268",
+    "src/motion/retreat.cpp": "8ceb6041a143a2ae4cdfec4b9271fb0f6df9c816fab1d5a7060d5bd78b102fb0",
+    "src/motion/joint_motion.cpp": "6b16d7030e10f51079c515f99e73ce814f950268092d818f6db9cedec273b5c6",
+    "src/motion/arm_io.cpp": "939105a35026c3048606a98758dbae4ef0a91918f4f22e4b83c108410d484bcb",
+    "src/motion/planning.cpp": "f3244261ab6fd7384828fe5ac1584a14d79dcee47d410491537134fe1c946a84",
+    "src/skills/common/preparation.cpp": "3c5dc9c77a6f7f29d1c4281cda9594edd408ba4edf4c5a4ee4866eb01d98546a",
+    "src/app/hardware_factory.cpp": "f68b2500ce1a5fef8ad0a749b0d3e3dc862d6d6f221017e71a106226e3c8f4d6",
+    "src/hardware/device_bus.cpp": "331dafe0dd1d431b7c98cd4ef3eb68cf62b3b44ddf1fdf25f8baa1b775e385bb",
+    "python/t170_common/arm_model.py": "fc549a2e2645b0e366c14f5efb93bc0e1831789d0eea0ca7e3051648446f9e8e",
+    "tests/arm_motion_policy_test.cpp": "c3a5c0465c20c5a2cfa584837d79720c9fa445a198f25d60bc0e0f7450e15597",
+    "tests/visual_servo_test.cpp": "7a419df44a59b6ca57be43566104ca4a3dc9c7c862730b9268af14f44656d63d",
+    "config/robot_models/t170c_v2_3kg/motion_policy.yaml": "7aa0ab63ba36d49d8970fc5ce84e73cc6a61ec42b3611f740ed883c2f60ac824",
+    "config/robot_models/t170c_v2_5kg/motion_policy.yaml": "37532335954de56b56432db75fbde7cede2701f86d737a3accc91f6817f7c3c9"
+  }
+}

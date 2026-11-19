@@ -26,7 +26,6 @@ int arm_line_move(
 
 int arm_line_move_settle(Arm &arm, Eigen::Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms);
 
-int arm_line_move_hold_redundant(Arm &arm, Eigen::Matrix<double, 1, 6> &pos, double cart_linear_velocity);
 
 
 

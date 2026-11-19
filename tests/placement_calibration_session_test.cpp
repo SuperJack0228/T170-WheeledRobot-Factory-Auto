@@ -52,6 +52,7 @@ int enable_head_calib_pose(){no_hardware();return -1;}
 int enable_head_far_pitch(){no_hardware();return -1;}
 Eigen::Matrix4d Arm::Forward_Kinematics(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return Eigen::Matrix4d::Identity();}
 bool Arm::Check_Joint_Limit(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return true;}
+t170::motion::IKPolicy Arm::ik_policy(const Eigen::Matrix4d &)const{no_hardware();return {};}
 RealSenseMultiCam &PosePipeline::cameras(){no_hardware();throw std::runtime_error("no camera");}
 SegPoseBridge &PosePipeline::bridge(){no_hardware();throw std::runtime_error("no vision");}
 CameraFrameData RealSenseMultiCam::grab_fresh(CameraSlot){no_hardware();return {};}

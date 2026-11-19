@@ -47,7 +47,7 @@ std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
         const Eigen::Vector3d p=arm_tcp_from_joints(arm,q).head<3>().transpose();
         // A connector near a loaded tray must neither dip below the held TCP
         // nor turn a small IK discrepancy into a large sideways motion.
-        return p.allFinite() && p.z()>=start.z()-.002 &&
+        return !arm.Check_Joint_Limit(q) && p.allFinite() && p.z()>=start.z()-.002 &&
                (p.head<2>()-start.head<2>()).norm()<=.008;
     };
 }
@@ -90,6 +90,16 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
         traj = bridge_from_hold(traj_in, held, dt, hand, retract_arm);
         if (traj.rows()<2) return -16;
     }
+    const auto bounds=t170::motion::effective_arm_bounds(t170::motion::arm_definition(hand));
+    auto within_bounds=[&](const MatrixXd &path) {
+        for(int i=0;i<path.rows();++i)
+            if((path.row(i).array()<bounds.minimum.array()-1e-8).any() ||
+               (path.row(i).array()>bounds.maximum.array()+1e-8).any()) {
+                std::cerr<<"[arm_player] hand="<<hand<<" invalid_joint_path row="<<i<<'\n';return false;
+            }
+        return true;
+    };
+    if(!within_bounds(traj))return -3;
     wrist_servo::ObservationContext context;
     if (diagnostic) wrist_servo::observation_context(hand, context);
     wrist_servo::Joints initial_actual;
@@ -100,7 +110,9 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
     const double release_ms = (wrist_servo::monotonic_seconds()-release_start)*1000;
     if (took_hold && (!had_hold || (transferred-held).cwiseAbs().maxCoeff()>1e-9)) {
         traj = bridge_from_hold(traj_in, transferred, dt, hand, retract_arm);
-        if (traj.rows()<2) return -16;
+        if (traj.rows()<2 || !within_bounds(traj)) {
+            wrist_servo::hold_joint_reference(hand,transferred);return -16;
+        }
     }
     auto trace = [&](const char *event, const char *reason, int row, double cycle_ms,
                      const Eigen::RowVectorXd &v, const Eigen::RowVectorXd &a,
@@ -141,7 +153,11 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
         const double tick=wrist_servo::monotonic_seconds();
         const double cycle_ms=last_tick>0 ? (tick-last_tick)*1000 : 0;
         last_tick=tick;
-        wrist_servo::send_joint_reference(hand,traj.row(i));
+        try {wrist_servo::send_joint_reference(hand,traj.row(i));}
+        catch(const std::exception &e) {
+            std::cerr<<"[arm_player] hand="<<hand<<" row="<<i<<" write_failed="<<e.what()<<'\n';
+            return -2;
+        }
         // Only staged retreats request feedback, at 20 Hz. Planning/photography never
         // runs in this callback; it only publishes measured clearance to a waiting peer.
         if(observe_progress && i%10==0) {

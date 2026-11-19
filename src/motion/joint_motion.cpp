@@ -2,13 +2,14 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <array>
 
 namespace t170::motion {
 namespace {
 bool positive(double x) { return std::isfinite(x) && x > 0; }
 }
 Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &points, double dt,
-                               const JointMotionLimits &limit, double minimum_duration) {
+                               const JointMotionLimits &limit, double minimum_duration,bool preserve_knot_bounds) {
     if(points.rows()<2 || points.cols()!=7 || !points.allFinite() || !positive(dt) ||
        !positive(limit.velocity) || !positive(limit.acceleration) || !positive(limit.jerk) ||
        !std::isfinite(minimum_duration) || minimum_duration<0) return {};
@@ -39,6 +40,15 @@ Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &points, double dt,
     }
     second.back()/=diag.back();
     for(int i=n-2;i>=0;--i) second[i]=(second[i]-upper[i]*second[i+1])/diag[i];
+    // Clamped cubic B-spline approximation. Its nonnegative common weights
+    // preserve the joint-knot convex hull, and C2 continuity avoids the jerk
+    // impulses of per-coordinate shape-preserving Hermite interpolation.
+    const int degree=std::min(3,n-1);
+    std::vector<double> knots(n+degree+1,0);
+    if(preserve_knot_bounds) {
+        for(int i=degree+1;i<n;++i)knots[i]=double(i-degree)/(n-degree);
+        for(int i=n;i<n+degree+1;++i)knots[i]=1;
+    }
     double duration=std::max({0.25,minimum_duration,1.9*maximum_joint_length/limit.velocity});
     for(int attempt=0;attempt<20 && duration<=60;++attempt) {
         const int ticks=std::max(2,static_cast<int>(std::ceil(duration/dt)));
@@ -52,7 +62,18 @@ Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &points, double dt,
             while(interval<n-2 && u>s[interval+1]) ++interval;
             const double h=s[interval+1]-s[interval];
             const double a=std::clamp((s[interval+1]-u)/h,0.0,1.0), b=1-a;
-            out.row(k)=a*q[interval]+b*q[interval+1]+
+            if(preserve_knot_bounds) {
+                const int span=std::min(n-1,degree+static_cast<int>(u*(n-degree)));
+                std::array<JointVector,4> control;
+                for(int j=0;j<=degree;++j)control[j]=q[span-degree+j];
+                for(int r=1;r<=degree;++r)for(int j=degree;j>=r;--j) {
+                    const int index=span-degree+j;
+                    const double alpha=(u-knots[index])/(knots[index+degree-r+1]-knots[index]);
+                    control[j]=(1-alpha)*control[j-1]+alpha*control[j];
+                }
+                out.row(k)=control[degree];
+            }
+            else out.row(k)=a*q[interval]+b*q[interval+1]+
                 ((a*a*a-a)*second[interval]+(b*b*b-b)*second[interval+1])*(h*h/6);
         }
         out.row(0)=q.front(); out.bottomRows(1)=q.back();

@@ -149,8 +149,13 @@ struct PlacementSession::Impl {
                 Joints next;double xyz=0,rot=0;
                 const auto fk=[&](const Joints &j){return arm().Forward_Kinematics(Eigen::RowVectorXd(j));};
                 const auto limit=[&](const Joints &j){return (j-seed).cwiseAbs().maxCoeff()>cfg.max_joint_excursion_rad ||
-                    (cfg.enforce_sdk_joint_limits && arm().Check_Joint_Limit(Eigen::RowVectorXd(j)));};
-                if(!wrist_servo::solve_pose_with_fk(q,p,start_rotation.slerp(f,goal_rotation).toRotationMatrix(),cfg,fk,limit,next,xyz,rot)) {planned=false;break;}
+                    arm().Check_Joint_Limit(Eigen::RowVectorXd(j));};
+                Eigen::Matrix4d target=Eigen::Matrix4d::Identity();target.topRightCorner<3,1>()=p;
+                target.topLeftCorner<3,3>()=start_rotation.slerp(f,goal_rotation).toRotationMatrix();
+                auto policy=arm().ik_policy(target);policy.iterations=20;policy.posture_iterations=1;policy.null_step_rad=.001;
+                policy.minimum=policy.minimum.cwiseMax(seed-Joints::Constant(cfg.max_joint_excursion_rad));
+                policy.maximum=policy.maximum.cwiseMin(seed+Joints::Constant(cfg.max_joint_excursion_rad));
+                if(!wrist_servo::solve_pose_with_fk(q,p,target.topLeftCorner<3,3>(),cfg,fk,limit,next,xyz,rot,&policy)) {planned=false;break;}
                 const Joints v=(next-q)/.01;
                 if(v.cwiseAbs().maxCoeff()>cfg.max_joint_speed_rad_s ||
                    ((v-previous_v)/.01).cwiseAbs().maxCoeff()>cfg.max_joint_accel_rad_s2) {planned=false;break;}

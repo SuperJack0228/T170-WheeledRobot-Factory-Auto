@@ -1,6 +1,7 @@
 #include "internal/arm_internal.h"
 #include "t170/motion/pose_solver.h"
 #include "t170/motion/joint_motion.h"
+#include "t170/motion/retreat.h"
 #include "t170/common/paths.h"
 #include "t170/telemetry/dispatch_metrics.h"
 #include "t170/common/servo_trace.h"
@@ -149,6 +150,17 @@ void append_line_trajectory_fail_debug(
               << " hand=" << (hand_label ? hand_label : "?") << " ret=" << ret << std::endl;
 }
 
+namespace {
+int finish_line_motion(Arm &arm,const Matrix<double,1,6> &goal) {
+    if(record_arm_cartesian_arrival(arm,goal,nullptr,g_move_cfg.retract_motion.settle_timeout_s))return 0;
+    if(hardware_abort_requested())return -4;
+    if(can_io_faulted())return -2;
+    const auto measured=arm_get_joint_pos(arm);
+    if(!arm.Check_Joint_Limit(measured))wrist_servo::hold_joint_reference(arm_hand_side(arm),measured);
+    return -8;
+}
+}
+
 int arm_line_move(
     Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, bool snap_reach)
 {
@@ -177,9 +189,8 @@ int arm_line_move(
         return ret;
     }
     const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
-    if (exec == 0)
-        record_arm_cartesian_arrival(arm, pos, nullptr);
-    return exec;
+    if (exec != 0)return exec;
+    return finish_line_motion(arm,pos);
 }
 
 int arm_line_move_settle(Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity, int settle_ms)
@@ -239,44 +250,8 @@ int arm_line_move_settle(Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear
               << ") 实际=(" << tcp(0) << "," << tcp(1) << "," << tcp(2)
               << ") 差=(" << (tcp(0) - pos(0)) << "," << (tcp(1) - pos(1)) << ","
               << (tcp(2) - pos(2)) << ")\n";
-    record_arm_cartesian_arrival(arm, pos, nullptr);
-    return 0;
+    return finish_line_motion(arm,pos);
 }
-
-int arm_line_move_hold_redundant(Arm &arm, Matrix<double, 1, 6> &pos, double cart_linear_velocity)
-{
-    if (arm_hand_side(arm) == 1 && right_arm_motors_locked())
-        return 0;
-    clamp_cart_goal_z(pos, "arm_line_move_hold_redundant(直线运动下发前)");
-    const int hand = arm_hand_side(arm);
-    Eigen::MatrixXd q_start = arm_read_model_joints(hand);
-    if (hardware_abort_requested())
-        return -4;
-    if (can_io_faulted())
-        return -2;
-
-    arm.Cart_Linear_Velocity = cart_linear_velocity;
-
-    Eigen::MatrixXd traj;
-    const double j2 = (q_start.cols() >= 2) ? q_start(0, 1) : 0.0;
-    const int ret = arm.Line_Trajectory(q_start, pos, traj, j2);
-    if (ret != 0)
-    {
-        const char *stage = nullptr;
-        {
-            std::lock_guard<std::mutex> lock(g_arm_line_move_stage_mu);
-            stage = g_arm_line_move_debug_stage;
-        }
-        append_line_trajectory_fail_debug(arm_hand_label(hand), ret, pos, stage, cart_linear_velocity);
-        return ret;
-    }
-    const int exec = execute_arm_trajectory(traj, hand, k_arm_traj_dt);
-    if (exec == 0)
-        record_arm_cartesian_arrival(arm, pos, nullptr);
-    return exec;
-}
-
-
 
 ArmLineMoveResult arm_dual_line_move(
     Arm &arm_r,
@@ -287,8 +262,8 @@ ArmLineMoveResult arm_dual_line_move(
     bool snap_reach)
 {
     ArmLineMoveResult out;
-    std::thread th_r([&]() { out.ret_r = arm_line_move(arm_r, pos_r, cart_linear_velocity, snap_reach); });
-    std::thread th_l([&]() { out.ret_l = arm_line_move(arm_l, pos_l, cart_linear_velocity, snap_reach); });
+    std::thread th_r([&]() { try{out.ret_r=arm_line_move(arm_r,pos_r,cart_linear_velocity,snap_reach);}catch(const std::exception &e){std::cerr<<"[arm] right exception="<<e.what()<<'\n';out.ret_r=-2;} });
+    std::thread th_l([&]() { try{out.ret_l=arm_line_move(arm_l,pos_l,cart_linear_velocity,snap_reach);}catch(const std::exception &e){std::cerr<<"[arm] left exception="<<e.what()<<'\n';out.ret_l=-2;} });
     th_r.join();
     th_l.join();
     return out;
@@ -376,7 +351,7 @@ int plan_arm_line_from(
     double vel_m_s,
     const Eigen::MatrixXd &q_start,
     Eigen::MatrixXd &traj,
-    bool lock_redundant)
+    bool protect_vertical_start)
 {
     if (q_start.rows() != 1 || q_start.cols() < 6 || !q_start.allFinite() || !goal.allFinite())
         return -10;
@@ -384,15 +359,9 @@ int plan_arm_line_from(
         return -10;
     clamp_cart_goal_z(goal, "两段直线");
     arm.Cart_Linear_Velocity = vel_m_s;
-    int ret = -16;
-    if (lock_redundant && q_start.cols() >= 2)
-        ret = arm.Line_Trajectory(q_start, goal, traj, q_start(0, 1));
-    if (!lock_redundant || ret != 0 || traj.rows() < 2)
-    {
-        if (lock_redundant && ret != 0)
-            std::cerr << "[retract] 竖直抬升锁冗余关节失败，改为自由冗余\n";
-        ret = arm.Line_Trajectory(q_start, goal, traj);
-    }
+    // The legacy flag now requests clearance/connection validation only. Normal
+    // trajectories use all seven joints; J2 is not a posture-control mechanism.
+    const int ret=arm.Line_Trajectory(q_start,goal,traj);
     if (ret != 0 || traj.rows() < 2 || traj.cols()!=q_start.cols()) {
         const std::string reason="SDK_code="+std::to_string(ret)+" rows="+std::to_string(traj.rows())+
             " columns="+std::to_string(traj.cols());
@@ -401,20 +370,12 @@ int plan_arm_line_from(
             goal,"独立直线SDK规划",vel_m_s);
         return ret != 0 ? ret : -16;
     }
-    if (lock_redundant) {
+    if (protect_vertical_start) {
         // Never disguise an SDK branch change by overwriting row zero alone.
         // Keep the real first rows and connect from the held reference at rest.
         Eigen::MatrixXd connected = wrist_servo::connect_held_start(
             traj, q_start.row(0), k_arm_traj_dt, retract_connector_limits(),
             lift_connector_validity(arm,q_start.row(0)));
-        if (connected.rows()<2) {
-            std::cerr << "[retract] locked SDK start not continuous, retry free redundancy\n";
-            ret=arm.Line_Trajectory(q_start,goal,traj);
-            if(ret!=0 || traj.rows()<2) return ret!=0 ? ret : -16;
-            connected=wrist_servo::connect_held_start(
-                traj,q_start.row(0),k_arm_traj_dt,retract_connector_limits(),
-                lift_connector_validity(arm,q_start.row(0)));
-        }
         if (connected.rows()<2) {
             wrist_servo::task_event(arm_hand_side(arm),"lift_connector_failed","SDK_start_does_not_join_held_reference");
             return -16;
@@ -672,23 +633,8 @@ ArmLineMoveResult arm_dual_transfer_move(
 
 int arm_joint_move(Arm &arm, Matrix<double, 1, 7> &qd)
 {
-    const int hand = arm_hand_side(arm);
-    if (hand == 1 && right_arm_motors_locked())
-        return 0;
-    const Eigen::MatrixXd q_start = arm_read_model_joints(hand);
-    Eigen::MatrixXd q_end = qd;
-    if (q_end.rows() != 1)
-        q_end = q_end.transpose();
-    Eigen::MatrixXd traj;
-    const int ret = arm.Joint_Trajectory(q_start, q_end, traj);
-    if (ret != 0)
-    {
-        if(arm.Check_Joint_Limit(q_end.row(0))) return ret;
-        std::cerr << "[arm] Joint_Trajectory ret=" << ret
-                  << " start outside model range; timed recovery to a valid target\n";
-        Eigen::MatrixXd knots(2,7);knots.row(0)=q_start.row(0);knots.row(1)=q_end.row(0);
-        const auto &d=arm.definition();
-        traj=t170::motion::time_joint_path(knots,k_arm_traj_dt,{d.velocity,d.acceleration,d.jerk});
-    }
-    return execute_arm_trajectory(traj, hand, k_arm_traj_dt);
+    if(arm_hand_side(arm)==1 && right_arm_motors_locked())return 0;
+    if(arm.Check_Joint_Limit(qd))return -3;
+    // The joint player verifies feedback and holds measured position on failure.
+    return arm_return_after_lift(arm,qd);
 }

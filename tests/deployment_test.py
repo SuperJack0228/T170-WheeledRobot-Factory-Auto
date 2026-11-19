@@ -71,6 +71,10 @@ class DeploymentTest(unittest.TestCase):
     self.assertIn('config/robots/TH-T170C-0124/arm_tools.yaml',record['input_sha256'])
     self.assertFalse((out/'config/Robot_Arm_Model.yaml').exists())
     self.assertEqual(yaml.safe_load((out/'config/arm_binding.yaml').read_text())['model_id'],model_id)
+    binding=yaml.safe_load((out/'config/arm_binding.yaml').read_text())
+    policy=yaml.safe_load((ROOT/'config/robot_models'/model_id/'motion_policy.yaml').read_text())
+    self.assertEqual(binding['motion_policy'],policy)
+    self.assertIn('config/robot_models/'+model_id+'/motion_policy.yaml',record['input_sha256'])
     self.assertEqual((out/'config/arm_model.urdf').read_bytes(),
       (ROOT/'config/robot_models'/model_id/'robot.urdf').read_bytes())
  def test_arm_model_identity_hash_and_ownership_rejected(self):

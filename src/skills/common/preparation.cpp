@@ -67,8 +67,6 @@ Eigen::Matrix<double, 1, 6> make_home_tcp_left()
         return g_move_cfg.home_tcp.left;
     }
 
-constexpr double kRetractMaxJointJumpRad = 2.0;
-
 constexpr double kRetractSkipXyzM = 0.012;
 
 constexpr double kRetractSkipRpyRad = 5.0 * rad;
@@ -83,129 +81,15 @@ constexpr double kFoldedElbowAbsRad = 70.0 * rad;
 
 constexpr double kJointHomeArriveXyzM = 0.05;
 
-bool joints_to_matrix7(const Eigen::RowVectorXd &q, Eigen::Matrix<double, 1, 7> &out)
+bool solve_standby_joints(Arm &arm, bool is_right, Eigen::Matrix<double,1,6> goal,
+                          Eigen::Matrix<double,1,7> &qd)
     {
-        if (q.size() < 7)
-            return false;
-        for (int i = 0; i < 7; ++i)
-            out(i) = q(i);
-        return true;
-    }
-
-bool try_standby_ik(Arm &arm, Eigen::Matrix<double, 1, 6> goal,
-                        const Eigen::RowVectorXd &seed, double analytic_j2,
-                        Eigen::RowVectorXd &q_out, int &ik_out)
-    {
-        Eigen::RowVectorXd q = seed;
-        Eigen::Matrix<double, 1, 6> g = goal;
-        int ik = arm.Inverse_Kinematics(g, q);
-        if (ik != 0)
-        {
-            q = seed;
-            g = goal;
-            ik = arm.Inverse_Kinematics_Numeric(g, q);
+        Eigen::RowVectorXd q=arm_get_joint_pos(arm);
+        const int rc=arm.Inverse_Kinematics(goal,q);
+        if(rc!=0 || q.size()!=7 || arm.Check_Joint_Limit(q)) {
+            std::cerr<<"[standby] side="<<(is_right?"right":"left")<<" bounded_IK_failed="<<rc<<'\n';return false;
         }
-        if (ik != 0)
-        {
-            q = seed;
-            ik = arm.Inverse_Kinematics_Analytic(goal, q, analytic_j2);
-        }
-        ik_out = ik;
-        if (ik != 0)
-            return false;
-        q_out = q;
-        return true;
-    }
-
-bool solve_home_joints(Arm &arm, bool is_right, Eigen::Matrix<double, 1, 6> goal,
-                           Eigen::Matrix<double, 1, 7> &qd)
-    {
-        const Eigen::RowVectorXd q_now = arm_get_joint_pos(arm);
-        if (q_now.size() < 7)
-        {
-            std::cerr << "[home] " << (is_right ? "右" : "左") << " 逆解维数不足\n";
-            return false;
-        }
-
-        // 垂臂当前关节离 standby 太远，不能当唯一种子。换零位/待机构型种子再解。
-        Eigen::RowVectorXd q_zero = arm.to_model(Eigen::Matrix<double,1,7>::Zero());
-        Eigen::RowVectorXd q_standby_seed = q_zero;
-        if (is_right)
-        {
-            q_standby_seed << 20.9 * rad, 45.7 * rad, -13.6 * rad, 101.3 * rad, -44.5 * rad,
-                -18.8 * rad, 65.2 * rad;
-        }
-        else
-        {
-            q_standby_seed << -28.0 * rad, -30.9 * rad, 21.4 * rad, -88.1 * rad, -39.8 * rad,
-                49.1 * rad, -32.4 * rad;
-        }
-
-        q_standby_seed = arm.to_model(q_standby_seed);
-        const Eigen::RowVectorXd seeds[3] = {q_now, q_zero, q_standby_seed};
-        const char *seed_names[3] = {"当前关节", "零位", "待机构型"};
-        const double j2_try[8] = {
-            q_now(1),
-            q_zero(1)-45.0 * rad, q_zero(1)-30.0 * rad, q_zero(1)-20.0 * rad, q_zero(1),
-            q_zero(1)+20.0 * rad, q_zero(1)+30.0 * rad, q_zero(1)+45.0 * rad};
-
-        Eigen::RowVectorXd q_sol;
-        int last_ik = -1;
-        const char *used = nullptr;
-        for (int s = 0; s < 3; ++s)
-        {
-            for (double j2 : j2_try)
-            {
-                Eigen::RowVectorXd q;
-                if (try_standby_ik(arm, goal, seeds[s], j2, q, last_ik))
-                {
-                    q_sol = q;
-                    used = seed_names[s];
-                    break;
-                }
-            }
-            if (used != nullptr)
-                break;
-        }
-
-        if (used == nullptr)
-        {
-            const Matrix<double, 1, 6> fk =
-                T2PosEulerAngles(arm.Forward_Kinematics(q_standby_seed));
-            if ((fk.head<3>() - goal.head<3>()).norm() <= 0.05)
-            {
-                q_sol = q_standby_seed;
-                used = "待机构型直达";
-                last_ik = 0;
-                std::cout << "[home] " << (is_right ? "右" : "左")
-                          << " 笛卡尔逆解失败，改用已知待机关节直达 yaml standby\n";
-            }
-        }
-
-        if (used == nullptr || !joints_to_matrix7(q_sol, qd))
-        {
-            std::cerr << "[home] " << (is_right ? "右" : "左")
-                      << " standby 逆解失败 code=" << last_ik
-                      << "（垂臂种子不可用时已换种子仍失败）\n";
-            return false;
-        }
-
-        const Eigen::Matrix<double, 1, 7> q0 = arm_get_joint_pos(arm);
-        std::cout << std::fixed << std::setprecision(1)
-                  << "[home] " << (is_right ? "右" : "左") << " 关节回 standby seed=" << used
-                  << " Δq_deg=[";
-        double max_abs = 0.0;
-        for (int i = 0; i < 7; ++i)
-        {
-            const double d = std::abs(qd(i) - q0(i));
-            if (d > max_abs)
-                max_abs = d;
-            std::cout << (d / rad);
-            if (i + 1 < 7)
-                std::cout << ",";
-        }
-        std::cout << "] max=" << (max_abs / rad) << "°\n";
-        return true;
+        qd=q;return true;
     }
 
 bool arm_pose_needs_joint_home(Arm &arm)
@@ -229,9 +113,9 @@ bool retract_joint_to_standby(
         Eigen::Matrix<double, 1, 7> qd_r = Eigen::Matrix<double, 1, 7>::Zero();
         Eigen::Matrix<double, 1, 7> qd_l = Eigen::Matrix<double, 1, 7>::Zero();
         const bool move_r = !right_arm_motors_locked();
-        if (move_r && !solve_home_joints(arm_r, true, standby_r, qd_r))
+        if (move_r && !solve_standby_joints(arm_r, true, standby_r, qd_r))
             return false;
-        if (!solve_home_joints(arm_l, false, standby_l, qd_l))
+        if (!solve_standby_joints(arm_l, false, standby_l, qd_l))
             return false;
         if (hardware_abort_requested())
             return false;
@@ -350,41 +234,6 @@ void clamp_retract_goal_y(bool is_right, Eigen::Matrix<double, 1, 6> &goal)
         }
     }
 
-void log_retract_ik_preview(
-        Arm &arm,
-        bool is_right,
-        Eigen::Matrix<double, 1, 6> goal,
-        const char *stage)
-    {
-        Eigen::RowVectorXd q = arm_get_joint_pos(arm);
-        Eigen::RowVectorXd q_ik = q;
-        Eigen::Matrix<double, 1, 6> g = goal;
-        const int ik = arm.Inverse_Kinematics(g, q_ik);
-        if (ik != 0)
-        {
-            std::cout << "[home] " << (is_right ? "右" : "左") << " " << stage
-                      << " 混合逆解预览失败 code=" << ik << "，仍下发解锁J2直线\n";
-            return;
-        }
-        const int n = static_cast<int>(std::min(q.size(), q_ik.size()));
-        double max_abs = 0.0;
-        std::cout << std::fixed << std::setprecision(1)
-                  << "[home] " << (is_right ? "右" : "左") << " " << stage << " Δq_deg=[";
-        for (int i = 0; i < n; ++i)
-        {
-            const double d = std::abs(q_ik(i) - q(i));
-            if (d > max_abs)
-                max_abs = d;
-            std::cout << (d / rad);
-            if (i + 1 < n)
-                std::cout << ",";
-        }
-        std::cout << "] max=" << (max_abs / rad) << "°";
-        if (max_abs > kRetractMaxJointJumpRad)
-            std::cout << "（关节变化较大，允许J2随路径调整）";
-        std::cout << "\n";
-    }
-
 bool retract_phase_move(
         Arm &arm_r,
         Arm &arm_l,
@@ -408,10 +257,6 @@ bool retract_phase_move(
         const Eigen::Matrix<double, 1, 6> cur_l = arm_get_tcp_pos(arm_l);
         bool move_r = want_r && (!retract_xyz_close(cur_r, goal_r) || !retract_rpy_close(cur_r, goal_r));
         bool move_l = want_l && (!retract_xyz_close(cur_l, goal_l) || !retract_rpy_close(cur_l, goal_l));
-        if (move_r)
-            log_retract_ik_preview(arm_r, true, goal_r, stage);
-        if (move_l)
-            log_retract_ik_preview(arm_l, false, goal_l, stage);
         if (!move_r && !move_l)
         {
             const bool r_ok = !want_r ||
@@ -517,7 +362,7 @@ bool move_arms_retract_to(
                           << " 左 z " << cur_l(2) << "→" << lift_l_g(2) << "\n";
                 if (!retract_phase_move(
                         arm_r, arm_l, lift_r_g, lift_r, lift_l_g, lift_l, "home竖直抬升", false))
-                    ok = false;
+                    return false;
                 if (hardware_abort_requested())
                     return false;
             }
@@ -540,7 +385,7 @@ bool move_arms_retract_to(
                 std::cout << "[home] 越分区，先沿Y退回本侧边界（不改姿态）\n";
                 if (!retract_phase_move(
                         arm_r, arm_l, pull_r_g, pull_r, pull_l_g, pull_l, "home退回本侧Y", true))
-                    ok = false;
+                    return false;
                 if (hardware_abort_requested())
                     return false;
             }
@@ -555,13 +400,13 @@ bool move_arms_retract_to(
             bool xy_l = !check_zone || arm_y_allowed_left(cur_l(1));
             if (!right_arm_motors_locked() && !xy_r)
             {
-                std::cerr << "[home] 右手仍越区，跳过平移，避免扫过左区\n";
-                ok = false;
+                std::cerr << "[home] 右手仍越区，停止后续阶段\n";
+                return false;
             }
             if (!xy_l)
             {
-                std::cerr << "[home] 左手仍越区，跳过平移，避免扫过右区\n";
-                ok = false;
+                std::cerr << "[home] 左手仍越区，停止后续阶段\n";
+                return false;
             }
             Eigen::Matrix<double, 1, 6> xy_r_g =
                 hold_rpy_goal(cur_r, standby_r(0), standby_r(1), cur_r(2));
@@ -571,7 +416,7 @@ bool move_arms_retract_to(
                       << (check_zone ? "（卡本侧分区）\n" : "（不卡中缝）\n");
             if (!retract_phase_move(
                     arm_r, arm_l, xy_r_g, xy_r, xy_l_g, xy_l, "home平移到准备XY", check_zone))
-                ok = false;
+                return false;
             if (hardware_abort_requested())
                 return false;
         }
@@ -605,7 +450,7 @@ bool move_arms_retract_to(
                           << (down_l ? "" : " 跳过") << "\n";
                 if (!retract_phase_move(
                         arm_r, arm_l, z_r, down_r, z_l, down_l, "home落到准备Z", check_zone))
-                    ok = false;
+                    return false;
                 if (hardware_abort_requested())
                     return false;
             }
@@ -634,7 +479,7 @@ bool move_arms_retract_to(
                 rpy_goal_l(2) = standby_l(2);
                 if (!retract_phase_move(
                         arm_r, arm_l, rpy_goal_r, rpy_r, rpy_goal_l, rpy_l, "home准备姿态", check_zone))
-                    ok = false;
+                    return false;
             }
             else
                 std::cout << "[home] 当前腕角已接近 standby，或尚未到准备XY，跳过转腕\n";
@@ -660,7 +505,7 @@ bool move_arms_retract_to(
                           << standby_r(2) << " 左 " << cur_l(2) << "→" << standby_l(2) << "\n";
                 if (!retract_phase_move(
                         arm_r, arm_l, z_r_g, z_r, z_l_g, z_l, "home转腕后对齐Z", check_zone))
-                    ok = false;
+                    return false;
             }
         }
 
@@ -708,26 +553,34 @@ bool move_arms_to_standby(
 
 bool move_arms_to_home(Arm &arm_r, Arm &arm_l)
     {
-        const Eigen::Matrix<double, 1, 6> home_r = make_home_tcp_right();
-        const Eigen::Matrix<double, 1, 6> home_l = make_home_tcp_left();
-        std::cout << std::fixed << std::setprecision(4)
-                  << "[home] 使用专用 home_tcp 右=(" << home_r(0) << "," << home_r(1) << ","
-                  << home_r(2) << ") 左=(" << home_l(0) << "," << home_l(1) << "," << home_l(2)
-                  << ") rpy_deg 右=(" << (home_r(3) / rad) << "," << (home_r(4) / rad) << ","
-                  << (home_r(5) / rad) << ") 左=(" << (home_l(3) / rad) << ","
-                  << (home_l(4) / rad) << "," << (home_l(5) / rad) << ")\n";
-        const Eigen::Matrix<double, 1, 6> cur_r = arm_get_tcp_pos(arm_r);
-        const Eigen::Matrix<double, 1, 6> cur_l = arm_get_tcp_pos(arm_l);
-        const bool r_ok = right_arm_motors_locked() ||
-                          (retract_xyz_close(cur_r, home_r) && retract_rpy_close(cur_r, home_r));
-        const bool l_ok = retract_xyz_close(cur_l, home_l) && retract_rpy_close(cur_l, home_l);
-        if (r_ok && l_ok)
-        {
-            std::cout << "[home] 手臂已在 home_tcp，跳过分段回程\n";
-            return !hardware_abort_requested();
+        const bool move_r=!right_arm_motors_locked();
+        auto qr=arm_r.definition().home,ql=arm_l.definition().home;
+        if(!qr.allFinite() || !ql.allFinite())return false;
+        // Validate both paths before either hand starts. Home has one fixed joint
+        // target per model; no endpoint IK, XYZ stages, or in-place wrist rotation.
+        Eigen::MatrixXd path_r,path_l;
+        Eigen::Matrix<double,1,7> start_r=qr;
+        if(move_r)start_r=arm_get_joint_pos(arm_r);
+        const auto start_l=arm_get_joint_pos(arm_l);
+        const int plan_r=move_r?arm_r.Joint_Trajectory(start_r,qr,path_r):0;
+        const int plan_l=arm_l.Joint_Trajectory(start_l,ql,path_l);
+        if(plan_r!=0 || plan_l!=0) {
+            std::cerr<<"[home_joint] preflight failed right_code="<<plan_r<<" left_code="<<plan_l
+                     <<" start_model_deg right="<<start_r/rad<<" left="<<start_l/rad
+                     <<" goal_model_deg right="<<qr/rad<<" left="<<ql/rad<<'\n';return false;
         }
-        return move_arms_retract_to(
-            arm_r, arm_l, home_r, home_l, false, "yaml home_tcp");
+        std::cout<<"[home_joint] fixed targets model_deg right="<<qr/rad<<" left="<<ql/rad
+                 <<" nominal_s right="<<(path_r.rows()?path_r.rows()-1:0)*.005<<" left="<<(path_l.rows()-1)*.005<<'\n';
+        int rr=0,rl=0;std::thread right;
+        auto run=[&](Arm &arm,int &code) {
+            try {code=arm_joint_home(arm);}
+            catch(const std::exception &e){std::cerr<<"[home_joint] "<<e.what()<<'\n';code=-2;}
+        };
+        std::thread left([&]{run(arm_l,rl);});
+        if(move_r)right=std::thread([&]{run(arm_r,rr);});
+        if(right.joinable())right.join();left.join();
+        std::cout<<"[home_joint] measured_result right="<<rr<<" left="<<rl<<'\n';
+        return rr==0 && rl==0 && !hardware_abort_requested();
     }
 
 bool move_arms_to_belt_ready(

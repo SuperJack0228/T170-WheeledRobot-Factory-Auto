@@ -102,10 +102,10 @@ cmake --build build_robot -j4
 
 同一机器人仅运行一个主程序进程。启动脚本读取 `config/deployment.yaml`，合成独立运行目录并输出 `T170_RUNTIME_DIR`。
 
-Web 调试台使用同一运行目录，在另一终端启动；将路径替换为主程序启动输出中的实际值：
+主程序启动后，在另一终端启动 Web；脚本向主程序查询当前运行目录：
 
 ```bash
-T170_RUNTIME_DIR=/absolute/path/to/runtime ./deploy/run_web.sh
+./deploy/run_web.sh
 ```
 
 Web 默认端口为 `8080`，机器人命令端口为 `8099`。参数、模式及显式部署入口见 [部署指南](docs/deployment/CONFIGURATION.md)。

@@ -5,9 +5,14 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <mutex>
+#include <limits>
+#include "t170/motion/bounded_ik.h"
 
 namespace t170::motion {
 using ArmJoints = Eigen::Matrix<double,1,7>;
+struct ArmBounds { ArmJoints minimum, maximum;bool device_read=false; };
+struct ArmLimitState { mutable std::mutex mutex;ArmBounds bounds; };
 struct ArmDefinition {
     int hand = 1;
     std::string model_id, side, config_path;
@@ -19,6 +24,9 @@ struct ArmDefinition {
     Eigen::Matrix<double,1,6> tool = Eigen::Matrix<double,1,6>::Zero();
     double period = .005, velocity = .9, acceleration = 2.5, jerk = 20;
     bool ideal_t7 = false;
+    ArmJoints home=ArmJoints::Constant(std::numeric_limits<double>::quiet_NaN()), preferred=ArmJoints::Zero();
+    double posture_gain=.15, elbow_gain=8, limit_gain=.002, elbow_outward_ratio=.3;
+    std::shared_ptr<ArmLimitState> limits;
 };
 // SDK implementation is private to vendor_arm.cpp. Test backends are explicitly
 // injected; the production constructor always creates the vendor backend.
@@ -34,6 +42,8 @@ const ArmDefinition &arm_definition(int hand);
 ArmJoints model_to_device(int hand,const ArmJoints &q);
 ArmJoints device_to_model(int hand,const ArmJoints &q);
 Eigen::Matrix4d arm_pose_transform(const Eigen::Matrix<double,1,6> &pose);
+ArmBounds effective_arm_bounds(const ArmDefinition &);
+ArmBounds intersect_device_bounds(const ArmDefinition &,const ArmJoints &device_min,const ArmJoints &device_max);
 }
 
 // Application-owned arm adapter. ALL public joint arguments/results are SDK
@@ -60,6 +70,10 @@ public:
     Eigen::Matrix4d Flange_Transform(const Eigen::Ref<const Eigen::RowVectorXd> &q);
     Eigen::MatrixXd Jacobian(const Eigen::Ref<const Eigen::RowVectorXd> &q);
     bool Check_Joint_Limit(const Eigen::Ref<const Eigen::RowVectorXd> &q);
+    t170::motion::ArmBounds effective_limits() const { return t170::motion::effective_arm_bounds(definition_); }
+    void install_device_limits(const t170::motion::ArmJoints &minimum,const t170::motion::ArmJoints &maximum);
+    Eigen::Vector3d elbow_position(const t170::motion::ArmJoints &) const;
+    t170::motion::IKPolicy ik_policy(const Eigen::Matrix4d &target) const;
     int Inverse_Kinematics(Eigen::Matrix<double,1,6> &target,Eigen::Ref<Eigen::RowVectorXd> q);
     int Inverse_Kinematics_Numeric(Eigen::Matrix<double,1,6> &target,Eigen::Ref<Eigen::RowVectorXd> q);
     int Inverse_Kinematics_Analytic(const Eigen::Matrix<double,1,6> &target,Eigen::Ref<Eigen::RowVectorXd> q,double j2);

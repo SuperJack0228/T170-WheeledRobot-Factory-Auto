@@ -86,7 +86,27 @@ config/robots/TH-T170C-0125/cameras/realsense_cameras.yaml
 
 填好 `head.serial`、`left_hand.serial`、`right_hand.serial`（位于 `realsense` 下）。工具、准备位和电机约定相同就沿用；不同才改同目录的 `arm_tools.yaml`、`taught_poses.yaml`、`arm_binding.yaml`。
 
-## 3. 编译并启动机器人服务
+## 3. 安装 SDK、编译并启动机器人服务
+
+新机首次安装 SDK（沿用 No.124 已配置的公司 APT 源）：
+
+```bash
+sudo apt update
+sudo apt install ti5-device-sdk ti5-jindi-faactory-robot-client
+```
+
+`ti5-device-sdk` 的交付说明列出 CAN、串口、电机/夹爪编解码和仙工底盘包为依赖，由 APT 一并处理。调度客户端按当前工程/交接资料名称写为 `ti5-jindi-faactory-robot-client`（末尾是 `client`，`faactory` 保留原拼写）；私有源的实际包名与发布版本由公司提供，当前电脑未连接该源核验。若提示找不到包，用 `apt-cache search ti5` 查看该机源中的实际名称。
+
+已经安装、只更新调度库时使用：
+
+```bash
+sudo apt update
+sudo apt install --only-upgrade ti5-jindi-faactory-robot-client
+```
+
+首次安装不要加 `--only-upgrade`，它只升级已安装的包。`apt update` 是更新软件索引，不是更新 GitHub 代码。[APT 官方说明](https://manpages.debian.org/bookworm/apt/apt-get.8.en.html)。升级 SDK 前停止机器人服务，升级后重新编译并启动。
+
+本项目的新运动学库 `libti5_robot.so` 已在 `dependencies/sdk/arm/` 随仓库提供，由 CMake 选择对应架构；腰腿 SDK 源码也已入库，不需要猜测另一个 APT 包名安装它们。
 
 代码更新后编译一次；只改 YAML 不需要重新编译：
 
@@ -111,17 +131,14 @@ unset T170_ROOT T170_CONFIG_DIR T170_RUNTIME_DIR T170_DEPLOYMENT
 [deployment] T170_RUNTIME_DIR=/home/ti5robot/.local/state/t170/session.XXXXXXXX/runtime
 ```
 
-**复制实际打印的完整目录**，下一步启动网页要用。新仓库使用部署启动脚本，不再在源码根目录直接运行旧的 `t170c_debug`。
+网页启动脚本会向主程序自动查询这个目录，不需要复制。新仓库使用部署启动脚本，不再在源码根目录直接运行旧的 `t170c_debug`。
 
 ## 4. 启动网页调试端
 
-另开终端，进入同一个仓库，使用同一个 Python 环境：
+另开终端，进入同一个仓库，使用同一个 Python 环境，直接执行：
 
 ```bash
-export T170_PYTHON="$(command -v python)"
-unset T170_ROOT T170_CONFIG_DIR T170_DEPLOYMENT
-T170_RUNTIME_DIR="粘贴上一步打印的实际运行目录" \
-  ./deploy/run_web.sh --host 0.0.0.0 --port 8080
+./deploy/run_web.sh
 ```
 
 浏览器打开网页输出提示的地址，远程访问时将主机换为机器人 IP，保留 token：
@@ -130,7 +147,9 @@ T170_RUNTIME_DIR="粘贴上一步打印的实际运行目录" \
 http://机器人IP:8080/?token=网页启动时打印的token
 ```
 
-主程序默认本机命令端口为 8099，网页为 8080。主程序换了运行目录，网页也重启一次，改用新的目录。不要再启动第二份机器人主程序。
+主程序默认本机命令端口为 8099，网页为 8080，Web 默认监听 0.0.0.0，这些不需要重复输入。脚本只查询已运行主程序的目录、启动网页，不会另外生成一套配置或启动第二份机器人程序。
+
+代码更新后首次需重新编译并重启主程序，使 ping 返回当前目录；之后用上面的一行即可。显式设置 `T170_RUNTIME_DIR=...` 的旧用法仍保留。如果当前终端留有旧的显式运行目录，先取消该设置。自定义主程序命令端口时，例如 `./deploy/run_web.sh --robot-port 8123`。
 
 新机的四份料盘抓/放参考通过网页标定向导分别保存，位置为：
 
@@ -171,6 +190,8 @@ config/calibration/TH-T170C-0125/tasks/placement/right.yaml
 
 这两份场景文件在同一仓库内由各机器人档案共享；每台机器人电脑上的独立仓库副本互不自动同步。
 
+首版封装时计划增加一份 `config/quick_params.yaml`，只集中放常改的高度偏置、动作速度和少量操作参数；型号/单机标定仍独立，稳定默认值随版本封装。当前尚未接入这份快捷覆盖文件，现阶段仍按上表修改，不会因为手工新建同名 YAML 就自动生效。
+
 ## 6. 接入自动调度运行
 
 维护调试完成后，停止维护主程序；同样从仓库根目录启动：
@@ -180,6 +201,8 @@ unset T170_ROOT T170_CONFIG_DIR T170_RUNTIME_DIR T170_DEPLOYMENT
 ./deploy/run_production.sh 2>&1 | tee startup.log
 ```
 
-生产入口使用刚才选中的新机档案，初始化后自动进入调度，会执行当前开机准备流程。需要网页时按第 4 步绑定这次打印的新运行目录。
+生产入口使用刚才选中的新机档案，初始化后自动进入调度，会执行当前开机准备流程。需要网页时重新执行第 4 步的一行命令，自动使用本次主程序的运行目录。
 
 以后换机器人，切换 `config/deployment.yaml` 的 manifest；换 3/5 kg，改对应 deployment 的 `robot_model`；换标定，覆盖该机的标定文件。上述改动都通过重启生效。
+
+Home 已改为固定关节返回。对应机型的 Home 和肘部偏好放在 `config/robot_models/t170c_v2_3kg/motion_policy.yaml` 或 `t170c_v2_5kg/motion_policy.yaml`，修改后重新启动生成运行目录；旧 `home_tcp` 不再控制 Home 指令。启动自动只读驱动限位，日志快照为当前会话 `logs/arm_limits.yaml`。详见 [双臂运动策略](ARM_MOTION_POLICY.md)。

@@ -74,8 +74,7 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
             stop_at_B?"place_stop_at_B":"SDK_endpoint_fallback");
     }
     g_servo_joint_origin[hand]=command;
-    wrist_servo::task_event(hand,"joint_policy",g_move_cfg.visual_servo.enforce_sdk_joint_limits?
-        "SDK_and_relative_envelope":"relative_envelope_SDK_bypass");
+    wrist_servo::task_event(hand,"joint_policy","effective_model_driver_limits_and_relative_envelope");
     const int result=wrist_servo::run_descent(arm,goal,command,previous,descent_speed);
     guard.success=result==0;
     return result;

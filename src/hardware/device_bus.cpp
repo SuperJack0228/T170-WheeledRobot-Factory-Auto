@@ -411,6 +411,19 @@ bool motor_set_pos_rad(uint32_t id, double rad)
 }
 
 bool motor_read_pos_rad(uint32_t id,double &rad) { return motor_get_pos_rad(id,rad); }
+bool motor_read_position_limits(uint32_t id,double &minimum,double &maximum) {
+    if(skip_id(id))return false;
+    std::lock_guard<std::mutex> lock(g_motor_sdk_mu);
+    try {
+        const double low=get_Min_Position(id),high=get_Max_Position(id);
+        if(!std::isfinite(low) || !std::isfinite(high) || low>=high) {
+            std::cerr<<"[arm_limits] invalid driver range id="<<id<<" min="<<low<<" max="<<high<<'\n';return false;
+        }
+        minimum=low;maximum=high;return true;
+    }catch(const std::exception &e) {
+        std::cerr<<"[arm_limits] read failed id="<<id<<" reason="<<e.what()<<'\n';return false;
+    }
+}
 
 bool can_io_faulted()
 {

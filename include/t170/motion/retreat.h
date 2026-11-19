@@ -6,6 +6,8 @@
 #include <tuple>
 #include <vector>
 class Arm;
+/** Fixed configured MODEL joint Home, feedback-verified, no Cartesian IK/line. */
+int arm_joint_home(Arm &arm);
 #include "t170/motion/types.h"
 int arm_vertical_lift(Arm &arm, double lift_m, double speed_m_s,
                       const std::function<void(double)> &on_measured_lift = {});

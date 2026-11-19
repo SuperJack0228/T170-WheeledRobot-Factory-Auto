@@ -40,7 +40,7 @@ int plan_arm_line_from(
     double vel_m_s,
     const Eigen::MatrixXd &q_start,
     Eigen::MatrixXd &traj,
-    bool lock_redundant = false);
+    bool protect_vertical_start = false);
 int plan_line_then_line(
     Arm &arm,
     Eigen::Matrix<double, 1, 6> mid,

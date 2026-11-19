@@ -14,6 +14,9 @@
     add_executable(arm_model_test tests/arm_model_test.cpp)
     target_link_libraries(arm_model_test PRIVATE t170_arm_core)
     add_test(NAME arm_model_test COMMAND arm_model_test ${T170_TEST_RUNTIME} ${PROJECT_SOURCE_DIR})
+    add_executable(arm_motion_policy_test tests/arm_motion_policy_test.cpp)
+    target_link_libraries(arm_motion_policy_test PRIVATE t170_arm_core)
+    add_test(NAME arm_motion_policy_test COMMAND arm_motion_policy_test ${T170_TEST_RUNTIME} ${PROJECT_SOURCE_DIR})
     add_executable(arm_io_test tests/arm_io_test.cpp src/motion/arm_io.cpp)
     target_link_libraries(arm_io_test PRIVATE t170_arm_configuration t170::control)
     add_test(NAME arm_io_test COMMAND arm_io_test ${T170_TEST_RUNTIME})
@@ -140,6 +143,8 @@
     add_test(NAME dispatch_report_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/dispatch_report_test.py)
     add_test(NAME deployment_test COMMAND ${Python3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/deployment_test.py $<TARGET_FILE:t170_config_dump>)
+    add_test(NAME web_launcher_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/web_launcher_test.py)
     add_test(NAME arm_model_geometry_test COMMAND ${Python3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/arm_model_geometry_test.py)
 

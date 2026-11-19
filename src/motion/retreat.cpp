@@ -2,6 +2,7 @@
 #include "t170/motion/pose_solver.h"
 #include "t170/motion/joint_motion.h"
 #include "t170/common/paths.h"
+#include "t170/common/logging.h"
 #include "t170/telemetry/dispatch_metrics.h"
 #include "t170/common/servo_trace.h"
 #include "t170/skills/legacy/profiles.h"
@@ -67,15 +68,19 @@ int plan_seeded_vertical_lift(Arm &arm, const wrist_servo::Joints &grasp, double
             };
             const wrist_servo::JointLimitCheck limits = [&](const wrist_servo::Joints &sample) {
                 return (sample - grasp).cwiseAbs().maxCoeff() > 1.5 ||
-                       (sample - q).cwiseAbs().maxCoeff() > 0.20;
+                       (sample - q).cwiseAbs().maxCoeff() > 0.20 || arm.Check_Joint_Limit(sample);
             };
             wrist_servo::Vec3 target;
             target << x, y, z + dz;
             double position_error = 0;
             double rotation_error = 0;
+            Eigen::Matrix4d goal=start_T;goal.topRightCorner<3,1>()=target;
+            auto policy=arm.ik_policy(goal);policy.iterations=25;policy.step_rad=.05;policy.null_step_rad=.002;policy.posture_iterations=2;
+            policy.minimum=policy.minimum.cwiseMax(grasp-wrist_servo::Joints::Constant(1.5)).cwiseMax(q-wrist_servo::Joints::Constant(.20));
+            policy.maximum=policy.maximum.cwiseMin(grasp+wrist_servo::Joints::Constant(1.5)).cwiseMin(q+wrist_servo::Joints::Constant(.20));
             if (!wrist_servo::solve_pose_with_fk(
                     q, target, rotation, g_move_cfg.visual_servo, forward, limits, next,
-                    position_error, rotation_error))
+                    position_error, rotation_error,&policy))
             {
                 dz *= 0.5;
                 continue;
@@ -108,14 +113,14 @@ int plan_seeded_vertical_lift(Arm &arm, const wrist_servo::Joints &grasp, double
     const auto &c=g_move_cfg.retract_motion;
     detail="time_parameterization";
     trajectory=t170::motion::time_joint_path(path,k_arm_traj_dt,
-        {c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,c.max_joint_jerk_rad_s3},2*rise_m/speed);
+        {c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,c.max_joint_jerk_rad_s3},2*rise_m/speed,true);
     if(trajectory.rows()<2) return -16;
     // Check the interpolated path as well as IK knots near the loaded tray.
     for(int i=0;i<trajectory.rows();++i) {
         std::lock_guard<std::mutex> lock(g_arm_kin_mu[hand]);
         const auto T=arm.Forward_Kinematics(Eigen::RowVectorXd(trajectory.row(i)));
         const double angle=Eigen::AngleAxisd(rotation*T.block<3,3>(0,0).transpose()).angle();
-        if(!T.allFinite() || T(2,3)<start_T(2,3)-.002 ||
+        if(arm.Check_Joint_Limit(trajectory.row(i)) || !T.allFinite() || T(2,3)<start_T(2,3)-.002 ||
            T(2,3)>z_goal+.002 ||
            (T.block<2,1>(0,3)-start_T.block<2,1>(0,3)).norm()>.008 || angle>.08) {
             detail="interpolated_geometry row="+std::to_string(i);return -16;
@@ -135,6 +140,9 @@ int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage
 {
     const int hand=arm_hand_side(arm);
     if(path.rows()<2 || path.cols()!=7 || !path.allFinite()) return -16;
+    for(int i=0;i<path.rows();++i)if(arm.Check_Joint_Limit(path.row(i)))return -3;
+    if(!wrist_servo::trace_writer().start(t170::logging::file("visual_servo").string()))
+        std::cerr<<"[motion_trace] unavailable; terminal feedback remains enabled\n";
     wrist_servo::Joints transferred;
     if(wrist_servo::take_final_hold(hand,transferred) &&
        (transferred-path.row(0)).cwiseAbs().maxCoeff()>1e-6) {
@@ -246,7 +254,7 @@ int play_seeded_vertical_lift(Arm &arm,double lift_m,double speed,
 namespace {
 int play_joint_return(Arm &arm,const wrist_servo::Joints &ready,
                       const std::function<void()> &on_started = {},
-                      double notify_at = -1,double limit_scale = 1)
+                      double notify_at = -1,double limit_scale = 1,const char *stage="return")
 {
     const int hand=arm_hand_side(arm);
     wrist_servo::Joints start;
@@ -259,15 +267,15 @@ int play_joint_return(Arm &arm,const wrist_servo::Joints &ready,
         {c.max_joint_velocity_rad_s*scale,c.max_joint_acceleration_rad_s2*scale,
          c.max_joint_jerk_rad_s3*scale});
     if(path.rows()<2) return -16;
-    std::cout<<"[retract] hand="<<hand<<" fixed_ready_model_rad="<<ready
+    std::cout<<"[retract] hand="<<hand<<" stage="<<stage<<" target_model_rad="<<ready
              <<" duration_s="<<(path.rows()-1)*k_arm_traj_dt
              <<" limit_scale="<<scale<<'\n';
     wrist_servo::task_event(hand,"return_plan","fixed_motor_joints_no_IK");
     if(!(notify_at>=0 && notify_at<=1)) {
         if(on_started) on_started();
-        return execute_staged_motion(arm,path,"return");
+        return execute_staged_motion(arm,path,stage);
     }
-    return execute_staged_motion(arm,path,"return",{},{},notify_at,on_started);
+    return execute_staged_motion(arm,path,stage,{},{},notify_at,on_started);
 }
 }
 
@@ -290,4 +298,14 @@ int arm_return_after_lift(Arm &arm,const Eigen::Matrix<double,1,7> &ready,
     arm_discard_line_then_line_plan(arm_hand_side(arm));
     std::lock_guard<std::mutex> owner(g_staged_motion_mu[arm_hand_side(arm)]);
     orch::TimingSpan timer("arm_return");const int code=play_joint_return(arm,ready,on_started,notify_at,limit_scale);timer.set_ok(code==0);return code;
+}
+int arm_joint_home(Arm &arm) {
+    const int hand=arm_hand_side(arm);
+    if(hand==1 && right_arm_motors_locked())return 0;
+    if(arm.Check_Joint_Limit(arm.definition().home))return -3;
+    arm_discard_line_then_line_plan(hand);
+    std::lock_guard<std::mutex> owner(g_staged_motion_mu[hand]);
+    if(!wrist_servo::trace_writer().start(t170::logging::file("visual_servo").string()))
+        std::cerr<<"[motion_trace] Home CSV unavailable\n";
+    return play_joint_return(arm,arm.definition().home,{},-1,1,"home_joint");
 }

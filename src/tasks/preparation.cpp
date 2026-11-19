@@ -206,7 +206,7 @@ int go_home(Arm &arm_r, Arm &arm_l)
         span.set_ok(code == 0);
         return code;
     };
-    std::cout << "[orch] home：先头部标定姿态，再安全抬升走到 yaml home_tcp，再腰 yaw=0，先回 x 再竖直升到 layer3_home\n";
+    std::cout << "[orch] home：头部标定姿态，双臂关节轨迹回固定 Home，再腰 yaw=0，先回 x 再升到 layer3_home\n";
     const int head_rc = enable_head_calib_pose();
     if (head_rc != 0)
     {
@@ -217,7 +217,7 @@ int go_home(Arm &arm_r, Arm &arm_l)
         return done(-4);
     if (!move_box::move_arms_to_home(arm_r, arm_l))
     {
-        std::cerr << "[orch] 双臂安全退出或回 home_tcp 失败，不转腰\n";
+        std::cerr << "[orch] 双臂关节 Home 失败，不继续腰部动作\n";
         return done(hardware_abort_requested() ? -4 : -5);
     }
     if (hardware_abort_requested())
@@ -250,7 +250,7 @@ int go_home(Arm &arm_r, Arm &arm_l)
 
 int go_home_arms_keep_waist_z(Arm &arm_r, Arm &arm_l)
 {
-    std::cout << "[orch] 充完电收手：头标定 + 双臂回 home_tcp，腰高度保持不动\n";
+    std::cout << "[orch] 充完电收手：头标定 + 双臂关节 Home，腰高度保持不动\n";
     const int head_rc = enable_head_calib_pose();
     if (head_rc != 0)
     {
@@ -261,7 +261,7 @@ int go_home_arms_keep_waist_z(Arm &arm_r, Arm &arm_l)
         return -4;
     if (!move_box::move_arms_to_home(arm_r, arm_l))
     {
-        std::cerr << "[orch] 双臂回 home_tcp 失败（腰未动）\n";
+        std::cerr << "[orch] 双臂关节 Home 失败（腰未动）\n";
         return hardware_abort_requested() ? -4 : -5;
     }
     if (g_hw != nullptr && g_hw->layer3 != nullptr)

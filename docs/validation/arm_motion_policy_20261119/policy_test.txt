@@ -1,0 +1,41 @@
+Testing: arm_motion_policy_test
+2/38 Test: arm_motion_policy_test
+Command: "/tmp/t170-sdk-build/arm_motion_policy_test" "/tmp/t170-sdk-build/test_runtime" "/Users/superjack/Ti5/T170-field-review-20261111"
+Directory: /tmp/t170-sdk-build
+"arm_motion_policy_test" start time: Nov 19 09:13 CST
+Output:
+----------------------------------------------------------
+[arm_plan] side=right type=line planning_ms=3.40488 rows=1709 nominal_s=8.54 result=planned
+[arm_plan] side=left type=line planning_ms=3.40121 rows=1503 nominal_s=7.51 result=planned
+[arm_plan] side=right type=line planning_ms=1.14517 rows=1565 nominal_s=7.82 result=planned
+[arm_plan] side=left type=line planning_ms=0.952084 rows=1167 nominal_s=5.83 result=planned
+[arm_plan] side=left type=line planning_ms=1.64746 rows=1734 nominal_s=8.665 result=planned
+[arm_plan] side=left type=line planning_ms=1.93742 rows=2348 nominal_s=11.735 result=planned
+[arm_plan] side=left type=line planning_ms=5.74096 rows=9391 nominal_s=46.95 result=planned
+[arm_plan] side=right type=line planning_ms=2.4245 rows=1408 nominal_s=7.035 result=planned
+[arm_plan] side=left type=line planning_ms=2.40537 rows=1408 nominal_s=7.035 result=planned
+t170c_v2_3kg right home_to_ready_s=8.54
+t170c_v2_3kg left home_to_ready_s=7.51
+t170c_v2_3kg mirrored_elbow_difference_m=4.71374e-06
+t170c_v2_3kg mirrored_elbow_difference_m=0.000329513
+t170c_v2_3kg mirrored_elbow_difference_m=0.000428343
+field_joint_home right nominal_s=2.775
+field_joint_home left nominal_s=2.89
+belt_xy_right rc=0 rows=1565
+belt_xy_left rc=0 rows=1167
+home_lift_left rc=0 rows=1734
+home_z_left_driver_bound rc=0 rows=2348
+home_rotate_left rc=0 rows=9391
+t170c_v2_5kg right home_to_ready_s=7.035
+t170c_v2_5kg left home_to_ready_s=7.035
+t170c_v2_5kg mirrored_elbow_difference_m=3.62487e-16
+t170c_v2_5kg mirrored_elbow_difference_m=0.000124037
+t170c_v2_5kg mirrored_elbow_difference_m=7.43124e-15
+Bound QP KKT, effective limits, analytic Jacobian, fixed Home, mirrored elbows and field line replays passed; reference FK only
+<end of output>
+Test time =   0.42 sec
+----------------------------------------------------------
+Test Passed.
+"arm_motion_policy_test" end time: Nov 19 09:13 CST
+"arm_motion_policy_test" time elapsed: 00:00:00
+----------------------------------------------------------

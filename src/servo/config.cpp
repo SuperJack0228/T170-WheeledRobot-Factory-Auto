@@ -108,6 +108,9 @@ void load_config(const YAML::Node &n, Config &c) {
     SERVO_READ(acquire_radius_px); SERVO_READ(track_radius_px); SERVO_READ(pair_clearance_m);
     SERVO_READ(log_period_s);
     SERVO_READ(enforce_sdk_joint_limits); SERVO_READ(max_joint_excursion_rad);
+    // Legacy files may contain false. All production motion now shares the
+    // effective model/driver bounds, so this old bypass is no longer operative.
+    c.enforce_sdk_joint_limits=true;
 #undef SERVO_READ
     const char *names[] = {"left_grasp","right_grasp","left_place","right_place"};
     for (int i=0;i<4;++i) profile(n ? n[names[i]] : YAML::Node(), c.profiles[i]);

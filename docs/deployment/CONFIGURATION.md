@@ -50,13 +50,15 @@ T170_ROOT=/absolute/path/to/new-runtime python3 tools/servo_preflight.py
 
 已生成目录重启：`T170_RUNTIME_DIR=/absolute/path/to/existing-runtime ./deploy/run_maintenance.sh`。要读取源文件新参数，应新生成会话；改来源文件不会自动改旧运行副本。参数首版优先重新生成/重启生效，避免误以为编辑旧副本能影响下一次启动。
 
-## 网页本轮保持不变
+## 网页启动
 
-网页与程序必须指向同一运行目录。新增启动包装：
+网页与程序必须指向同一运行目录。主程序启动后，在另一终端执行：
 
 ```bash
-T170_RUNTIME_DIR=/absolute/path/from/startup ./deploy/run_web.sh
+./deploy/run_web.sh
 ```
+
+启动包装通过主程序 ping 返回的 runtime_root/config_dir 自动定位，不按最近目录猜测，也不另建配置。需要指定目录时仍支持 `T170_RUNTIME_DIR=/absolute/path/from/startup ./deploy/run_web.sh`；自定义命令端口用 `--robot-port`。首次使用自动定位需重新编译并重启包含该接口的主程序。
 
 只启动原 Web 服务，不自动发运动命令。生成目录临时包含旧 Web 所需的板参数/模型/头外参路径别名，清单为 `web_compat_paths.json`；源码中不保留旧算法转发目录。网页静态页面和服务实现本轮未改。Web 内部启动动作仍有原来的权限/模式约束；不要另启第二份机器人进程。
 

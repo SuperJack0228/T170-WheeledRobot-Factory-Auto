@@ -159,6 +159,14 @@ void test_local_pose_solver() {
           "XY correction preserves orientation despite translation/rotation coupling");
     check(!solve_pose_with_fk(seed,Vec3(10,10,10),initial.block<3,3>(0,0),cfg,forward,limits,solution,xyz,rotation),
           "nonconverged finite joint vector is not success");
+    t170::motion::IKPolicy policy;policy.preferred=seed;policy.preferred(6)=-1;
+    policy.posture_iterations=2;policy.iterations=12;policy.null_step_rad=.05;
+    const Vec3 tiny=initial.block<3,1>(0,3)+Vec3(.00002,0,0);
+    Joints online,primary;auto primary_policy=policy;primary_policy.posture_iterations=0;
+    check(solve_pose_with_fk(seed,tiny,initial.block<3,3>(0,0),cfg,forward,limits,primary,xyz,rotation,&primary_policy),"primary tiny-step IK");
+    check(solve_pose_with_fk(seed,tiny,initial.block<3,3>(0,0),cfg,forward,limits,online,xyz,rotation,&policy),"online tiny-step IK");
+    check((online-primary).cwiseAbs().maxCoeff()<=.1*cfg.max_joint_accel_rad_s2*cfg.period_s*cfg.period_s+1e-8,
+          "posture objective injects an acceleration burst into a tiny servo command");
 }
 
 void test_delayed_dual_arm_simulation() {

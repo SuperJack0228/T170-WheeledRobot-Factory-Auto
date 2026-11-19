@@ -102,6 +102,20 @@ def prepare_arm_model(root, model_id, robot_id, motion_limits=None):
         all_ids+=ids
     if len(set(all_ids))!=14:raise ValueError('Duplicate arm motor IDs')
     binding['model_id']=model_id
+    policy=yaml.safe_load(read(directory/'motion_policy.yaml'))
+    if policy.get('schema_version')!=1 or policy.get('joint_coordinates')!='sdk_mdh_model_deg':
+        raise ValueError('Invalid arm motion policy')
+    for side in ['left','right']:
+        for key in ['home_deg','preferred_deg']:
+            vector(policy[side].get(key),7,'motion_policy.'+side+'.'+key)
+            if any(not low<=v*math.pi/180<=high for low,v,high in zip(
+                    model[side]['joint_limit_min'],policy[side][key],model[side]['joint_limit_max'])):
+                raise ValueError('Motion policy outside selected arm model limits')
+    for key in ['posture_gain','elbow_gain','limit_gain','elbow_outward_ratio']:
+        v=policy.get(key)
+        if isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or v<0:
+            raise ValueError('Invalid arm motion policy gain: '+key)
+    binding['motion_policy']=policy
     limits=motion_limits or {}
     binding['trajectory_limits']={name:limits[key] for name,key in [('velocity_rad_s','max_joint_velocity_rad_s'),('acceleration_rad_s2','max_joint_acceleration_rad_s2'),('jerk_rad_s3','max_joint_jerk_rad_s3')]}
     rendered = yaml.safe_dump(sdk, sort_keys=False).encode()

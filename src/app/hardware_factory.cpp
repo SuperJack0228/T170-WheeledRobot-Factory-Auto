@@ -1,5 +1,6 @@
 #include "internal/state.h"
 #include "t170/config/access.h"
+#include "t170/common/logging.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/debug.h"
 #include <cmath>
@@ -8,6 +9,7 @@
 #include <iostream>
 #include <thread>
 #include <yaml-cpp/yaml.h>
+#include <fstream>
 
 namespace t170::app::detail {
 bool init_hardware(std::string &err)
@@ -34,6 +36,34 @@ bool init_hardware(std::string &err)
         return false;
     }
     hand_socketid_bind();
+    try {
+        YAML::Node snapshot;snapshot["schema_version"]=1;snapshot["robot_id"]=g_move_cfg.chassis.sequence_number;
+        snapshot["robot_model"]=arm_model;snapshot["joint_coordinates"]="sdk_mdh_model_rad";
+        for(Arm *arm:{g_arm_r.get(),g_arm_l.get()}) {
+            if(arm->definition().hand==1 && right_arm_motors_locked())continue;
+            t170::motion::ArmJoints low,high;
+            for(int j=0;j<7;++j)
+                if(!motor_read_position_limits(arm->can_id_list[j],low(j),high(j)))
+                    throw std::runtime_error("Cannot read arm driver limits, id="+std::to_string(arm->can_id_list[j]));
+            arm->install_device_limits(low,high);
+            const auto bounds=arm->effective_limits();
+            std::cout<<"[arm_limits] side="<<arm->definition().side<<" device_min_deg="<<low*180/M_PI
+                <<" device_max_deg="<<high*180/M_PI<<" effective_model_min_deg="<<bounds.minimum*180/M_PI
+                <<" effective_model_max_deg="<<bounds.maximum*180/M_PI<<'\n';
+            if(arm->Check_Joint_Limit(arm->definition().home))
+                throw std::runtime_error("Configured joint Home outside effective limits: "+arm->definition().side);
+            auto node=snapshot[arm->definition().side];node["can_ids"]=arm->can_id_list;
+            for(int j=0;j<7;++j) {
+                node["device_min_rad"].push_back(low(j));node["device_max_rad"].push_back(high(j));
+                node["effective_model_min_rad"].push_back(bounds.minimum(j));
+                node["effective_model_max_rad"].push_back(bounds.maximum(j));
+                node["home_model_rad"].push_back(arm->definition().home(j));
+            }
+        }
+        const auto path=t170::logging::file("arm_limits.yaml");std::ofstream out(path);out<<snapshot;
+        if(out)std::cout<<"[arm_limits] snapshot="<<path<<'\n';
+        else std::cerr<<"[arm_limits] snapshot write failed: "<<path<<'\n';
+    }catch(const std::exception &e){err=e.what();return false;}
 
     gripper::Config grip_cfg;
     grip_cfg.grasp_torque_limit_nm = 4.5;

@@ -81,6 +81,8 @@ bool motor_enable_id(uint32_t id);
 bool motor_set_pos_rad(uint32_t id, double rad);
 /** Raw device/output-shaft radians, before the arm model-coordinate adapter. */
 bool motor_read_pos_rad(uint32_t id, double &rad);
+/** Read-only driver output-shaft position range, radians. Never writes limits. */
+bool motor_read_position_limits(uint32_t id, double &minimum, double &maximum);
 
 
 

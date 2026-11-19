@@ -8,10 +8,12 @@ using JointVector = Eigen::Matrix<double, 1, 7>;
 struct JointMotionLimits {
     double velocity = 0.9, acceleration = 2.5, jerk = 20.0;
 };
-// Natural cubic joint path, traversed with one rest-to-rest quintic clock.
+// Natural cubic path, or a convex-hull-preserving C2 clamped B-spline when
+// preserve_knot_bounds is requested; one rest-to-rest quintic clock in both cases.
 // Limits apply to the sampled position stream, including the stationary tails.
 Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &waypoints, double dt,
-                               const JointMotionLimits &limits, double minimum_duration = 0.0);
+                               const JointMotionLimits &limits, double minimum_duration = 0.0,
+                               bool preserve_knot_bounds = false);
 struct MotionFeedbackConfig {
     double tolerance_rad = 0.12, settle_timeout_s = 4.0, feedback_timeout_s = 0.5;
     int stable_samples = 3;

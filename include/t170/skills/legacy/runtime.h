@@ -164,7 +164,7 @@ TrayZoneCount count_tray_zone_holes(
     SegPoseBridge &bridge,
     const std::array<double, 16> &cam2robot);
 /** 料盘2精度测试：到 AP9 后合爪，按空孔从最前排一组一组伸手，不松爪。 */
-/** home 指令：安全抬离后走到 yaml home_tcp（默认 TCP 原点、RPY=0）。不走抓取 standby，也不用料盘左右分区卡 Y。 */
+/** home 指令：左右臂并行关节返回机型 motion_policy 中的固定 Home，实际到位后才返回成功。 */
 bool move_arms_to_home(Arm &arm_r, Arm &arm_l);
 /** belt_ready：绝对走到该套 conveyor.tcp（准备姿态）。 */
 bool move_arms_to_belt_ready(

@@ -97,7 +97,8 @@ struct Config {
     double following_timeout_s = 0.50;
     // Existing field branch bypassed SDK limits. Make that choice explicit and
     // still bound every local solution relative to the SDK approach endpoint.
-    bool enforce_sdk_joint_limits = false;
+    // Compatibility field; effective model/driver limits are always enforced.
+    bool enforce_sdk_joint_limits = true;
     double max_joint_excursion_rad = 0.70;
     double max_joint_lead_rad = 0.08;
     double max_joint_speed_rad_s = 0.45;

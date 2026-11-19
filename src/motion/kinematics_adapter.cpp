@@ -96,9 +96,13 @@ bool solve_local_pose(Arm &arm,const Joints &seed,const Vec3 &target,
     const Joints origin=g_servo_joint_origin[arm_hand_side(arm)];
     const JointLimitCheck limits=[&](const Joints &q) {
         return (q-origin).cwiseAbs().maxCoeff()>cfg.max_joint_excursion_rad ||
-            (cfg.enforce_sdk_joint_limits && arm.Check_Joint_Limit(Eigen::RowVectorXd(q)));
+            arm.Check_Joint_Limit(Eigen::RowVectorXd(q));
     };
-    return solve_pose_with_fk(seed,target,rotation,cfg,forward,limits,solution,xyz_residual,rotation_residual);
+    Eigen::Matrix4d goal=Eigen::Matrix4d::Identity();goal.topRightCorner<3,1>()=target;goal.topLeftCorner<3,3>()=rotation;
+    auto policy=arm.ik_policy(goal);policy.iterations=12;policy.step_rad=.05;policy.null_step_rad=.001;policy.posture_iterations=1;
+    policy.minimum=policy.minimum.cwiseMax(origin-Joints::Constant(cfg.max_joint_excursion_rad));
+    policy.maximum=policy.maximum.cwiseMin(origin+Joints::Constant(cfg.max_joint_excursion_rad));
+    return solve_pose_with_fk(seed,target,rotation,cfg,forward,limits,solution,xyz_residual,rotation_residual,&policy);
 }
 }
 
