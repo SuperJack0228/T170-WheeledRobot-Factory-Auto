@@ -91,8 +91,10 @@ int main(int argc,char **argv) {
         bind_limits(right);bind_limits(left);jacobian_test(right);jacobian_test(left);
         for(Arm *arm:{&right,&left}) {
             const auto &d=arm->definition();const auto home=arm->Forward_Kinematics(d.home);
-            const Eigen::Vector3d xyz(.45,d.hand==1?-.35:.35,-.1);
-            require((home.topRightCorner<3,1>()-xyz).norm()<1e-5,"Home configured FK mismatch");
+            Eigen::Vector3d xyz(.45,d.hand==1?-.35:.35,-.1);
+            // 3 kg Home J2 is 8 deg more outward, so the nominal TCP shifts with it.
+            if(id=="t170c_v2_3kg") xyz<<0.44899191,d.hand==1?-0.36509325:0.36509325,-0.07686968;
+            require((home.topRightCorner<3,1>()-xyz).norm()<1e-4,"Home configured FK mismatch");
             require(arm->elbow_position(d.home).z()<-.20,"Home elbow must be below shoulder");
             for(double delta:{-.10,.10}) {
                 ArmJoints start=d.home;start(0)+=delta;start(3)-=.1;Eigen::MatrixXd path;

@@ -72,6 +72,15 @@ ArmBounds intersect_device_bounds(const ArmDefinition &d,const ArmJoints &low,co
     if(!low.allFinite() || !high.allFinite() || (low.array()>=high.array()).any())throw std::runtime_error("Invalid device arm limits");
     const ArmJoints a=(low-d.motor_offset).cwiseQuotient(d.motor_direction),b=(high-d.motor_offset).cwiseQuotient(d.motor_direction);
     ArmBounds result{d.minimum.cwiseMax(a.cwiseMin(b)),d.maximum.cwiseMin(a.cwiseMax(b)),true};
+    // This machine's J2 driver range is about ±85 deg. After the ±90 deg offset
+    // that becomes model ±5 deg. Open only that inner side by 2 deg (±5 → ±3)
+    // and keep it inside the model range. The drive limit itself is not written.
+    constexpr int kJ2 = 1;
+    constexpr double kInnerOpenRad = 2.0 * M_PI / 180.0;
+    if (std::abs(result.maximum(kJ2)) <= std::abs(result.minimum(kJ2)))
+        result.maximum(kJ2) = std::min(d.maximum(kJ2), result.maximum(kJ2) + kInnerOpenRad);
+    else
+        result.minimum(kJ2) = std::max(d.minimum(kJ2), result.minimum(kJ2) - kInnerOpenRad);
     if((result.minimum.array()>=result.maximum.array()).any())throw std::runtime_error("Device/model arm limits have empty intersection");
     return result;
 }
