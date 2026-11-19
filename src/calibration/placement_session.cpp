@@ -141,7 +141,7 @@ struct PlacementSession::Impl {
         const Joints seed=arm_get_joint_pos(arm());
         auto cfg=g_move_cfg.visual_servo;std::vector<Joints> path;
         const Eigen::Quaterniond start_rotation(TR(start).block<3,3>(0,0)),goal_rotation(TR(goal).block<3,3>(0,0));
-        double duration=std::max(.35,1.9*(goal.head<3>()-start.head<3>()).norm()/speed);
+        double duration=std::max(.22,1.9*(goal.head<3>()-start.head<3>()).norm()/speed);
         bool planned=false;
         for(int attempt=0;attempt<5 && !planned;++attempt,duration*=1.7) {
             const int count=static_cast<int>(std::ceil(duration/.01));path.clear();path.push_back(seed);
@@ -384,13 +384,13 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
             else if(action=="move_d") {
                 require(s.phase=="prepared" && !s.candidates.empty(),"请先准备并识别固定标定孔");
                 if(!s.grasp) s.check_held();s.bind();
-                s.line(s.initial,.10);Pose d=s.nominal;d(2)+=s.clearance;s.local(d,.06);s.state("at_d",2);s.capture(false);s.publish();
+                s.line(s.initial,.35);Pose d=s.nominal;d(2)+=s.clearance;s.local(d,.18);s.state("at_d",2);s.capture(false);s.publish();
             } else if(action=="jog") {
                 require(s.phase=="at_d","只能在D点对准页微调");
                 const double dx=request.get("dx_mm",0.).asDouble()/1000,dy=request.get("dy_mm",0.).asDouble()/1000;
                 require(valid_teach_jog(dx,dy),"单次XY微调合位移必须在5mm内");
                 Pose p=s.actual();p.tail<3>()=s.nominal.tail<3>();p(0)+=dx;p(1)+=dy;
-                require((p.head<2>()-s.nominal.head<2>()).norm()<=.10,"累计补偿超过100mm，请检查识别和工具参数");s.local(p);s.publish();s.capture(false);s.publish();
+                require((p.head<2>()-s.nominal.head<2>()).norm()<=.10,"累计补偿超过100mm，请检查识别和工具参数");s.local(p,.04);s.publish();s.capture(false);s.publish();
             } else if(action=="observe") {
                 require(s.phase=="at_d","只允许在D点刷新观察画面");s.capture(false);s.publish();
             } else if(action=="record_aligned") {
