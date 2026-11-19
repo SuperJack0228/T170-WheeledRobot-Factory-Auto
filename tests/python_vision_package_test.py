@@ -35,28 +35,22 @@ assert tray._cfg is not belt._cfg
                                   capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
-    def test_legacy_entry_points_delegate_to_same_classes(self):
-        from t170_vision.geometry.tray import api
+    def test_canonical_source_resource_resolution(self):
+        from t170_common.paths import load_paths
         from t170_vision.detection import config_loader
-        for path, name, expected in [
-            ("board_yf100_aruco/tray_detect_api.py", "legacy_tray_api_probe", api),
-            ("feeding_cylindrical_parts_alg/algorithm/config_loader.py", "legacy_config_probe", config_loader),
-        ]:
-            spec = importlib.util.spec_from_file_location(name, ROOT / path)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[name] = module
-            spec.loader.exec_module(module)
-            self.assertIs(sys.modules[name], expected)
-        self.assertEqual(api.HERE, ROOT / "board_yf100_aruco")
+        paths = load_paths()
         self.assertEqual(config_loader.DEFAULT_CONFIG_PATH,
-                         ROOT / "feeding_cylindrical_parts_alg/config/pose_params.yaml")
+                         ROOT / "config/sites/current_factory/vision/pose_params.yaml")
+        self.assertEqual(paths.config_file("vision/tray.yaml"),
+                         ROOT / "config/sites/current_factory/vision/tray.yaml")
+        self.assertFalse((ROOT / "feeding_cylindrical_parts_alg").exists())
 
     def test_missing_real_model_is_explicit(self):
         import yaml
         from t170_vision.detection.config_loader import load_pose_params
-        cfg = yaml.safe_load((ROOT / "feeding_cylindrical_parts_alg/config/pose_params.yaml").read_text())
-        self.assertEqual(cfg["segmentation"]["model"], "models/best1015.pt")
-        self.assertEqual(cfg["segmentation"]["hand_model"], "models/best1103.pt")
+        cfg = yaml.safe_load((ROOT / "config/sites/current_factory/vision/pose_params.yaml").read_text())
+        self.assertEqual(cfg["segmentation"]["model"], "assets/models/best1015.pt")
+        self.assertEqual(cfg["segmentation"]["hand_model"], "assets/models/best1103.pt")
         with tempfile.TemporaryDirectory() as directory:
             cfg["segmentation"]["hand_model"] = str(Path(directory) / "missing-hand-model.pt")
             config = Path(directory) / "pose.yaml"

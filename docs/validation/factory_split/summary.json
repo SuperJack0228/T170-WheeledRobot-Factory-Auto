@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-16",
+  "baseline_head": "9e023e775ecfb2d2742382f5a92427fc4f1e2907",
+  "scope": "local factory task/application split after uncommitted motion and skills work",
+  "host": "Darwin arm64",
+  "ctest_total": 34,
+  "ctest_passed": 34,
+  "ctest_failed": 0,
+  "old_runtime_functions": 141,
+  "same_body_after_named_port_substitutions": 132,
+  "reviewed_changed_functions": [
+    "chassis_seer",
+    "chassis_status_loop",
+    "finish_dispatch_map",
+    "publish_dispatch_battery",
+    "publish_dispatch_pose",
+    "run_dispatch_mode_body",
+    "set_body_motors",
+    "start_chassis_status_reporter",
+    "stop_chassis_charging"
+  ],
+  "original_runtime_backup_sha256": "c8e98e85678dc56ed4cd6453983e6c427870dd807de58c1cdd141d297aef2adf",
+  "calibration_engine_tokens_unchanged": true,
+  "metrics_declarations_and_bodies_tokens_unchanged": true,
+  "report_implementation_byte_identical_to_head": true,
+  "external_verification_pending": [
+    "matching Linux ARM64 SDK headers/libraries and full robot executable link",
+    "Python embedded runtime on target",
+    "field production/maintenance/calibration and long-run dispatch regression"
+  ],
+  "sdk_double": "Only dispatch_adapter_test uses tests/vendor_doubles; this is not vendor SDK validation"
+}

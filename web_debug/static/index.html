@@ -29,6 +29,7 @@
   </header>
 
   <div id="versionBanner" class="banner" hidden></div>
+  <p id="modeNotice" class="hint" role="status" hidden></p>
 
   <section class="hand-live" aria-label="手相机实时画面">
     <figure>
@@ -206,7 +207,6 @@
       <h1>最近的识别</h1>
       <p class="lead">头相机上一次检测留下的标注图。</p>
       <div class="actions row">
-        <button class="cmd" data-command="vision_detect">拍一次 YOLO</button>
         <button class="cmd" data-command="aruco_detect">识别二维码</button>
         <button class="cmd" data-command="detect_tray_holes">识别料盘孔</button>
       </div>
@@ -229,6 +229,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=15"></script>
+  <script src="/app.js?v=16"></script>
 </body>
 </html>

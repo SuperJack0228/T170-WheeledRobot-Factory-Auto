@@ -1,4 +1,4 @@
-#include "t170/common/task_timing.h"
+#include "t170/telemetry/dispatch_metrics.h"
 #include "t170/hardware/gripper.hpp"
 
 #include "Ti5_Device_SDK.hpp"
@@ -129,7 +129,7 @@ Gripper::Gripper(const Config &config) : config_(config) {}
 
 Gripper::~Gripper() { stop(); }
 
-bool Gripper::isConnected() const { return connected_.load(); }
+
 
 std::vector<DetectedMotor> Gripper::detectedMotors() const {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -298,10 +298,7 @@ void Gripper::setAngle(Side side, double angle_deg) {
   setTargetRad(side, angleToRad(clamp(angle_deg, 0.0, config_.full_close_angle_deg), config_));
 }
 
-void Gripper::setBothAngles(double left_deg, double right_deg) {
-  setAngle(Side::Left, left_deg);
-  setAngle(Side::Right, right_deg);
-}
+
 
 void Gripper::open(Side side) { setTargetRad(side, config_.open_position_rad); }
 void Gripper::openBoth() {
@@ -388,19 +385,9 @@ bool Gripper::waitBothRad(double target_rad, double tolerance_rad,
   return false;
 }
 
-bool Gripper::openBothAndWait(double tolerance_rad, std::chrono::milliseconds timeout) {
-  openBoth();
-  return waitBothRad(config_.open_position_rad, tolerance_rad, timeout);
-}
 
-bool Gripper::closeBothAndWait(double ratio, double tolerance_rad,
-                               std::chrono::milliseconds timeout) {
-  closeBoth(ratio);
-  const double r = clamp(ratio, 0.0, config_.max_close_ratio);
-  const double q =
-      config_.open_position_rad + r * (config_.close_position_rad - config_.open_position_rad);
-  return waitBothRad(q, tolerance_rad, timeout);
-}
+
+
 
 bool Gripper::openAndWait(Side side, double tolerance_rad, std::chrono::milliseconds timeout) {
   orch::TimingSpan timer("gripper_open");open(side);
@@ -440,34 +427,13 @@ void Gripper::closeSoftBoth(double ratio) {
   setSoftTargetRad(Side::Right, q);
 }
 
-bool Gripper::openSoftAndWait(Side side, double tolerance_rad,
-                              std::chrono::milliseconds timeout) {
-  openSoft(side);
-  return waitForRad(side, config_.open_position_rad, tolerance_rad, timeout);
-}
 
-bool Gripper::openSoftBothAndWait(double tolerance_rad, std::chrono::milliseconds timeout) {
-  openSoftBoth();
-  return waitBothRad(config_.open_position_rad, tolerance_rad, timeout);
-}
 
-bool Gripper::closeSoftAndWait(Side side, double ratio, double tolerance_rad,
-                               std::chrono::milliseconds timeout) {
-  closeSoft(side, ratio);
-  const double r = clamp(ratio, 0.0, config_.max_close_ratio);
-  const double q =
-      config_.open_position_rad + r * (config_.close_position_rad - config_.open_position_rad);
-  return waitForRad(side, q, tolerance_rad, timeout);
-}
 
-bool Gripper::closeSoftBothAndWait(double ratio, double tolerance_rad,
-                                   std::chrono::milliseconds timeout) {
-  closeSoftBoth(ratio);
-  const double r = clamp(ratio, 0.0, config_.max_close_ratio);
-  const double q =
-      config_.open_position_rad + r * (config_.close_position_rad - config_.open_position_rad);
-  return waitBothRad(q, tolerance_rad, timeout);
-}
+
+
+
+
 
 double Gripper::resolveGraspTorque(double max_torque_nm) const {
   return max_torque_nm > 0.0 ? max_torque_nm : config_.grasp_torque_limit_nm;
@@ -600,198 +566,13 @@ GraspFeedback Gripper::graspSoftSideUntil(Side side, double max_torque_nm,
   return out;
 }
 
-GraspFeedback Gripper::graspSoftAndWait(Side side, double max_torque_nm,
-                                        std::chrono::milliseconds timeout) {
-  return graspSoftSideUntil(side, max_torque_nm, 0.2, timeout);
-}
 
-GraspFeedback Gripper::graspSoftBothAndWait(double max_torque_nm,
-                                            std::chrono::milliseconds timeout) {
-  GraspFeedback out;
-  closeSoftBoth(1.0);
 
-  const double tau_limit = resolveSoftTorque(max_torque_nm);
-  const double close_q = config_.close_position_rad;
-  constexpr double kPosTol = 0.2;
-  const double tau_contact = tau_limit > 0.0 ? tau_limit * 0.75 : 0.0;
-  constexpr double kVelTol = 0.35;
-  constexpr int kContactSamples = 15;
 
-  bool left_done = !hasSide(Side::Left);
-  bool right_done = !hasSide(Side::Right);
-  GraspFeedback left_fb;
-  GraspFeedback right_fb;
-  int left_contact = 0;
-  int right_contact = 0;
 
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (std::chrono::steady_clock::now() < deadline) {
-    if (!left_done && hasSide(Side::Left)) {
-      const auto fb = feedback(Side::Left);
-      if (fb.have_feedback) {
-        left_fb.position_rad = fb.position_rad;
-        left_fb.torque = fb.torque;
-        if (std::fabs(fb.position_rad - close_q) <= kPosTol) {
-          left_fb.result = GraspResult::PositionReached;
-          left_done = true;
-        } else if (tau_contact > 0.0 && fb.soft_torque_limited &&
-                   std::fabs(fb.torque) >= tau_contact &&
-                   std::fabs(fb.velocity_rad_s) < kVelTol &&
-                   fb.position_rad > close_q + kPosTol) {
-          ++left_contact;
-          if (left_contact >= kContactSamples) {
-            setSoftTargetRad(Side::Left, fb.position_rad);
-            left_fb.result = GraspResult::TorqueLimit;
-            left_done = true;
-          }
-        } else {
-          left_contact = 0;
-        }
-      }
-    }
-    if (!right_done && hasSide(Side::Right)) {
-      const auto fb = feedback(Side::Right);
-      if (fb.have_feedback) {
-        right_fb.position_rad = fb.position_rad;
-        right_fb.torque = fb.torque;
-        if (std::fabs(fb.position_rad - close_q) <= kPosTol) {
-          right_fb.result = GraspResult::PositionReached;
-          right_done = true;
-        } else if (tau_contact > 0.0 && fb.soft_torque_limited &&
-                   std::fabs(fb.torque) >= tau_contact &&
-                   std::fabs(fb.velocity_rad_s) < kVelTol &&
-                   fb.position_rad > close_q + kPosTol) {
-          ++right_contact;
-          if (right_contact >= kContactSamples) {
-            setSoftTargetRad(Side::Right, fb.position_rad);
-            right_fb.result = GraspResult::TorqueLimit;
-            right_done = true;
-          }
-        } else {
-          right_contact = 0;
-        }
-      }
-    }
-    if (left_done && right_done) {
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  }
 
-  if (!left_done) {
-    left_fb.result = GraspResult::Timeout;
-    const auto fb = feedback(Side::Left);
-    left_fb.position_rad = fb.position_rad;
-    left_fb.torque = fb.torque;
-  }
-  if (!right_done) {
-    right_fb.result = GraspResult::Timeout;
-    const auto fb = feedback(Side::Right);
-    right_fb.position_rad = fb.position_rad;
-    right_fb.torque = fb.torque;
-  }
 
-  if (left_fb.result == GraspResult::TorqueLimit ||
-      right_fb.result == GraspResult::TorqueLimit) {
-    out.result = GraspResult::TorqueLimit;
-  } else if (left_fb.result == GraspResult::PositionReached &&
-             right_fb.result == GraspResult::PositionReached) {
-    out.result = GraspResult::PositionReached;
-  } else {
-    out.result = GraspResult::Timeout;
-  }
-  out.position_rad = (left_fb.position_rad + right_fb.position_rad) * 0.5;
-  out.torque = std::max(std::fabs(left_fb.torque), std::fabs(right_fb.torque));
-  return out;
-}
 
-bool Gripper::isSoftTorqueActive(Side side) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  const auto it = sides_.find(side);
-  if (it == sides_.end()) {
-    return false;
-  }
-  return it->second->soft_torque_active;
-}
-
-GraspFeedback Gripper::graspBothAndWait(double max_torque_nm,
-                                        std::chrono::milliseconds timeout) {
-  GraspFeedback out;
-  closeBoth(1.0);
-
-  const double torque_limit = resolveGraspTorque(max_torque_nm);
-  const double close_q = config_.close_position_rad;
-  constexpr double kPosTol = 0.2;
-
-  bool left_done = !hasSide(Side::Left);
-  bool right_done = !hasSide(Side::Right);
-  GraspFeedback left_fb;
-  GraspFeedback right_fb;
-
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (std::chrono::steady_clock::now() < deadline) {
-    if (!left_done && hasSide(Side::Left)) {
-      const auto fb = feedback(Side::Left);
-      if (fb.have_feedback) {
-        left_fb.position_rad = fb.position_rad;
-        left_fb.torque = fb.torque;
-        if (torque_limit > 0.0 && std::fabs(fb.torque) >= torque_limit) {
-          setTargetRad(Side::Left, fb.position_rad);
-          left_fb.result = GraspResult::TorqueLimit;
-          left_done = true;
-        } else if (std::fabs(fb.position_rad - close_q) <= kPosTol) {
-          left_fb.result = GraspResult::PositionReached;
-          left_done = true;
-        }
-      }
-    }
-    if (!right_done && hasSide(Side::Right)) {
-      const auto fb = feedback(Side::Right);
-      if (fb.have_feedback) {
-        right_fb.position_rad = fb.position_rad;
-        right_fb.torque = fb.torque;
-        if (torque_limit > 0.0 && std::fabs(fb.torque) >= torque_limit) {
-          setTargetRad(Side::Right, fb.position_rad);
-          right_fb.result = GraspResult::TorqueLimit;
-          right_done = true;
-        } else if (std::fabs(fb.position_rad - close_q) <= kPosTol) {
-          right_fb.result = GraspResult::PositionReached;
-          right_done = true;
-        }
-      }
-    }
-    if (left_done && right_done) {
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  }
-
-  if (!left_done) {
-    left_fb.result = GraspResult::Timeout;
-    const auto fb = feedback(Side::Left);
-    left_fb.position_rad = fb.position_rad;
-    left_fb.torque = fb.torque;
-  }
-  if (!right_done) {
-    right_fb.result = GraspResult::Timeout;
-    const auto fb = feedback(Side::Right);
-    right_fb.position_rad = fb.position_rad;
-    right_fb.torque = fb.torque;
-  }
-
-  if (left_fb.result == GraspResult::TorqueLimit ||
-      right_fb.result == GraspResult::TorqueLimit) {
-    out.result = GraspResult::TorqueLimit;
-  } else if (left_fb.result == GraspResult::PositionReached &&
-             right_fb.result == GraspResult::PositionReached) {
-    out.result = GraspResult::PositionReached;
-  } else {
-    out.result = GraspResult::Timeout;
-  }
-  out.position_rad = (left_fb.position_rad + right_fb.position_rad) * 0.5;
-  out.torque = std::max(std::fabs(left_fb.torque), std::fabs(right_fb.torque));
-  return out;
-}
 
 bool Gripper::hasSide(Side side) const {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -818,21 +599,7 @@ SideFeedback Gripper::feedback(Side side) const {
   return fb;
 }
 
-bool Gripper::waitFor(Side side, double target_deg, double tolerance_deg,
-                      std::chrono::milliseconds timeout) {
-  if (!hasSide(side))
-    return true;
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
-  const double tol = std::max(0.0, tolerance_deg);
-  while (std::chrono::steady_clock::now() < deadline) {
-    const auto fb = feedback(side);
-    if (fb.have_feedback && std::fabs(fb.angle_deg - target_deg) <= tol) {
-      return true;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  }
-  return false;
-}
+
 
 bool Gripper::waitForRad(Side side, double target_rad, double tolerance_rad,
                          std::chrono::milliseconds timeout) {
@@ -970,104 +737,21 @@ void Gripper::applyTeleopTarget(SideImpl &impl) {
   impl.q_cmd = q_des;
 }
 
-void Gripper::setTeleopMode(bool enabled) {
-  teleop_mode_ = enabled;
-  if (!enabled) {
-    teleop_soft_mode_ = false;
-  }
-}
 
-void Gripper::setTeleopRatio(Side side, double ratio) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  teleop_mode_ = true;
-  teleop_soft_mode_ = false;
-  const auto it = sides_.find(side);
-  if (it == sides_.end()) {
-    return;
-  }
-  it->second->teleop_ratio = clamp(ratio, 0.0, 1.0);
-  it->second->soft_torque_active = false;
-}
 
-void Gripper::setTeleopBoth(double left_ratio, double right_ratio) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  teleop_mode_ = true;
-  teleop_soft_mode_ = false;
-  if (const auto it = sides_.find(Side::Left); it != sides_.end()) {
-    it->second->teleop_ratio = clamp(left_ratio, 0.0, 1.0);
-    it->second->soft_torque_active = false;
-  }
-  if (const auto it = sides_.find(Side::Right); it != sides_.end()) {
-    it->second->teleop_ratio = clamp(right_ratio, 0.0, 1.0);
-    it->second->soft_torque_active = false;
-  }
-}
 
-TeleopFeedback Gripper::teleopFeedback(Side side) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  TeleopFeedback out;
-  const auto it = sides_.find(side);
-  if (it == sides_.end()) {
-    return out;
-  }
-  const auto &s = *it->second;
-  out.command_ratio = s.teleop_ratio;
-  out.effective_ratio = radToRatio(s.effective_target_q);
-  out.position_rad = s.q;
-  out.torque = s.tau;
-  out.torque_limited = s.torque_limited;
-  return out;
-}
 
-void Gripper::setTeleopSoftMode(bool enabled) {
-  teleop_soft_mode_ = enabled;
-  if (enabled) {
-    teleop_mode_ = true;
-  }
-}
 
-void Gripper::setTeleopSoftRatio(Side side, double ratio) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  teleop_mode_ = true;
-  teleop_soft_mode_ = true;
-  const auto it = sides_.find(side);
-  if (it == sides_.end()) {
-    return;
-  }
-  it->second->teleop_ratio = clamp(ratio, 0.0, 1.0);
-  it->second->soft_torque_active = true;
-  syncSoftMotionState(*it->second);
-}
 
-void Gripper::setTeleopSoftBoth(double left_ratio, double right_ratio) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  teleop_mode_ = true;
-  teleop_soft_mode_ = true;
-  if (const auto it = sides_.find(Side::Left); it != sides_.end()) {
-    it->second->teleop_ratio = clamp(left_ratio, 0.0, 1.0);
-    it->second->soft_torque_active = true;
-  }
-  if (const auto it = sides_.find(Side::Right); it != sides_.end()) {
-    it->second->teleop_ratio = clamp(right_ratio, 0.0, 1.0);
-    it->second->soft_torque_active = true;
-  }
-}
 
-TeleopFeedback Gripper::teleopSoftFeedback(Side side) const {
-  std::lock_guard<std::mutex> lock(mutex_);
-  TeleopFeedback out;
-  const auto it = sides_.find(side);
-  if (it == sides_.end()) {
-    return out;
-  }
-  const auto &s = *it->second;
-  out.command_ratio = s.teleop_ratio;
-  out.effective_ratio = radToRatio(s.q_cmd);
-  out.position_rad = s.q;
-  out.torque = s.tau;
-  out.torque_limited = s.soft_torque_limited;
-  return out;
-}
+
+
+
+
+
+
+
+
 
 bool Gripper::calibrate(Side side) {
   if (!connected_.load() && !connect()) {
@@ -1095,41 +779,7 @@ bool Gripper::calibrate(Side side) {
   }
 }
 
-bool Gripper::calibrateInteractive() {
-  if (!connect()) {
-    return false;
-  }
 
-  const auto motors = detectedMotors();
-  if (motors.empty()) {
-    return false;
-  }
-
-  std::cout << "\n=== DEX1 夹爪标定 ===\n";
-  std::cout << "步骤：手动将夹爪紧闭到极限，然后输入 s 并回车。\n";
-  std::cout << "参考: https://support.unitree.com/home/zh/dex1-1_gripper/dex1_1\n\n";
-
-  int index = 1;
-  for (const auto &m : motors) {
-    const char *side_name = m.side == Side::Right ? "右" : "左";
-    std::cout << "--- 标定 " << index << "/" << motors.size() << " ---\n";
-    std::cout << "Motor ID: " << m.motor_id << "  " << side_name << "夹爪  串口: " << m.port << "\n";
-    std::cout << "请手动紧闭夹爪，完成后输入 s 回车（其他键跳过）: ";
-    char key = 0;
-    std::cin >> key;
-    if (key == 's' || key == 'S') {
-      if (!calibrate(m.side)) {
-        return false;
-      }
-    } else {
-      std::cout << "已跳过 motor_id=" << m.motor_id << "\n";
-    }
-    ++index;
-  }
-
-  std::cout << "\n标定流程结束。\n";
-  return true;
-}
 
 void Gripper::controlLoop() {
   using clock = std::chrono::steady_clock;

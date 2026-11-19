@@ -37,7 +37,7 @@ struct CameraRigConfig
     int hand_fps = 15;
 
     /** 填工程默认路径与 profile 名；不读 yaml 数值（数值仍由 move_box cameras: 传入 ctor）。 */
-    static CameraRigConfig make_default(const std::string &project_root);
+
 };
 
 class ICameraBackend

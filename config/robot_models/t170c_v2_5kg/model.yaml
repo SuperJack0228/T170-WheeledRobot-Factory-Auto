@@ -1,0 +1,32 @@
+schema_version: 1
+model_id: t170c_v2_5kg
+family: t170c
+hardware_version: '2.0'
+rated_payload_kg: 5
+sdk_model_key: T7_170
+coordinates: sdk_mdh_model_rad
+urdf_file: robot.urdf
+urdf_sha256: ea00cdd16f1946a56ca9febdbe338e73c8d0877a5f2c1709d0ddef60b918a456
+sdk_config_file: Robot_Model.yaml
+conventions_file: joint_conventions.yaml
+frames_file: frames.yaml
+tool_policy: per_robot_required
+validation: offline_fk_equivalence_only
+native_sdk_validation: pending
+analytic_fixed_j2_validation: pending
+urdf_meshes: External CAD package; this copy is for geometry, not a standalone visualization
+  package.
+evidence:
+  left:
+    samples: 1003
+    max_transform_element_error: 9.43689570931383e-16
+    max_error_if_axis_details_rounded_away_m: 3.6821932062951477e-16
+    max_rotation_matrix_error_if_rounded: 1.3855565555274878e-15
+    ideal_t7_geometry: true
+  right:
+    samples: 1003
+    max_transform_element_error: 9.159339953157541e-16
+    max_error_if_axis_details_rounded_away_m: 4.951473335488086e-16
+    max_rotation_matrix_error_if_rounded: 1.6426283365650664e-15
+    ideal_t7_geometry: true
+sdk_config_sha256: 6834dec5c44188f6f9e9e489cd00b400ac90bd45c9bf086af6b93efb700149ce

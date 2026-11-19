@@ -171,13 +171,7 @@ bool motor_get_pos_rad(uint32_t id, double &rad)
     }
 }
 
-bool motor_hold_current(uint32_t id)
-{
-    double q = 0.0;
-    if (!motor_get_pos_rad(id, q))
-        return false;
-    return motor_set_pos_rad(id, q);
-}
+
 
 bool can_iface_exists(const std::string &ifname)
 {
@@ -416,6 +410,21 @@ bool motor_set_pos_rad(uint32_t id, double rad)
     return sdk_try(id, "set_Position", [id, rad]() { set_Position(id, rad); });
 }
 
+bool motor_read_pos_rad(uint32_t id,double &rad) { return motor_get_pos_rad(id,rad); }
+bool motor_read_position_limits(uint32_t id,double &minimum,double &maximum) {
+    if(skip_id(id))return false;
+    std::lock_guard<std::mutex> lock(g_motor_sdk_mu);
+    try {
+        const double low=get_Min_Position(id),high=get_Max_Position(id);
+        if(!std::isfinite(low) || !std::isfinite(high) || low>=high) {
+            std::cerr<<"[arm_limits] invalid driver range id="<<id<<" min="<<low<<" max="<<high<<'\n';return false;
+        }
+        minimum=low;maximum=high;return true;
+    }catch(const std::exception &e) {
+        std::cerr<<"[arm_limits] read failed id="<<id<<" reason="<<e.what()<<'\n';return false;
+    }
+}
+
 bool can_io_faulted()
 {
     return g_can_io_fault.load();
@@ -486,36 +495,9 @@ int left_h_id = -1, left_m_id = -1, left_l_id = -1, right_h_id = -1, right_m_id 
 int head_id = -1;
 int waist_id = -1;
 
-bool set_can_bitrate(const std::string &ifname, uint32_t bitrate)
-{
-    if (ifname.empty() ||
-        ifname.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") !=
-            std::string::npos)
-    {
-        std::cerr << "[can] 非法接口名\n";
-        return false;
-    }
-    if (!can_iface_exists(ifname))
-        return false;
-    if (can_iface_is_admin_up(ifname))
-    {
-        std::cout << "[can] " << ifname << " 已 UP，跳过（禁止 down 再 up type can）\n";
-        return true;
-    }
-    // KCAN-USB + PREEMPT_RT：`ip link set canN down && up type can bitrate`
-    // 会在驱动 ndo_stop/ndo_open 里把内核卡死，SSH/ping/Ctrl+C 全部无响应。
-    // 口已 down 时只分两步：先设波特率，再单独 up。
-    if (run_ip_link("link set " + ifname + " type can bitrate " + std::to_string(bitrate)) != 0)
-        return false;
-    if (run_ip_link("link set " + ifname + " up") != 0)
-        return false;
-    return true;
-}
 
-bool init_can_channel(int, const CAN_CONFIG &)
-{
-    return g_device_ready;
-}
+
+
 
 bool init_socketcan()
 {
@@ -535,10 +517,7 @@ bool init_socketcan()
     return true;
 }
 
-bool init_socketcan_can2()
-{
-    return init_socketcan();
-}
+
 
 void close_can_channels()
 {
@@ -556,51 +535,17 @@ void close_can_channels()
     right_h_id = right_m_id = right_l_id = -1;
 }
 
-void close_can_channels2()
-{
-    close_can_channels();
-}
 
-bool send_can_frame(int, uint32_t can_id, const uint8_t *data, uint8_t dlc)
-{
-    if (skip_id(can_id) || data == nullptr || dlc < 1)
-        return true;
-    const uint8_t cmd = data[0];
-    if (cmd == 1)
-        return sdk_try(can_id, "Enable", [can_id]() { Motor_Enable(can_id); });
-    if (cmd == 2)
-        return sdk_try(can_id, "Disable", [can_id]() { Motor_Disable(can_id); });
-    if (cmd == 11)
-        return sdk_try(can_id, "Clear_Error", [can_id]() { Clear_Error(can_id); });
-    std::cerr << "[motor] 未映射的单字节命令 " << static_cast<int>(cmd)
-              << " id=" << can_id << std::endl;
-    return false;
-}
 
-bool receive_can_frame_timeout(int, uint8_t *)
-{
-    return false;
-}
 
-bool can_channel_ready(int)
-{
-    return g_device_ready;
-}
 
-bool can_motion_ready()
-{
-    return g_device_ready && motor_paired(23);
-}
 
-void toIntArray(int number, uint8_t *res, int size)
-{
-    unsigned int unsignedNumber = static_cast<unsigned int>(number);
-    for (int i = 0; i < size; ++i)
-    {
-        res[i] = unsignedNumber & 0xFF;
-        unsignedNumber >>= 8;
-    }
-}
+
+
+
+
+
+
 
 int socketcan_sendcommand(int, int cannum, uint32_t *can_idlist, uint8_t command, int *data)
 {
@@ -823,23 +768,9 @@ void set_motor_speed(int *data, int a)
     socketcan_sendcommand(0, 7, ids, cmd, data);
 }
 
-void set_motor_addspeed(int *data, int a)
-{
-    if (skip_locked_right_arm(a, data, false))
-        return;
-    const uint8_t cmd = (data && data[0] > 0) ? 34 : 35;
-    uint32_t ids[7];
-    std::memcpy(ids, arm_ids(a), sizeof(ids));
-    socketcan_sendcommand(0, 7, ids, cmd, data);
-}
 
-void get_motor_addspeed(int *data, int a)
-{
-    if (skip_locked_right_arm(a, data, true))
-        return;
-    if (data)
-        zero_motor_data7(data);
-}
+
+
 
 void set_motor(int *data, uint8_t command, int a)
 {
@@ -850,19 +781,9 @@ void set_motor(int *data, uint8_t command, int a)
     socketcan_sendcommand(0, 7, ids, command, data);
 }
 
-void set_motor_singn_mode(int *data, uint8_t command, int a)
-{
-    uint32_t ids[7];
-    std::memcpy(ids, arm_ids(a), sizeof(ids));
-    socketcan_sendsimplecommand(0, 7, ids, command, data);
-}
 
-void set_motor_current_zero()
-{
-    int data[7] = {0, 0, 0, 0, 0, 0, 0};
-    set_motor(data, 28, 0);
-    set_motor(data, 28, 1);
-}
+
+
 
 void set_waist_motor_position(int *data)
 {

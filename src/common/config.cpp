@@ -26,21 +26,6 @@ void read_value(const YAML::Node &node, const char *key, T &out)
         out = node[key].as<T>();
 }
 
-void read_row_xyz_list(const YAML::Node &node, XyzOffsetM out[6])
-{
-    if (!node || !node.IsSequence())
-        return;
-    const int n = std::min(6, static_cast<int>(node.size()));
-    for (int i = 0; i < n; ++i)
-    {
-        if (!node[i] || !node[i].IsMap())
-            continue;
-        read_value(node[i], "x", out[i].x);
-        read_value(node[i], "y", out[i].y);
-        read_value(node[i], "z", out[i].z);
-    }
-}
-
 bool read_pose(const YAML::Node &node, Eigen::Matrix<double, 1, 6> &out)
 {
     if (!node || !node.IsSequence() || node.size() != 6)
@@ -168,8 +153,6 @@ void load_conveyor_station(const YAML::Node &node, ConveyorStationConfig &dst, c
     }
     if (!(dst.yolo_min_conf > 0.0) || !std::isfinite(dst.yolo_min_conf))
         dst.yolo_min_conf = 0.25;
-    read_value(node, "grasp_yolo_enable", dst.grasp_yolo_enable);
-    read_value(node, "grasp_yolo_class_id", dst.grasp_yolo_class_id);
     read_value(node, "use_fixed_origin_z", dst.use_fixed_origin_z);
     read_value(node, "fixed_origin_z_m", dst.fixed_origin_z_m);
     read_value(node, "fixed_origin_ref_waist_z_m", dst.fixed_origin_ref_waist_z_m);
@@ -238,7 +221,6 @@ void print_conveyor_station(const ConveyorStationConfig &c, const char *name)
               << "deg ready_grip=" << c.grasp_ready_close_ratio
               << " belt_detect=" << (c.yolo_roi_enable ? "on" : "off")
               << " min_conf=" << c.yolo_min_conf
-              << " legacy_yolo=" << (c.grasp_yolo_enable ? "on" : "off")
               << " fixed_z=" << (c.use_fixed_origin_z ? "on" : "off")
               << " 标定 " << c.fixed_origin_z_m << "m@腰" << c.fixed_origin_ref_waist_z_m
               << "m 当前 " << c.fixed_plane_z() << "m"
@@ -293,10 +275,7 @@ MoveBoxConfig default_move_box_config()
     cfg.conveyor.grasp_retract_vel_m_s = 0.25;
     cfg.conveyor.grasp_waist_yaw_deg = 0.0;
     cfg.conveyor.grasp_ready_close_ratio = 0.30;
-    cfg.conveyor.grasp_yolo_enable = false;
-    cfg.conveyor.grasp_yolo_class_id = 1;
     cfg.conveyor2 = cfg.conveyor;
-    cfg.conveyor2.grasp_yolo_class_id = 2;
     return cfg;
 }
 
@@ -328,6 +307,16 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                 }
             };
             joints("ready_right_deg",c.ready_right); joints("ready_left_deg",c.ready_left);
+            if(!node || !node["ready_right_deg"] || !node["ready_left_deg"])
+                throw std::runtime_error("Deployment requires both taught ready targets");
+            const std::string coordinates=node["joint_coordinates"]?node["joint_coordinates"].as<std::string>():"legacy_device";
+            if(coordinates=="legacy_device") {
+                const auto binding=YAML::LoadFile((std::filesystem::path(path).parent_path()/"arm_binding.yaml").string());
+                for(const std::string side:{"left","right"}) {
+                    auto &q=side=="left"?c.ready_left:c.ready_right;
+                    for(int j=0;j<7;++j) q(j)=(q(j)-binding[side]["model_to_device_offset_rad"][j].as<double>())/binding[side]["model_to_device_direction"][j].as<double>();
+                }
+            } else if(coordinates!="sdk_mdh_model") throw std::runtime_error("Unknown ready joint coordinates");
             read_value(node,"max_joint_velocity_rad_s",c.max_joint_velocity_rad_s);
             read_value(node,"max_joint_acceleration_rad_s2",c.max_joint_acceleration_rad_s2);
             read_value(node,"max_joint_jerk_rad_s3",c.max_joint_jerk_rad_s3);
@@ -484,7 +473,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         cfg.tray2_place.right_goal_x_offset = cfg.head_grasp.right_goal_x_offset;
         cfg.tray2_place.right_goal_y_offset = cfg.head_grasp.right_goal_y_offset;
         cfg.tray2_place.right_grasp_z_offset_m = cfg.head_grasp.right_grasp_z_offset_m;
-        cfg.tray2_place.nearest_row_z_offset_m = cfg.head_grasp.nearest_row_grasp_z_offset_m;
         const YAML::Node t2 = root["tray2_place"];
         if (t2)
         {
@@ -563,14 +551,8 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
                 read_value(off["right"], "y", cfg.tray2_place.right_goal_y_offset);
                 read_value(off["right"], "z", cfg.tray2_place.right_grasp_z_offset_m);
             }
-            read_value(t2, "nearest_row_z_offset_m", cfg.tray2_place.nearest_row_z_offset_m);
             read_value(t2, "far_row_forward_m", cfg.tray2_place.far_row_forward_m);
-            read_value(t2, "use_row_offset", cfg.tray2_place.use_row_offset);
-            if (t2["row_offset"])
-            {
-                read_row_xyz_list(t2["row_offset"]["left"], cfg.tray2_place.left_row_offset);
-                read_row_xyz_list(t2["row_offset"]["right"], cfg.tray2_place.right_row_offset);
-            }
+
         }
         read_value(hg, "adaptive_pitch_down_deg", cfg.head_grasp.adaptive_pitch_down_deg);
         read_value(hg, "adaptive_yaw_max_deg", cfg.head_grasp.adaptive_yaw_max_deg);
@@ -578,7 +560,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         read_value(hg, "adaptive_approach_xyz_tol_m", cfg.head_grasp.adaptive_approach_xyz_tol_m);
         read_value(hg, "adaptive_approach_rpy_tol_deg", cfg.head_grasp.adaptive_approach_rpy_tol_deg);
         read_value(hg, "head_approach_z_descend", cfg.head_grasp.head_approach_z_descend);
-        read_value(hg, "hand_descend_z", cfg.head_grasp.hand_descend_z);
         read_value(hg, "grasp_z_offset_m", cfg.head_grasp.grasp_z_offset_m);
         cfg.head_grasp.right_goal_x_offset = cfg.head_grasp.goal_x_offset;
         cfg.head_grasp.right_goal_y_offset = -cfg.head_grasp.goal_y_offset;
@@ -586,13 +567,7 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         read_value(hg, "right_goal_x_offset", cfg.head_grasp.right_goal_x_offset);
         read_value(hg, "right_goal_y_offset", cfg.head_grasp.right_goal_y_offset);
         read_value(hg, "right_grasp_z_offset_m", cfg.head_grasp.right_grasp_z_offset_m);
-        read_value(hg, "nearest_row_grasp_z_offset_m", cfg.head_grasp.nearest_row_grasp_z_offset_m);
-        read_value(hg, "use_row_offset", cfg.head_grasp.use_row_offset);
-        if (hg["row_offset"])
-        {
-            read_row_xyz_list(hg["row_offset"]["left"], cfg.head_grasp.left_row_offset);
-            read_row_xyz_list(hg["row_offset"]["right"], cfg.head_grasp.right_row_offset);
-        }
+
         read_value(hg, "use_hand_camera", cfg.head_grasp.use_hand_camera);
         read_value(hg, "hand_match_xy_max_m", cfg.head_grasp.hand_match_xy_max_m);
         read_value(hg, "hand_xy_refine_max_m", cfg.head_grasp.hand_xy_refine_max_m);
@@ -652,7 +627,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         read_value(valid, "left_y_max", cfg.grasp_valid.left_y_max);
 
         const YAML::Node zone = root["grasp_zone"];
-        read_value(zone, "y_side_split", cfg.grasp_zone.y_side_split);
         read_value(zone, "y_max_abs", cfg.grasp_zone.y_max_abs);
         read_value(zone, "x_min", cfg.grasp_zone.x_min);
         read_value(zone, "x_max", cfg.grasp_zone.x_max);
@@ -812,16 +786,6 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
             std::vector<std::filesystem::path> files;
             const auto canonical=catalog/(side+".yaml");
             if(std::filesystem::is_regular_file(canonical)) files.push_back(canonical);
-            else if(task=="placement" && std::filesystem::exists(catalog)) {
-                // Read old tilt files only until a new per-hand file replaces them.
-                for(const auto &e:std::filesystem::directory_iterator(catalog)) {
-                    const auto name=e.path().filename().string();
-                    if(e.is_regular_file() && name.rfind(side+"_tilt_",0)==0 &&
-                       e.path().extension()==".yaml" && name.find("_before_")==std::string::npos)
-                        files.push_back(e.path());
-                }
-                std::sort(files.begin(),files.end());
-            }
             for(const auto &file:files) {
                 const auto n=YAML::LoadFile(file.string());
                 const int schema=n["schema_version"].as<int>();
@@ -830,11 +794,16 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
                    n["hand"].as<int>()!=hand || n["robot_id"].as<std::string>()!=candidate.chassis.sequence_number ||
                    n["camera_serial"].as<std::string>()!=cameras["realsense"][side+"_hand"]["serial"].as<std::string>() ||
                    n["width"].as<int>()!=candidate.cameras.width || n["height"].as<int>()!=candidate.cameras.height ||
-                   n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")) ||
-                   n["model_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/"Robot_Arm_Model.yaml") ||
                    (schema==2 && (n["task"].as<std::string>()!=task || n["scope"].as<std::string>()!="tray_only" ||
                                   n["validation_kind"].as<std::string>()!="manual_at_D")))
                     throw std::runtime_error("料盘标定与任务/机器人/相机/工具模型不匹配: "+file.string());
+                if(n["model_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/"Robot_Model.yaml")) {
+                    candidate.pending_model_calibrations.push_back(file.string());
+                    std::cerr<<"[calibration_pending] model changed; ignored old geometry-dependent reference: "<<file<<'\n';
+                    continue;
+                }
+                if(n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")))
+                    throw std::runtime_error("手眼标定指纹不匹配: "+file.string());
                 wrist_servo::PlacementCalibrationProfile entry;
                 entry.universal=schema==2;
                 entry.image=candidate.visual_servo.profiles[(task=="placement"?2:0)+hand];
@@ -866,10 +835,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[arm_coordinates] sdk_mdh_model_rad pending_task_references="<<cfg.pending_model_calibrations.size()<<'\n';
     std::cout<<"[calibration] placement tilt families left="<<cfg.visual_servo.calibrated_placement[0].size()
              <<" right="<<cfg.visual_servo.calibrated_placement[1].size()<<"; tray grasp left="<<cfg.visual_servo.calibrated_tray_grasp[0].size()
              <<" right="<<cfg.visual_servo.calibrated_tray_grasp[1].size()<<" (tray-only; belt profiles unchanged)\n";
-    std::cout<<"[cfg] retract_motion fixed_ready_motor_rad right="<<cfg.retract_motion.ready_right
+    std::cout<<"[cfg] retract_motion fixed_ready_model_rad right="<<cfg.retract_motion.ready_right
              <<" left="<<cfg.retract_motion.ready_left<<" limits_v_a_j="
              <<cfg.retract_motion.max_joint_velocity_rad_s<<","<<cfg.retract_motion.max_joint_acceleration_rad_s2
              <<","<<cfg.retract_motion.max_joint_jerk_rad_s3<<" arrival_rad="
@@ -928,10 +898,7 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << "m fuse_frames=" << cfg.tray.fuse_frames << "\n"
               << "[cfg] hand_z hover_above=" << cfg.head_grasp.hover_above_m
               << "m z_offset=" << cfg.head_grasp.grasp_z_offset_m
-              << "m nearest_row_z=" << cfg.head_grasp.nearest_row_grasp_z_offset_m
               << "m use_hand_camera=" << (cfg.head_grasp.use_hand_camera ? "on" : "off")
-              << " grasp_row_offset=" << (cfg.head_grasp.use_row_offset ? "on" : "off")
-              << " place_row_offset=" << (cfg.tray2_place.use_row_offset ? "on" : "off")
               << "\n"
               << "[cfg] grasp offset left xyz=(" << cfg.head_grasp.goal_x_offset
               << "," << cfg.head_grasp.goal_y_offset << ","
@@ -1001,7 +968,6 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << cfg.tray2_place.right_goal_x_offset << ","
               << cfg.tray2_place.right_goal_y_offset << ","
               << cfg.tray2_place.right_grasp_z_offset_m
-              << ") nearest_row_z=" << cfg.tray2_place.nearest_row_z_offset_m << "\n"
               << "[cfg] endpoint_tol=" << cfg.head_grasp.bezier_endpoint_xyz_tol_m << "m/"
               << cfg.head_grasp.bezier_endpoint_rpy_tol_deg << "deg\n"
               << "[cfg] arm vel approach=" << cfg.head_grasp.approach_vel_m_s

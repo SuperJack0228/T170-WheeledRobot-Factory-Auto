@@ -1,4 +1,5 @@
 #pragma once
+#include "t170/app/lifecycle.h" // Compatibility: application owns these declarations.
 #include "t170/vision/visualization.h"
 #include "t170/vision/perception_types.h"
 
@@ -82,11 +83,7 @@ public:
         const double *grasp_offset_left = nullptr,
         const double *grasp_offset_right = nullptr);
 
-    TrayDetectResult run_tray_annotate(
-        const CameraFrameData &frame,
-        const PoseDetectionRecords &yolo,
-        bool show_visualization = false,
-        CameraSlot vis_slot = CameraSlot::Head);
+
 
     /** 多帧料盘位姿融合：各帧解扶平 T_robot_tray 后平均，YOLO/叠加用最后一帧。 */
     TrayDetectResult run_tray_annotate_multiframe(
@@ -149,7 +146,7 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-void print_pose_run_result(const PoseRunResult &result, const char *slot_label, int algorithm_id);
+
 
 /** 头相机 best1015.pt 与手相机 best1103.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
 
@@ -176,9 +173,7 @@ PoseDetectionRecords detect_pose_at_slot(
     SegEngineId engine_id = SegEngineId::Default);
 
 /** 头相机：flush → 取 fuse_n 帧并 prepare。fuse_n<=0 用 yaml tray.fuse_frames。 */
-std::vector<CameraFrameData> grab_head_fused_frames(
-    RealSenseMultiCam &cameras,
-    int fuse_n = 0);
+
 
 /** 料盘头视感知编排选项。run_yolo 时 YOLO 与检码并行，再融合。 */
 
@@ -204,14 +199,10 @@ HeadBeltPerception perceive_belt_head(
     const double *grasp_offset_right = nullptr,
     bool parallel_yolo = false);
 
-void append_pose_records(
-    PoseDetectionRecords &records,
-    const char *slot_name,
-    int frame_algorithm_id,
-    const PoseRunResult &result);
+
 
 /** 打印某一部位自己的缓存数组 */
-void print_pose_records_summary(const char *slot_title, const PoseDetectionRecords &records);
+
 
 /** 从 config/camera_to_base_result.yaml 读取 a.matrix（yaml 平移 mm，内部转为 m） */
 bool load_cam2robot_matrix(const std::string &yaml_path, std::array<double, 16> &out, std::string &err);
@@ -223,12 +214,7 @@ std::array<double, 16> transform_pose_cam_to_robot(
 
 /** 过滤 robot 系检测结果，按 y 分区分配给左右手；无效时 x=-1,y=0,z=0 */
 
-void assign_hand_targets_in_robot_frame(
-    const PoseDetectionRecords &records,
-    const std::array<double, 16> &cam2robot,
-    double right_hand_pos[3],
-    double left_hand_pos[3],
-    HeadHandAssignZones *out_zones = nullptr);
+
 
 /** 将单条检测从相机系转换到给定标定系的 6D 位姿；仅接受抓取类别。 */
 bool transform_grasp_detection_to_pose(
@@ -239,14 +225,6 @@ bool transform_grasp_detection_to_pose(
 /** 调试合成窗格：头相机、右手相机、左手相机。 */
 
 /** 调试窗布局：头相机单格或双手相机左右并排。 */
-
-/** Ctrl+C / SIGTERM 请求退出循环。处理函数只打标记，不在信号里关 CAN。 */
-void request_app_stop();
-bool app_stop_requested();
-void install_app_sigint_handler();
-/** 开始收尾后再次收到信号才硬退出，避免清理卡死时无法打断。 */
-void mark_app_cleanup_started();
-void interruptible_sleep_ms(int ms);
 
 /** 三台相机 + Python 位姿引擎，init 后可直接 grab / run */
 class PosePipeline

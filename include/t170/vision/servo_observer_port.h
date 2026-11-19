@@ -8,6 +8,7 @@ struct ObservationContext {
     bool vision_required = true;
     std::uint64_t session = 0;
     int target_class = -1;
+    int algorithm_id = -1; // Immutable session selection for the background observer.
     std::string task_tag;
     double final_z = 0;
     Vec2 nominal_xy = Vec2::Zero();

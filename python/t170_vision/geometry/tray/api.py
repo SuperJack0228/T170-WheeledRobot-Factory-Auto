@@ -38,7 +38,8 @@ from .fusion import (
     fuse_leveled_tray_poses,
 )
 
-HERE = load_paths().root / "board_yf100_aruco"
+DEFAULT_CONFIG_PATH = load_paths().config_file("vision/tray.yaml")
+HERE = DEFAULT_CONFIG_PATH.parent
 
 # OpenCV Hershey 字体画不出中文，图上必须用 ASCII。
 CLASS_LABEL_EN = {
@@ -129,7 +130,7 @@ class _Hole:
 def init(config_path: str | Path | None = None) -> str:
     global _cfg, _detector, _detector_tray2, _grasp_code
     global _tray2_print_m, _tray2_black_m, _tray2_pitch_m, _tray2_slot_to_id, _active_board
-    path = Path(config_path) if config_path else HERE / "config.yaml"
+    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
     _cfg = load_config(path)
     _detector = make_detector(get_aruco_dictionary(_cfg.dictionary))
     _active_board = "tray"

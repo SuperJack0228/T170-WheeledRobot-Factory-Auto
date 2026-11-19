@@ -52,8 +52,8 @@ int main() {
         require(default_left_hand_to_robot_yaml_path()==(root/"machine config/left_hand_to_base_result.yaml").string(),
                 "calibration/config override ignored");
         require(t170::logging::file("timing.jsonl")==root/"run logs/timing.jsonl","relative log override ignored");
-        require(default_pose_yaml_path()==(root/"feeding_cylindrical_parts_alg/config/pose_params.yaml").string(),
-                "config override incorrectly moved algorithm resources");
+        require(default_pose_yaml_path()==(root/"machine config/vision/pose_params.yaml").string(),
+                "vision config override ignored");
         const auto external=root/"external";
         setenv("T170_CONFIG_DIR",external.c_str(),1);setenv("T170_LOG_DIR",external.c_str(),1);
         require(t170::paths::config_directory()==external && t170::paths::log_directory()==external,

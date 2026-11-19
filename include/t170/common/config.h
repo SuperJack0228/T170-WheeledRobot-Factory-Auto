@@ -74,16 +74,10 @@ struct HeadGraspConfig
     double adaptive_approach_xyz_tol_m = 0.03;
     double adaptive_approach_rpy_tol_deg = 12.0;
     double head_approach_z_descend = 0.05;
-    double hand_descend_z = 0.07; // 已废弃，最终高度改用手相机 object_z
     /** 最终夹取 Z 修正，向上为正。偏深则加大，偏高则减小/改负。 */
     double grasp_z_offset_m = 0.02;
     /** 仅 from_robot=6（离机器人最近一排）额外 Z，叠在左右手 z_offset 上。向上为正。 */
-    double nearest_row_grasp_z_offset_m = 0.0;
     /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
-    bool use_row_offset = false;
-    /** 按 from_robot 1..6（1=最远）。叠在整盘 goal_*_offset 上。use_row_offset 为 false 时不加入目标。 */
-    XyzOffsetM left_row_offset[6]{};
-    XyzOffsetM right_row_offset[6]{};
     /** false：跳过手相机，XY/Z 都用孔位+盘面参考。 */
     bool use_hand_camera = true;
     double hand_match_xy_max_m = 0.05;
@@ -127,7 +121,6 @@ struct GraspValidConfig
 
 struct GraspZoneConfig
 {
-    double y_side_split = 0.08; // 已废弃，列分区改用 column_split_y
     /** 已不再用于选孔；包络以 grasp_valid 为准。 */
     double y_max_abs = 0.50;
     double x_min = 0.10, x_max = 0.80;
@@ -221,12 +214,7 @@ struct Tray2PlaceConfig
     double right_goal_y_offset = -0.01;
     double right_grasp_z_offset_m = 0.04;
     /** 仅 from_robot=6，叠在该手 z 上。 */
-    double nearest_row_z_offset_m = -0.01;
     /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
-    bool use_row_offset = false;
-    /** 按 from_robot 1..6（1=最远）。与 head_grasp 的行偏置互不影响。use_row_offset 为 false 时不加入目标。 */
-    XyzOffsetM left_row_offset[6]{};
-    XyzOffsetM right_row_offset[6]{};
     /** 远三排腰前伸，相对 layer3_home.x。不使用 waist.far_row_forward_m。 */
     double far_row_forward_m = 0.20;
 };
@@ -285,10 +273,6 @@ struct ConveyorStationConfig
     double yolo_min_conf = 0.25;
     /** 计入零件的 class_id；空则默认 0 和 2（立件、倒件），不含空孔 1。 */
     std::vector<int> yolo_part_class_ids;
-    /** @deprecated 旧类别门禁；若 yolo_roi_enable=false 且本项 true 则仍走旧逻辑。 */
-    bool grasp_yolo_enable = false;
-    /** @deprecated 配合 grasp_yolo_enable。 */
-    int grasp_yolo_class_id = -1;
     /** true：码原点 Z 不用相机，改用随腰高变化的固定平面。XY 和板姿态仍用二维码。 */
     bool use_fixed_origin_z = false;
     /** 标定时的手臂基座系码平面高度（米，向上为正）。对应下面的参考腰高。 */
@@ -361,7 +345,7 @@ struct HeadMotorConfig
     double speed_deg_s = 25.0;
 };
 
-/** 固定收手关节为电机角，内部 rad；YAML ready_*_deg 使用度。 */
+/** Fixed ready joints are SDK MODEL radians; YAML ready_*_deg uses degrees. */
 struct RetractMotionConfig
 {
     Eigen::Matrix<double,1,7> ready_right, ready_left;
@@ -373,16 +357,13 @@ struct RetractMotionConfig
     double feedback_timeout_s = 0.5;
     int stable_samples = 3;
     RetractMotionConfig() {
-        // 实测来源：servo_1793782920594052_120317.csv，左右手 begin。
-        ready_right << 35.697327,22.876282,-30.734253,82.654266,38.968506,-38.936920,47.971802;
-        ready_left << -32.018280,-25.883789,23.377533,-82.766876,-32.677460,41.103973,-51.726379;
-        ready_right *= 0.017453292519943295;
-        ready_left *= 0.017453292519943295;
+        ready_right.setZero();ready_left.setZero(); // Deployment must provide taught targets.
     }
 };
 
 struct MoveBoxConfig
 {
+    std::vector<std::string> pending_model_calibrations;
     ArmPosePairConfig standby;
     ArmPosePairConfig home_tcp;
     TrayHeightConfig tray;
@@ -410,4 +391,3 @@ MoveBoxConfig default_move_box_config();
 std::string default_move_box_config_path();
 bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::string &err);
 void print_move_box_config(const MoveBoxConfig &cfg);
-

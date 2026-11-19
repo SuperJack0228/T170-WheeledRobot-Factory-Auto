@@ -40,7 +40,8 @@ try:
 except ImportError:
     rs = None
 
-HERE = load_paths().root / "board_yf100_aruco"
+DEFAULT_CONFIG_PATH = load_paths().config_file("vision/tray.yaml")
+HERE = DEFAULT_CONFIG_PATH.parent
 PNP_FLAGS = {
     "SQPNP": cv2.SOLVEPNP_SQPNP,
     "ITERATIVE": cv2.SOLVEPNP_ITERATIVE,
@@ -749,7 +750,7 @@ def print_startup(cfg: AppConfig, device: RealSenseDevice) -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="board_yf100_aruco: RealSense YF-1001 太阳轮 5 码 6D 位姿")
-    p.add_argument("--config", type=Path, default=HERE / "config.yaml")
+    p.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     p.add_argument("--serial", type=str, default=None)
     p.add_argument("--camera-index", type=int, default=None)
     p.add_argument("--list-cameras", action="store_true")

@@ -159,6 +159,14 @@ void test_local_pose_solver() {
           "XY correction preserves orientation despite translation/rotation coupling");
     check(!solve_pose_with_fk(seed,Vec3(10,10,10),initial.block<3,3>(0,0),cfg,forward,limits,solution,xyz,rotation),
           "nonconverged finite joint vector is not success");
+    t170::motion::IKPolicy policy;policy.preferred=seed;policy.preferred(6)=-1;
+    policy.posture_iterations=2;policy.iterations=12;policy.null_step_rad=.05;
+    const Vec3 tiny=initial.block<3,1>(0,3)+Vec3(.00002,0,0);
+    Joints online,primary;auto primary_policy=policy;primary_policy.posture_iterations=0;
+    check(solve_pose_with_fk(seed,tiny,initial.block<3,3>(0,0),cfg,forward,limits,primary,xyz,rotation,&primary_policy),"primary tiny-step IK");
+    check(solve_pose_with_fk(seed,tiny,initial.block<3,3>(0,0),cfg,forward,limits,online,xyz,rotation,&policy),"online tiny-step IK");
+    check((online-primary).cwiseAbs().maxCoeff()<=.1*cfg.max_joint_accel_rad_s2*cfg.period_s*cfg.period_s+1e-8,
+          "posture objective injects an acceleration burst into a tiny servo command");
 }
 
 void test_delayed_dual_arm_simulation() {
@@ -424,10 +432,29 @@ void test_continuous_grasp_observations() {
           "silence incorrectly authorized latching instead of a bounded target-loss failure");
 }
 
+void test_baseline_conveyor_sample_limit() {
+    Config cfg;cfg.goal_filter_alpha=1;Controller c;State s=state_at(1,Vec3(0,0,.12));
+    c.reset(cfg,s,0,.03,s.position.head<2>(),true,false,true);
+    std::string reason;
+    for(int i=0;i<10;++i) {
+        s.time_s=1+i*.08;Mapping m;m.valid=true;m.remaining_m=Vec2(.02-.0008*i,0);
+        check(c.observe(observation_at(s.time_s,i+1),s,m,s.time_s+.01,reason),"M1 conveyor sample rejected");
+        check(c.belt_samples()==i+1 && c.goal_latched()==(i==9),"M1 accepted-frame cap changed");
+    }
+    const Vec2 goal=c.goal_xy();Mapping m;m.valid=true;m.remaining_m=Vec2(.001,0);
+    check(!c.observe(observation_at(2,11),s,m,2.01,reason) && reason=="goal_latched",
+          "M1 locked conveyor unexpectedly resumed observation updates");
+    check((c.goal_xy()-goal).norm()<1e-12,"M1 locked target changed");
+    Controller partial;s=state_at(1,Vec3(0,0,.12));partial.reset(cfg,s,0,.03,s.position.head<2>(),true,false,true);
+    m.remaining_m=Vec2(.02,0);check(partial.observe(observation_at(1,1),s,m,1.01,reason),"M1 partial fixture rejected");
+    s.time_s=2.6;partial.tick(s,.01);
+    check(partial.goal_latched() && partial.belt_samples()==1,"M1 existing-observation timeout policy changed");
+}
+
 int main() {
     try {
         test_mapping(); test_tilted_geometry(); test_history_and_delay(); test_braking_and_loss();
-        test_continuous_grasp_observations();
+        test_continuous_grasp_observations(); test_baseline_conveyor_sample_limit();
         test_commit_evidence(); test_local_pose_solver();
         test_delayed_dual_arm_simulation(); test_trace_and_config();
         test_position_following_and_grasp_tolerance();

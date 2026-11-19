@@ -1,7 +1,11 @@
 ﻿#ifndef _WAIST_H_
 #define _WAIST_H_
 
-#include <head.h> // legacy shared pose/math declarations; split in step 2
+#include <Eigen/Dense>
+#include <chrono>
+#include <cmath>
+#include <string>
+#include "t170/common/units.h"
 #include "LowerBody.h"
 
 #include <functional>
@@ -40,7 +44,7 @@ public:
 
     using Joints5 = LowerBody::Joints5;
 
-    Matrix<double, 1, 6> getTool();
+
     Matrix4d fk(const Joints5 &q);
     int ik(Matrix<double, 1, 6> &pos, Joints5 &q);
     /** 4×4 → LowerBody 逆解。q 为初值，用于把解展开到最近周期。 */
@@ -52,8 +56,8 @@ public:
     /** 关节点动。1脚踝 2膝盖 3髋 4侧倾 5回转，dq 为几何弧度。 */
     int jogJoint(int joint_1based, double dq_rad, double vel = 0.08);
     /** 只改回转角（几何 deg，+Z 向左为正）。不走笛卡尔，避免把 yaw 锁回 0。 */
-    int moveYawAbsDeg(double yaw_deg, double vel = 0.15);
-    int moveJToPos(Matrix<double, 1, 6> &posd, double vel);
+
+
     /** 腰 TCP 笛卡尔直线，目标姿态固定直立（不复制当前点头）。0 成功，-1 中途 IK 失败，-2 目标不可达，-3 外部中止 */
     int moveLToPos(Matrix<double, 1, 6> &posd, double vel);
     int moveLToPos(Matrix<double, 1, 6> &posd, double vel, const std::function<bool()> &should_abort);

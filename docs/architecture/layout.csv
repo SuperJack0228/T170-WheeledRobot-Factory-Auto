@@ -40,13 +40,13 @@ config/deployments,2,显式选择型号、工位、机器人和标定版本
 config/schemas,2,配置格式、字段归属、版本和校验规则
 assets/models,3,模型清单、版本/哈希和受控分发资源
 assets/audio,3,运行时提示音
-libs/lower_body,1,现有 LowerBody 独立运动学库
-third_party/eigen,3,现有 Eigen 固定版本
-third_party/ti5_arm,3,随项目交付的手臂求解器与接口
-third_party/ti5_device,3,设备 SDK 接口/版本记录，安装依赖仍明确区分
-third_party/ti5_seer,3,仙工 SDK 接口及依赖记录
-third_party/unitree,3,宇树电机 SDK 及相关原有头文件
-third_party/libserialport,3,现有串口依赖
+dependencies/sdk/lower_body,1,现有 LowerBody 独立运动学库
+dependencies/libraries/eigen,3,现有 Eigen 固定版本
+dependencies/sdk/arm,3,随项目交付的手臂求解器与接口
+dependencies/sdk/device,3,设备 SDK 接口/版本记录，安装依赖仍明确区分
+dependencies/sdk/chassis_seer,3,仙工 SDK 接口及依赖记录
+dependencies/libraries/unitree_motor,3,宇树电机 SDK 及相关原有头文件
+dependencies/libraries/serialport,3,现有串口依赖
 tests/unit,1,不连接硬件的算法与配置回归
 tests/integration,2,模块边界、配置、命令和动作交接集成检查
 tests/fixtures,2,精选小型离线输入与预期结果
@@ -64,3 +64,8 @@ docs/archive,3,保留的历史设计、问题和过期说明
 tools/dev,3,不参与运行交付的开发辅助
 tools/web_debug,3,网页调试服务及静态资源
 .github/workflows,3,离线回归及匹配 SDK 的构建工作流
+include/t170/calibration,2,抓取/放置校准向导及带锁命令接口
+src/calibration,2,标定会话、配置保存和命令服务
+include/t170/telemetry,2,工厂状态与调度统计接口
+src/telemetry,2,状态面板、控制台捕获及任务计时/统计
+src/app/maintenance,2,维护专用单步、拍照和手动循环

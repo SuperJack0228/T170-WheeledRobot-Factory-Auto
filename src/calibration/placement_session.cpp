@@ -1,11 +1,24 @@
 #include "t170/calibration/placement_session.h"
 #include "t170/calibration/identity.h"
 #include "t170/calibration/tray_policy.h"
-#include "robot_runtime.h"
-#include "function.h"
-#include "move_box_runtime.h"
-#include "move_box_config.h"
-#include "servo/runtime.h"
+#include "t170/tasks/context.h"
+#include "t170/tasks/operations.h"
+#include "t170/app/maintenance.h"
+#include "t170/motion/arm.h"
+#include "t170/hardware/gripper.hpp"
+#include "t170/hardware/waist.h"
+#include "t170/vision/python_bridge.h"
+#include "t170/common/units.h"
+#include "t170/motion/cartesian_tracking.h"
+#include "t170/motion/feedback.h"
+#include "t170/motion/kinematics_adapter.h"
+#include "t170/motion/planning.h"
+#include "t170/common/pose_math.h"
+#include "t170/motion/retreat.h"
+#include "t170/motion/servo_handoff.h"
+#include "t170/skills/legacy/runtime.h"
+#include "t170/skills/legacy/profiles.h"
+#include "t170/motion/servo.h"
 #include "t170/motion/pose_solver.h"
 #include "t170/hardware/head.h"
 #include "t170/hardware/device_bus.h"
@@ -25,6 +38,10 @@
 #include <thread>
 #include <cmath>
 #include <algorithm>
+
+using std::string;
+using std::thread;
+using std::get;
 
 namespace t170::calibration {
 namespace {
@@ -65,7 +82,7 @@ struct PlacementSession::Impl {
     wrist_servo::TrayTarget target;
     Json::Value candidates{Json::arrayValue};
     std::map<std::string,Json::Value> replies;
-    Robot_Arm &arm() {return hand?*hw->arm_r:*hw->arm_l;}
+    Arm &arm() {return hand?*hw->arm_r:*hw->arm_l;}
     gripper::Side side() const {return hand?gripper::Side::Right:gripper::Side::Left;}
     std::string side_name() const {return hand?"right":"left";}
     void stopped() const {require(!interrupted && !hardware_abort_requested() && !can_io_faulted(),"标定已停止，请退出会话后重新开始；不会自动松爪或回位");}
@@ -132,8 +149,13 @@ struct PlacementSession::Impl {
                 Joints next;double xyz=0,rot=0;
                 const auto fk=[&](const Joints &j){return arm().Forward_Kinematics(Eigen::RowVectorXd(j));};
                 const auto limit=[&](const Joints &j){return (j-seed).cwiseAbs().maxCoeff()>cfg.max_joint_excursion_rad ||
-                    (cfg.enforce_sdk_joint_limits && arm().Check_Joint_Limit(Eigen::RowVectorXd(j)));};
-                if(!wrist_servo::solve_pose_with_fk(q,p,start_rotation.slerp(f,goal_rotation).toRotationMatrix(),cfg,fk,limit,next,xyz,rot)) {planned=false;break;}
+                    arm().Check_Joint_Limit(Eigen::RowVectorXd(j));};
+                Eigen::Matrix4d target=Eigen::Matrix4d::Identity();target.topRightCorner<3,1>()=p;
+                target.topLeftCorner<3,3>()=start_rotation.slerp(f,goal_rotation).toRotationMatrix();
+                auto policy=arm().ik_policy(target);policy.iterations=20;policy.posture_iterations=1;policy.null_step_rad=.001;
+                policy.minimum=policy.minimum.cwiseMax(seed-Joints::Constant(cfg.max_joint_excursion_rad));
+                policy.maximum=policy.maximum.cwiseMin(seed+Joints::Constant(cfg.max_joint_excursion_rad));
+                if(!wrist_servo::solve_pose_with_fk(q,p,target.topLeftCorner<3,3>(),cfg,fk,limit,next,xyz,rot,&policy)) {planned=false;break;}
                 const Joints v=(next-q)/.01;
                 if(v.cwiseAbs().maxCoeff()>cfg.max_joint_speed_rad_s ||
                    ((v-previous_v)/.01).cwiseAbs().maxCoeff()>cfg.max_joint_accel_rad_s2) {planned=false;break;}
@@ -188,7 +210,7 @@ struct PlacementSession::Impl {
         auto root=std::filesystem::path(default_move_box_config_path()).parent_path();
         const auto cameras=YAML::LoadFile((root/"realsense_cameras.yaml").string());
         serial=cameras["realsense"][side_name()+"_hand"]["serial"].as<std::string>();
-        eye_hash=fingerprint(root/(side_name()+"_hand_to_base_result.yaml"));model_hash=fingerprint(root/"Robot_Arm_Model.yaml");
+        eye_hash=fingerprint(root/(side_name()+"_hand_to_base_result.yaml"));model_hash=fingerprint(root/"Robot_Model.yaml");
     }
     const GraspRpyDeg &rpy() const {
         return grasp?grasp_rpy_deg_for_row(5,hand==1):tray2_place_rpy_deg_for_row(5,hand==1);
@@ -226,10 +248,10 @@ struct PlacementSession::Impl {
         double zoff=0;
         if(grasp) {
             const auto &p=g_move_cfg.head_grasp;
-            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m)+(p.use_row_offset?(hand?p.right_row_offset[4].z:p.left_row_offset[4].z):0.0);
+            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m);
         } else {
             const auto &p=g_move_cfg.tray2_place;
-            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m)+(p.use_row_offset?(hand?p.right_row_offset[4].z:p.left_row_offset[4].z):0.0);
+            zoff=(hand?p.right_grasp_z_offset_m:p.grasp_z_offset_m);
         }
         const auto &r=rpy();Pose upright;
         upright<<selected.base.x(),selected.base.y(),move_box::expected_object_top_z()+zoff,r.rx*M_PI/180,r.ry*M_PI/180,r.rz*M_PI/180;
@@ -285,6 +307,8 @@ struct PlacementSession::Impl {
         r["reference_method"]=reference_method;r["feature_plane_z_m"]=feature_plane;r["robot_row"]=5;r["from_left_col"]=hand?5:2;r["hand"]=hand;r["session"]=id;
         r["robot_id"]=g_move_cfg.chassis.sequence_number;r["camera_serial"]=serial;
         r["eye_fingerprint"]=eye_hash;r["model_fingerprint"]=model_hash;
+        r["arm_model_id"]=arm().definition().model_id;r["arm_sdk_version"]="20261109";
+        r["joint_coordinates"]="sdk_mdh_model_rad";
         r["width"]=frozen.width;r["height"]=frozen.height;r["row"]=row;r["col"]=col;r["d_clearance_m"]=clearance;
         r["reference_fit_residual_rectified_px"]=reference_fit_residual;r["reference_coverage_bins"]=reference_coverage;
         r["reference_px"]=array(reference.transpose());r["reference_tcp_above_plane_m"]=reference_above_plane;
@@ -325,8 +349,13 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
             s.image_revision=0;s.head_revision=0;s.saved_file.clear();s.frozen={};s.nominal.setZero();s.aligned.setZero();s.reference_pose.setZero();s.latest.setZero();s.row=s.col=0;s.coarse.setZero();s.bias.setZero();s.reference.setZero();s.candidates=Json::Value(Json::arrayValue);
             s.camera_identity();
             std::filesystem::create_directories(s.directory/"inputs");
-            for(const auto &name:std::vector<std::string>{"move_box_params.yaml","realsense_cameras.yaml","Robot_Arm_Model.yaml",s.side_name()+"_hand_to_base_result.yaml"})
+            for(const auto &name:std::vector<std::string>{"move_box_params.yaml","realsense_cameras.yaml","Robot_Model.yaml",s.side_name()+"_hand_to_base_result.yaml"})
                 std::filesystem::copy_file(std::filesystem::path(default_move_box_config_path()).parent_path()/name,s.directory/"inputs"/name);
+            for(const auto &name:{"arm_binding.yaml","arm_model_metadata.yaml","arm_frames.yaml"}) {
+                const auto source=std::filesystem::path(default_move_box_config_path()).parent_path()/name;
+                if(std::filesystem::exists(source))
+                    std::filesystem::copy_file(source,s.directory/"inputs"/name);
+            }
             s.interrupted=false;s.active=true;s.state("selected",0);
         } else if(action=="end") {s.active=false;s.phase="ended";s.step=0;s.publish();}
         else {

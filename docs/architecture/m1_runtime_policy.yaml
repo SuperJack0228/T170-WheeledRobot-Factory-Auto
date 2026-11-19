@@ -1,0 +1,24 @@
+schema_version: 1
+baseline: 9e023e7
+scope: runtime_constants_outside_MoveBoxConfig
+# These are evidence, not new runtime configuration. Keep their current semantics.
+policies:
+  conveyor_accepted_sample_limit:
+    value: 10
+    source: src/control/visual_servo.cpp
+    meaning: accepted observations; an existing target can also latch on loss timeout
+  conveyor_gripper_xy_accept_m:
+    value: 0.018
+    sources: [src/control/visual_servo.cpp, src/servo/runtime.cpp]
+  conveyor_gripper_z_accept_above_m:
+    value: 0.012
+    sources: [src/control/visual_servo.cpp, src/servo/runtime.cpp]
+  gripper_initialization:
+    source: apps/t170_factory_main.cpp:init_hardware
+    grasp_torque_limit_nm: 4.5
+    soft_torque_limit_nm: 4.0
+    pos_filter: 0.5
+    soft_slew_rate: 100.0
+    soft_coast_margin_rad: 0.12
+    detect_retries: 2
+future_ownership: common skill or hardware policy; do not bind robot IDs to workcells

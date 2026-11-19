@@ -1,6 +1,6 @@
 #include "t170/vision/camera.h"
 
-#include "move_box_config.h"
+#include "t170/skills/legacy/profiles.h"
 #include "t170/vision/python_bridge.h"
 
 #include <algorithm>
@@ -9,15 +9,7 @@
 namespace vision
 {
 
-CameraRigConfig CameraRigConfig::make_default(const std::string &project_root)
-{
-    CameraRigConfig cfg;
-    const std::filesystem::path root(project_root.empty() ? project_root_dir() : project_root);
-    cfg.sn_yaml_path = (root / "config" / "realsense_cameras.yaml").string();
-    cfg.profile_head = "d435i";
-    cfg.profile_hand = "d405";
-    return cfg;
-}
+
 
 RealSenseCameraBackend::RealSenseCameraBackend(RealSenseMultiCam &cams) : cams_(cams) {}
 

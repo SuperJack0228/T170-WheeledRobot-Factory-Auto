@@ -10,7 +10,8 @@ import cv2
 import numpy as np
 import yaml
 
-HERE = load_paths().root / "online_pose"
+DEFAULT_CONFIG_PATH = load_paths().config_file("vision/marker.yaml")
+HERE = DEFAULT_CONFIG_PATH.parent
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,7 @@ def _make_detector(dictionary_id: int):
 
 def init(config_path: str | None = None) -> str:
     global _cfg, _detector
-    path = (Path(config_path) if config_path else HERE / "config.yaml").expanduser().resolve()
+    path = (Path(config_path) if config_path else DEFAULT_CONFIG_PATH).expanduser().resolve()
     if not path.is_file():
         raise FileNotFoundError(f"ArUco config not found: {path}")
     _cfg = _load_config(path)

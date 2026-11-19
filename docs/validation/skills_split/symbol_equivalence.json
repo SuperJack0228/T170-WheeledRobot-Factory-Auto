@@ -1,0 +1,8 @@
+{
+  "platform": "macOS AppleClang",
+  "comparison": "source-defined public move_box functions and state; compiler-generated inline constructors excluded",
+  "old_function_and_state_symbols": 150,
+  "retained": 150,
+  "missing": [],
+  "duplicates": []
+}

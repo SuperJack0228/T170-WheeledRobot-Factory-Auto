@@ -3,8 +3,8 @@
 from pathlib import Path
 from t170_common.paths import load_paths
 
-PROJECT_ROOT = load_paths().root / "feeding_cylindrical_parts_alg"
-MODELS_DIR = PROJECT_ROOT / "models"
+PROJECT_ROOT = load_paths().root
+MODELS_DIR = PROJECT_ROOT / "assets/models"
 DEFAULT_SEG_MODEL = MODELS_DIR / "best1015.pt"
 
 

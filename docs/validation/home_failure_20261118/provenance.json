@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-18",
+  "source_commit": "7213bea98d34fd2789979cf4f8d8663cc3c59554",
+  "backend": "independent MDH reference FK; native inverse deliberately unavailable",
+  "input_precision": "joint angles rounded to 0.1 degree from terminal text",
+  "reference_config_origin": "local offline generated test_runtime, not an export from the robot",
+  "hardware_access": false,
+  "sha256": {
+    "src/motion/arm.cpp": "2b8f29177aa07a7c6e461844cd07f635215b7545ec7997d68d89de5046ea97ba",
+    "src/motion/arm_configuration.cpp": "390cba742850a08ba8bc74581c36ff141127d77407db19efce733c1a65214bfa",
+    "src/motion/joint_motion.cpp": "cb4be095f93771e9e51875783f544e4edcd4d051b4034da4f5c5af46bf206587",
+    "src/motion/feedback.cpp": "563fabb45b4c97ad370d3e8657c5d4c5f7fe0dd6c782f50ac5a0e6fd5d2c5327",
+    "src/motion/planning.cpp": "18b5bdc6f42f5649bdf5a7ea3ccb3f77768fb146e46bfd1629ff467774a2a1cf",
+    "src/skills/common/preparation.cpp": "0f4831e7f92e24281027c7c526914862e4dc9289b7504763922a53338236d27b",
+    "docs/problem_note_20261118.md": "bb938b8be2f8986359250ea5ec636f0c8cfa2348cb3ab517b709325b48e45328",
+    "docs/validation/home_failure_20261118/reference_config/arm_binding.yaml": "b00f7d414518d580a9ebe7e7cc835f45a8b2b1e4bc6c29f90abcd44e75625e05",
+    "docs/validation/home_failure_20261118/reference_config/Robot_Model.yaml": "30a4b409e61723736ff513690f7521d94db68634d51fbabef4e3f451bd3d1d79",
+    "docs/validation/home_failure_20261118/replay.cpp": "627e0e60c7e40329fb5729b1e4d744d797e5e9ee8768e5ffeeeb1b95b50621d5",
+    "docs/validation/home_failure_20261118/CMakeLists.txt": "fa592d63c9ef987334c6015ee822e6aea2b0f37ca171f25a0a8e5fa209c99ca1",
+    "docs/validation/home_failure_20261118/reference_replay.txt": "ab1540883055eb640525990226f503de23cf641b0fa5e363d88bc9171a7fa190",
+    "docs/validation/home_failure_20261118/summary.csv": "379348eb9b23d796855efaea3a2f106f7e1633edb0cae600f17d8ca5b9d6e8b6"
+  }
+}

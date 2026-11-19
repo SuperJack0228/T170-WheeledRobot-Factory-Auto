@@ -31,7 +31,7 @@ Watch watches[2];
 std::mutex watch_mutex, start_mutex, legacy_log_mutex;
 std::condition_variable wake;
 std::atomic<SegPoseBridge*> engine{nullptr};
-std::atomic<bool> running{false}, save_raw{false};
+std::atomic<bool> running{false};
 std::thread worker;
 wrist_servo::TrayLocalizer tray_localizers[2];
 std::uint64_t tray_sessions[2]{}; // exclusively owned by the observation worker
@@ -302,14 +302,10 @@ void observe(int hand) {
         if(!wrist_servo::submit_observation(hand,obs))
             wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
         save_debug(); // Valid observations reach the controller before overlay construction.
-        if(save_raw.load()) {
-            const auto raw_path=vision_debug_record_path(
-                hand==1?"original/right":"original/left","servo_raw");
-            cv::imwrite(raw_path,cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()));
-        }
+
         return; // no YOLO call and no closest-box fallback for tray placement
     }
-    try { result=bridge->run_yolo(frame,algorithm_id_for_slot(camera),false,camera,-1,SegEngineId::Hand); }
+    try { result=bridge->run_yolo(frame,context.algorithm_id,false,camera,-1,SegEngineId::Hand); }
     catch(const std::exception &ex) { result.ok=false; result.message=ex.what(); }
     obs.completed_s=wrist_servo::monotonic_seconds();
     obs.infer_ms=(obs.completed_s-infer_start)*1000;
@@ -348,10 +344,10 @@ void observe(int hand) {
     // Submit first: debug JPEG encoding and storage must not age a usable observation.
     if(best && !wrist_servo::submit_observation(hand,obs))
         wrist_servo::observation_event(hand,context.session,"session_not_accepting_submit",obs);
-    if(cfg.tray_place.save_debug_images || save_raw.load()) {
+    if(cfg.tray_place.save_debug_images) {
         static double last_grasp_image_s[2]{};
         const double now_s=wrist_servo::monotonic_seconds();
-        if(now_s-last_grasp_image_s[hand]>=0.25 || save_raw.load()) {
+        if(now_s-last_grasp_image_s[hand]>=0.25) {
             last_grasp_image_s[hand]=now_s;
             cv::Mat canvas(frame.height,frame.width,CV_8UC3,
                            const_cast<unsigned char*>(frame.color_bgr.data()));
@@ -378,7 +374,7 @@ void observe(int hand) {
             if(wrist_servo::camera_at_capture(hand,context.session,obs.capture_s,bc)) {
                 metadata<<"base_from_camera:\n";for(int r=0;r<4;++r){metadata<<"  - [";for(int c=0;c<4;++c)metadata<<(c?", ":"")<<bc(r,c);metadata<<"]\n";}
             }
-            cv::Mat raw=save_raw.load()?cv::Mat(frame.height,frame.width,CV_8UC3,frame.color_bgr.data()).clone():cv::Mat();
+            cv::Mat raw;
             static DebugImageWriter writer;
             writer.put(hand,vision_debug_record_path(hand==1?"right":"left","servo"),std::move(canvas),std::move(raw),metadata.str());
         }
@@ -419,7 +415,7 @@ void hand_shadow_bind(SegPoseBridge *bridge) {
     }
     engine.store(bridge);
 }
-void hand_shadow_ensure(int hand,Robot_Arm *arm,const Eigen::Matrix<double,1,6> &goal,
+void hand_shadow_ensure(int hand,Arm *arm,const Eigen::Matrix<double,1,6> &goal,
                         const char *tag,int cls) {
     if(hand<0 || hand>1 || !arm || !engine.load()) return;
     { std::lock_guard<std::mutex> lock(start_mutex);
@@ -427,7 +423,7 @@ void hand_shadow_ensure(int hand,Robot_Arm *arm,const Eigen::Matrix<double,1,6> 
     }
     hand_shadow_begin(hand,arm,goal,tag,cls);
 }
-void hand_shadow_begin(int hand,Robot_Arm *,const Eigen::Matrix<double,1,6> &,const char *,int) {
+void hand_shadow_begin(int hand,Arm *,const Eigen::Matrix<double,1,6> &,const char *,int) {
     if(hand<0 || hand>1) return;
     { std::lock_guard<std::mutex> lock(watch_mutex);
       const auto generation=watches[hand].generation+1;
@@ -440,7 +436,6 @@ void hand_shadow_end(int hand) {
     std::lock_guard<std::mutex> lock(watch_mutex);
     watches[hand].active=false; watches[hand].locked=false; ++watches[hand].generation;
 }
-void hand_shadow_set_descent_raw(bool enable) { save_raw.store(enable); }
 void hand_track_log(const std::string &hand,const std::string &result,const std::string &detail) {
     std::lock_guard<std::mutex> lock(legacy_log_mutex);
     const auto path=t170::logging::file("hand_track.csv");

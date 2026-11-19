@@ -1,5 +1,5 @@
 #include "t170/control/visual_servo.h"
-#include "move_box_config.h"
+#include "t170/skills/legacy/profiles.h"
 #include <yaml-cpp/yaml.h>
 #include <filesystem>
 #include <iostream>
@@ -33,6 +33,11 @@ int main(int argc,char **argv) {
         changed["retract_motion"]["max_joint_jerk_rad_s3"]=0;
         { std::ofstream out(retract_config);out<<changed; }
         require(!load_move_box_config(retract_config,full,config_error),"zero jerk accepted");
+        changed=YAML::Clone(root);
+        changed["visual_servo"]["enforce_sdk_joint_limits"]=false;
+        {std::ofstream out(retract_config);out<<changed;}
+        require(load_move_box_config(retract_config,full,config_error) && full.visual_servo.enforce_sdk_joint_limits,
+                "legacy false still bypasses effective joint limits");
         changed=YAML::Clone(root);
         changed["retract_motion"]["ready_right_deg"][0]=12.5;
         changed["retract_motion"]["max_joint_velocity_rad_s"]=.7;

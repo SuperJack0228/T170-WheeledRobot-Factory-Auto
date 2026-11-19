@@ -344,49 +344,11 @@ void pose_vis_set_gui_enabled(bool enable)
     g_pose_vis_gui_enabled = enable;
 }
 
-void pose_vis_save_debug_pair_bgr(
-    int panel_index,
-    int orig_h,
-    int orig_w,
-    const uint8_t *orig_bgr,
-    size_t orig_bytes,
-    int proc_h,
-    int proc_w,
-    const uint8_t *proc_bgr,
-    size_t proc_bytes)
-{
-    py::gil_scoped_acquire gil;
-    py::object orig = py::none();
-    py::object proc = py::none();
-    const size_t orig_expect =
-        static_cast<size_t>(orig_h) * static_cast<size_t>(orig_w) * 3u;
-    const size_t proc_expect =
-        static_cast<size_t>(proc_h) * static_cast<size_t>(proc_w) * 3u;
-    if (orig_bgr != nullptr && orig_h > 0 && orig_w > 0 && orig_bytes == orig_expect)
-    {
-        std::vector<uint8_t> copy(orig_bgr, orig_bgr + orig_bytes);
-        orig = bgr_vector_to_numpy(orig_h, orig_w, copy);
-    }
-    if (proc_bgr != nullptr && proc_h > 0 && proc_w > 0 && proc_bytes == proc_expect)
-    {
-        std::vector<uint8_t> copy(proc_bgr, proc_bgr + proc_bytes);
-        proc = bgr_vector_to_numpy(proc_h, proc_w, copy);
-    }
-    save_debug_image_pair_impl(panel_index, orig, proc);
-}
 
-void pose_vis_set_panel_bgr(int panel_index, int height, int width, const uint8_t *bgr, size_t bgr_bytes)
-{
-    py::gil_scoped_acquire gil;
-    pose_vis_set_panel_bgr_impl(panel_index, height, width, bgr, bgr_bytes);
-}
 
-void pose_vis_set_layout(int layout, int single_panel_index)
-{
-    py::gil_scoped_acquire gil;
-    pose_vis_set_layout_impl(layout, single_panel_index);
-    pose_vis_refresh_composite_impl();
-}
+
+
+
 
 void pose_vis_clear_panels(const std::initializer_list<int> panels)
 {
@@ -405,10 +367,3 @@ void pose_vis_begin_phase(
     pose_vis_set_layout_impl(layout, single_panel_index);
     pose_vis_refresh_composite_impl();
 }
-
-void pose_vis_refresh_composite()
-{
-    py::gil_scoped_acquire gil;
-    pose_vis_refresh_composite_impl();
-}
-

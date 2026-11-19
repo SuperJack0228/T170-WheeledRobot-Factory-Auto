@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "T170 skill result v1",
+  "type": "object",
+  "required": [
+    "interface_version",
+    "request_id",
+    "workcell_id",
+    "target_id",
+    "skill",
+    "status",
+    "stage",
+    "error_code",
+    "native_code",
+    "legacy_status",
+    "failure_stage",
+    "message",
+    "elapsed_s",
+    "waist_adjusted",
+    "available_left",
+    "available_right",
+    "hands"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "interface_version": {
+      "const": 1
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "workcell_id": {
+      "type": "string"
+    },
+    "target_id": {
+      "type": "string"
+    },
+    "skill": {
+      "enum": [
+        "tray.grasp",
+        "tray.place",
+        "conveyor.grasp_contact",
+        "conveyor.place_contact",
+        "conveyor.retreat"
+      ]
+    },
+    "status": {
+      "enum": [
+        "running",
+        "succeeded",
+        "partial",
+        "no_target",
+        "failed",
+        "cancelled",
+        "rejected"
+      ]
+    },
+    "stage": {
+      "enum": [
+        "validate",
+        "prepare",
+        "observe",
+        "approach",
+        "align_descend",
+        "gripper",
+        "lift",
+        "return",
+        "complete"
+      ]
+    },
+    "error_code": {
+      "enum": [
+        0,
+        1001,
+        1002,
+        1003,
+        1101,
+        1102,
+        1201,
+        1301,
+        1302,
+        1401,
+        1402,
+        1501,
+        1901
+      ]
+    },
+    "native_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "legacy_status": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "failure_stage": {
+      "enum": [
+        null,
+        "validate",
+        "prepare",
+        "observe",
+        "approach",
+        "align_descend",
+        "gripper",
+        "lift",
+        "return",
+        "complete"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "elapsed_s": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "waist_adjusted": {
+      "type": "boolean"
+    },
+    "available_left": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "available_right": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "hands": {
+      "type": "object",
+      "required": [
+        "left",
+        "right"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "$ref": "#/$defs/hand"
+        },
+        "right": {
+          "$ref": "#/$defs/hand"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hand": {
+      "type": "object",
+      "required": [
+        "requested",
+        "started",
+        "action_completed",
+        "retreat_completed",
+        "part_state",
+        "evidence",
+        "stage",
+        "error_code",
+        "native_code",
+        "failure_stage",
+        "nominal_target"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "requested": {
+          "type": "boolean"
+        },
+        "started": {
+          "type": "boolean"
+        },
+        "action_completed": {
+          "type": "boolean"
+        },
+        "retreat_completed": {
+          "type": "boolean"
+        },
+        "part_state": {
+          "enum": [
+            "unknown",
+            "empty",
+            "holding"
+          ]
+        },
+        "evidence": {
+          "enum": [
+            "unknown",
+            "caller_reported",
+            "legacy_policy",
+            "gripper_feedback"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "validate",
+            "prepare",
+            "observe",
+            "approach",
+            "align_descend",
+            "gripper",
+            "lift",
+            "return",
+            "complete"
+          ]
+        },
+        "error_code": {
+          "enum": [
+            0,
+            1001,
+            1002,
+            1003,
+            1101,
+            1102,
+            1201,
+            1301,
+            1302,
+            1401,
+            1402,
+            1501,
+            1901
+          ]
+        },
+        "native_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "failure_stage": {
+          "enum": [
+            null,
+            "validate",
+            "prepare",
+            "observe",
+            "approach",
+            "align_descend",
+            "gripper",
+            "lift",
+            "return",
+            "complete"
+          ]
+        },
+        "nominal_target": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/nominal_target"
+            }
+          ]
+        }
+      }
+    },
+    "nominal_target": {
+      "type": "object",
+      "required": [
+        "frame",
+        "pose_m_rad",
+        "tray_row_aruco",
+        "tray_column_aruco"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "enum": [
+            "arm_base",
+            "upright_arm_base"
+          ]
+        },
+        "pose_m_rad": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "tray_row_aruco": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tray_column_aruco": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

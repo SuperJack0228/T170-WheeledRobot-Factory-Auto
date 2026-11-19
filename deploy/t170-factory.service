@@ -11,7 +11,7 @@ WorkingDirectory=/home/ti5robot/T170Clean
 ExecStartPre=/bin/sleep 8
 Environment=T170_ROOT=/home/ti5robot/T170Clean
 EnvironmentFile=-/etc/t170-factory/runtime.env
-ExecStart=/home/ti5robot/T170Clean/deploy/run_factory.sh --dispatch
+ExecStart=/home/ti5robot/T170Clean/deploy/run_production.sh
 Restart=no
 KillSignal=SIGTERM
 TimeoutStopSec=90

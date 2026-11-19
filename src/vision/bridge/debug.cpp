@@ -105,11 +105,7 @@ bool vision_debug_gui()
     return ensure_level_unlocked() >= 2;
 }
 
-int vision_debug_level()
-{
-    std::lock_guard<std::mutex> lk(g_mu);
-    return ensure_level_unlocked();
-}
+
 
 std::string vision_debug_root_dir()
 {
@@ -129,11 +125,4 @@ std::string vision_debug_record_path(const char *slot, const char *stem)
 std::string vision_debug_make_path(const char *slot, const char *stem)
 {
     return vision_debug_record_path(slot, stem);
-}
-
-std::string vision_debug_annotate_path(const char *slot, const char *stem)
-{
-    if (!vision_debug_annotate())
-        return {};
-    return vision_debug_make_path(slot, stem);
 }

@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 #include "t170/vision/debug.h"
-#include "move_box_config.h"
+#include "t170/skills/legacy/profiles.h"
 
 #include <librealsense2/rs.hpp>
 #include <opencv2/core.hpp>
@@ -426,20 +426,7 @@ const char *RealSenseMultiCam::slot_name(CameraSlot slot)
     return "unknown";
 }
 
-CameraSlot RealSenseMultiCam::slot_from_choice(int choice)
-{
-    switch (choice)
-    {
-    case 1:
-        return CameraSlot::Head;
-    case 2:
-        return CameraSlot::RightHand;
-    case 3:
-        return CameraSlot::LeftHand;
-    default:
-        throw std::invalid_argument("invalid camera choice");
-    }
-}
+
 
 bool RealSenseMultiCam::init(std::string &err)
 {

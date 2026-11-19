@@ -27,10 +27,10 @@ try:
 except ImportError:  # pragma: no cover
     yaml = None
 
-PACKAGE_DIR = load_paths().root / "free_calib"
-DEFAULT_CONFIG_DIR = PACKAGE_DIR / "config"
-DEFAULT_HEAD_PARAMS_YAML = DEFAULT_CONFIG_DIR / "head_params.yaml"
-DEFAULT_CAMERA_TO_HEAD_YAML = DEFAULT_CONFIG_DIR / "camera_to_head_connector_result.yaml"
+PACKAGE_DIR = load_paths().root / "python/t170_vision/calibration"
+DEFAULT_CONFIG_DIR = load_paths().config_file("head/geometry.yaml").parent
+DEFAULT_HEAD_PARAMS_YAML = load_paths().config_file("head/geometry.yaml")
+DEFAULT_CAMERA_TO_HEAD_YAML = load_paths().config_file("head/extrinsics.yaml")
 
 
 @dataclass

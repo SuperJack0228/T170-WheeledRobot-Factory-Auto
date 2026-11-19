@@ -1,0 +1,10 @@
+{
+  "platform": "macOS AppleClang",
+  "comparison": "Mangled public function symbols from compiled original and split translation units",
+  "public_function_symbols": 110,
+  "retained": 110,
+  "missing": [],
+  "duplicates": [],
+  "old_objects": 2,
+  "new_objects": 17
+}

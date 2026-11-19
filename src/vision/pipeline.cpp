@@ -1,5 +1,5 @@
 #include "t170/vision/pipeline.h"
-#include "t170/common/task_timing.h"
+#include "t170/telemetry/dispatch_metrics.h"
 
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/python_bridge.h"

@@ -51,7 +51,7 @@ class RuntimePathsTest(unittest.TestCase):
                 self.assertEqual(module["CONFIG_FILES"]["hand_eye_fallback"], root / "machine/camera_to_base_result.yaml")
                 self.assertEqual(module["RUNTIME_ROOT"], root / "run logs/web")
                 with patch.object(sys, "argv", ["server.py"]):
-                    self.assertEqual(module["parse_args"]().robot_command, "./build_robot/t170_factory")
+                    self.assertEqual(module["parse_args"]().robot_command, "./build_robot/t170_factory --maintenance")
 
     def test_launcher_preserves_arguments_root_and_working_directory(self):
         repository = Path(__file__).resolve().parents[1]

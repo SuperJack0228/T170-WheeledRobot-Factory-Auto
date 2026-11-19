@@ -6,7 +6,7 @@
 namespace wrist_servo {
 struct TrayPlaceVisionConfig {
     bool enabled=false;
-    std::string board_config="board_yf100_aruco/config.yaml";
+    std::string board_config="config/vision/tray.yaml";
     double association_gate_m=.025;
     double reprojection_gate_px=3.0;
     double circle_residual_m=.0015;

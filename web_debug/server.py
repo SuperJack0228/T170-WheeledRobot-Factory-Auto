@@ -35,7 +35,7 @@ import yaml
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
 WEB_API_VERSION = 6
-UI_VERSION = "1.3.0"
+UI_VERSION = "1.4.0"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from t170_common.paths import load_paths
@@ -386,7 +386,6 @@ ALLOWED_COMMANDS = {
     "ping",
     "snapshot",
     "reload_config",
-    "vision_detect",
     "aruco_detect",
     "vision_grasp",
     "vision_grasp_image",
@@ -437,14 +436,11 @@ ALLOWED_COMMANDS = {
     "detect_tray_holes",
     "abort",
     "dispatch_exit",
-    "gripper_open",
-    "gripper_grasp",
 }
 DANGEROUS_COMMANDS = ALLOWED_COMMANDS - {
     "ping",
     "snapshot",
     "reload_config",
-    "vision_detect",
     "aruco_detect",
     "detect_tray_holes",
     "abort",
@@ -785,6 +781,9 @@ class DebugHandler(BaseHTTPRequestHandler):
                 path.relative_to((PICTURE_ROOT / "calibration").resolve())
                 self._send(HTTPStatus.OK, path.read_bytes(), "image/jpeg")
                 return
+            if parsed.path == "/api/capabilities":
+                self._json(HTTPStatus.OK, self.state.robot_request({"cmd": "capabilities"}, timeout=3.0))
+                return
             if parsed.path == "/api/health":
                 online = self.state.robot_online()
                 process = self.state.robot_process
@@ -1051,6 +1050,9 @@ class DebugHandler(BaseHTTPRequestHandler):
                 threading.Thread(target=self.state.run_sequence, args=(list(steps),), daemon=True).start()
                 self._json(HTTPStatus.OK, {"ok": True, "steps": steps})
                 return
+            if parsed.path in {"/api/fields", "/api/config"} and os.environ.get("T170_DEPLOYMENT"):
+                self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "部署配置由分层文件生成，请修改来源配置并重新生成运行目录；禁止改写临时合并文件。标定向导仍可保存本机标定。"})
+                return
             if parsed.path == "/api/fields":
                 file_id = str(payload.get("file") or "motion")
                 values = payload.get("values")
@@ -1161,7 +1163,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8080, help="Web 监听端口")
     parser.add_argument("--robot-host", default="127.0.0.1")
     parser.add_argument("--robot-port", type=int, default=8099)
-    parser.add_argument("--robot-command", default="./build_robot/t170_factory")
+    parser.add_argument("--robot-command", default="./build_robot/t170_factory --maintenance")
     parser.add_argument("--start-robot", action="store_true", help="若 C++ 服务未运行则自动启动")
     parser.add_argument("--token", default=os.environ.get("T170_WEB_TOKEN", ""))
     return parser.parse_args()

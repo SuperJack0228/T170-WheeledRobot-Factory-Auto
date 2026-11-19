@@ -1,0 +1,29 @@
+schema_version: 1
+robot_id: TH-T170C-0124
+# No.124: V2.0 3 kg; active Ti5_Robotics model-angle backend.
+robot_model: t170c_v2_3kg
+site_id: current_factory
+task_assignment: dispatch
+layers:
+- config/defaults/factory_baseline.yaml
+- config/robot_models/t170/motion.yaml
+- config/sites/current_factory/tray_and_navigation.yaml
+- config/sites/current_factory/workcell_profiles.yaml
+- config/robots/TH-T170C-0124/identity.yaml
+- config/robots/TH-T170C-0124/taught_poses.yaml
+- config/robots/TH-T170C-0124/reference_pixels.yaml
+files:
+  config/realsense_cameras.yaml: config/robots/TH-T170C-0124/cameras/realsense_cameras.yaml
+  config/right_hand_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/right.yaml
+  config/camera_profile_d405.yaml: config/robot_models/t170/camera_profile_d405.yaml
+  config/camera_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/head_fallback.yaml
+  config/devices.json: config/robots/TH-T170C-0124/hardware/devices.json
+  config/camera_profile_d435i.yaml: config/robot_models/t170/camera_profile_d435i.yaml
+  config/left_hand_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/left.yaml
+  config/head/extrinsics.yaml: config/calibration/TH-T170C-0124/head/extrinsics.yaml
+  config/head/geometry.yaml: config/calibration/TH-T170C-0124/head/geometry.yaml
+  config/vision/tray.yaml: config/sites/current_factory/vision/tray.yaml
+  config/vision/belt.yaml: config/sites/current_factory/vision/belt.yaml
+  config/vision/marker.yaml: config/sites/current_factory/vision/marker.yaml
+  config/vision/pose_params.yaml: config/sites/current_factory/vision/pose_params.yaml
+calibration_directory: config/calibration/TH-T170C-0124/tasks

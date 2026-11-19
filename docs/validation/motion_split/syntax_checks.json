@@ -1,0 +1,37 @@
+[
+  {
+    "file": "src/grasp_execution.cpp",
+    "exit_code": 0,
+    "diagnostic": ""
+  },
+  {
+    "file": "src/grasp_to_standby.cpp",
+    "exit_code": 0,
+    "diagnostic": ""
+  },
+  {
+    "file": "src/move_box_runtime.cpp",
+    "exit_code": 0,
+    "diagnostic": ""
+  },
+  {
+    "file": "src/calibration/placement_session.cpp",
+    "exit_code": 0,
+    "diagnostic": ""
+  },
+  {
+    "file": "tools/arm_plane_repeat.cpp",
+    "exit_code": 0,
+    "diagnostic": ""
+  },
+  {
+    "file": "src/function.cpp",
+    "exit_code": 0,
+    "diagnostic": ""
+  },
+  {
+    "file": "src/servo/runtime.cpp",
+    "exit_code": 0,
+    "diagnostic": ""
+  }
+]

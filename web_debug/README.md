@@ -5,12 +5,13 @@
 ## 部署后启动
 
 ```bash
-cd ~/T170Clean
-cmake --build build_robot -j2
-bash tools/start_web_debug.sh
+# 仓库根目录，原有 Python 运行环境
+./deploy/run_maintenance.sh
+# 另一个终端、同一仓库和环境
+./deploy/run_web.sh
 ```
 
-脚本会先执行 `sudo -v`，按提示输入机器人用户密码即可；之后 SocketCAN 初始化不会在日志管道中隐藏密码提示。
+先启动机器人主程序，再启动网页。网页包装脚本通过本机命令服务查询实际运行目录，无需复制会话路径；默认网页端口 8080、命令端口 8099。更新代码后先重新编译并重启主程序，才能使用新的自动定位接口。
 
 启动完成后终端会打印带随机访问令牌的地址，例如：
 
@@ -23,14 +24,14 @@ http://192.168.125.171:8080/?token=...
 如果 C++ 服务已经在另一个终端运行，可以只启动网页代理：
 
 ```bash
-python3 web_debug/server.py
+./deploy/run_web.sh
 ```
 
 固定访问令牌：
 
 ```bash
 export T170_WEB_TOKEN='请换成足够长的随机字符串'
-bash tools/start_web_debug.sh
+./deploy/run_web.sh
 ```
 
 ## 页面模块
@@ -39,7 +40,7 @@ bash tools/start_web_debug.sh
 - 视觉检测：头/左右手相机单次或连续 YOLO 检测、头相机 ArUco 检测、原图/标注图和坐标结果。
 - 动作流程：状态检查、只检测不运动、现有 home、完整抓取。
 - 夹爪调试：左右或双侧张开、Soft 力控夹取和反馈。
-- 参数配置：编辑 `config/move_box_params.yaml`，保存时备份并让 C++ 校验；失败自动恢复。
+- 参数配置：分层部署模式下通用参数保存禁用，应改源 YAML 后重启生成新会话；标定向导可保存本机任务标定。
 - 运行日志：合并 Web 服务日志、托管启动的 C++ 输出和现有 `startup.log`。
 
 ## 安全约束

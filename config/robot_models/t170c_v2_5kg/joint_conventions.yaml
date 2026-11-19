@@ -1,0 +1,114 @@
+left:
+  joint_names:
+  - L_SHOULDER_P
+  - L_SHOULDER_R
+  - L_SHOULDER_Y
+  - L_ELBOW_Y
+  - L_WRIST_P
+  - L_WRIST_Y
+  - L_WRIST_R
+  urdf_from_sdk_direction:
+  - -1
+  - 1
+  - 1
+  - -1
+  - 1
+  - -1
+  - 1
+  urdf_from_sdk_offset_rad:
+  - 0.0
+  - -1.5707963267948966
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  urdf_joint_min_rad:
+  - -3.14
+  - -1.57
+  - -3.14
+  - -2.43
+  - -3.14
+  - -1.04
+  - -1.75
+  urdf_joint_max_rad:
+  - 3.14
+  - 1.57
+  - 3.14
+  - 0.79
+  - 3.14
+  - 1.04
+  - 1.57
+  urdf_velocity_rad_s:
+  - 4.1867
+  - 4.1867
+  - 4.2913
+  - 4.2913
+  - 6.1753
+  - 6.1753
+  - 6.1753
+  urdf_effort_nm:
+  - 102.0
+  - 102.0
+  - 66.0
+  - 66.0
+  - 11.0
+  - 11.0
+  - 11.0
+right:
+  joint_names:
+  - R_SHOULDER_P
+  - R_SHOULDER_R
+  - R_SHOULDER_Y
+  - R_ELBOW_Y
+  - R_WRIST_P
+  - R_WRIST_Y
+  - R_WRIST_R
+  urdf_from_sdk_direction:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  urdf_from_sdk_offset_rad:
+  - 0.0
+  - 1.5707963267948966
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  urdf_joint_min_rad:
+  - -3.14
+  - -1.57
+  - -3.14
+  - -0.79
+  - -3.14
+  - -1.04
+  - -1.57
+  urdf_joint_max_rad:
+  - 3.14
+  - 1.57
+  - 3.14
+  - 2.43
+  - 3.14
+  - 1.04
+  - 1.75
+  urdf_velocity_rad_s:
+  - 4.1867
+  - 4.1867
+  - 4.2913
+  - 4.2913
+  - 6.17533
+  - 6.1753
+  - 6.1753
+  urdf_effort_nm:
+  - 102.0
+  - 102.0
+  - 66.0
+  - 66.0
+  - 11.0
+  - 11.0
+  - 11.0

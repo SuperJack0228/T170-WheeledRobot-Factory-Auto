@@ -44,6 +44,13 @@ int main() {
         knots.row(3)<<.4,-.3,.2,.16,-.08,.07,.03;
         const auto path=time_joint_path(knots,dt,limits);
         check_limits(path,dt,limits);
+        Eigen::MatrixXd near_boundary(5,7);near_boundary.setZero();
+        near_boundary.col(0)<<0,.18,.1999,.20,.20;
+        near_boundary.col(1)<<0,-.10,-.14,-.15,-.15;
+        const auto bounded=time_joint_path(near_boundary,dt,limits,0,true);
+        check_limits(bounded,dt,limits);
+        require((bounded.col(0).array()>=-1e-12).all() && (bounded.col(0).array()<=.20+1e-12).all(),"smoothing overshot IK bounds");
+        require((bounded.col(1).array()>=-.15-1e-12).all() && (bounded.col(1).array()<=1e-12).all(),"smoothing overshot lower bound");
         require((path.row(0)-knots.row(0)).norm()==0,"start mismatch");
         require((path.bottomRows(1)-knots.bottomRows(1)).norm()==0,"end mismatch");
         Eigen::MatrixXd direct(2,7);direct.row(0)=knots.row(0);direct.row(1)=knots.row(3);

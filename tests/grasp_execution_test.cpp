@@ -1,6 +1,6 @@
 // Production phase coordinator, synthetic SDK adapters: no hardware is accessed.
-#include "move_box_runtime.h"
-#include "servo/runtime.h"
+#include "t170/skills/legacy/runtime.h"
+#include "t170/motion/servo.h"
 #include <atomic>
 #include <condition_variable>
 #include <iostream>
@@ -19,7 +19,7 @@ void reset() {
     for(int h=0;h<2;++h) {closes[h]=0;stopped_watches[h]=0;ready[h]=true;}
 }
 }
-Robot_Arm::Robot_Arm(const std::string &,const std::string &,const std::string &side,const std::string &) {
+Arm::Arm(const std::string &,const std::string &,const std::string &side,const std::string &) {
     can_id_list={side=="left" ? 23 : 16};
 }
 bool hardware_abort_requested() {return abort_phase_test.load();}
@@ -27,7 +27,7 @@ bool can_io_faulted() {return false;}
 void hand_shadow_end(int hand) {++stopped_watches[hand];}
 namespace wrist_servo {
 void start_final_hold_repeat() {hold_started=true;}
-bool ready_for_gripper(Robot_Arm &arm) {return ready[arm.can_id_list[0]==23 ? 0 : 1];}
+bool ready_for_gripper(Arm &arm) {return ready[arm.can_id_list[0]==23 ? 0 : 1];}
 void task_event(int,const char *,const char *) {}
 }
 namespace gripper {
@@ -55,7 +55,7 @@ bool gripper_grasp_empty(gripper::Gripper &,gripper::Side,const gripper::GraspFe
 }
 int main() {
     try {
-        Robot_Arm right("synthetic","synthetic","right"),left("synthetic","synthetic","left");
+        Arm right("synthetic","synthetic","right"),left("synthetic","synthetic","left");
         gripper::Gripper g;bool empty_r=false,empty_l=false;
         auto prepare=[]{++plans;prepared=true;};
         reset();

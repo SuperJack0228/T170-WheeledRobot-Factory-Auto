@@ -1,4 +1,4 @@
-#include "servo/trajectory.h"
+#include "t170/motion/trajectory.h"
 #include <iostream>
 #include <limits>
 #include <stdexcept>
