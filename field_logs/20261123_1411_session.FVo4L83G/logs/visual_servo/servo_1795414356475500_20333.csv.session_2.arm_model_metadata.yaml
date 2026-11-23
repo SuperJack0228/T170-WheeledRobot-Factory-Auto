@@ -1,0 +1,41 @@
+schema_version: 1
+model_id: t170c_v2_3kg
+family: t170c
+hardware_version: '2.0'
+rated_payload_kg: 3
+sdk_model_key: T7_170
+coordinates: sdk_mdh_model_rad
+urdf_file: robot.urdf
+urdf_sha256: 75f8ce1ef1bd303319ea899a5ef1adbff520e13ca00742e601ccae7acefb25ab
+sdk_config_file: Robot_Model.yaml
+conventions_file: joint_conventions.yaml
+frames_file: frames.yaml
+tool_policy: per_robot_required
+validation: offline_fk_equivalence_only
+native_sdk_validation: pending
+analytic_fixed_j2_validation: pending
+urdf_meshes: External CAD package; this copy is for geometry, not a standalone visualization
+  package.
+evidence:
+  left:
+    samples: 1003
+    max_transform_element_error: 2.3314683517128287e-15
+    max_error_if_axis_details_rounded_away_m: 0.0014046868622973516
+    max_rotation_matrix_error_if_rounded: 0.012770310935014715
+    ideal_t7_geometry: false
+  right:
+    samples: 1003
+    max_transform_element_error: 1.6375789613221059e-15
+    max_error_if_axis_details_rounded_away_m: 0.0014141237964938331
+    max_rotation_matrix_error_if_rounded: 0.01294009090326252
+    ideal_t7_geometry: false
+sdk_config_sha256: 60b81a313743b17acbe633cc2dad45fd1c5156dbc420a2255d0e8e3ec320d23e
+sdk_config_loaded_sha256: 60b81a313743b17acbe633cc2dad45fd1c5156dbc420a2255d0e8e3ec320d23e
+sdk_config_matches_derived_profile: true
+robot_id: TH-T170C-0124
+tool_source: config/robots/TH-T170C-0124/arm_tools.yaml
+tool_validation: legacy_tcp_not_revalidated_for_v2
+prepared_config_sha256: 30a4b409e61723736ff513690f7521d94db68634d51fbabef4e3f451bd3d1d79
+scope: Active Ti5_Robotics deployment; joints are SDK model radians.
+binding_source: config/robots/TH-T170C-0124/arm_binding.yaml
+tool_source_coordinates: legacy_t7_flange_xyz_rpy_m_rad
