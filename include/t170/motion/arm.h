@@ -89,7 +89,9 @@ public:
                         Eigen::MatrixXd &out,std::optional<double> j2=std::nullopt,
                         std::optional<t170::motion::ArmJoints> endpoint=std::nullopt);
 private:
-    int approach_to_joints(const Eigen::MatrixXd &,Eigen::Matrix<double,1,6>,const t170::motion::ArmJoints &,Eigen::MatrixXd &,double);
+    // lateral_margin_m is the XY room outside the endpoint box. Preparation
+    // transits use 0.15 m; work strokes keep 0.03 m. The vertical fence is shared.
+    int approach_to_joints(const Eigen::MatrixXd &,Eigen::Matrix<double,1,6>,const t170::motion::ArmJoints &,Eigen::MatrixXd &,double,double lateral_margin_m);
     std::vector<t170::motion::ArmJoints> inverse_candidates(const Eigen::Matrix<double,1,6> &,const t170::motion::ArmJoints &);
     double posture_cost(const t170::motion::ArmJoints &,const Eigen::Matrix4d &,const t170::motion::ArmJoints &) const;
     int local_inverse(const Eigen::Matrix4d &,t170::motion::ArmJoints &,std::optional<double>);

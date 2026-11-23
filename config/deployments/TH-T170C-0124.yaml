@@ -21,6 +21,7 @@ files:
   config/camera_profile_d435i.yaml: config/robot_models/t170/camera_profile_d435i.yaml
   config/left_hand_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/left.yaml
   config/head/extrinsics.yaml: config/calibration/TH-T170C-0124/head/extrinsics.yaml
+  config/head/extrinsics_urdf.yaml: config/calibration/TH-T170C-0124/head/extrinsics_urdf.yaml
   config/head/geometry.yaml: config/calibration/TH-T170C-0124/head/geometry.yaml
   config/vision/tray.yaml: config/sites/current_factory/vision/tray.yaml
   config/vision/belt.yaml: config/sites/current_factory/vision/belt.yaml

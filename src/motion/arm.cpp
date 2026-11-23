@@ -168,10 +168,10 @@ int Arm::Approach_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1
         std::cerr<<"[arm_plan] side="<<definition_.side<<" type=joint_approach rejected=endpoint_IK"
             <<" start_model_rad="<<start<<" target_tcp="<<p<<'\n';return -4;
     }
-    return approach_to_joints(start,p,ArmJoints(end),out,speed);
+    return approach_to_joints(start,p,ArmJoints(end),out,speed,.15);
 }
 int Arm::approach_to_joints(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> p,
-                            const ArmJoints &end,Eigen::MatrixXd &out,double speed) {
+                            const ArmJoints &end,Eigen::MatrixXd &out,double speed,double lateral_margin_m) {
     const auto a=Forward_Kinematics(start.row(0)),b=t170::motion::arm_pose_transform(p);
     const Eigen::Vector3d low=a.topRightCorner<3,1>().cwiseMin(b.topRightCorner<3,1>()),
                           high=a.topRightCorner<3,1>().cwiseMax(b.topRightCorner<3,1>());
@@ -184,11 +184,11 @@ int Arm::approach_to_joints(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,
         double peak_speed=0;Eigen::Vector3d previous=a.topRightCorner<3,1>();bool valid=true;
         for(int k=0;k<candidate.rows();++k) {
             const auto t=Forward_Kinematics(candidate.row(k));const Eigen::Vector3d position=t.topRightCorner<3,1>();
-            // Never dip below either endpoint or sweep far beyond the transit
-            // corridor. This envelope is not a full robot collision model.
+            // Do not dip below either endpoint. Lateral room is chosen by the
+            // caller; this fence is not a robot or environment collision model.
             if(Check_Joint_Limit(candidate.row(k)) || position(2)<low(2)-.002 || position(2)>high(2)+.05 ||
-               (position.head<2>().array()<low.head<2>().array()-.03).any() ||
-               (position.head<2>().array()>high.head<2>().array()+.03).any()) {valid=false;break;}
+               (position.head<2>().array()<low.head<2>().array()-lateral_margin_m).any() ||
+               (position.head<2>().array()>high.head<2>().array()+lateral_margin_m).any()) {valid=false;break;}
             peak_speed=std::max(peak_speed,(position-previous).norm()/definition_.period);previous=position;
         }
         if(!valid)break;
@@ -197,6 +197,7 @@ int Arm::approach_to_joints(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,
         const auto peak=t170::motion::joint_path_peaks(out,definition_.period);
         std::clog<<"[arm_plan] side="<<definition_.side<<" type=joint_approach nominal_s="
             <<(out.rows()-1)*definition_.period<<" peak_tcp_m_s="<<peak_speed
+            <<" xy_margin_m="<<lateral_margin_m
             <<" peak_v="<<peak.velocity<<" peak_a="<<peak.acceleration<<" peak_j="<<peak.jerk<<'\n';
         return 0;
     }
@@ -242,7 +243,7 @@ int Arm::Approach_Stroke(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
     std::sort(ranked.begin(),ranked.end(),[](const auto &a,const auto &b){return a.first<b.first;});
     std::clog<<"[arm_stroke] side="<<definition_.side<<" candidates="<<candidates.size()<<" feasible="<<ranked.size()<<'\n';
     for(const auto &[cost,q]:ranked) {
-        const int code=approach_to_joints(start,guide,q,out,speed);
+        const int code=approach_to_joints(start,guide,q,out,speed,.03);
         double score=0;
         if(code==0 && preview(ArmJoints(out.bottomRows(1)),score)) {
             std::clog<<"[arm_stroke] side="<<definition_.side<<" score="<<cost<<" selected_model_deg="<<out.bottomRows(1)*180/M_PI<<'\n';return 0;
