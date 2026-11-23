@@ -53,6 +53,12 @@ ArmDefinition load_arm_definition(const std::string &file,const std::string &sid
         d.preferred=row<7>(policy[side]["preferred_deg"],"preferred joints")*M_PI/180;
         d.posture_gain=policy["posture_gain"].as<double>();d.elbow_gain=policy["elbow_gain"].as<double>();d.limit_gain=policy["limit_gain"].as<double>();
         d.elbow_outward_ratio=policy["elbow_outward_ratio"].as<double>();
+        d.wrist_margin_rad=policy["wrist_margin_rad"].as<double>(.14);
+        d.wrist_gain=policy["wrist_gain"].as<double>(2.);
+        d.elbow_clearance_m=policy["elbow_clearance_m"].as<double>(.08);
+        if(!std::isfinite(d.wrist_margin_rad) || d.wrist_margin_rad<=0 || !std::isfinite(d.wrist_gain) || d.wrist_gain<0 ||
+           !std::isfinite(d.elbow_clearance_m) || d.elbow_clearance_m<0)
+            throw std::runtime_error("Invalid wrist preference");
         for(const auto &q:{d.home,d.preferred})if((q.array()<d.minimum.array()).any() || (q.array()>d.maximum.array()).any())throw std::runtime_error("Motion policy outside model limits");
         for(double v:{d.posture_gain,d.elbow_gain,d.limit_gain,d.elbow_outward_ratio})if(!std::isfinite(v)||v<0)throw std::runtime_error("Invalid posture policy gain");
     }

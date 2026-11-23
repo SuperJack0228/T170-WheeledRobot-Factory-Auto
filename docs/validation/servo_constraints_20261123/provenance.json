@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-11-23T16:00:02+08:00",
+  "base_commit": "4c65b783539f90d52a6beca7b160870f5ee4d4fc",
+  "branch": "deployment1117",
+  "working_tree_changes_committed": false,
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "validation_backend": "reference MDH FK + production planner/controller/velocity QP; no robot connected",
+  "tests": {
+    "offline_passed": 44,
+    "loopback_http_passed": 3,
+    "closed_loop_cases": 20,
+    "lag_180ms_cases": 8
+  },
+  "placement_cases": "actual +/-50 degree yaw; observe_at_B with synthetic virtual neighbour target; no camera detector validation",
+  "field_fixture": {
+    "path": "field_logs/20261123_1411_session.FVo4L83G/logs/visual_servo/servo_1795414356475500_20333.csv",
+    "sha256": "9109bad7635a597a26f48a2a9d66cdaf09d222a1079e5c4ea55795e89743ec8f"
+  },
+  "source_and_config_sha256": {
+    "cmake/T170Foundation.cmake": "64a40cca388845cdf7cad48333fa1efda605a0646eafff9c01136c1012d9424b",
+    "cmake/T170OfflineTests.cmake": "b2d8972fc8d4bc49799f5de15e0a9e7ff71836a0e386963e4100c1eeab578f34",
+    "config/robot_models/t170c_v2_3kg/motion_policy.yaml": "31792f9ae31633cfadc67aaaa8585646102c86fae2fdb9cb1f73505fb9391bdc",
+    "config/robot_models/t170c_v2_5kg/motion_policy.yaml": "d35069fbbe3566b5a6a965747e6f4e41fc8b3a196299f396032721ec93015404",
+    "docs/deployment/ARM_MOTION_POLICY.md": "1f00f2c9589057371203ef8b78b8f35c19f82b9908ab0668be31e7f438cd8a87",
+    "include/t170/motion/arm.h": "fad0812c4c2a479bae15e80cf616a5f68db89dcce5ad83331e19c7c79195fc98",
+    "include/t170/motion/bounded_ik.h": "c33aa759d64d2d10a0c9f151cde7524a940f0afebb251f739783fd7316b80d58",
+    "include/t170/motion/differential_ik.h": "07cf810182d5bb17bb841c729956524c9dc6bc7652a8cf97e1204219b6726f20",
+    "include/t170/motion/feedback_filter.h": "f87dbf9ac70e9c30affe0e355a2f314fb593cb0f6b5e822bb2345c5e2e46fb44",
+    "include/t170/motion/servo.h": "50f89a8558b4674b5e5ecf7e64e543575cc29eabf2e96de30fb91ba02d09ed39",
+    "src/motion/arm.cpp": "bd76909936e5c323c27561a62936d04633986c63ff199ab6dbc5a8c8f5863322",
+    "src/motion/arm_configuration.cpp": "e8332af4911cbc0c7be5b98676e0cf3edfe8e539bab41479449880e68c9f2780",
+    "src/motion/arm_io.cpp": "8877f87bf581bbb8a077b55d76189072487305aed400607bf6150f028d252e4a",
+    "src/motion/bounded_ik.cpp": "f5b911501060ef8a2efa6f44b630250556ef909afe380666458ee5dd765ebb13",
+    "src/motion/differential_ik.cpp": "1c5d12c53097a7c63f33deb19e6b997c41594168a4c8dd995ac6c191e4afdd71",
+    "src/motion/kinematics_adapter.cpp": "3301b3e575391eda9766b25c09aeae5d7febac786f454683542bdff39ab6e9b2",
+    "src/motion/planning.cpp": "2b9cac70e8f97f4b2c7c47ecf08a62462dbf33e45849619be28d1fdecfac28ad",
+    "src/motion/servo_executor.cpp": "9750d3be05f8a091fb9d777c043ecf3c4f7d29fbcd7196d8fdb8d9ceb77e042e",
+    "src/motion/servo_feedback.cpp": "3786aa512cb67383afcf5772d4d67ea9e657b739a5d17b7994a214c6dcb56c93",
+    "src/motion/servo_handoff.cpp": "7517e80de6daae88acdcc738c82c6bedee02b77b9d4830490fbfa99b7c899cfc",
+    "src/motion/vendor_arm.cpp": "f0d3c5cf36b20585f05bade928cd90290126640ba8fc44bf38f77476d476b63c",
+    "tests/arm_io_test.cpp": "f41cacba22f3d95f6fde46ba9f5e6b03b9d5cda9be19dd19d65b7c40af061976",
+    "tests/arm_motion_policy_test.cpp": "71e3065a190525795bec1e02be650479fc442259a743b2e657b4574f75f192f0",
+    "tests/arm_stroke_test.cpp": "d8528e91a527df7385676ce8d2dfbaa87173186e69994edb9b3125f27527eb92",
+    "tests/differential_ik_test.cpp": "0df86483a7887b80e8f125fb68dd474eb870b9cf042c942cfb0757bba7837fcb",
+    "tests/placement_calibration_session_test.cpp": "e576f6d3a9eb55bf270f24571da8acd1fbdc8b5ac8cbeb3f8192f39ac9e9e644",
+    "tests/visual_servo_runtime_test.cpp": "ef386edf1575f641fd1d59880f9d54abefef29693261a898ae77aa5d480b2d4e"
+  },
+  "artifact_sha256": {
+    "docs/validation/servo_constraints_20261123/README.md": "92c9d931bb6c7dec9f22e9a51f8326f0419b52c3d8d2782deb8c029373ddfd83",
+    "docs/validation/servo_constraints_20261123/closed_loop_replay.txt": "90a6e832e2f52ad3e4cd2593217c4d1ba68d55376b3da4c321a1d3a61f981a02",
+    "docs/validation/servo_constraints_20261123/closed_loop_summary.csv": "7e8243f1fcb9e70edc0ab26e619acb8a64b3e683b1e55a9915ec7d3d48b5741a",
+    "docs/validation/servo_constraints_20261123/ctest_http.txt": "c9a880335358ee760c0c98e387eac74ff22ed7027b9ca2c9449d4bc0ddd2c527",
+    "docs/validation/servo_constraints_20261123/ctest_offline.txt": "b636f1337e3bf2436fca8eb7f707058995959dc138062e3d828eb9a5b1863540",
+    "docs/validation/servo_constraints_20261123/feedback_replay.txt": "f9f051c0784dac5b143b3e2e18d16414003918b5aa22a08457f82b3eb29e078c"
+  }
+}

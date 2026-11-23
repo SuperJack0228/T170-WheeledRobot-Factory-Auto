@@ -61,6 +61,7 @@ t170::motion::IKPolicy Arm::ik_policy(const Eigen::Matrix4d &target) const {
     t170::motion::IKPolicy policy;const auto bounds=effective_limits();
     policy.minimum=bounds.minimum;policy.maximum=bounds.maximum;
     policy.preferred=definition_.preferred.cwiseMax(bounds.minimum).cwiseMin(bounds.maximum);
+    policy.wrist_margin_rad=definition_.wrist_margin_rad;policy.wrist_gain=definition_.wrist_gain;
     policy.posture_gain=definition_.posture_gain;policy.elbow_gain=definition_.elbow_gain;policy.limit_gain=definition_.limit_gain;
     policy.jacobian=[this](const ArmJoints &q){return t170::motion::IKJacobian(const_cast<Arm *>(this)->Jacobian(q));};
     policy.elbow=[this](const ArmJoints &q){return elbow_position(q);};
@@ -105,22 +106,43 @@ int Arm::Inverse_Kinematics_Numeric(Eigen::Matrix<double,1,6> &p,Eigen::Ref<Eige
     if(q.size()!=7 || !q.allFinite() || !p.allFinite())return -4;
     ArmJoints work=q;const int rc=local_inverse(t170::motion::arm_pose_transform(p),work,std::nullopt);if(rc==0)q=work;return rc;
 }
+double Arm::posture_cost(const ArmJoints &q,const Eigen::Matrix4d &target,const ArmJoints &start) const {
+    const auto policy=ik_policy(target);
+    const auto e=elbow_position(q);
+    // Prefer an outward region, not only one gravity-down point. Wrist comfort
+    // and start continuity must participate in selecting among valid branches.
+    Eigen::Matrix4d shoulder=Eigen::Matrix4d::Identity();
+    for(int i=0;i<2;++i)shoulder*=mdh(definition_.mdh(i,0),definition_.mdh(i,1),definition_.mdh(i,2),q(i)+definition_.mdh(i,3));
+    const double outward=(definition_.hand?-1.:1.)*(e.y()-shoulder(1,3));
+    const double tucked=std::max(0.,definition_.elbow_clearance_m-outward);
+    const double raised=std::max(0.,e.z()-shoulder(2,3));
+    return 8*(e-policy.elbow_target).squaredNorm()+30*tucked*tucked+1000*raised*raised+
+        .005*(q-policy.preferred).squaredNorm()+.01*(q-start).squaredNorm()+
+        t170::motion::wrist_penalty(q,policy);
+}
+std::vector<ArmJoints> Arm::inverse_candidates(const Eigen::Matrix<double,1,6> &p,const ArmJoints &start) {
+    const auto target=t170::motion::arm_pose_transform(p);const auto policy=ik_policy(target);
+    std::vector<ArmJoints> seeds{start,policy.preferred};
+    const double side=definition_.hand?1.:-1.;
+    for(double shoulder:{.45,.85,1.2})for(double twist:{-.4,-1.1,-1.7}) {
+        auto q=policy.preferred;q(0)=shoulder;q(1)=-side*.8;q(2)=side*twist;
+        q(3)=1.7;q(4)=side*.9;q(6)=side*.25;seeds.push_back(q);
+    }
+    for(double delta:{-.6,.6}){auto q=policy.preferred;q(2)+=delta;seeds.push_back(q);}
+    std::vector<ArmJoints> candidates;
+    for(auto q:seeds) {
+        q=q.cwiseMax(policy.minimum).cwiseMin(policy.maximum);
+        if(local_inverse(target,q,std::nullopt)!=0)continue;
+        bool duplicate=false;for(const auto &other:candidates)if((q-other).norm()<.01)duplicate=true;
+        if(!duplicate)candidates.push_back(q);
+    }
+    std::sort(candidates.begin(),candidates.end(),[&](const auto &a,const auto &b){return posture_cost(a,target,start)<posture_cost(b,target,start);});
+    return candidates;
+}
 int Arm::Inverse_Kinematics(Eigen::Matrix<double,1,6> &p,Eigen::Ref<Eigen::RowVectorXd> q) {
     if(q.size()!=7 || !q.allFinite() || !p.allFinite())return -4;
-    const auto target=t170::motion::arm_pose_transform(p);const auto policy=ik_policy(target);
-    const ArmJoints original=q;
-    std::array<ArmJoints,4> seeds{original,policy.preferred,policy.preferred,policy.preferred};
-    seeds[2](2)+=.6;seeds[3](2)-=.6;
-    double best=INFINITY;ArmJoints selected;bool solved=false;
-    for(auto seed:seeds) {
-        seed=seed.cwiseMax(policy.minimum).cwiseMin(policy.maximum);
-        if(local_inverse(target,seed,std::nullopt)!=0)continue;
-        const double score=20*(elbow_position(seed)-policy.elbow_target).squaredNorm()+
-            .03*(seed-policy.preferred).squaredNorm()+.001*(seed-original).squaredNorm();
-        if(score<best){best=score;selected=seed;solved=true;}
-    }
-    // No fixed-default-seed vendor fallback: it has no continuity/posture contract.
-    if(solved){q=selected;return 0;}return -4;
+    const auto candidates=inverse_candidates(p,ArmJoints(q));
+    if(candidates.empty())return -4;q=candidates.front();return 0;
 }
 int Arm::Inverse_Kinematics_Analytic(const Eigen::Matrix<double,1,6> &p,Eigen::Ref<Eigen::RowVectorXd> q,double j2) {
     if(q.size()!=7 || !q.allFinite() || !p.allFinite() || !std::isfinite(j2))return -4;
@@ -141,12 +163,16 @@ int Arm::Approach_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1
     out.resize(0,7);
     if(start.rows()!=1 || start.cols()!=7 || Check_Joint_Limit(start.row(0)) ||
        !p.allFinite() || !std::isfinite(speed) || speed<=0)return -10;
-    const auto a=Forward_Kinematics(start.row(0)),b=t170::motion::arm_pose_transform(p);
     Eigen::RowVectorXd end=start.row(0);
     if(Inverse_Kinematics(p,end)!=0) {
         std::cerr<<"[arm_plan] side="<<definition_.side<<" type=joint_approach rejected=endpoint_IK"
             <<" start_model_rad="<<start<<" target_tcp="<<p<<'\n';return -4;
     }
+    return approach_to_joints(start,p,ArmJoints(end),out,speed);
+}
+int Arm::approach_to_joints(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> p,
+                            const ArmJoints &end,Eigen::MatrixXd &out,double speed) {
+    const auto a=Forward_Kinematics(start.row(0)),b=t170::motion::arm_pose_transform(p);
     const Eigen::Vector3d low=a.topRightCorner<3,1>().cwiseMin(b.topRightCorner<3,1>()),
                           high=a.topRightCorner<3,1>().cwiseMax(b.topRightCorner<3,1>());
     Eigen::MatrixXd knots(2,7);knots<<start,end;
@@ -176,9 +202,55 @@ int Arm::Approach_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1
     }
     std::clog<<"[arm_plan] side="<<definition_.side<<" type=joint_approach fallback=checked_line\n";
     Cart_Linear_Velocity=speed;
-    return Line_Trajectory(start,p,out);
+    return Line_Trajectory(start,p,out,std::nullopt,end);
 }
-int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> &p,Eigen::MatrixXd &out,std::optional<double> j2) {
+int Arm::Approach_Stroke(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> guide,
+    const Eigen::Matrix<double,1,6> &finish,Eigen::MatrixXd &out,double speed) {
+    out.resize(0,7);
+    if(start.rows()!=1 || start.cols()!=7 || !start.allFinite() || Check_Joint_Limit(start.row(0)) ||
+       !guide.allFinite() || !finish.allFinite() || !std::isfinite(speed) || speed<=0)return -10;
+    const auto begin=t170::motion::arm_pose_transform(guide),end=t170::motion::arm_pose_transform(finish);
+    const double distance=(begin.topRightCorner<3,1>()-end.topRightCorner<3,1>()).norm();
+    const double angle=Eigen::AngleAxisd(begin.topLeftCorner<3,3>()*end.topLeftCorner<3,3>().transpose()).angle();
+    if(distance>2)return -10;
+    const auto preview=[&](ArmJoints q,double &score) {
+        const auto initial=Forward_Kinematics(q);const Eigen::Quaterniond a(initial.topLeftCorner<3,3>()),b(end.topLeftCorner<3,3>());
+        const int n=std::max(1,int(std::ceil(std::max(distance/.005,angle/.03))));
+        double sum=0,peak=0,length=0;
+        for(int i=1;i<=n;++i) {
+            const double u=double(i)/n;Eigen::Matrix4d target=Eigen::Matrix4d::Identity();
+            target.topRightCorner<3,1>()=(1-u)*initial.topRightCorner<3,1>()+u*end.topRightCorner<3,1>();
+            target.topLeftCorner<3,3>()=a.slerp(u,b).toRotationMatrix();
+            auto policy=ik_policy(target);policy.preferred=q;policy.posture_gain=.1;
+            policy.iterations=60;policy.posture_iterations=4;policy.null_step_rad=.01;
+            policy.minimum=policy.minimum.cwiseMax(q-ArmJoints::Constant(.25));
+            policy.maximum=policy.maximum.cwiseMin(q+ArmJoints::Constant(.25));
+            ArmJoints next;t170::motion::IKReport report;
+            if(!t170::motion::solve_bounded_ik(q,target,[&](const ArmJoints &v){return Forward_Kinematics(v);},policy,{},next,report))return false;
+            const double cost=posture_cost(next,target,ArmJoints(start.row(0)));
+            sum+=cost;peak=std::max(peak,cost);length+=(next-q).norm();q=next;
+        }
+        score=sum/n+peak+.02*length;return true;
+    };
+    const auto candidates=inverse_candidates(guide,ArmJoints(start.row(0)));
+    std::vector<std::pair<double,ArmJoints>> ranked;
+    for(const auto &q:candidates) {
+        double cost=0;if(!preview(q,cost))continue;
+        cost+=posture_cost(q,begin,ArmJoints(start.row(0)));
+        ranked.emplace_back(cost,q);
+    }
+    std::sort(ranked.begin(),ranked.end(),[](const auto &a,const auto &b){return a.first<b.first;});
+    std::clog<<"[arm_stroke] side="<<definition_.side<<" candidates="<<candidates.size()<<" feasible="<<ranked.size()<<'\n';
+    for(const auto &[cost,q]:ranked) {
+        const int code=approach_to_joints(start,guide,q,out,speed);
+        double score=0;
+        if(code==0 && preview(ArmJoints(out.bottomRows(1)),score)) {
+            std::clog<<"[arm_stroke] side="<<definition_.side<<" score="<<cost<<" selected_model_deg="<<out.bottomRows(1)*180/M_PI<<'\n';return 0;
+        }
+    }
+    out.resize(0,7);return -4;
+}
+int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> &p,Eigen::MatrixXd &out,std::optional<double> j2,std::optional<ArmJoints> selected_endpoint) {
     struct PlanLog {
         const std::string side;const Eigen::MatrixXd &path;double period;
         const std::chrono::steady_clock::time_point began=std::chrono::steady_clock::now();
@@ -204,11 +276,14 @@ int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
     // third differences force a very long global retiming.
     const ArmJoints initial=q;
     Eigen::RowVectorXd endpoint=q;
-    if(distance>.02 || angle>.05) {
+    if(selected_endpoint && Check_Joint_Limit(*selected_endpoint))return -3;
+    if(selected_endpoint)endpoint=*selected_endpoint;
+    else if(distance>.02 || angle>.05) {
         if(Inverse_Kinematics(p,endpoint)!=0) endpoint=q;
     } else {
         auto policy=ik_policy(b);policy.preferred=q;
-        policy.posture_gain=1;policy.elbow_gain=0;policy.limit_gain=0;policy.elbow={};
+        policy.posture_gain=1;policy.elbow_gain=.05*definition_.elbow_gain;
+        policy.limit_gain=.001*definition_.limit_gain;policy.wrist_gain=.001*definition_.wrist_gain;
         policy.posture_iterations=8;policy.null_step_rad=.05;
         if(j2)policy.minimum(1)=policy.maximum(1)=*j2;
         ArmJoints solved;auto seed=q;if(j2)seed(1)=*j2;
@@ -225,7 +300,9 @@ int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
         policy.minimum=policy.minimum.cwiseMax(previous-ArmJoints::Constant(.18));
         policy.maximum=policy.maximum.cwiseMin(previous+ArmJoints::Constant(.18));
         policy.preferred=(1-u)*initial+u*ArmJoints(endpoint);
-        policy.posture_gain=1;policy.elbow_gain=0;policy.limit_gain=0;policy.elbow={};
+        policy.elbow_target=(1-u)*elbow_position(initial)+u*elbow_position(ArmJoints(endpoint));
+        policy.posture_gain=1;policy.elbow_gain=.05*definition_.elbow_gain;
+        policy.limit_gain=.001*definition_.limit_gain;policy.wrist_gain=.001*definition_.wrist_gain;
         policy.null_step_rad=.05;policy.posture_iterations=8;
         if(j2)policy.minimum(1)=policy.maximum(1)=j2_start+u*(*j2-j2_start);
         ArmJoints seed=previous;if(j2)seed(1)=policy.minimum(1);

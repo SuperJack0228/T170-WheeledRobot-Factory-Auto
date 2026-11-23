@@ -1,4 +1,5 @@
 #pragma once
+#include "t170/motion/differential_ik.h"
 #include "t170/vision/servo_observer_port.h"
 #include "t170/control/visual_servo.h"
 class Arm;
@@ -50,4 +51,8 @@ void record_gripper_check(int hand, double position_rad, double torque_nm, const
 bool solve_local_pose(Arm &arm, const Joints &seed, const Vec3 &position,
                       const Eigen::Matrix3d &rotation, const Config &config,
                       Joints &solution, double &xyz_residual, double &rotation_residual);
+bool solve_dynamic_pose(Arm &arm,const Joints &seed,const Vec3 &position,
+    const Eigen::Matrix3d &rotation,const Config &config,const Joints &previous_velocity,
+    double dt,double floor_z,Joints &next,t170::motion::DifferentialReport &report);
+
 }

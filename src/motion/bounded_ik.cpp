@@ -52,6 +52,32 @@ bool solve_box_qp(const Eigen::Matrix<double,7,7> &h,const Eigen::Matrix<double,
     return false;
 }
 
+double wrist_penalty(const IKJoints &q,const IKPolicy &p) {
+    double cost=0;
+    for(int j:{4,5,6}) {
+        const double margin=std::min(q(j)-p.minimum(j),p.maximum(j)-q(j));
+        const double e=std::max(0.,1-margin/p.wrist_margin_rad);
+        cost+=p.wrist_gain*e*e;
+    }
+    return cost;
+}
+Eigen::Matrix<double,7,1> posture_gradient(const IKJoints &q,const IKPolicy &p) {
+    Eigen::Matrix<double,7,1> gradient=p.posture_gain*(q-p.preferred).transpose();
+    if(p.elbow && p.elbow_gain>0) {
+        const auto elbow=p.elbow(q);Eigen::Matrix<double,3,7> je;
+        for(int j=0;j<7;++j){auto next=q;next(j)+=1e-6;je.col(j)=(p.elbow(next)-elbow)/1e-6;}
+        gradient+=p.elbow_gain*je.transpose()*(elbow-p.elbow_target);
+    }
+    for(int j=0;j<7;++j) {
+        const double low=std::max(.02,q(j)-p.minimum(j)),high=std::max(.02,p.maximum(j)-q(j));
+        gradient(j)+=std::clamp(p.limit_gain*(1/(high*high)-1/(low*low)),-2.,2.);
+        if(j>=4 && p.wrist_gain>0) {
+            const double margin=std::min(low,high),e=std::max(0.,1-margin/p.wrist_margin_rad);
+            gradient(j)+=(low<high?-1.:1.)*2*p.wrist_gain*e/p.wrist_margin_rad;
+        }
+    }
+    return gradient;
+}
 bool solve_bounded_ik(const IKJoints &seed,const Eigen::Matrix4d &target,
     const IKForward &forward,const IKPolicy &p,const std::function<bool(const IKJoints &)> &reject,
     IKJoints &solution,IKReport &report) {
@@ -95,16 +121,7 @@ bool solve_bounded_ik(const IKJoints &seed,const Eigen::Matrix4d &target,
         j.bottomRows<3>()*=weight;if(!j.allFinite()){report.reason="nonfinite_jacobian";return false;}
         Eigen::Matrix<double,7,1> desired=Eigen::Matrix<double,7,1>::Zero();
         if(iteration<p.posture_iterations) {
-            Eigen::Matrix<double,7,1> gradient=p.posture_gain*(q-p.preferred).transpose();
-            if(p.elbow) {
-                const Eigen::Vector3d elbow=p.elbow(q);Eigen::Matrix<double,3,7> je;
-                for(int axis=0;axis<7;++axis){auto next=q;next(axis)+=h;je.col(axis)=(p.elbow(next)-elbow)/h;}
-                gradient+=p.elbow_gain*je.transpose()*(elbow-p.elbow_target);
-            }
-            for(int axis=0;axis<7;++axis) {
-                const double low=std::max(.02,q(axis)-p.minimum(axis)),high=std::max(.02,p.maximum(axis)-q(axis));
-                gradient(axis)+=std::clamp(p.limit_gain*(1/(high*high)-1/(low*low)),-2.,2.);
-            }
+            const auto gradient=posture_gradient(q,p);
             Eigen::Matrix<double,6,6> jj=j*j.transpose();jj.diagonal().array()+=1e-8;
             const Eigen::Matrix<double,7,7> nullspace=Eigen::Matrix<double,7,7>::Identity()-j.transpose()*jj.ldlt().solve(j);
             desired=-nullspace*gradient;

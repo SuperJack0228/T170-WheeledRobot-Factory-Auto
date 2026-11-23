@@ -1,0 +1,172 @@
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.695966 peak_a=1.87727 peak_j=17.9227
+[arm_plan] side=right type=line planning_ms=6.8425 rows=482 nominal_s=2.405 result=planned
+[arm_stroke] side=right candidates=7 feasible=7
+[arm_plan] side=right type=joint_approach nominal_s=2.73 peak_tcp_m_s=0.217439 peak_v=0.888032 peak_a=1.00161 peak_j=3.75026
+[arm_stroke] side=right score=0.563352 selected_model_deg=  68.323 -43.9442  -79.019  99.3346  65.9457 -52.7859  9.52537
+[arm_path] side=right reference=continuous stride=16 peak_v=0.488694 peak_a=1.90709 peak_j=18.4961
+[arm_plan] side=right type=line planning_ms=3.23267 rows=316 nominal_s=1.575 result=planned
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.695966 peak_a=1.87727 peak_j=17.9227
+[arm_plan] side=right type=line planning_ms=5.08312 rows=482 nominal_s=2.405 result=planned
+[arm_stroke] side=right candidates=7 feasible=7
+[arm_plan] side=right type=joint_approach nominal_s=2.73 peak_tcp_m_s=0.217439 peak_v=0.888032 peak_a=1.00161 peak_j=3.75026
+[arm_stroke] side=right score=0.563352 selected_model_deg=  68.323 -43.9442  -79.019  99.3346  65.9457 -52.7859  9.52537
+[arm_path] side=right reference=continuous stride=16 peak_v=0.488358 peak_a=1.89937 peak_j=18.3658
+[arm_plan] side=right type=line planning_ms=2.56058 rows=317 nominal_s=1.58 result=planned
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.695966 peak_a=1.87727 peak_j=17.9227
+[arm_plan] side=right type=line planning_ms=4.32 rows=482 nominal_s=2.405 result=planned
+[arm_stroke] side=right candidates=3 feasible=3
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.875529 peak_a=1.08829 peak_j=10.843
+[arm_plan] side=right type=line planning_ms=5.61196 rows=617 nominal_s=3.08 result=planned
+[arm_stroke] side=right score=0.622585 selected_model_deg= 68.4177 -43.7465  -80.795   104.85  86.8524 -51.9264 -16.7108
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.695966 peak_a=1.87727 peak_j=17.9227
+[arm_plan] side=right type=line planning_ms=3.92329 rows=482 nominal_s=2.405 result=planned
+[arm_stroke] side=right candidates=3 feasible=3
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.875529 peak_a=1.08829 peak_j=10.843
+[arm_plan] side=right type=line planning_ms=5.06888 rows=617 nominal_s=3.08 result=planned
+[arm_stroke] side=right score=0.622585 selected_model_deg= 68.4177 -43.7465  -80.795   104.85  86.8524 -51.9264 -16.7108
+[arm_stroke] side=right candidates=7 feasible=0
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.695966 peak_a=1.87727 peak_j=17.9227
+[arm_plan] side=right type=line planning_ms=3.49325 rows=482 nominal_s=2.405 result=planned
+[arm_stroke] side=right candidates=13 feasible=13
+[arm_plan] side=right type=joint_approach nominal_s=1.385 peak_tcp_m_s=0.132687 peak_v=0.886872 peak_a=1.97158 peak_j=14.3172
+[arm_stroke] side=right score=0.172619 selected_model_deg= 56.9611 -57.7062 -42.4713  79.9013  37.4106 -51.6026  46.1225
+[arm_path] side=right reference=continuous stride=16 peak_v=0.3947 peak_a=1.80027 peak_j=18.8147
+[arm_plan] side=right type=line planning_ms=1.76679 rows=285 nominal_s=1.42 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.690039 peak_a=1.83751 peak_j=17.7604
+[arm_plan] side=left type=line planning_ms=3.40963 rows=487 nominal_s=2.43 result=planned
+[arm_stroke] side=left candidates=13 feasible=13
+[arm_plan] side=left type=joint_approach nominal_s=1.015 peak_tcp_m_s=0.266839 peak_v=0.620196 peak_a=1.88137 peak_j=18.4173
+[arm_stroke] side=left score=0.0691986 selected_model_deg= 35.4272  43.5311  24.1797  91.8015  5.00417 -50.7486 -76.0332
+[arm_path] side=left reference=continuous stride=16 peak_v=0.322298 peak_a=1.6024 peak_j=18.499
+[arm_plan] side=left type=line planning_ms=1.69983 rows=269 nominal_s=1.34 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.690039 peak_a=1.83751 peak_j=17.7604
+[arm_plan] side=left type=line planning_ms=3.25517 rows=487 nominal_s=2.43 result=planned
+[arm_stroke] side=left candidates=13 feasible=13
+[arm_plan] side=left type=joint_approach nominal_s=1.015 peak_tcp_m_s=0.266839 peak_v=0.620196 peak_a=1.88137 peak_j=18.4173
+[arm_stroke] side=left score=0.0691986 selected_model_deg= 35.4272  43.5311  24.1797  91.8015  5.00417 -50.7486 -76.0332
+[arm_path] side=left reference=continuous stride=16 peak_v=0.322335 peak_a=1.60177 peak_j=18.4917
+[arm_plan] side=left type=line planning_ms=1.65142 rows=269 nominal_s=1.34 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.690039 peak_a=1.83751 peak_j=17.7604
+[arm_plan] side=left type=line planning_ms=3.25154 rows=487 nominal_s=2.43 result=planned
+[arm_stroke] side=left candidates=11 feasible=11
+[arm_plan] side=left type=joint_approach nominal_s=1.96 peak_tcp_m_s=0.149933 peak_v=0.888104 peak_a=1.39522 peak_j=7.22879
+[arm_stroke] side=left score=0.407247 selected_model_deg= 52.2311  59.3631  58.1356  98.9676 -49.6781 -52.9642 -27.0832
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.690039 peak_a=1.83751 peak_j=17.7604
+[arm_plan] side=left type=line planning_ms=3.15571 rows=487 nominal_s=2.43 result=planned
+[arm_stroke] side=left candidates=11 feasible=11
+[arm_plan] side=left type=joint_approach nominal_s=1.96 peak_tcp_m_s=0.149933 peak_v=0.888104 peak_a=1.39522 peak_j=7.22879
+[arm_stroke] side=left score=0.407247 selected_model_deg= 52.2311  59.3631  58.1356  98.9676 -49.6781 -52.9642 -27.0832
+[arm_stroke] side=left candidates=12 feasible=0
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.690039 peak_a=1.83751 peak_j=17.7604
+[arm_plan] side=left type=line planning_ms=3.077 rows=487 nominal_s=2.43 result=planned
+[arm_stroke] side=left candidates=13 feasible=13
+[arm_plan] side=left type=joint_approach nominal_s=1.395 peak_tcp_m_s=0.132081 peak_v=0.886826 peak_a=1.95744 peak_j=14.1153
+[arm_stroke] side=left score=0.174306 selected_model_deg= 57.1108   57.793  42.7473  79.9012 -37.5066 -51.5259 -46.3187
+[arm_path] side=left reference=continuous stride=16 peak_v=0.394926 peak_a=1.79482 peak_j=18.6937
+[arm_plan] side=left type=line planning_ms=1.58246 rows=286 nominal_s=1.425 result=planned
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=right type=line planning_ms=3.00025 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=right candidates=8 feasible=8
+[arm_plan] side=right type=joint_approach nominal_s=3 peak_tcp_m_s=0.206867 peak_v=0.886964 peak_a=0.910377 peak_j=3.1065
+[arm_stroke] side=right score=0.598941 selected_model_deg= 70.8231 -46.9664 -83.0661  102.482  69.5991  -50.563  7.47832
+[arm_path] side=right reference=continuous stride=16 peak_v=0.473281 peak_a=1.87419 peak_j=18.4618
+[arm_plan] side=right type=line planning_ms=1.80525 rows=311 nominal_s=1.55 result=planned
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=right type=line planning_ms=2.83796 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=right candidates=8 feasible=8
+[arm_plan] side=right type=joint_approach nominal_s=3 peak_tcp_m_s=0.206867 peak_v=0.886964 peak_a=0.910377 peak_j=3.1065
+[arm_stroke] side=right score=0.598941 selected_model_deg= 70.8231 -46.9664 -83.0661  102.482  69.5991  -50.563  7.47832
+[arm_path] side=right reference=continuous stride=16 peak_v=0.475004 peak_a=1.88098 peak_j=18.5286
+[arm_plan] side=right type=line planning_ms=1.74733 rows=311 nominal_s=1.55 result=planned
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=right type=line planning_ms=2.84779 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=right candidates=4 feasible=4
+[arm_plan] side=right type=joint_approach nominal_s=2.925 peak_tcp_m_s=0.217079 peak_v=0.887803 peak_a=0.934594 peak_j=3.26965
+[arm_stroke] side=right score=0.658862 selected_model_deg= 67.4279 -46.3502 -80.2776  107.576  86.8143 -51.9362 -16.6367
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=right type=line planning_ms=2.90283 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=right candidates=4 feasible=4
+[arm_plan] side=right type=joint_approach nominal_s=2.925 peak_tcp_m_s=0.217079 peak_v=0.887803 peak_a=0.934594 peak_j=3.26965
+[arm_stroke] side=right score=0.658862 selected_model_deg= 67.4279 -46.3502 -80.2776  107.576  86.8143 -51.9362 -16.6367
+[arm_stroke] side=right candidates=8 feasible=0
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=right type=line planning_ms=2.87 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=right candidates=13 feasible=13
+[arm_plan] side=right type=joint_approach nominal_s=1.42 peak_tcp_m_s=0.131632 peak_v=0.885536 peak_a=1.92024 peak_j=13.6111
+[arm_stroke] side=right score=0.219806 selected_model_deg= 52.3817 -60.6892 -40.1811  85.6101  41.4989 -52.1675  42.3823
+[arm_path] side=right reference=continuous stride=16 peak_v=0.405631 peak_a=1.817 peak_j=18.6724
+[arm_plan] side=right type=line planning_ms=1.595 rows=290 nominal_s=1.445 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=left type=line planning_ms=2.93054 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=left candidates=13 feasible=13
+[arm_plan] side=left type=joint_approach nominal_s=1.02 peak_tcp_m_s=0.265915 peak_v=0.628095 peak_a=1.89608 peak_j=18.4744
+[arm_stroke] side=left score=0.070312 selected_model_deg= 30.4627   44.261  21.3329   96.217  4.85541 -51.5733 -75.1372
+[arm_path] side=left reference=continuous stride=16 peak_v=0.310527 peak_a=1.60759 peak_j=18.4726
+[arm_plan] side=left type=line planning_ms=1.60792 rows=270 nominal_s=1.345 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=left type=line planning_ms=2.92767 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=left candidates=13 feasible=13
+[arm_plan] side=left type=joint_approach nominal_s=1.02 peak_tcp_m_s=0.265915 peak_v=0.628095 peak_a=1.89608 peak_j=18.4744
+[arm_stroke] side=left score=0.070312 selected_model_deg= 30.4627   44.261  21.3329   96.217  4.85541 -51.5733 -75.1372
+[arm_path] side=left reference=continuous stride=32 peak_v=0.504829 peak_a=1.88254 peak_j=18.5383
+[arm_plan] side=left type=line planning_ms=1.63437 rows=257 nominal_s=1.28 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=left type=line planning_ms=2.98696 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=left candidates=11 feasible=11
+[arm_plan] side=left type=joint_approach nominal_s=1.965 peak_tcp_m_s=0.150742 peak_v=0.888119 peak_a=1.39168 peak_j=7.1925
+[arm_stroke] side=left score=0.455681 selected_model_deg= 48.2464  61.8652  55.0828  102.831 -50.6577  -53.175 -25.6619
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=left type=line planning_ms=2.90175 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=left candidates=11 feasible=11
+[arm_plan] side=left type=joint_approach nominal_s=1.965 peak_tcp_m_s=0.150742 peak_v=0.888119 peak_a=1.39168 peak_j=7.1925
+[arm_stroke] side=left score=0.455681 selected_model_deg= 48.2464  61.8652  55.0828  102.831 -50.6577  -53.175 -25.6619
+[arm_stroke] side=left candidates=12 feasible=0
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.648845 peak_a=1.89386 peak_j=19.2866
+[arm_plan] side=left type=line planning_ms=3.01467 rows=491 nominal_s=2.45 result=planned
+[arm_stroke] side=left candidates=13 feasible=13
+[arm_plan] side=left type=joint_approach nominal_s=1.42 peak_tcp_m_s=0.131632 peak_v=0.885536 peak_a=1.92024 peak_j=13.6111
+[arm_stroke] side=left score=0.219806 selected_model_deg= 52.3817  60.6892  40.1811  85.6101 -41.4989 -52.1675 -42.3823
+[arm_path] side=left reference=continuous stride=16 peak_v=0.405487 peak_a=1.81634 peak_j=18.6656
+[arm_plan] side=left type=line planning_ms=1.61712 rows=290 nominal_s=1.445 result=planned
+t170c_v2_3kg right tray grasp lag_s=0 controller_done_s=2.471 approach_s=2.73 minimum_outward_mm=152.69 minimum_wrist_margin_deg=6.81053
+t170c_v2_3kg right tray grasp lag_s=0.18 controller_done_s=2.48 approach_s=2.73 minimum_outward_mm=152.438 minimum_wrist_margin_deg=6.81053
+t170c_v2_3kg right tray place lag_s=0 controller_done_s=3.48 approach_s=3.08 minimum_outward_mm=153.65 minimum_wrist_margin_deg=7.66909
+t170c_v2_3kg right tray place lag_s=0.18 controller_done_s=3.671 approach_s=3.08 minimum_outward_mm=152.005 minimum_wrist_margin_deg=7.66909
+t170c_v2_3kg right belt grasp lag_s=0 controller_done_s=2.431 approach_s=1.385 minimum_outward_mm=203.734 minimum_wrist_margin_deg=7.91936
+t170c_v2_3kg left tray grasp lag_s=0 controller_done_s=2.451 approach_s=1.015 minimum_outward_mm=157.31 minimum_wrist_margin_deg=8.83801
+t170c_v2_3kg left tray grasp lag_s=0.18 controller_done_s=2.46 approach_s=1.015 minimum_outward_mm=157.085 minimum_wrist_margin_deg=8.83801
+t170c_v2_3kg left tray place lag_s=0 controller_done_s=3.46 approach_s=1.96 minimum_outward_mm=199.574 minimum_wrist_margin_deg=6.62499
+t170c_v2_3kg left tray place lag_s=0.18 controller_done_s=3.671 approach_s=1.96 minimum_outward_mm=198.149 minimum_wrist_margin_deg=6.62499
+t170c_v2_3kg left belt grasp lag_s=0 controller_done_s=2.431 approach_s=1.395 minimum_outward_mm=203.841 minimum_wrist_margin_deg=7.97625
+t170c_v2_5kg right tray grasp lag_s=0 controller_done_s=2.471 approach_s=3 minimum_outward_mm=162.558 minimum_wrist_margin_deg=8.68914
+t170c_v2_5kg right tray grasp lag_s=0.18 controller_done_s=2.48 approach_s=3 minimum_outward_mm=162.293 minimum_wrist_margin_deg=8.66156
+t170c_v2_5kg right tray place lag_s=0 controller_done_s=3.48 approach_s=2.925 minimum_outward_mm=163.286 minimum_wrist_margin_deg=7.6588
+t170c_v2_5kg right tray place lag_s=0.18 controller_done_s=3.671 approach_s=2.925 minimum_outward_mm=161.506 minimum_wrist_margin_deg=7.6588
+t170c_v2_5kg right belt grasp lag_s=0 controller_done_s=2.431 approach_s=1.42 minimum_outward_mm=211.538 minimum_wrist_margin_deg=7.42507
+t170c_v2_5kg left tray grasp lag_s=0 controller_done_s=2.451 approach_s=1.02 minimum_outward_mm=161.482 minimum_wrist_margin_deg=8.01359
+t170c_v2_5kg left tray grasp lag_s=0.18 controller_done_s=2.46 approach_s=1.02 minimum_outward_mm=161.263 minimum_wrist_margin_deg=8.01359
+t170c_v2_5kg left tray place lag_s=0 controller_done_s=3.46 approach_s=1.965 minimum_outward_mm=207.088 minimum_wrist_margin_deg=6.41392
+t170c_v2_5kg left tray place lag_s=0.18 controller_done_s=3.671 approach_s=1.965 minimum_outward_mm=205.56 minimum_wrist_margin_deg=6.41392
+t170c_v2_5kg left belt grasp lag_s=0 controller_done_s=2.431 approach_s=1.42 minimum_outward_mm=211.558 minimum_wrist_margin_deg=7.42507

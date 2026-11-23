@@ -1,0 +1,2 @@
+Field CSV replay accepted=246 rejected=2 (same corrupt frame logged twice)
+Differential QP: variable dt, position/speed/acceleration/braking bounds, Cartesian floor and bad feedback passed

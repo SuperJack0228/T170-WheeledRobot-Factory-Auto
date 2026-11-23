@@ -500,8 +500,9 @@ int plan_line_then_line(
             mid(2) = raised_z;
     }
     Eigen::MatrixXd traj_mid;
-    const int rc_mid = plan_arm_line_from(
-        arm, mid, vel_first_m_s, q_start, traj_mid, lift_then_retract);
+    const int rc_mid = lift_then_retract ? plan_arm_line_from(
+        arm,mid,vel_first_m_s,q_start,traj_mid,true) :
+        arm.Approach_Stroke(q_start,mid,goal,traj_mid,vel_first_m_s);
     if (rc_mid != 0)
         return rc_mid;
     Eigen::MatrixXd q_mid(1, traj_mid.cols());

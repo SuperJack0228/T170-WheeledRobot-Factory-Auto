@@ -6,7 +6,11 @@ joint_coordinates: sdk_mdh_model_deg
 posture_gain: 0.15
 elbow_gain: 8.0
 limit_gain: 0.002
-elbow_outward_ratio: 0.5
+elbow_outward_ratio: 1.0
+# Soft comfort objectives; effective joint limits and fixed Home are unchanged.
+wrist_margin_rad: 0.14
+wrist_gain: 2.0
+elbow_clearance_m: 0.08
 right:
   home_deg: [-2.74449651782, -25.2084264235, 28.1870718795, 118.706854063, 28.9510146295, -34.8726850194, 11.8766032185]
   preferred_deg: [-2.74449651782, -25.2084264235, 28.1870718795, 118.706854063, 28.9510146295, -34.8726850194, 11.8766032185]

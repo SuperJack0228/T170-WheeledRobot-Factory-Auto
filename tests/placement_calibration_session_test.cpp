@@ -53,7 +53,7 @@ int enable_head_far_pitch(){no_hardware();return -1;}
 Eigen::Matrix4d Arm::Forward_Kinematics(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return Eigen::Matrix4d::Identity();}
 bool Arm::Check_Joint_Limit(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return true;}
 t170::motion::IKPolicy Arm::ik_policy(const Eigen::Matrix4d &)const{no_hardware();return {};}
-int Arm::Line_Trajectory(const MatrixXd&,Matrix<double,1,6>&,MatrixXd&,std::optional<double>){no_hardware();return -1;}
+int Arm::Line_Trajectory(const MatrixXd&,Matrix<double,1,6>&,MatrixXd&,std::optional<double>,std::optional<t170::motion::ArmJoints>){no_hardware();return -1;}
 int Arm::Approach_Trajectory(const MatrixXd&,Matrix<double,1,6>,MatrixXd&,double){no_hardware();return -1;}
 int arm_execute_joint_path(Arm&,const MatrixXd&,const char*,const std::function<bool(const Matrix<double,1,7>&)>&,const std::function<bool()>&){no_hardware();return -1;}
 RealSenseMultiCam &PosePipeline::cameras(){no_hardware();throw std::runtime_error("no camera");}

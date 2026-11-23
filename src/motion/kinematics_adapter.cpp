@@ -87,6 +87,19 @@ Eigen::Matrix4d tool_transform(const Arm &arm) { return TR(arm_flange_tool(arm))
 
 
 namespace wrist_servo {
+bool solve_dynamic_pose(Arm &arm,const Joints &seed,const Vec3 &target,
+    const Eigen::Matrix3d &rotation,const Config &cfg,const Joints &previous_velocity,
+    double dt,double floor_z,Joints &next,t170::motion::DifferentialReport &report) {
+    std::lock_guard lock(g_arm_kin_mu[arm_hand_side(arm)]);
+    Eigen::Matrix4d goal=Eigen::Matrix4d::Identity();goal.topRightCorner<3,1>()=target;goal.topLeftCorner<3,3>()=rotation;
+    auto policy=arm.ik_policy(goal);
+    // The commanded seed is already on a continuous branch. Natural elbow and
+    // wrist comfort act inside the same bounded velocity problem as the TCP task.
+    return t170::motion::differential_step(seed,goal,previous_velocity,dt,policy,
+        {std::min(cfg.max_joint_speed_rad_s,arm.definition().velocity),
+         std::min(cfg.max_joint_accel_rad_s2,arm.definition().acceleration),floor_z},
+        [&](const Joints &q){return arm.Forward_Kinematics(q);},next,report);
+}
 bool solve_local_pose(Arm &arm,const Joints &seed,const Vec3 &target,
                       const Eigen::Matrix3d &rotation,const Config &cfg,
                       Joints &solution,double &xyz_residual,double &rotation_residual)

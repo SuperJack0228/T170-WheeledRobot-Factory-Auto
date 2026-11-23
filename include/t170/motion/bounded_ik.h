@@ -17,6 +17,7 @@ struct IKPolicy {
     int iterations=100, posture_iterations=4;
     double step_rad=.10, null_step_rad=.025;
     double posture_gain=.15, elbow_gain=8, limit_gain=.002;
+    double wrist_margin_rad=.14,wrist_gain=2.0;
     double position_tolerance_m=.0005, rotation_tolerance_rad=.005;
 };
 struct IKReport {
@@ -24,6 +25,9 @@ struct IKReport {
     double position_error=std::numeric_limits<double>::infinity(), rotation_error=std::numeric_limits<double>::infinity();
     std::string reason;
 };
+// Shared posture objective for endpoint selection and differential IK.
+Eigen::Matrix<double,7,1> posture_gradient(const IKJoints &,const IKPolicy &);
+double wrist_penalty(const IKJoints &,const IKPolicy &);
 // Strictly convex 7-variable box QP, active bounds are reoptimized/released by KKT.
 bool solve_box_qp(const Eigen::Matrix<double,7,7> &h,const Eigen::Matrix<double,7,1> &g,
                   const IKJoints &lower,const IKJoints &upper,IKJoints &solution);
