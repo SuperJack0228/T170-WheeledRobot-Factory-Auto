@@ -26,6 +26,7 @@ set(T170_TASK_SOURCES
     src/tasks/unload.cpp
 )
 set(T170_APPLICATION_SOURCES
+    src/app/task_result.cpp
     src/app/application.cpp
     src/app/audio.cpp
     src/app/boot_dispatch.cpp

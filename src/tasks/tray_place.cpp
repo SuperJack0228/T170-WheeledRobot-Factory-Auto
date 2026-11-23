@@ -1,4 +1,5 @@
 #include "internal/runtime.h"
+#include "t170/tasks/skill_failure.h"
 #include "t170/skills/conveyor.h"
 
 #include "t170/telemetry/factory_status.h"
@@ -58,8 +59,26 @@ using std::thread;
 namespace orch {
 int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
 {
+    if(g_hw) {g_hw->last_skill_result.reset();g_hw->last_task_error.clear();g_hw->last_grasp_count=0;g_hw->last_placed_r=false;g_hw->last_placed_l=false;}
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
         return -1;
+
+    auto reject_configuration=[&](const std::string &error) {
+        g_hw->last_skill_result=t170::tasks::configuration_failure(t170::skills::Skill::TrayPlace,error);
+        g_hw->last_task_error=error;std::cerr<<"[place_preflight] "<<error<<'\n';return -30;
+    };
+    if(!g_move_cfg.cameras.hand_descent_correct || !g_move_cfg.visual_servo.tray_place.enabled)
+        return reject_configuration("料盘放置要求开启手相机下降修正及 tray_place；尚未执行准备动作");
+
+    if(g_move_cfg.cameras.hand_descent_correct) {
+        for(bool right:{false,true}) {
+            if(!(right?allow_right:allow_left) || (right && right_arm_motors_locked()))continue;
+            std::array<double,16> eye;std::string error;
+            if(!load_cam2robot_matrix(right?default_right_hand_to_robot_yaml_path():default_left_hand_to_robot_yaml_path(),eye,error)) {
+                return reject_configuration(error);
+            }
+        }
+    }
 
     g_hw->last_placed_r=false;g_hw->last_placed_l=false;
     std::array<double, 16> cam2robot{};
@@ -68,6 +87,7 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
         !load_cam2robot_matrix(default_camera_to_robot_yaml_path(), cam2robot, err))
     {
         std::cerr << "[orch] 读 cam2robot 失败: " << err << std::endl;
+        g_hw->last_task_error=err;
         return -3;
     }
 
@@ -236,6 +256,19 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
         g_hw->last_placed_r=placed_r;g_hw->last_placed_l=placed_l;
         g_hw->last_grasp_count=placed_count;
         g_hw->last_grasp_status = static_cast<int>(r.status);
+        g_hw->last_skill_result=r.execution;
+        if(r.execution) {
+            const int failure=t170::tasks::terminal_skill_failure(*r.execution);
+            if(failure) {
+                g_hw->last_task_error=r.execution->message+"，阶段="+t170::skills::name(r.execution->failure_stage.value_or(r.execution->stage))+"，原始码="+std::to_string(r.execution->native_code.value_or(failure));
+                if(r.execution->error==t170::skills::Error::Servo)for(int hand=0;hand<2;++hand) {
+                    if(!r.execution->hands[hand].requested)continue;
+                    const auto reason=wrist_servo::last_failure(hand);
+                    if(!reason.empty())g_hw->last_task_error+=(hand?"；右手：":"；左手：")+reason;
+                }
+                std::cerr<<"[tray2] 终止当前任务，不重试："<<g_hw->last_task_error<<'\n';return failure;
+            }
+        }
 
         if (r.status == move_box::GraspToStandbyStatus::ReleaseFail) {
             std::cerr << "[tray_place] 张爪未确认，停止任务，保留已确认放置的侧\n";

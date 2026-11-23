@@ -78,6 +78,10 @@ public:
     int Inverse_Kinematics_Numeric(Eigen::Matrix<double,1,6> &target,Eigen::Ref<Eigen::RowVectorXd> q);
     int Inverse_Kinematics_Analytic(const Eigen::Matrix<double,1,6> &target,Eigen::Ref<Eigen::RowVectorXd> q,double j2);
     int Joint_Trajectory(const Eigen::MatrixXd &start,const Eigen::MatrixXd &end,Eigen::MatrixXd &out);
+    // Free-space transit: joint interpolation with a checked Cartesian envelope;
+    // falls back to a Cartesian line if the joint arc leaves that envelope.
+    int Approach_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> target,
+                            Eigen::MatrixXd &out,double tcp_speed);
     int Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> &target,
                         Eigen::MatrixXd &out,std::optional<double> j2=std::nullopt);
 private:

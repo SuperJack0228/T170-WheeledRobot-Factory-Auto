@@ -2,6 +2,7 @@
 #include "t170/skills/tray.h"
 #include "../src/skills/internal/tray_cycle.h"
 #include "../src/skills/internal/execution.h"
+#include "t170/tasks/skill_failure.h"
 #include <iostream>
 #include <stdexcept>
 namespace {
@@ -38,6 +39,10 @@ GraspToStandbyResult run_tray_cycle_impl(gripper::Gripper &,Arm &,Arm &,WaistRob
     if(cancel && cancel()){result.status=GraspToStandbyStatus::Aborted;return result;}
     result.zone_count_ok=true;result.zone_left=result.zone_right=scenario==1?0:10;
     if(scenario==1)return result;
+    if(scenario==5) {
+        detail::report_native(-30,-30,!skip_r,!skip_l,Stage::AlignDescend);
+        result.status=GraspToStandbyStatus::GraspNone;return result;
+    }
     detail::report(Stage::Approach,!skip_r,!skip_l);
     detail::report(Stage::Gripper,!skip_r,!skip_l);
     if(scenario==2) {
@@ -91,6 +96,12 @@ int main() {
         scenario=4;result=execute_tray_grasp(context,request);
         require(result.error==Error::Exception && result.hands[1].part==PartState::Holding &&
                 mode==move_box::TrayHoleTask::GraspParts,"exception lost effects or scope cleanup");
+        scenario=5;
+        std::string error;
+        auto raw=move_box::run_grasp_to_standby(gripper,right,left,waist,waist_pose,cameras,vision,{},error,{},SegEngineId::Default,false,false,false);
+        require(raw.execution && raw.execution->native_code==-30 && raw.execution->failure_stage==Stage::AlignDescend,
+                "legacy adapter dropped real servo failure");
+        require(t170::tasks::terminal_skill_failure(*raw.execution)==-30,"fatal error became an empty-grasp retry");
         scenario=0;int before=calls;result=execute_tray_grasp(context,request,{[]{return true;},{}});
         require(result.status==Status::Cancelled && calls==before,"pre-cancelled request entered cycle");
         place.initial_parts[0]=PartState::Empty;result=execute_tray_place(context,place);

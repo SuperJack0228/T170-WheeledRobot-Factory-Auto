@@ -53,10 +53,12 @@ int enable_head_far_pitch(){no_hardware();return -1;}
 Eigen::Matrix4d Arm::Forward_Kinematics(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return Eigen::Matrix4d::Identity();}
 bool Arm::Check_Joint_Limit(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return true;}
 t170::motion::IKPolicy Arm::ik_policy(const Eigen::Matrix4d &)const{no_hardware();return {};}
+int Arm::Line_Trajectory(const MatrixXd&,Matrix<double,1,6>&,MatrixXd&,std::optional<double>){no_hardware();return -1;}
+int Arm::Approach_Trajectory(const MatrixXd&,Matrix<double,1,6>,MatrixXd&,double){no_hardware();return -1;}
+int arm_execute_joint_path(Arm&,const MatrixXd&,const char*,const std::function<bool(const Matrix<double,1,7>&)>&,const std::function<bool()>&){no_hardware();return -1;}
 RealSenseMultiCam &PosePipeline::cameras(){no_hardware();throw std::runtime_error("no camera");}
 SegPoseBridge &PosePipeline::bridge(){no_hardware();throw std::runtime_error("no vision");}
 CameraFrameData RealSenseMultiCam::grab_fresh(CameraSlot){no_hardware();return {};}
-bool load_cam2robot_matrix(const std::string &,std::array<double,16>&,std::string&){no_hardware();return false;}
 namespace vision {HeadTrayPerception perceive_tray_head(RealSenseMultiCam&,SegPoseBridge&,const PerceiveTrayOptions&){no_hardware();return {};}}
 namespace move_box {
 Eigen::Matrix4d placement_calibration_frame(){no_hardware();return Eigen::Matrix4d::Identity();}
@@ -69,6 +71,7 @@ double waist_layer3_ensure_far_row_forward(WaistRobot&,Matrix<double,1,6>&,doubl
 namespace wrist_servo {
 void send_joint_reference(int,const Joints&){no_hardware();}
 bool take_final_hold(int,Joints&){no_hardware();return false;}
+bool peek_final_hold(int,Joints&){no_hardware();return false;}
 void hold_joint_reference(int,const Joints&){no_hardware();}
 void start_final_hold_repeat(){no_hardware();}
 bool ready_for_gripper(Arm&){no_hardware();return false;}

@@ -1,0 +1,46 @@
+CASE right_lift secondary=1 distance=0.157195 angle=1.91805e-16
+ retime_initial_s=2.23502 joint_total_maxsum=1.05869 knots=159 min_s=0.736851
+ attempt=0 duration=2.24 v=1.21224 a=98.5682 j=10016.3 scale=7.94132 peak_J=5 peak_row=219/448
+ attempt=1 duration=18.325 v=0.149313 a=1.52212 j=24.2721 scale=1.06666 peak_J=5 peak_row=1782/3665
+ attempt=2 duration=20.135 v=0.135878 a=1.26062 j=18.2981 scale=0.97079 peak_J=5 peak_row=1958/4027
+ final_s=20.135 qend_deg= 71.2711 -46.2368 -69.4243  84.5121  62.5866 -59.3846  20.2753
+CASE right_xy secondary=1 distance=0.174313 angle=1.56361e-16
+ retime_initial_s=2.31665 joint_total_maxsum=1.09736 knots=176 min_s=0.817092
+ attempt=0 duration=2.32 v=0.933748 a=32.0737 j=6937.79 scale=7.02636 peak_J=3 peak_row=143/464
+ attempt=1 duration=16.795 v=0.128988 a=0.762913 j=22.1598 scale=1.03477 peak_J=3 peak_row=1033/3359
+ attempt=2 duration=17.905 v=0.120992 a=0.675534 j=18.3669 scale=0.972005 peak_J=3 peak_row=1102/3581
+ final_s=17.905 qend_deg= 47.3676 -55.8579 -27.7193  72.8687  5.00836 -46.3687  77.9124
+CASE right_approach secondary=1 distance=0.263072 angle=0.211795
+ retime_initial_s=2.99174 joint_total_maxsum=1.41714 knots=265 min_s=1.23315
+ attempt=0 duration=2.995 v=2.20691 a=113.453 j=17581.8 scale=9.57954 peak_J=3 peak_row=408/599
+ attempt=1 duration=29.555 v=0.225636 a=1.29791 j=25.4316 scale=1.08338 peak_J=3 peak_row=3990/5911
+ attempt=2 duration=32.98 v=0.202202 a=1.03807 j=18.3137 scale=0.971066 peak_J=3 peak_row=4452/6596
+ final_s=32.98 qend_deg= 66.6187 -33.2296 -71.9876  83.8186  74.9206 -57.2552 -2.62174
+CASE right_lift secondary=0 distance=0.157195 angle=1.91805e-16
+ retime_initial_s=1.00917 joint_total_maxsum=0.478026 knots=159 min_s=0.736851
+ attempt=0 duration=1.01 v=0.986298 a=98.4675 j=14733.2 scale=9.03142 peak_J=5 peak_row=155/202
+ attempt=1 duration=9.4 v=0.107227 a=1.50266 j=29.0222 scale=1.13214 peak_J=5 peak_row=1426/1880
+ attempt=2 duration=10.965 v=0.0919443 a=1.11088 j=18.3789 scale=0.972216 peak_J=5 peak_row=1663/2193
+ final_s=10.965 qend_deg= 70.9827 -46.1615 -68.9663  84.5124  62.1726 -59.5876  20.4817
+CASE right_xy secondary=0 distance=0.174313 angle=1.56361e-16
+ retime_initial_s=1.26338 joint_total_maxsum=0.598441 knots=176 min_s=0.817092
+ attempt=0 duration=1.265 v=0.890223 a=2.26869 j=85.8813 scale=1.62539 peak_J=7 peak_row=29/253
+ attempt=1 duration=2.12 v=0.531207 a=0.807793 j=20.4119 scale=1.00682 peak_J=7 peak_row=48/424
+ attempt=2 duration=2.23 v=0.505 a=0.730054 j=17.8959 scale=0.963624 peak_J=7 peak_row=50/446
+ final_s=2.23 qend_deg= 77.4388 -66.6628 -80.1414  72.8835  45.6458 -38.0063  54.6881
+CASE right_approach secondary=0 distance=0.263072 angle=0.211795
+ retime_initial_s=3.08302 joint_total_maxsum=1.46038 knots=265 min_s=1.23315
+ attempt=0 duration=3.085 v=8.00829 a=898.166 j=115928 scale=18.9543 peak_J=5 peak_row=263/617
+ final_s=0 qend_deg= 64.0784 -32.4503 -67.9149  83.8187  71.2366 -59.5876 -1.29089
+CASE left_approach secondary=1 distance=0.137909 angle=0.303605
+ retime_initial_s=0.941999 joint_total_maxsum=0.44621 knots=139 min_s=0.646448
+ attempt=0 duration=0.945 v=0.903141 a=3.2265 j=112.631 scale=1.77914 peak_J=5 peak_row=24/189
+ attempt=1 duration=1.735 v=0.491943 a=0.957328 j=22.1051 scale=1.03392 peak_J=5 peak_row=43/347
+ attempt=2 duration=1.85 v=0.461363 a=0.841993 j=18.3192 scale=0.971163 peak_J=5 peak_row=45/370
+ final_s=1.85 qend_deg= 46.0682  36.4851  29.9362  77.0518  7.01936 -49.5128  -70.097
+CASE left_approach secondary=0 distance=0.137909 angle=0.303605
+ retime_initial_s=0.992032 joint_total_maxsum=0.46991 knots=139 min_s=0.646448
+ attempt=0 duration=0.995 v=0.887208 a=2.89604 j=129.634 scale=1.8645 peak_J=3 peak_row=25/199
+ attempt=1 duration=1.915 v=0.46098 a=0.781872 j=21.7777 scale=1.02879 peak_J=3 peak_row=47/383
+ attempt=2 duration=2.03 v=0.434865 a=0.695801 j=18.1548 scale=0.96825 peak_J=3 peak_row=50/406
+ final_s=2.03 qend_deg= 46.5842  37.1834  31.3239  77.0533  4.97365 -49.5977 -68.7648

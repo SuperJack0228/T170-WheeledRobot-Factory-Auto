@@ -1,0 +1,7 @@
+Test project /tmp/t170-sdk-build
+    Start 28: web_command_result_test
+1/1 Test #28: web_command_result_test ..........   Passed    1.12 sec
+
+100% tests passed out of 1
+
+Total Test time (real) =   1.12 sec

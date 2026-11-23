@@ -128,7 +128,12 @@ void Execution::native(int code, Hands hands, Stage stage) {
         auto &out=result.hands[h];if(out.error==Error::None) out.native_code=code;
         if(code!=0 && out.error==Error::None) {out.error=from_native_code(code,stage);out.failure_stage=stage;out.stage=stage;}
     }
-    if(code!=0) fail(from_native_code(code,stage),"native phase returned failure",code);
+    if(code!=0 && result.error==Error::None) {
+        fail(from_native_code(code,stage),"native phase returned failure",code);
+        // The native call reports the failing phase explicitly. A preceding
+        // progress callback may still describe an earlier phase.
+        result.failure_stage=stage;result.stage=stage;
+    }
 }
 Result Execution::finish() {
     if(finished_) return result;

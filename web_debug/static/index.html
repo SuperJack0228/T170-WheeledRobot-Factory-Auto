@@ -4,14 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>T170 · 工厂作业调试台</title>
-  <link rel="stylesheet" href="/styles.css?v=20">
+  <title>T170C工厂自动上下料控制器</title>
+  <link rel="stylesheet" href="/styles.css?v=21">
 </head>
 <body>
   <header class="nav">
-    <a class="brand" href="/" title="T170 · 工厂作业调试台">
-      <span class="brand-mark">Ti5 <b>ROBOTICS</b></span>
-      <span class="brand-text">T170 · 工厂作业调试台</span>
+    <a class="brand" href="/" title="T170C工厂自动上下料控制器">
+      <span class="brand-text">T170C工厂自动上下料控制器</span>
     </a>
     <nav class="tabs">
       <button class="tab active" data-page="status">状态</button>
@@ -23,7 +22,8 @@
       <button class="tab" data-page="vision">视觉</button>
       <button class="tab" data-page="logs">日志</button>
     </nav>
-    <div class="nav-side"><span id="modeChip" class="pill">模式未知</span>
+    <div class="nav-side">
+      <span id="modeChip" class="pill">模式未知</span>
       <span id="serviceChip" class="pill">连接中</span>
       <button id="stopButton" class="stop">停止</button>
     </div>
@@ -31,13 +31,27 @@
 
   <div id="versionBanner" class="banner" hidden></div>
   <p id="modeNotice" class="hint" role="status" hidden></p>
+  <div id="actionNotice" class="action-notice" role="status" hidden></div>
 
-  <div class="workspace-bar"><div><span class="workspace-label">当前运行</span><strong id="activeRobot">等待机器人服务</strong><span id="activeModel" class="subtle"></span></div><button class="quiet" id="openProfiles">切换机器人</button></div>
+  <section class="hand-live" aria-label="手相机实时画面" hidden>
+    <figure>
+      <figcaption>左手相机</figcaption>
+      <img id="liveLeft" alt="左手相机实时画面">
+      <p id="liveLeftEmpty" class="live-empty">等待左手画面</p>
+    </figure>
+    <figure>
+      <figcaption>右手相机</figcaption>
+      <img id="liveRight" alt="右手相机实时画面">
+      <p id="liveRightEmpty" class="live-empty">等待右手画面</p>
+    </figure>
+    <p id="handLiveNote" class="hand-live-note">实时预览默认关闭。打开后是左右手彩色视频流，不读头相机，也不进调度的运动循环。要看画面，把 cameras.hand_live_preview 改成 true，再重启服务。</p>
+  </section>
 
   <main>
     <section id="page-status" class="page active">
       <p class="kicker">Status</p>
       <h1>实时状态</h1>
+      <p class="robot-context"><strong id="activeRobot">等待机器人服务</strong> <span id="activeModel"></span> <button id="openProfiles" class="quiet">切换机器人</button></p>
       <p class="lead" id="statusLead">空闲时每秒读取双臂 TCP、腰高、持件和底盘站位。动作进行中不打断电机，沿用上一次读数。</p>
       <div class="stats">
         <article><span>服务</span><strong id="metricService">—</strong></article>
@@ -65,18 +79,18 @@
     <section id="page-motion" class="page">
       <p class="kicker">Motion</p>
       <h1>单步动作</h1>
-      <p class="lead">按技能选择准备、抓取和放置。动作会立即控制机器人，执行前确认工位与持件状态。</p>
-      <div id="actionGroups" class="action-groups"><p class="hint">连接服务后加载当前有效动作。</p></div>
+      <p class="lead">每条都会让机器人真的动。旁边有人守着急停。</p>
+      <div id="actionGroups" class="grid three"><p class="hint">连接服务后加载有效动作。</p></div>
       <article class="card">
-        <h2>最近执行结果</h2>
-        <pre id="motionResult">还没有从这里发过动作。</pre>
+        <h2>执行结果</h2>
+        <p id="motionStatus" class="hint">尚未执行动作。</p><details><summary>查看返回详情</summary><pre id="motionResult">尚未执行动作。</pre></details>
       </article>
     </section>
 
     <section id="page-dispatch" class="page">
       <p class="kicker">Dispatch</p>
       <h1 id="taskHeading">任务联调</h1>
-      <p class="lead" id="taskLead">维护模式下按顺序验证上料、转运与下料技能。</p>
+      <p class="lead" id="taskLead">维护模式下手动验证任务，不自动进入调度。</p>
       <div class="monitor" id="dispatchMonitor">
         <div class="monitor-head">
           <h2>自动调度监控</h2>
@@ -87,7 +101,7 @@
       </div>
       <div class="grid two">
         <article class="card" id="manualTaskCard">
-          <h2>手动技能编排</h2>
+          <h2>手动任务联调</h2>
           <p class="hint">上料：料盘抓毛坯，再放到传送带一。转运：传送带一按检测框窗口抓，再放到传送带二。下料：传送带二抓成品，再放到料盘二。这里不向调度申请。</p>
           <div class="actions row">
             <button class="quiet" id="addLoad" type="button">加上料</button>
@@ -101,9 +115,7 @@
           </div>
           <p class="hint" id="jobLine">当前没有编排在跑。</p>
         </article>
-        <article class="card" id="automaticTaskCard">
-          <h2>生产调度</h2>
-          <p class="hint">进入调度后，由现有调度流程分配并执行工厂任务。退出调度会中止当前流程并离开调度模式。</p>
+        <article class="card" id="automaticTaskCard"><h2>自动调度</h2><p class="hint">进入后由工厂调度分配任务。退出调度会中止当前流程并离开调度模式。</p>
           <button class="cmd fill dispatch-enter" data-command="dispatch">进入调度</button>
           <button type="button" id="exitDispatch" class="dispatch-exit">退出调度</button>
           <p class="hint">退出调度会中止动作、断开与调度系统的等待，并结束调度模式；监控里「调度中」应变为未进入。</p>
@@ -117,7 +129,7 @@
       <div class="actions row wrap">
         <button class="quiet" id="reloadRobot" type="button">重载运行参数</button>
       </div>
-      <p class="lead" id="configNote">当前运行参数。分层部署参数按来源文件维护，避免改动临时合并配置。</p>
+      <p class="lead" id="configNote">分层生成的运行快照只读；请按来源文件修改参数。</p>
       <div class="actions row wrap" id="fileTabs"></div>
       <div id="fieldForm"></div>
       <div class="actions row">
@@ -134,20 +146,6 @@
         <button class="cmd" data-command="aruco_detect">识别二维码</button>
         <button class="cmd" data-command="detect_tray_holes">识别料盘孔</button>
       </div>
-  <section class="hand-live" aria-label="手相机实时画面">
-    <figure>
-      <figcaption>左手相机</figcaption>
-      <img id="liveLeft" alt="左手相机实时画面">
-      <p id="liveLeftEmpty" class="live-empty">等待左手画面</p>
-    </figure>
-    <figure>
-      <figcaption>右手相机</figcaption>
-      <img id="liveRight" alt="右手相机实时画面">
-      <p id="liveRightEmpty" class="live-empty">等待右手画面</p>
-    </figure>
-    <p id="handLiveNote" class="hand-live-note">实时预览默认关闭。打开后是左右手彩色视频流，不读头相机，也不进调度的运动循环。要看画面，把 cameras.hand_live_preview 改成 true，再重启服务。</p>
-  </section>
-
       <article class="card photo">
         <img id="visionImage" alt="最近的标注图">
         <div id="visionEmpty" class="empty">还没有标注图</div>
@@ -175,6 +173,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=20"></script>
+  <script src="/app.js?v=21"></script>
 </body>
 </html>

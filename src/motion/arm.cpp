@@ -136,6 +136,48 @@ int Arm::Joint_Trajectory(const Eigen::MatrixXd &a,const Eigen::MatrixXd &b,Eige
     Eigen::MatrixXd knots(2,7);knots<<a,b;
     out=t170::motion::time_joint_path(knots,definition_.period,{definition_.velocity,definition_.acceleration,definition_.jerk});return out.rows()?0:-4;
 }
+int Arm::Approach_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> p,
+                              Eigen::MatrixXd &out,double speed) {
+    out.resize(0,7);
+    if(start.rows()!=1 || start.cols()!=7 || Check_Joint_Limit(start.row(0)) ||
+       !p.allFinite() || !std::isfinite(speed) || speed<=0)return -10;
+    const auto a=Forward_Kinematics(start.row(0)),b=t170::motion::arm_pose_transform(p);
+    Eigen::RowVectorXd end=start.row(0);
+    if(Inverse_Kinematics(p,end)!=0) {
+        std::cerr<<"[arm_plan] side="<<definition_.side<<" type=joint_approach rejected=endpoint_IK"
+            <<" start_model_rad="<<start<<" target_tcp="<<p<<'\n';return -4;
+    }
+    const Eigen::Vector3d low=a.topRightCorner<3,1>().cwiseMin(b.topRightCorner<3,1>()),
+                          high=a.topRightCorner<3,1>().cwiseMax(b.topRightCorner<3,1>());
+    Eigen::MatrixXd knots(2,7);knots<<start,end;
+    double minimum=0;
+    for(int attempt=0;attempt<3;++attempt) {
+        auto candidate=t170::motion::time_joint_path(knots,definition_.period,
+            {definition_.velocity,definition_.acceleration,definition_.jerk},minimum);
+        if(candidate.rows()<2)break;
+        double peak_speed=0;Eigen::Vector3d previous=a.topRightCorner<3,1>();bool valid=true;
+        for(int k=0;k<candidate.rows();++k) {
+            const auto t=Forward_Kinematics(candidate.row(k));const Eigen::Vector3d position=t.topRightCorner<3,1>();
+            // Never dip below either endpoint or sweep far beyond the transit
+            // corridor. This envelope is not a full robot collision model.
+            if(Check_Joint_Limit(candidate.row(k)) || position(2)<low(2)-.002 || position(2)>high(2)+.05 ||
+               (position.head<2>().array()<low.head<2>().array()-.03).any() ||
+               (position.head<2>().array()>high.head<2>().array()+.03).any()) {valid=false;break;}
+            peak_speed=std::max(peak_speed,(position-previous).norm()/definition_.period);previous=position;
+        }
+        if(!valid)break;
+        if(peak_speed>speed*1.0001) {minimum=(candidate.rows()-1)*definition_.period*peak_speed/speed*1.02;continue;}
+        out=std::move(candidate);
+        const auto peak=t170::motion::joint_path_peaks(out,definition_.period);
+        std::clog<<"[arm_plan] side="<<definition_.side<<" type=joint_approach nominal_s="
+            <<(out.rows()-1)*definition_.period<<" peak_tcp_m_s="<<peak_speed
+            <<" peak_v="<<peak.velocity<<" peak_a="<<peak.acceleration<<" peak_j="<<peak.jerk<<'\n';
+        return 0;
+    }
+    std::clog<<"[arm_plan] side="<<definition_.side<<" type=joint_approach fallback=checked_line\n";
+    Cart_Linear_Velocity=speed;
+    return Line_Trajectory(start,p,out);
+}
 int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> &p,Eigen::MatrixXd &out,std::optional<double> j2) {
     struct PlanLog {
         const std::string side;const Eigen::MatrixXd &path;double period;
@@ -157,6 +199,22 @@ int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
     const double angle=Eigen::AngleAxisd(ra.toRotationMatrix()*rb.toRotationMatrix().transpose()).angle();
     if(distance>2 || angle>M_PI)return -4;
     const int count=std::max(1,int(std::ceil(std::max(distance/.001,angle/.005))));
+    // Choose the redundancy reference once for the whole path. Re-optimising
+    // gravity/elbow/barrier costs at every millimetre creates joint ripples whose
+    // third differences force a very long global retiming.
+    const ArmJoints initial=q;
+    Eigen::RowVectorXd endpoint=q;
+    if(distance>.02 || angle>.05) {
+        if(Inverse_Kinematics(p,endpoint)!=0) endpoint=q;
+    } else {
+        auto policy=ik_policy(b);policy.preferred=q;
+        policy.posture_gain=1;policy.elbow_gain=0;policy.limit_gain=0;policy.elbow={};
+        policy.posture_iterations=8;policy.null_step_rad=.05;
+        if(j2)policy.minimum(1)=policy.maximum(1)=*j2;
+        ArmJoints solved;auto seed=q;if(j2)seed(1)=*j2;
+        t170::motion::IKReport report;
+        if(t170::motion::solve_bounded_ik(seed,b,[this](const ArmJoints &v){return Forward_Kinematics(v);},policy,{},solved,report))endpoint=solved;
+    }
     Eigen::MatrixXd knots(count+1,7);knots.row(0)=q;const double j2_start=q(1);
     for(int i=1;i<=count;++i) {
         const double u=double(i)/count;Eigen::Matrix4d target=Eigen::Matrix4d::Identity();
@@ -166,22 +224,74 @@ int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
         auto policy=ik_policy(target);
         policy.minimum=policy.minimum.cwiseMax(previous-ArmJoints::Constant(.18));
         policy.maximum=policy.maximum.cwiseMin(previous+ArmJoints::Constant(.18));
-        policy.null_step_rad=.003;policy.posture_iterations=2;
+        policy.preferred=(1-u)*initial+u*ArmJoints(endpoint);
+        policy.posture_gain=1;policy.elbow_gain=0;policy.limit_gain=0;policy.elbow={};
+        policy.null_step_rad=.05;policy.posture_iterations=8;
         if(j2)policy.minimum(1)=policy.maximum(1)=j2_start+u*(*j2-j2_start);
         ArmJoints seed=previous;if(j2)seed(1)=policy.minimum(1);
         t170::motion::IKReport report;
-        const bool solved=t170::motion::solve_bounded_ik(seed,target,[this](const ArmJoints &v){return Forward_Kinematics(v);},policy,{},q,report);
-        const int rc=solved?0:-4;
-        if(rc!=0 || (q-previous).cwiseAbs().maxCoeff()>.20){
-            std::cerr<<"[arm_ik] side="<<definition_.side<<" stage=line knot="<<i<<'/'<<count<<" code="<<(rc?rc:-7)
-                <<" reason="<<report.reason<<" iterations="<<report.iterations<<" bound_joint="<<report.bound_joint+1
-                <<" xyz_error_m="<<report.position_error<<" rotation_error_rad="<<report.rotation_error
-                <<" start_model_rad="<<previous<<" target_xyz="<<target.topRightCorner<3,1>().transpose()<<'\n';return rc?rc:-7;
+        if(!t170::motion::solve_bounded_ik(seed,target,[this](const ArmJoints &v){return Forward_Kinematics(v);},policy,{},q,report) ||
+           (q-previous).cwiseAbs().maxCoeff()>.20) {
+            std::cerr<<"[arm_ik] side="<<definition_.side<<" stage=line knot="<<i<<'/'<<count
+                <<" reason="<<report.reason<<" xyz_error_m="<<report.position_error
+                <<" rotation_error_rad="<<report.rotation_error<<'\n';return -4;
         }
         knots.row(i)=q;
     }
-    out=t170::motion::time_joint_path(knots,definition_.period,{definition_.velocity,definition_.acceleration,definition_.jerk},
-        1.875*std::max(distance,.2*angle)/Cart_Linear_Velocity,true);
+    const Eigen::Vector3d delta=b.topRightCorner<3,1>()-a.topRightCorner<3,1>();
+    const double minimum_time=1.875*std::max(distance,.2*angle)/Cart_Linear_Velocity;
+    int selected_stride=0;
+    // A convex C2 approximation removes high-frequency IK noise. Coarsening is
+    // adaptive: every output sample must stay within 0.5 mm / 5 mrad of the
+    // requested Cartesian line. Endpoints and effective joint limits are kept.
+    for(int stride:{32,16,8,4,2,1}) {
+        const int n=(count+stride-1)/stride;
+        Eigen::MatrixXd sparse(n+1,7);
+        for(int k=0;k<=n;++k) {
+            const double index=double(k)*count/n;const int low=static_cast<int>(index);
+            const double f=index-low;
+            sparse.row(k)=(1-f)*knots.row(low)+f*knots.row(std::min(low+1,count));
+        }
+        double minimum=minimum_time;
+        for(int retime=0;retime<3;++retime) {
+            auto candidate=t170::motion::time_joint_path(sparse,definition_.period,
+                {definition_.velocity,definition_.acceleration,definition_.jerk},minimum,true);
+            if(candidate.rows()<2)break;
+            bool valid=true;double previous_u=-1,peak_tcp_speed=0;
+            // Progress is checked in metres, not a fixed fraction of a tiny jog.
+            // Keep the same sub-millimetre geometric budget near poorly conditioned seeds.
+            const double progress_tolerance=distance>1e-8 ? std::min(.1,.0005/std::max(distance,.0002)) :
+                std::min(.1,.005/std::max(angle,.0001));
+            Eigen::Vector3d previous_position=a.topRightCorner<3,1>();
+            for(int k=0;k<candidate.rows();++k) {
+                const auto t=Forward_Kinematics(candidate.row(k));
+                double u=delta.squaredNorm()>1e-14 ?
+                    (t.topRightCorner<3,1>()-a.topRightCorner<3,1>()).dot(delta)/delta.squaredNorm() :
+                    (angle>1e-8 ? Eigen::AngleAxisd(ra.toRotationMatrix().transpose()*t.topLeftCorner<3,3>()).angle()/angle : 0);
+                if(Check_Joint_Limit(candidate.row(k)) || u<previous_u-progress_tolerance || u<-progress_tolerance || u>1+progress_tolerance ||
+                   (t.topRightCorner<3,1>()-a.topRightCorner<3,1>()-std::clamp(u,0.,1.)*delta).norm()>.0005 ||
+                   Eigen::AngleAxisd(ra.slerp(std::clamp(u,0.,1.),rb).toRotationMatrix()*t.topLeftCorner<3,3>().transpose()).angle()>.005) {
+                    if(stride==1)std::clog<<"[arm_path] rejected row="<<k<<" progress="<<u<<" previous="<<previous_u
+                        <<" position_error="<<(t.topRightCorner<3,1>()-a.topRightCorner<3,1>()-std::clamp(u,0.,1.)*delta).norm()
+                        <<" distance="<<distance<<" limits="<<Check_Joint_Limit(candidate.row(k))<<'\n';
+                    valid=false;break;
+                }
+                previous_u=u;
+                peak_tcp_speed=std::max(peak_tcp_speed,(t.topRightCorner<3,1>()-previous_position).norm()/definition_.period);
+                previous_position=t.topRightCorner<3,1>();
+            }
+            if(!valid)break;
+            if(peak_tcp_speed>Cart_Linear_Velocity*1.0001) {
+                minimum=(candidate.rows()-1)*definition_.period*peak_tcp_speed/Cart_Linear_Velocity*1.02;continue;
+            }
+            out=std::move(candidate);selected_stride=stride;break;
+        }
+        if(out.rows())break;
+    }
+    if(out.rows()<2)return -4;
+    const auto peaks=t170::motion::joint_path_peaks(out,definition_.period);
+    std::clog<<"[arm_path] side="<<definition_.side<<" reference=continuous stride="<<selected_stride
+        <<" peak_v="<<peaks.velocity<<" peak_a="<<peaks.acceleration<<" peak_j="<<peaks.jerk<<'\n';
     // Time interpolation is checked against the same SDK FK, not just knots.
     const Eigen::Vector3d line=b.topRightCorner<3,1>()-a.topRightCorner<3,1>();
     for(int i=0;i<out.rows();++i) {

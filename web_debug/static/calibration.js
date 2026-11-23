@@ -7,7 +7,7 @@ const labels = ["选择任务与准备", "识别固定空孔 · 去D点", "D点X
 let maintenance=false,uiConnected=false;
 let state={active:false,step:0,phase:"idle"},busy=false,viewStep=null,selected=null,jogSize="0.2",taskChoice="grasp",handChoice="1";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const fmt=(n,d=2)=>Number.isFinite(Number(n))?Number(n).toFixed(d):"—";
+const fmt=(n,d=2)=>n!==null&&n!==undefined&&n!==""&&Number.isFinite(Number(n))?Number(n).toFixed(d):"—";
 const grasp=()=> (state.active?state.task:taskChoice)==="grasp";
 const taskName=()=>grasp()?"料盘抓取":"料盘放置";
 async function api(path,body) {

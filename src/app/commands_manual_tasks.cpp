@@ -1,4 +1,5 @@
 #include "internal/state.h"
+#include "t170/app/task_result.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/debug.h"
 #include <cmath>
@@ -154,7 +155,7 @@ if (cmd == "tray2_auto")
         const bool right=orch::live_gripper_holding(true),left=orch::live_gripper_holding(false);
         if(!right && !left) return reply(false,"没有已识别的持件侧，先完成抓取后再执行 tray2_auto");
         const int rc=orch::vision_place_tray2(right,left,false);
-        Json::Value out=reply(rc==0,rc==0 ? std::string() : "料盘2放置未全部完成，code="+std::to_string(rc));
+        Json::Value out=t170::app::task_command_result(rc,g_session.last_grasp_count,g_session.last_skill_result,g_session.last_task_error,"料盘放置");
         out["code"]=rc;out["station"]=g_move_cfg.chassis.tray2_station;
         out["placed_right"]=g_session.last_placed_r;out["placed_left"]=g_session.last_placed_l;
         out["placed_count"]=g_session.last_grasp_count;
@@ -163,11 +164,11 @@ if (cmd == "tray2_auto")
 if (cmd == "tray2" || cmd == "tray2_place")
     {
         const int rc = orch::vision_place_tray2();
-        Json::Value out = reply(rc >= 0, rc < 0 ? "料盘2精度测试失败/中止" : "");
+        Json::Value out = t170::app::task_command_result(rc,g_session.last_grasp_count,g_session.last_skill_result,g_session.last_task_error,"料盘放置");
         out["code"] = rc;
         out["station"] = g_move_cfg.chassis.tray2_station;
-        out["placed_right"] = g_session.last_grasped_r;
-        out["placed_left"] = g_session.last_grasped_l;
+        out["placed_right"] = g_session.last_placed_r;
+        out["placed_left"] = g_session.last_placed_l;
         out["placed_count"] = g_session.last_grasp_count;
         if (g_session.layer3 != nullptr)
         {
@@ -181,7 +182,7 @@ if (cmd == "tray2" || cmd == "tray2_place")
 if (cmd == "vision_grasp_once" || cmd == "vision_servo_dual_once")
     {
         const int rc = cmd == "vision_servo_dual_once" ? orch::vision_servo_dual_once() : orch::vision_grasp_once();
-        Json::Value out = reply(rc >= 0, rc < 0 ? "抓一次料盘失败/中止" : "");
+        Json::Value out = t170::app::task_command_result(rc,g_session.last_grasp_count,g_session.last_skill_result,g_session.last_task_error,"料盘抓取");
         out["code"] = rc;
         out["grasped_right"] = g_session.last_grasped_r;
         out["grasped_left"] = g_session.last_grasped_l;
@@ -193,7 +194,7 @@ if (cmd == "vision_grasp_once" || cmd == "vision_servo_dual_once")
 if (cmd == "vision_grasp")
     {
         const int rc = orch::vision_grasp_existing_pipeline(false);
-        Json::Value out = reply(rc >= 0, rc < 0 ? "视觉抓取失败/中止" : "");
+        Json::Value out = t170::app::task_command_result(rc,g_session.last_grasp_count,g_session.last_skill_result,g_session.last_task_error,"料盘抓取");
         out["code"] = rc;
         out["grasped_right"] = g_session.last_grasped_r;
         out["grasped_left"] = g_session.last_grasped_l;

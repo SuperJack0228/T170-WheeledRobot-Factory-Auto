@@ -34,8 +34,8 @@ import yaml
 
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
-WEB_API_VERSION = 7
-UI_VERSION = "2.0.0"
+WEB_API_VERSION = 8
+UI_VERSION = "2.1.0"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -64,7 +64,7 @@ CONFIG_NOTES = {
     "hand_eye_fallback": "手眼失败时的回退。这一页仍是原文，保存后要重启。",
 }
 MANUAL_TASKS = {
-    "load": ["vision_grasp", "belt"],
+    "load": ["vision_grasp_once", "belt"],
     "transfer": ["belt_grasp", "belt2"],
     "unload": ["belt2_grasp", "tray2_auto"],
 }
@@ -447,6 +447,30 @@ class RobotClientError(RuntimeError):
     pass
 
 
+def command_result(cmd: str, response: dict[str, Any]) -> dict[str, Any]:
+    """Keep business failure distinct from a successful HTTP/RPC exchange.
+
+    Also reject the old daemon's `ok:true, code:2, grasped_count:0` response,
+    so updating the Web process first cannot silently report a failed grasp.
+    """
+    result = dict(response)
+    task_counts = {"vision_grasp_once": "grasped_count", "vision_servo_dual_once": "grasped_count",
+                   "vision_grasp": "grasped_count", "tray2": "placed_count",
+                   "tray2_place": "placed_count", "tray2_auto": "placed_count"}
+    count_key = task_counts.get(cmd)
+    if count_key and result.get("ok") is True:
+        code, count = result.get("code"), result.get(count_key)
+        if code != 0 or not isinstance(count, (int, float)) or count <= 0:
+            result["ok"] = False
+            result["status"] = "partial" if isinstance(count, (int, float)) and count > 0 else "no_target" if code == 1 else "failed"
+            result["error"] = result.get("error") or f"{cmd} 未完成：code={code}，确认数量={count}"
+    result["ok"] = result.get("ok") is True
+    if not result["ok"]:
+        result.setdefault("status", "failed")
+        result["error"] = result.get("error") or result.get("message") or f"{cmd} 执行失败"
+    return result
+
+
 class AppState:
     def __init__(self, args: argparse.Namespace) -> None:
         self.robot_host = args.robot_host
@@ -524,8 +548,9 @@ class AppState:
         with self.job_lock:
             self.job = {
                 "running": False,
-                "title": "",
-                "step": "已停止" if error else "空闲",
+                "title": self.job.get("title", ""),
+                "step": "失败" if error else "完成",
+                "outcome": "failed" if error else "succeeded",
                 "error": error,
             }
 
@@ -539,7 +564,7 @@ class AppState:
                     with self.job_lock:
                         self.job["step"] = f"{MANUAL_LABELS[task]} · {cmd}"
                     self.log(f"手动编排 {MANUAL_LABELS[task]} → {cmd}", "sequence")
-                    result = self.robot_request({"cmd": cmd})
+                    result = command_result(cmd, self.robot_request({"cmd": cmd}))
                     self.log(f"命令 {cmd}: {json.dumps(result, ensure_ascii=False)}", "command")
                     if not result.get("ok"):
                         raise RobotClientError(result.get("error") or f"{cmd} 失败")
@@ -1021,6 +1046,7 @@ class DebugHandler(BaseHTTPRequestHandler):
                 if not self.state.begin_action("保存机器人档案"):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "请等待当前网页动作完成"})
                     return
+                action_error = ""
                 try:
                     try:
                         ping = self.state.robot_request({"cmd": "ping"}, timeout=3.0)
@@ -1034,8 +1060,11 @@ class DebugHandler(BaseHTTPRequestHandler):
                             raise ValueError("请先结束标定会话")
                     result = PROFILE_STORE.update(payload)
                     self.state.log("机器人档案: " + json.dumps(result, ensure_ascii=False), "profile")
+                except Exception as exc:
+                    action_error = str(exc)
+                    raise
                 finally:
-                    self.state.end_action()
+                    self.state.end_action(action_error)
                 self._json(HTTPStatus.OK, result)
                 return
             if parsed.path == "/api/calibration":
@@ -1048,11 +1077,17 @@ class DebugHandler(BaseHTTPRequestHandler):
                 if not self.state.begin_action("标定: " + action):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "已有动作在执行，请等待"})
                     return
+                action_error = ""
                 try:
                     payload["cmd"] = "placement_calibration"
-                    result = self.state.robot_request(payload)
+                    result = command_result("placement_calibration", self.state.robot_request(payload))
+                    if not result["ok"]:
+                        action_error = result["error"]
+                except Exception as exc:
+                    action_error = str(exc)
+                    raise
                 finally:
-                    self.state.end_action()
+                    self.state.end_action(action_error)
                 self.state.log("标定 " + action + ": " + json.dumps(result, ensure_ascii=False), "calibration")
                 self._json(HTTPStatus.OK, result)
                 return
@@ -1072,14 +1107,20 @@ class DebugHandler(BaseHTTPRequestHandler):
                 if cmd not in {"abort", "dispatch_exit", "reload_config"} and not self.state.begin_action(cmd):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "已有动作在执行"})
                     return
+                action_error = ""
                 try:
                     # 调度模式一直跑到退出/停止，不能被 30 分钟超时断开后又放开网页的动作锁。
-                    result = self.state.robot_request(
+                    result = command_result(cmd, self.state.robot_request(
                         payload, timeout=None if cmd == "dispatch" else 1800.0
-                    )
+                    ))
+                    if not result["ok"]:
+                        action_error = result["error"]
+                except Exception as exc:
+                    action_error = str(exc)
+                    raise
                 finally:
                     if cmd not in {"abort", "dispatch_exit", "reload_config"}:
-                        self.state.end_action()
+                        self.state.end_action(action_error)
                 self.state.log(f"命令 {cmd}: {json.dumps(result, ensure_ascii=False)}", "command")
                 self._json(HTTPStatus.OK, result)
                 return

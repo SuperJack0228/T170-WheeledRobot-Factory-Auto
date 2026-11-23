@@ -398,6 +398,14 @@ bool record_arm_cartesian_arrival(
     const bool is_right = hand == 1;
     const bool settled = wait_arms_motors_stopped(
         is_right, !is_right, settle_sec, 6, stage_txt.c_str());
+    record_arm_cartesian_snapshot(arm,goal,stage_txt.c_str(),settled);
+    return settled;
+}
+
+void record_arm_cartesian_snapshot(Arm &arm,const Eigen::Matrix<double,1,6> &goal,
+                                   const char *stage,bool settled) {
+    const bool is_right=arm_hand_side(arm)==1;
+    const std::string stage_txt=stage?stage:"motion";
     const Eigen::Matrix<double, 1, 6> actual = arm_get_tcp_pos(arm);
 
     ArmArrivalRecord rec;
@@ -429,5 +437,5 @@ bool record_arm_cartesian_arrival(
               << ") |err|=" << rec.err_m << "m"
               << (settled ? " 停稳" : " 未停稳") << "\n";
     std::cout.flush();
-    return settled;
+
 }

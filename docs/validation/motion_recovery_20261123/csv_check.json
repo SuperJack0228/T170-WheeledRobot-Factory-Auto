@@ -1,0 +1,11 @@
+{
+  "cases": 52,
+  "method": "independent NumPy finite differences of saved CSV including stationary tails",
+  "period_s": 0.005,
+  "maximum_joint_peaks": {
+    "velocity_rad_s": 0.8870828724631297,
+    "acceleration_rad_s2": 2.170241051334121,
+    "jerk_rad_s3": 19.548974155014776
+  },
+  "all_within_limits": true
+}

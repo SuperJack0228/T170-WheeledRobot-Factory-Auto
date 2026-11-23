@@ -20,6 +20,9 @@
 #include "t170/skills/legacy/profiles.h"
 #include "t170/motion/servo.h"
 #include "t170/motion/pose_solver.h"
+#include "t170/motion/cartesian_arrival.h"
+#include "t170/motion/joint_motion.h"
+#include <iostream>
 #include "t170/hardware/head.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/tray_localizer.h"
@@ -117,70 +120,53 @@ struct PlacementSession::Impl {
         Json::StreamWriterBuilder b;b["indentation"]="";
         std::ofstream out(directory/"events.jsonl",std::ios::app);out<<Json::writeString(b,r)<<'\n';
     }
-    void check_workspace(const Pose &p) {
+    void check_workspace(const Pose &p,const Pose *cached_peer=nullptr) {
         const auto &w=g_move_cfg.grasp_valid;
         require(p.allFinite() && p(0)>=w.x_min && p(0)<=w.x_max && p(2)>=w.z_min && p(2)<=w.z_max &&
             p(1)>=(hand?w.right_y_min:w.left_y_min) && p(1)<=(hand?w.right_y_max:w.left_y_max),"目标超出当前手臂工作包络");
-        const Pose peer=arm_get_tcp_pos(hand?*hw->arm_l:*hw->arm_r);
+        const Pose peer=cached_peer?*cached_peer:arm_get_tcp_pos(hand?*hw->arm_l:*hw->arm_r);
         require((p.head<3>()-peer.head<3>()).norm()>=g_move_cfg.visual_servo.pair_clearance_m,"目标距离另一只手过近");
     }
-    void line(Pose goal,double speed) {
+    void move_checked(Pose goal,double speed,bool straight) {
         stopped();check_workspace(goal);
-        Joints previous;wrist_servo::take_final_hold(hand,previous);
-        const int rc=arm_line_move(arm(),goal,speed,false);
-        require(rc==0,"机械臂接近失败 code="+std::to_string(rc));
-        require(record_arm_cartesian_arrival(arm(),goal,"标定到位",4.0),"标定接近到位反馈超时");stopped();
-        wrist_servo::hold_joint_reference(hand,arm_get_joint_pos(arm()));wrist_servo::start_final_hold_repeat();
-    }
-    // Short teach moves use the same FK/local IK math, continuous seeds and rest-to-rest timing.
-    // A full path is checked before sending any point; never use uninitialised servo-session limits.
-    void local(Pose goal,double speed=.015) {
-        stopped();check_workspace(goal);const Pose start=actual();
-        require((goal.head<3>()-start.head<3>()).norm()<=.16,"微调/下降距离过大");
-        require(std::isfinite(speed) && speed>0,"局部运动速度无效");
-        const Joints seed=arm_get_joint_pos(arm());
-        auto cfg=g_move_cfg.visual_servo;std::vector<Joints> path;
-        const Eigen::Quaterniond start_rotation(TR(start).block<3,3>(0,0)),goal_rotation(TR(goal).block<3,3>(0,0));
-        double duration=std::max(.22,1.9*(goal.head<3>()-start.head<3>()).norm()/speed);
-        bool planned=false;
-        for(int attempt=0;attempt<5 && !planned;++attempt,duration*=1.7) {
-            const int count=static_cast<int>(std::ceil(duration/.01));path.clear();path.push_back(seed);
-            Joints q=seed,previous_v=Joints::Zero();planned=true;
-            for(int i=1;i<=count;++i) {
-                const double u=double(i)/count,f=u*u*u*(10+u*(-15+6*u));
-                Eigen::Vector3d p=start.head<3>().transpose()+f*(goal.head<3>()-start.head<3>()).transpose();
-                Joints next;double xyz=0,rot=0;
-                const auto fk=[&](const Joints &j){return arm().Forward_Kinematics(Eigen::RowVectorXd(j));};
-                const auto limit=[&](const Joints &j){return (j-seed).cwiseAbs().maxCoeff()>cfg.max_joint_excursion_rad ||
-                    arm().Check_Joint_Limit(Eigen::RowVectorXd(j));};
-                Eigen::Matrix4d target=Eigen::Matrix4d::Identity();target.topRightCorner<3,1>()=p;
-                target.topLeftCorner<3,3>()=start_rotation.slerp(f,goal_rotation).toRotationMatrix();
-                auto policy=arm().ik_policy(target);policy.iterations=20;policy.posture_iterations=1;policy.null_step_rad=.001;
-                policy.minimum=policy.minimum.cwiseMax(seed-Joints::Constant(cfg.max_joint_excursion_rad));
-                policy.maximum=policy.maximum.cwiseMin(seed+Joints::Constant(cfg.max_joint_excursion_rad));
-                if(!wrist_servo::solve_pose_with_fk(q,p,target.topLeftCorner<3,3>(),cfg,fk,limit,next,xyz,rot,&policy)) {planned=false;break;}
-                const Joints v=(next-q)/.01;
-                if(v.cwiseAbs().maxCoeff()>cfg.max_joint_speed_rad_s ||
-                   ((v-previous_v)/.01).cwiseAbs().maxCoeff()>cfg.max_joint_accel_rad_s2) {planned=false;break;}
-                previous_v=v;q=next;path.push_back(q);
-            }
+        require(std::isfinite(speed) && speed>0,"运动速度无效");
+        Joints seed=arm_get_joint_pos(arm());
+        wrist_servo::peek_final_hold(hand,seed);
+        const auto start_T=arm().Forward_Kinematics(Eigen::RowVectorXd(seed));
+        const double distance=(goal.head<3>().transpose()-start_T.topRightCorner<3,1>()).norm();
+        if(straight)require(distance<=.16,"微调/下降距离过大");
+        Eigen::MatrixXd path;int planned;
+        if(straight) {arm().Cart_Linear_Velocity=speed;planned=arm().Line_Trajectory(Eigen::MatrixXd(seed),goal,path);}
+        else planned=arm().Approach_Trajectory(Eigen::MatrixXd(seed),goal,path,speed);
+        require(planned==0 && path.rows()>1,"标定运动规划失败 code="+std::to_string(planned));
+        // Check the entire transit, including clearance to the stationary peer,
+        // before releasing the old hold or sending any reference.
+        const Pose peer=arm_get_tcp_pos(hand?*hw->arm_l:*hw->arm_r);
+        for(int i=0;i<path.rows();++i) {
+            const Pose p=T2PosEulerAngles(arm().Forward_Kinematics(path.row(i)));
+            check_workspace(p,&peer);
+            if(straight && distance<=.0051)
+                require((path.row(i)-seed).cwiseAbs().maxCoeff()<=g_move_cfg.visual_servo.max_joint_excursion_rad,
+                    "微调关节变化过大，尚未下发");
         }
-        require(planned,"局部微调轨迹无法平滑求解，尚未下发");
-        Joints previous;wrist_servo::take_final_hold(hand,previous);
-        for(std::size_t i=0;i<path.size();++i) {
-            const auto cycle=Clock::now();stopped();wrist_servo::send_joint_reference(hand,path[i]);
-            if(i%10==0) {
-                const auto measured=arm_get_joint_pos(arm());
-                if((measured-path[i]).cwiseAbs().maxCoeff()>.18) {
-                    wrist_servo::hold_joint_reference(hand,measured);wrist_servo::start_final_hold_repeat();
-                    throw std::runtime_error("微调跟随偏差过大，保持当前关节位置");
-                }
-            }
-            std::this_thread::sleep_until(cycle+std::chrono::milliseconds(10));
-        }
-        wrist_servo::hold_joint_reference(hand,path.back());wrist_servo::start_final_hold_repeat();
-        require(record_arm_cartesian_arrival(arm(),goal,"标定微调",3.0),"微调到位反馈超时");actual();stopped();
+        const double tolerance=straight && distance<=.0051 ? t170::motion::teach_jog_tolerance(distance) : .002;
+        t170::motion::CartesianArrivalGate gate(TR(goal),tolerance);
+        const auto arrived=[&](const Joints &q) {return gate(arm().Forward_Kinematics(Eigen::RowVectorXd(q)));};
+        const auto begin=Clock::now();
+        stopped();
+        const int code=arm_execute_joint_path(arm(),path,straight?"calibration_local":"calibration_transit",arrived,
+            [&](){return interrupted.load();});
+        const Pose measured=actual();
+        std::cout<<"[calibration_motion] hand="<<hand<<" type="<<(straight?"line":"transit")
+            <<" distance_m="<<distance<<" nominal_s="<<(path.rows()-1)*arm().definition().period
+            <<" elapsed_s="<<std::chrono::duration<double>(Clock::now()-begin).count()
+            <<" tolerance_m="<<tolerance<<" residual_m="<<(measured.head<3>()-goal.head<3>()).norm()
+            <<" target="<<goal<<" measured="<<measured<<" code="<<code<<'\n';
+        wrist_servo::start_final_hold_repeat();
+        require(code==0,"标定运动未到位 code="+std::to_string(code)+"，已保持当前位置");stopped();
     }
+    void line(Pose goal,double speed) {move_checked(goal,speed,false);}
+    void local(Pose goal,double speed=.015) {move_checked(goal,speed,true);}
     void check_held() {
         stopped();require(hw->g->hasSide(side()),"所选夹爪未连接");
         const auto fb=hw->g->feedback(side());
@@ -211,6 +197,8 @@ struct PlacementSession::Impl {
     }
     void camera_identity() {
         auto root=std::filesystem::path(default_move_box_config_path()).parent_path();
+        std::array<double,16> eye;std::string error;
+        require(load_cam2robot_matrix((root/(side_name()+"_hand_to_base_result.yaml")).string(),eye,error),error);
         const auto cameras=YAML::LoadFile((root/"realsense_cameras.yaml").string());
         serial=cameras["realsense"][side_name()+"_hand"]["serial"].as<std::string>();
         eye_hash=fingerprint(root/(side_name()+"_hand_to_base_result.yaml"));model_hash=fingerprint(root/"Robot_Model.yaml");
@@ -375,7 +363,7 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
                 require(enable_head_calib_pose()==0,"头部准备失败");
                 for(const auto motor:s.arm().can_id_list) {s.stopped();require(motor_enable_id(static_cast<std::uint32_t>(motor)),"所选手臂电机使能失败");}
                 Pose p=s.hand?g_move_cfg.standby.right:g_move_cfg.standby.left;const auto &r=s.rpy();
-                p.tail<3>()<<r.rx*M_PI/180,r.ry*M_PI/180,r.rz*M_PI/180;s.line(p,.10);
+                p.tail<3>()<<r.rx*M_PI/180,r.ry*M_PI/180,r.rz*M_PI/180;s.line(p,.35);
                 require(move_box::ensure_waist_ready_start(*s.hw->waist,*s.hw->layer3),"腰部到准备位失败");
                 move_box::waist_layer3_set_synced(true);s.ready=arm_get_joint_pos(s.arm());
                 if(s.grasp) s.close_empty();

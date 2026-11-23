@@ -8,8 +8,8 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
-const WEB_API = 7;
-const UI_VERSION = "2.0.0";
+const WEB_API = 8;
+const UI_VERSION = "2.1.0";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -28,6 +28,14 @@ let capabilitiesCheckedAt = 0;
 let profileData = null;
 let actionsMode = null;
 let statusRefreshing = false;
+let motionPending = false;
+let remoteBusy = false;
+let readyGroup = "1";
+function updateCommandAvailability() {
+  document.querySelectorAll(".cmd[data-command]").forEach((button) => {
+    button.disabled = motionPending || remoteBusy || !commandPermitted(button.dataset.command);
+  });
+}
 function commandPermitted(cmd) {
   if (!commandCapabilities) return false;
   return commandCapabilities.commands.some((entry) => entry.name === cmd && entry.allowed);
@@ -46,17 +54,15 @@ async function refreshCapabilities() {
     notice.textContent = production
       ? "生产模式：开放调度运行控制和状态查询。手动动作、单步与标定请使用维护入口。"
       : "维护模式：不会开机自动进入调度，可执行标定、单步和诊断。";
-    document.querySelectorAll(".cmd").forEach((button) => {
-      button.disabled = !commandPermitted(button.dataset.command);
-      button.title = button.disabled ? "请通过维护入口执行此命令" : "";
-    });
+    updateCommandAvailability();
     if ($("runPlan")) $("runPlan").disabled = production;
-    if (actionsMode !== data.mode) {
+    const signature = JSON.stringify([data.mode, data.commands]);
+    if (actionsMode !== signature) {
       const catalog = await api("/api/actions");
       renderActions(catalog);
-      actionsMode = data.mode;
+      actionsMode = signature;
     }
-  } catch (_) { /* Keep controls disabled until a valid catalog is available. */ }
+  } catch (_) { commandCapabilities = null; updateCommandAvailability(); }
 }
 
 function applyMode(mode) {
@@ -80,9 +86,33 @@ function applyMode(mode) {
 
 function renderActions(catalog) {
   $("actionGroups").innerHTML = catalog.groups.map((group) => {
-    const body = `<div class="action-group-head"><h2>${esc(group.title)}</h2><p class="hint">${esc(group.description)}</p></div><div class="action-list">${group.actions.map((action) => `<button class="cmd action-button" data-command="${esc(action.name)}" ${action.allowed ? "" : "disabled"}><strong>${esc(action.label)}</strong><span>${esc(action.description)}</span></button>`).join("")}</div>`;
-    return group.id === "service" ? `<details class="card"><summary>${esc(group.title)}</summary>${body}</details>` : `<article class="card action-group">${body}</article>`;
+    const preparation = group.id === "preparation";
+    const actions = preparation ? group.actions.filter((action) => !/^(grasp_ready|tray2ready)[23]$/.test(action.name)) : group.actions;
+    const selector = preparation ? `<label class="ready-group">料盘准备行组<select id="readyGroup">${[["1","近排"],["2","中排"],["3","远排"]].map(([value,label])=>`<option value="${value}" ${readyGroup===value?"selected":""}>${label}</option>`).join("")}</select></label>` : "";
+    const body = `<h2>${esc(group.title)}</h2><p class="hint">${esc(group.description)}</p>${selector}<div class="actions">${actions.map((action) => {
+      const ready = preparation && /^(grasp_ready|tray2ready)1$/.test(action.name);
+      const base = action.name.startsWith("grasp_ready") ? "grasp_ready" : "tray2ready";
+      const name = ready ? base + readyGroup : action.name;
+      const label = ready ? (base === "grasp_ready" ? "料盘抓取准备" : "料盘放置准备") : action.label;
+      return `<button class="cmd" ${ready?`data-ready-base="${base}"`:""} data-command="${esc(name)}" title="${esc(action.description)}">${esc(label)}</button>`;
+    }).join("")}</div>`;
+    const colorClass = {preparation:"mod-pose",tray:"mod-tray",conveyor:"mod-belt"}[group.id] || "";
+    return group.id === "service" ? `<details class="card"><summary>${esc(group.title)}</summary>${body}</details>` : `<article class="card ${colorClass}">${body}</article>`;
   }).join("");
+  if ($("readyGroup")) $("readyGroup").onchange = (event) => {
+    readyGroup = event.target.value;
+    document.querySelectorAll("[data-ready-base]").forEach((button) => {button.dataset.command = button.dataset.readyBase + readyGroup;});
+    updateCommandAvailability();
+  };
+  updateCommandAvailability();
+}
+
+function showActionOutcome(outcome, message) {
+  $("actionNotice").hidden = false;
+  $("actionNotice").dataset.outcome = outcome;
+  $("actionNotice").textContent = message;
+  $("motionStatus").dataset.outcome = outcome;
+  $("motionStatus").textContent = message;
 }
 
 function toast(message) {
@@ -106,6 +136,7 @@ async function api(path, options = {}) {
 }
 
 function fmt(value, digits) {
+  if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(digits) : "—";
 }
@@ -162,6 +193,9 @@ async function refreshStatus() {
     await refreshCapabilities();
     const data = await api("/api/status");
     const job = await api("/api/job");
+    remoteBusy = job.running === true || data.busy === true;
+    updateCommandAvailability();
+    if (data.ok !== true) { $("statusLead").textContent = data.error || "状态读取失败，保留上一次读数。"; return; }
     $("statusLead").textContent = data.busy
       ? `正在执行 ${data.action || job.step || "动作"}。关节读数暂停，避免打断电机。`
       : "空闲时每秒读取一次。动作进行中不打断电机，沿用上一次读数。";
@@ -188,8 +222,10 @@ async function refreshStatus() {
     ]);
     $("jobLine").textContent = job.running
       ? `正在执行：${job.step}`
-      : (job.error ? `上次停止：${job.error}` : (job.step === "完成" ? "编排已完成。" : "当前没有编排在跑。"));
+      : (job.error ? `上次失败：${job.error}` : (job.step === "完成" ? "上次执行完成。" : "当前没有编排在跑。"));
   } catch (error) {
+    commandCapabilities = null; actionsMode = null;
+    updateCommandAvailability();
     $("serviceChip").textContent = "未连接";
     $("serviceChip").className = "pill bad";
     $("metricService").textContent = "离线";
@@ -203,9 +239,13 @@ function renderPlan() {
 
 async function sendCommand(cmd) {
   if (!commandPermitted(cmd)) throw new Error("该命令仅在维护模式开放");
+  showActionOutcome("running", `正在执行 ${cmd}，等待机器人返回实际结果…`);
   const result = await api("/api/command", { method: "POST", body: { cmd, confirm: cmd } });
   $("motionResult").textContent = JSON.stringify(result, null, 2);
-  toast(result.ok ? "已完成" : (result.error || "没有完成"));
+  const succeeded = result.ok === true;
+  const message = succeeded ? `${cmd} 执行完成` : (result.error || `${cmd} 执行失败`);
+  showActionOutcome(succeeded ? "succeeded" : result.status || "failed", message);
+  toast(message);
   refreshStatus();
 }
 
@@ -413,10 +453,11 @@ document.addEventListener("click", async (event) => {
   if (!el || el.disabled) return;
   const cmd = el.dataset.command;
   if (!window.confirm(`执行 ${el.textContent.trim()}？`)) return;
-  el.disabled = true;
+  motionPending = true;
+  updateCommandAvailability();
   try { await sendCommand(cmd); }
-  catch (error) { toast(error.message); }
-  finally { el.disabled = !commandPermitted(cmd); }
+  catch (error) { showActionOutcome("failed", error.message); toast(error.message); }
+  finally { motionPending = false; updateCommandAvailability(); refreshStatus(); }
 });
 
 $("stopButton").addEventListener("click", async () => {
@@ -610,6 +651,7 @@ function bindHandStream(id, slot, enabled) {
 }
 
 function setHandLivePreview(enabled) {
+  document.querySelector(".hand-live").hidden = !enabled;
   const note = $("handLiveNote");
   if (note) {
     note.textContent = enabled

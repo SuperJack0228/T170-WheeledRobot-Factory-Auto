@@ -46,7 +46,7 @@ class FakeState:
         if self.running:return False
         self.running=True
         return True
-    def end_action(self):self.running=False
+    def end_action(self,error=""):self.running=False
     def log(self, *args):pass
 
 class CalibrationHTTPTest(unittest.TestCase):

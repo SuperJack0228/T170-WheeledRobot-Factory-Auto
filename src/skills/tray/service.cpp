@@ -141,6 +141,7 @@ GraspToStandbyResult run_grasp_to_standby(
     request.rise=rise;request.on_clearance=on_clearance;request.on_waist_up=on_waist_up;
     GraspToStandbyResult raw;
     const auto result=t170::skills::execute(context,request,{abort,{}},&raw,&error);
+    raw.execution=result;
     std::cout<<"[skill_result] "<<t170::skills::to_json(result)<<'\n';
     if(!result.legacy_status) {
         raw.status=result.error==t170::skills::Error::Cancelled?GraspToStandbyStatus::Aborted:GraspToStandbyStatus::MotionFail;

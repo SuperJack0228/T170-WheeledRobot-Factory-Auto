@@ -1,4 +1,5 @@
 #include "internal/runtime.h"
+#include "t170/tasks/skill_failure.h"
 #include "t170/skills/conveyor.h"
 
 #include "t170/telemetry/factory_status.h"
@@ -64,8 +65,29 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
 {
     g_load_parts_seen = -1;
     g_grasp_departed = false;
+    if(g_hw) {g_hw->last_skill_result.reset();g_hw->last_task_error.clear();g_hw->last_grasp_count=0;}
     if (g_hw == nullptr || g_hw->g == nullptr || g_hw->pipeline == nullptr)
         return -1;
+
+    auto reject_configuration=[&](const std::string &error) {
+        g_hw->last_skill_result=t170::tasks::configuration_failure(t170::skills::Skill::TrayGrasp,error);
+        g_hw->last_task_error=error;std::cerr<<"[grasp_preflight] "<<error<<'\n';return -30;
+    };
+    if(!g_move_cfg.cameras.hand_descent_correct)
+        return reject_configuration("料盘抓取要求开启 cameras.hand_descent_correct；尚未执行准备动作");
+
+    if(g_move_cfg.cameras.hand_descent_correct || g_move_cfg.head_grasp.use_hand_camera) {
+        for(bool right:{false,true}) {
+            if((right && right_arm_motors_locked()) || !g_hw->g->hasSide(right?gripper::Side::Right:gripper::Side::Left))continue;
+            const int hand=right?1:0;
+            if(!g_move_cfg.head_grasp.use_hand_camera && g_move_cfg.visual_servo.profiles[hand].mode!="geometry" &&
+               g_move_cfg.visual_servo.calibrated_tray_grasp[hand].empty())continue;
+            std::array<double,16> eye;std::string error;
+            if(!load_cam2robot_matrix(right?default_right_hand_to_robot_yaml_path():default_left_hand_to_robot_yaml_path(),eye,error)) {
+                return reject_configuration(error);
+            }
+        }
+    }
 
     std::array<double, 16> cam2robot{};
     std::string err;
@@ -73,6 +95,7 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
         !load_cam2robot_matrix(default_camera_to_robot_yaml_path(), cam2robot, err))
     {
         std::cerr << "[orch] 读 cam2robot 失败: " << err << std::endl;
+        g_hw->last_task_error=err;
         return -3;
     }
 
@@ -371,6 +394,22 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
         g_hw->last_grasped_r = holding_r;
         g_hw->last_grasped_l = holding_l;
         g_hw->last_grasp_status = static_cast<int>(r.status);
+        g_hw->last_skill_result=r.execution;
+        if(r.execution) {
+            const int failure=t170::tasks::terminal_skill_failure(*r.execution);
+            if(failure) {
+                g_hw->last_grasped_r=holding_r || r.grasped_r;g_hw->last_grasped_l=holding_l || r.grasped_l;
+                g_hw->last_grasp_count=grasped_count+(clear_tray?int(r.grasped_r)+int(r.grasped_l):0);
+                g_hw->last_task_error=r.execution->message+"，阶段="+t170::skills::name(r.execution->failure_stage.value_or(r.execution->stage))+"，原始码="+std::to_string(r.execution->native_code.value_or(failure));
+                if(r.execution->error==t170::skills::Error::Servo)for(int hand=0;hand<2;++hand) {
+                    if(!r.execution->hands[hand].requested)continue;
+                    const auto reason=wrist_servo::last_failure(hand);
+                    if(!reason.empty())g_hw->last_task_error+=(hand?"；右手：":"；左手：")+reason;
+                }
+                std::cerr<<"[grasp] 终止当前任务，不重试："<<g_hw->last_task_error<<'\n';
+                return failure;
+            }
+        }
 
         if (r.status == move_box::GraspToStandbyStatus::ReleaseFail) {
             std::cerr << "[tray_place] 张爪未确认，停止任务，保留已确认放置的侧\n";

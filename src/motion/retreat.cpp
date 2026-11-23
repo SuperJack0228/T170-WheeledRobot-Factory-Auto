@@ -45,76 +45,32 @@ int plan_seeded_vertical_lift(Arm &arm, const wrist_servo::Joints &grasp, double
     const double z_goal = std::min(z + lift_m, g_move_cfg.grasp_valid.z_max);
     if (!(z_goal > z + 0.001))
         return -10;
-    struct Waypoint
+    Eigen::Matrix<double,1,6> goal=arm_tcp_from_joints(arm,grasp);goal(2)=z_goal;
+    int code;
     {
-        wrist_servo::Joints q;
-        double z = 0;
-    };
-    std::vector<Waypoint> waypoints{{grasp, z}};
-    wrist_servo::Joints q = grasp;
-    double step = 0.010;
-    while (z < z_goal - 1e-4)
-    {
-        if (hardware_abort_requested() || can_io_faulted())
-            return hardware_abort_requested() ? -4 : -2;
-        double dz = std::min(step, z_goal - z);
-        wrist_servo::Joints next;
-        bool solved = false;
-        while (dz >= 0.002)
-        {
-            std::lock_guard<std::mutex> lock(g_arm_kin_mu[hand]);
-            const wrist_servo::ForwardModel forward = [&](const wrist_servo::Joints &sample) {
-                return arm.Forward_Kinematics(Eigen::RowVectorXd(sample));
-            };
-            const wrist_servo::JointLimitCheck limits = [&](const wrist_servo::Joints &sample) {
-                return (sample - grasp).cwiseAbs().maxCoeff() > 1.5 ||
-                       (sample - q).cwiseAbs().maxCoeff() > 0.20 || arm.Check_Joint_Limit(sample);
-            };
-            wrist_servo::Vec3 target;
-            target << x, y, z + dz;
-            double position_error = 0;
-            double rotation_error = 0;
-            Eigen::Matrix4d goal=start_T;goal.topRightCorner<3,1>()=target;
-            auto policy=arm.ik_policy(goal);policy.iterations=25;policy.step_rad=.05;policy.null_step_rad=.002;policy.posture_iterations=2;
-            policy.minimum=policy.minimum.cwiseMax(grasp-wrist_servo::Joints::Constant(1.5)).cwiseMax(q-wrist_servo::Joints::Constant(.20));
-            policy.maximum=policy.maximum.cwiseMin(grasp+wrist_servo::Joints::Constant(1.5)).cwiseMin(q+wrist_servo::Joints::Constant(.20));
-            if (!wrist_servo::solve_pose_with_fk(
-                    q, target, rotation, g_move_cfg.visual_servo, forward, limits, next,
-                    position_error, rotation_error,&policy))
-            {
-                dz *= 0.5;
-                continue;
-            }
-            const Eigen::Matrix4d solved_T = arm.Forward_Kinematics(Eigen::RowVectorXd(next));
-            if (!solved_T.allFinite() || solved_T(2, 3) < z + std::min(0.001, 0.5 * dz))
-            {
-                dz *= 0.5;
-                continue;
-            }
-            z = solved_T(2, 3);
-            q = next;
-            solved = true;
-            break;
-        }
-        if (!solved)
-            break;
-        waypoints.push_back({q, z});
-        step = 0.010;
+        std::lock_guard<std::mutex> lock(g_arm_kin_mu[hand]);
+        arm.Cart_Linear_Velocity=speed;
+        code=arm.Line_Trajectory(Eigen::MatrixXd(grasp),goal,trajectory);
     }
-    rise_m = waypoints.back().z - waypoints.front().z;
-    detail="local_ik requested="+std::to_string(z_goal-start_T(2,3))+" solved="+std::to_string(rise_m);
-    if (waypoints.size() < 2 || rise_m < 0.002)
-        return -16;
-    // A partial 2 mm rise must not authorize a horizontal return beside the tray.
-    if(z_goal-waypoints.back().z>g_move_cfg.head_grasp.retract_arrival_tolerance_m)
-        return -16;
-    Eigen::MatrixXd path(waypoints.size(),7);
-    for(std::size_t i=0;i<waypoints.size();++i) path.row(i)=waypoints[i].q;
+    detail="shared_cartesian_lift code="+std::to_string(code);
+    if(code!=0 || trajectory.rows()<2)return code?code:-16;
+    rise_m=z_goal-start_T(2,3);
+    // The shared path already meets model limits. Apply any stricter deployment
+    // return limits as well, then recheck the approximated geometry below.
     const auto &c=g_move_cfg.retract_motion;
-    detail="time_parameterization";
-    trajectory=t170::motion::time_joint_path(path,k_arm_traj_dt,
-        {c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,c.max_joint_jerk_rad_s3},2*rise_m/speed,true);
-    if(trajectory.rows()<2) return -16;
+    const auto peaks=t170::motion::joint_path_peaks(trajectory,k_arm_traj_dt);
+    const double scale=std::max({peaks.velocity/c.max_joint_velocity_rad_s,
+        std::sqrt(peaks.acceleration/c.max_joint_acceleration_rad_s2),
+        std::cbrt(peaks.jerk/c.max_joint_jerk_rad_s3)});
+    if(scale>1.000001) {
+        // Approximate the checked curve on a slower clock; keep both endpoints.
+        // Re-timing through all samples uses the C2 convex approximation and is
+        // followed by the same loaded-tray geometry checks below.
+        trajectory=t170::motion::time_joint_path(trajectory,k_arm_traj_dt,
+            {c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,c.max_joint_jerk_rad_s3},
+            (trajectory.rows()-1)*k_arm_traj_dt*scale*1.03,true);
+        if(trajectory.rows()<2)return -16;
+    }
     // Check the interpolated path as well as IK knots near the loaded tray.
     for(int i=0;i<trajectory.rows();++i) {
         std::lock_guard<std::mutex> lock(g_arm_kin_mu[hand]);
@@ -136,7 +92,8 @@ namespace {
 int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage,
                           const std::function<void(const wrist_servo::Joints &)> &progress={},
                           const std::function<bool(const wrist_servo::Joints &)> &arrived={},
-                          double notify_at=-1,const std::function<void()> &on_notify={})
+                          double notify_at=-1,const std::function<void()> &on_notify={},
+                          const std::function<bool()> &cancel={})
 {
     const int hand=arm_hand_side(arm);
     if(path.rows()<2 || path.cols()!=7 || !path.allFinite()) return -16;
@@ -164,11 +121,12 @@ int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage
         try {wrist_servo::send_joint_reference(hand,q);return true;}
         catch(const std::exception &e) {std::cerr<<"[retract] write: "<<e.what()<<'\n';return false;}
     };
-    io.stop_code=[] {return hardware_abort_requested()?-4:can_io_faulted()?-2:0;};
+    io.stop_code=[&] {return hardware_abort_requested() || (cancel && cancel()) ? -4 : can_io_faulted()?-2:0;};
     io.now=[] {return wrist_servo::monotonic_seconds();};
     io.wait=[](double seconds) {
         if(seconds>0) std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
     };
+    const double execution_began=wrist_servo::monotonic_seconds();
     io.observe=[&](const char *event,int index,const wrist_servo::Joints &command,const wrist_servo::Joints *actual,double lag) {
         const double now=wrist_servo::monotonic_seconds();
         wrist_servo::ObservationContext context;wrist_servo::observation_context(hand,context);
@@ -200,6 +158,7 @@ int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage
         if(std::string(event)!="feedback" || now-last_print>=.5) {
             last_print=now;
             std::cout<<"[retract] hand="<<hand<<" stage="<<stage<<" event="<<event
+                     <<" elapsed_s="<<now-execution_began<<" nominal_s="<<(path.rows()-1)*k_arm_traj_dt
                      <<" row="<<index<<"/"<<path.rows()-1<<" lag_deg="<<lag*180/M_PI;
             if(actual) std::cout<<" actual_q="<<*actual<<" command_q="<<command;
             std::cout<<'\n';
@@ -308,4 +267,13 @@ int arm_joint_home(Arm &arm) {
     if(!wrist_servo::trace_writer().start(t170::logging::file("visual_servo").string()))
         std::cerr<<"[motion_trace] Home CSV unavailable\n";
     return play_joint_return(arm,arm.definition().home,{},-1,1,"home_joint");
+}
+
+int arm_execute_joint_path(Arm &arm,const Eigen::MatrixXd &path,const char *stage,
+    const std::function<bool(const Eigen::Matrix<double,1,7> &)> &arrived,const std::function<bool()> &cancel) {
+    const int hand=arm_hand_side(arm);
+    if(hand==1 && right_arm_motors_locked())return 0;
+    arm_discard_line_then_line_plan(hand);
+    std::lock_guard<std::mutex> owner(g_staged_motion_mu[hand]);
+    return execute_staged_motion(arm,path,stage?stage:"planned",{},arrived,-1,{},cancel);
 }

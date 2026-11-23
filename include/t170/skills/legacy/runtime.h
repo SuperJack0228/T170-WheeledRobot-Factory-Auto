@@ -18,6 +18,7 @@
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/hardware/gripper.hpp"
 #include "t170/skills/legacy/profiles.h"
+#include "t170/skills/types.h"
 #include "t170/vision/realsense_camera.h"
 #include "t170/vision/python_bridge.h"
 #include "t170/motion/arm.h"
@@ -349,6 +350,8 @@ enum class GraspToStandbyStatus
 
 struct GraspToStandbyResult
 {
+    // Keep standardized error/stage/native code when adapting to legacy tasks.
+    std::optional<t170::skills::Result> execution;
     GraspToStandbyStatus status = GraspToStandbyStatus::NoTarget;
     /** 真正夹到件。空抓的手不算。 */
     bool grasped_r = false;

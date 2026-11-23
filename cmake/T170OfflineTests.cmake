@@ -17,6 +17,9 @@
     add_executable(arm_motion_policy_test tests/arm_motion_policy_test.cpp)
     target_link_libraries(arm_motion_policy_test PRIVATE t170_arm_core)
     add_test(NAME arm_motion_policy_test COMMAND arm_motion_policy_test ${T170_TEST_RUNTIME} ${PROJECT_SOURCE_DIR})
+    add_executable(arm_motion_timing_test tests/arm_motion_timing_test.cpp)
+    target_link_libraries(arm_motion_timing_test PRIVATE t170_arm_core)
+    add_test(NAME arm_motion_timing_test COMMAND arm_motion_timing_test ${T170_TEST_RUNTIME} ${PROJECT_SOURCE_DIR})
     add_executable(arm_io_test tests/arm_io_test.cpp src/motion/arm_io.cpp)
     target_link_libraries(arm_io_test PRIVATE t170_arm_configuration t170::control)
     add_test(NAME arm_io_test COMMAND arm_io_test ${T170_TEST_RUNTIME})
@@ -31,6 +34,9 @@
     t170_add_configuration()
     add_executable(config_reload_test tests/config_reload_test.cpp)
     target_link_libraries(config_reload_test PRIVATE t170::configuration)
+    add_executable(extrinsics_test tests/extrinsics_test.cpp)
+    target_link_libraries(extrinsics_test PRIVATE t170::configuration)
+    add_test(NAME extrinsics_test COMMAND extrinsics_test ${T170_TEST_RUNTIME})
     add_test(NAME config_reload_test COMMAND config_reload_test ${T170_TEST_RUNTIME})
     t170_add_observation_support()
     # Compile real SDK-adapter/planner/player translation units against their public
@@ -118,6 +124,11 @@
     add_test(NAME web_profiles_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/web_profiles_test.py)
 
     find_package(jsoncpp CONFIG REQUIRED)
+    add_executable(task_result_test tests/task_result_test.cpp src/app/task_result.cpp)
+    target_link_libraries(task_result_test PRIVATE t170::configuration t170::skill_contract JsonCpp::JsonCpp)
+    add_test(NAME task_result_test COMMAND task_result_test ${T170_TEST_RUNTIME})
+    add_test(NAME web_command_result_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/web_command_result_test.py $<TARGET_FILE:task_result_test> ${T170_TEST_RUNTIME})
     add_library(t170_factory_compilecheck OBJECT ${T170_TASK_SOURCES} ${T170_APPLICATION_SOURCES}
         ${T170_CALIBRATION_SOURCES} src/hardware/body_power.cpp src/hardware/chassis_seer.cpp
         src/hardware/waist.cpp src/vision/geometry/head_transform.cpp
