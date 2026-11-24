@@ -13,24 +13,26 @@
 	],
 	"aligned_tcp" : 
 	[
-		0.47264248025684019,
-		0.089307849970386627,
-		-0.4149384513349576,
-		0.00093001187650656439,
-		0.96146975482238162,
-		-0.86993870255445793
+		0.46315791390463557,
+		0.10255676578173226,
+		-0.40984227282666297,
+		-0.0034753606761173581,
+		0.95842751566294782,
+		-0.87758174237923381
 	],
+	"arm_model_id" : "t170c_v2_3kg",
+	"arm_sdk_version" : "20261109",
 	"camera_serial" : "261922275388",
 	"coarse_xy_upright_m" : 
 	[
-		0.050961482545745583,
-		0.0085569743892506805
+		0.022368230579130819,
+		-0.015219373809860473
 	],
 	"col" : 2,
 	"compensation_xy_upright_m" : 
 	[
-		0.050961482545745583,
-		0.0085569743892506805
+		0.022368230579130819,
+		-0.015219373809860473
 	],
 	"d_clearance_m" : 0.01,
 	"dist" : 
@@ -41,40 +43,41 @@
 		-0.00053239340195432305,
 		-0.015834245830774307
 	],
-	"eye_fingerprint" : "a749d3b305eeda33",
-	"feature_plane_z_m" : -0.42875020782053042,
+	"eye_fingerprint" : "1953aff41565b07e",
+	"feature_plane_z_m" : -0.42839825541688115,
 	"field_verified" : false,
 	"from_left_col" : 2,
 	"hand" : 0,
 	"height" : 720,
-	"log_directory" : "/home/ti5robot/T170Clean/debug_picture/calibration/21359236955",
-	"model_fingerprint" : "8ee7207a96a5716e",
+	"joint_coordinates" : "sdk_mdh_model_rad",
+	"log_directory" : "/home/ti5robot/.local/state/t170/session.Vi3A27So/runtime/debug_picture/calibration/4299296123",
+	"model_fingerprint" : "c7ac576fad421eea",
 	"pixel_coordinates" : "raw_color_left_rotated_180",
-	"plane_z_m" : -0.42875020782053042,
+	"plane_z_m" : -0.42839825541688115,
 	"reference_coverage_bins" : 16,
-	"reference_fit_residual_rectified_px" : 0.25228645571264702,
+	"reference_fit_residual_rectified_px" : 0.25104752880067582,
 	"reference_method" : "rectified_orange_hole_center",
 	"reference_pose_tcp" : 
 	[
-		0.47278309235645566,
-		0.089268070052066925,
-		-0.41477054269151842,
-		0.0013732912951021253,
-		0.961129314778574,
-		-0.8696686814515957
+		0.46325744062940477,
+		0.10257364152337597,
+		-0.40973116386171948,
+		-0.0032070692358948101,
+		0.95817460917435104,
+		-0.8771958108762975
 	],
 	"reference_px" : 
 	[
-		590.95374203505673,
-		443.84269024037366
+		587.89838663200328,
+		458.67554280740444
 	],
-	"reference_tcp_above_plane_m" : 0.013979665129011998,
+	"reference_tcp_above_plane_m" : 0.018667091555161663,
 	"robot_id" : "TH-T170C-0124",
 	"robot_row" : 5,
 	"row" : 2,
 	"schema_version" : 2,
 	"scope" : "tray_only",
-	"session" : "21359236955",
+	"session" : "4299296123",
 	"task" : "placement",
 	"validated" : true,
 	"validation_kind" : "manual_at_D",

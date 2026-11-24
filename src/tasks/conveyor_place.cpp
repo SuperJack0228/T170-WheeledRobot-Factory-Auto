@@ -98,7 +98,7 @@ int go_belt_station(
     };
 
     std::cout << "[orch] " << name << "：准备tcp → 识别传送带5x5 → "
-                 "右手放下松爪后，左手立刻过来；右手同时抬起回准备（不回 home）\n";
+                 "右手放下松爪后先走上回程，左手再过来；右手抬起回准备（不回 home）\n";
 
     if (skip_ready)
     {
@@ -259,7 +259,7 @@ int go_belt_station(
                   << ") +Z=(" << det.az_x << "," << det.az_y << "," << det.az_z << ")\n";
     std::cout << "[orch] belt 下发目标 右=(" << goal_r(0) << "," << goal_r(1) << ","
               << goal_r(2) << ") 左=(" << goal_l(0) << "," << goal_l(1) << "," << goal_l(2)
-              << ") 右手松爪后左手立刻过来，不等右手回准备\n";
+              << ") 右手走上回程后左手才过来\n";
     std::cout.flush();
 
     auto place_arrive_and_open = [&](bool is_right) -> int {
@@ -276,6 +276,7 @@ int go_belt_station(
         return skill_legacy_code(result);
     };
 
+    wrist_servo::RetreatClearanceGate right_clearance(c.next_hand_clearance_m);
     auto lift_and_retract = [&](bool is_right) -> int {
         if(is_right && right_arm_motors_locked()) return 0;
         if(!g_hw->g) return -1;
@@ -284,6 +285,8 @@ int go_belt_station(
         request.hand=is_right?t170::skills::Hand::Right:t170::skills::Hand::Left;
         request.after_place=true;request.metadata.workcell_id=c.prefer_belt;
         request.initial_part=t170::skills::PartState::Empty;
+        if(is_right && do_left)
+            context.hooks.on_return_started=[&]{ right_clearance.release(); };
         const auto result=t170::skills::execute_conveyor_retreat(context,request,{aborted,{}});
         std::cout<<"[skill_result] "<<t170::skills::to_json(result)<<'\n';
         return skill_legacy_code(result);
@@ -308,11 +311,15 @@ int go_belt_station(
         if (right_rc != 0)
             return right_rc;
         th_r = std::thread([&]() {
-            right_back_rc = lift_and_retract(true);
-            if (right_back_rc != 0)
-                return;
-            if (last_hand_is_right && on_hand_placed)
-                right_note_rc = on_hand_placed(true);
+            try {
+                right_back_rc = lift_and_retract(true);
+                if (right_back_rc == 0 && last_hand_is_right && on_hand_placed)
+                    right_note_rc = on_hand_placed(true);
+            } catch (const std::exception &ex) {
+                std::cerr << "[orch] 右手放置收手异常: " << ex.what() << "\n";
+                right_back_rc = -32;
+            }
+            right_clearance.finish(right_back_rc);
         });
     }
     else if (!do_right)
@@ -323,7 +330,19 @@ int go_belt_station(
     if (do_left)
     {
         if (run_right)
-            std::cout << "[orch] belt 右手已放下，左手立刻过来（不等右手抬起回准备）\n";
+        {
+            wrist_servo::task_event(1, "peer_wait_clearance", "right_return_must_start_first");
+            const int clearance_rc = right_clearance.wait(c.next_hand_clearance_timeout_s);
+            if (clearance_rc != 0 || aborted())
+            {
+                std::cerr << "[orch] 右手未进入回程，左手禁止进入 code=" << clearance_rc << "\n";
+                if (th_r.joinable())
+                    th_r.join();
+                return aborted() ? -4 : clearance_rc;
+            }
+            wrist_servo::task_event(1, "peer_clearance", "right_return_started");
+            std::cout << "[orch] belt 右手已在回程路上，左手进入\n";
+        }
         left_rc = place_arrive_and_open(false);
         if (left_rc == 0)
         {

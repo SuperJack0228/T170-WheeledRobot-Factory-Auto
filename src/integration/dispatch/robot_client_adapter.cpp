@@ -50,6 +50,7 @@ public:
         case Fault::QrUnrecognized:return RobotClient::QrUnrecognized;
         case Fault::UnloadPointEmpty:return RobotClient::UnloadPointEmpty;
         case Fault::WorkpieceFallen:return RobotClient::WorkpieceFallen;
+        case Fault::GripperNotReady:return kGripperNotReadyCode;
         }return 0;
     }
     void update_pose(double x,double y,double yaw,const std::string &station) override{

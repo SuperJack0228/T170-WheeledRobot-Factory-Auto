@@ -18,4 +18,4 @@ source "$ROOT/deploy/runtime_context.sh"
 cd -- "$runtime"
 # Validate through the real C++ loader before linking/starting any device SDK.
 "$ROOT/build_robot/t170_config_dump" "$runtime/config/move_box_params.yaml" "$runtime/effective_config.yaml"
-exec "$ROOT/build_robot/t170_factory" "$@"
+t170_exec_logged "$ROOT/build_robot/t170_factory" "$@"

@@ -23,6 +23,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const char *log_tag = "收手",
     bool snap_reach = false,
     bool correct_descent = false,
-    int hand_target_class = -1);
+    int hand_target_class = -1,
+    const std::function<void()> &on_return_started = {});
 
 bool descent_commanded_xy(int hand, double &x_m, double &y_m);

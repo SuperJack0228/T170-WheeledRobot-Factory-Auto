@@ -88,6 +88,17 @@ int dispatch_pick_pair(
                 }
                 continue;
             }
+            if (rc == kBeltGripperNotReady)
+            {
+                std::cout << "[dispatch] 夹爪未到准备开度，上报 1404\n";
+                const bool solved = dispatch_report_ex(
+                    client, dispatch_gateway().exception_code(DispatchFault::GripperNotReady),
+                    "夹爪未到准备开度");
+                if (!solved)
+                    return kDispatchGripperStay;
+                std::cout << "[dispatch] 夹爪异常已解决，重新下发准备开度并再抓\n";
+                continue;
+            }
             if (rc == kVisionQrFail)
             {
                 if (!dispatch_belt_vision_again(client, vision_retry, right_what))

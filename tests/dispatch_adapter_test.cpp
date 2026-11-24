@@ -22,6 +22,7 @@ int main(){
             {Fault::MotorDisconnected,RobotClient::MotorDisconnected},{Fault::QrUnrecognized,RobotClient::QrUnrecognized},
             {Fault::UnloadPointEmpty,RobotClient::UnloadPointEmpty},{Fault::WorkpieceFallen,RobotClient::WorkpieceFallen}};
         for(auto [fault,code]:codes)require(gateway->exception_code(fault)==code,"native fault mapping changed");
+        require(gateway->exception_code(Fault::GripperNotReady)==kGripperNotReadyCode,"gripper ready fault code changed");
         auto client=gateway->connect("T170","synthetic-robot");
         require(RobotClient::last_type=="T170" && RobotClient::last_serial=="synthetic-robot","identity lost");
         require(client->apply_place_raw_material(10) && RobotClient::last_timeout==10,"raw grant timeout changed");

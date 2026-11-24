@@ -31,7 +31,9 @@ Eigen::MatrixXd arm_read_model_joints(int hand);
 double encoder_cnt_to_rad(int cnt);
 int execute_arm_trajectory(const Eigen::MatrixXd &traj_in, int hand, double dt = k_arm_traj_dt,
                            Arm *retract_arm = nullptr,
-                           const std::function<void(const wrist_servo::Joints &)> &observe_progress = {});
+                           const std::function<void(const wrist_servo::Joints &)> &observe_progress = {},
+                           const std::function<void()> &on_notify = {},
+                           int notify_row = -1);
 std::function<bool(const Eigen::RowVectorXd &)> lift_connector_validity(
     Arm &arm, const Eigen::RowVectorXd &held);
 int plan_arm_line_from(

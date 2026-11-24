@@ -35,6 +35,28 @@ PY
   echo "[deployment] T170_RUNTIME_DIR=$runtime" >&2
 fi
 export T170_RUNTIME_DIR="$T170_ROOT"
+# Daily field logs stay in the source checkout. The session directory remains the
+# generated runtime (config and debug images), not the log archive.
+if [[ -z "${T170_LOG_DIR:-}" && -f "$T170_ROOT/config/move_box_params.yaml" ]]; then
+  export T170_LOG_DIR="$T170_SOURCE_ROOT/field_logs/$(date +%Y%m%d)"
+  mkdir -p -- "$T170_LOG_DIR"
+  if [[ -d "$T170_ROOT/logs" && ! -L "$T170_ROOT/logs" ]]; then
+    rmdir -- "$T170_ROOT/logs" 2>/dev/null || true
+  fi
+  if [[ ! -e "$T170_ROOT/logs" ]]; then
+    ln -s -- "$T170_LOG_DIR" "$T170_ROOT/logs"
+  fi
+  echo "[deployment] T170_LOG_DIR=$T170_LOG_DIR" >&2
+fi
+# Replace this shell with the factory and keep a same-day copy of its console.
+t170_exec_logged() {
+  if [[ -n "${T170_LOG_DIR:-}" ]]; then
+    mkdir -p -- "$T170_LOG_DIR"
+    exec > >(tee -a -- "$T170_LOG_DIR/startup.log") 2>&1
+    echo "----- $(date -Iseconds) -----"
+  fi
+  exec "$@"
+}
 # Prefer the library shipped with this build over another libti5_robot.so in an
 # inherited environment. The CMake-selected platform is recorded beside the app.
 if [[ -f "$T170_SOURCE_ROOT/build_robot/arm_sdk_platform.txt" ]]; then

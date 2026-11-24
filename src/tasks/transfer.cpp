@@ -41,7 +41,7 @@ int dispatch_transfer(DispatchClient &client)
         g_move_cfg.chassis.out_station, true);
     if (pick_rc < 0)
         return pick_rc;
-    if (pick_rc == kDispatchNoPartStay)
+    if (pick_rc == kDispatchNoPartStay || pick_rc == kDispatchGripperStay)
         return pick_rc;
     const bool hold_r = g_hw->last_grasped_r;
     const bool hold_l = g_hw->last_grasped_l;

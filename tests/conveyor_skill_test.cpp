@@ -24,7 +24,7 @@ Eigen::Matrix<double,1,6> arm_get_tcp_pos(Arm &){return Eigen::Matrix<double,1,6
 ArmLineMoveResult arm_dual_line_then_line_nostop(Arm &,const Eigen::Matrix<double,1,6> &hover,
  const Eigen::Matrix<double,1,6> &goal,bool right,Arm &,const Eigen::Matrix<double,1,6> &,
  const Eigen::Matrix<double,1,6> &,bool left,double reach,double descent,const std::function<void()> &,bool,
- const char *,bool,bool,int){
+ const char *,bool,bool,int,const std::function<void()> &){
     ++moves;used_approach=reach;used_descent=descent;used_hover=hover(2)-goal(2);
     return {right?approach_code:0,left?approach_code:0};
 }

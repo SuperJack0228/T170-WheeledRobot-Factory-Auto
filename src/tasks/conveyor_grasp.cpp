@@ -329,21 +329,53 @@ static int go_belt_grasp_attempt(
             grip_r = 1.0;
         std::cout << std::fixed << std::setprecision(2)
                   << "[orch] belt_grasp 准备姿态夹爪收到 " << grip_r
-                  << "（0全开 1全合），避免磕皮带边\n";
+                  << "（0全开 1全合），下发后核对编码器\n";
         log_gripper_qs("belt_grasp准备夹爪前");
-        if (hand != 1 && !g_hw->last_grasped_l)
-            g_hw->g->closeAndWait(
-                gripper::Side::Left, grip_r, 0.15, std::chrono::milliseconds(3000));
-        else if (g_hw->last_grasped_l)
-            std::cout << "[orch] belt_grasp 左手已夹住，准备夹爪不动左手\n";
-        if (hand != 0 && !right_arm_motors_locked() && !g_hw->last_grasped_r)
-            g_hw->g->closeAndWait(
-                gripper::Side::Right, grip_r, 0.15, std::chrono::milliseconds(3000));
-        else if (g_hw->last_grasped_r)
-            std::cout << "[orch] belt_grasp 右手已夹住，准备夹爪不动右手\n";
+        constexpr double kReadyToleranceRad = 0.15;
+        bool ready = true;
+        auto settle_ready = [&](bool is_right) {
+            if (is_right && right_arm_motors_locked())
+                return;
+            const auto side = is_right ? gripper::Side::Right : gripper::Side::Left;
+            const char *which = is_right ? "右手" : "左手";
+            const auto &cfg = g_hw->g->config();
+            const double target = cfg.open_position_rad +
+                                  grip_r * (cfg.close_position_rad - cfg.open_position_rad);
+            if (!g_hw->g->hasSide(side))
+            {
+                std::cerr << "[gripper] " << which << "未配对，准备开度未到位\n";
+                ready = false;
+                return;
+            }
+            const bool waited = g_hw->g->closeAndWait(
+                side, grip_r, kReadyToleranceRad, std::chrono::milliseconds(3000));
+            const auto fb = g_hw->g->feedback(side);
+            const bool at = waited && fb.have_feedback && fb.io_ok && fb.merror == 0 &&
+                            std::isfinite(fb.position_rad) &&
+                            std::fabs(fb.position_rad - target) <= kReadyToleranceRad;
+            std::cout << std::fixed << std::setprecision(3)
+                      << "[gripper] " << which << "准备开度 目标q=" << target
+                      << " 实际q=" << fb.position_rad
+                      << (at ? " 到位\n" : " 未到位\n");
+            if (!at)
+            {
+                ready = false;
+                return;
+            }
+            clear_last_grasped(is_right, !is_right);
+        };
+        if (hand != 1)
+            settle_ready(false);
+        if (hand != 0)
+            settle_ready(true);
         log_gripper_qs("belt_grasp准备夹爪后");
         if (aborted())
             return -4;
+        if (!ready)
+        {
+            std::cerr << "[orch] " << name << " 夹爪未到准备开度，不伸手\n";
+            return kBeltGripperNotReady;
+        }
     }
 
     const char *back_name_default = "固定关节中转准备位";

@@ -4,4 +4,4 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/runtime_context.sh"
 cd -- "$T170_ROOT"
-exec "$T170_ROOT/build_robot/t170_factory" "$@"
+t170_exec_logged "$T170_ROOT/build_robot/t170_factory" "$@"
