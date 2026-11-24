@@ -47,7 +47,6 @@ environment.pickle
 .cursor/
 
 # --- logs / runtime dumps ---
-*.log
 *.tmp
 *.bak
 *.cache

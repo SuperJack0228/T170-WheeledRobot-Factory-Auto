@@ -1,0 +1,610 @@
+{"robot_id": "TH-T170C-0124", "robot_model": "t170c_v2_3kg", "runtime_root": "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime", "task_assignment": "dispatch", "arm_model_prepared": true, "missing_task_calibrations": []}
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/grasp/left.yaml"
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/grasp/right.yaml"
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/placement/left.yaml"
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/placement/right.yaml"
+[deployment] T170_RUNTIME_DIR=/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime
+open_idle: list_channels 8 路未 UP
+open_idle: CAN 已打开 8 路
+open_idle: serial by-path 4 路
+pair: 夹爪 ID=0  serial  /dev/serial/by-path/platform-14100000.pcie-pci-0001:01:00.0-usb-0:3:1.0-port0
+pair: 夹爪 ID=0  q=4.397 rad  U=24.5 V  err=0
+pair: 夹爪 ID=1  serial  /dev/serial/by-path/platform-14100000.pcie-pci-0001:01:00.0-usb-0:3:1.2-port0
+pair: 夹爪 ID=1  q=4.375 rad  U=24.5 V  err=0
+pair: 手 can 空闲通道 8 条（与电机共总线的扫不到）
+pair: 释放未占用  CAN 4  串口 2
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/grasp/left.yaml"
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/grasp/right.yaml"
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/placement/left.yaml"
+[calibration_pending] model changed; ignored old geometry-dependent reference: "/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/calibration/placement/right.yaml"
+[paths] root=/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime config="/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config" logs="/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/logs"
+[arm_coordinates] sdk_mdh_model_rad pending_task_references=4
+[calibration] placement tilt families left=0 right=0; tray grasp left=0 right=0 (tray-only; belt profiles unchanged)
+[cfg] retract_motion fixed_ready_model_rad right= 0.9 -1.3 -0.8  1.8  1.3 -0.9  0.1 left= 0.8  1.2  0.7  1.8 -1.2 -1.0 -0.2 limits_v_a_j=0.9,2.5,20.0 arrival_rad=0.1 timeout_s=4.0
+[cfg] standby right= 0.5 -0.3 -0.2  0.0  0.8  0.7
+[cfg] standby left= 0.5  0.3 -0.2  0.0  0.8 -0.7
+[cfg] home_tcp right= 0.5 -0.3 -0.1  0.0  0.0  0.0
+[cfg] home_tcp left= 0.5  0.3 -0.1  0.0  0.0  0.0
+[cfg] 工作包络 grasp_valid x=[0.1,0.8] z=[-0.7,-0.1] y右=[-0.5,0.3] y左=[-0.3,0.5]；ArUco 列已分配时不再用盘心Y拒目标
+[cfg] target select=同行最近、满排同时(3-6/2-5/1-4) front_row_tol=0.0m hand_match_xy_max=0.1m hand_xy_refine_max=0.0m
+[cfg] columns 分列=ArUco列号(1-3右/4-6左) yaml回退split_y=0.0 pitch=0.1m 右列1-3 左列4-6 同时最小列差=3 (如 1-4,2-5,3-6) 远三排=row1-3 近三排=row4-6
+[cfg] waist home xyz=(0.0,0.0,0.6) x=[-0.3,0.3] z=[0.3,0.7]
+[cfg] waist grasp_z_target=-0.4m lower_step=0.2m z_min=0.3m ready_z=0.4m ready_forward=0.0m far_row_forward=0.2m
+[cfg] conveyor station x=0.1500 z=0.6300m head yaw=0.0000 pitch=38.0000 roll=0.0000 deg
+[cfg] conveyor tcp right= 0.4500 -0.2500 -0.2000  0.0000  0.7854  0.5236
+[cfg] conveyor tcp left= 0.4500  0.2500 -0.2000  0.0000  0.7854 -0.5236
+[cfg] conveyor grasp_tcp right= 0.5500 -0.3000 -0.1500  0.0000  0.0000  0.0000
+[cfg] conveyor grasp_tcp left= 0.5500  0.3000 -0.1500  0.0000  0.0000  0.0000
+[cfg] conveyor place_tcp right= 0.4500 -0.3000 -0.2500  0.0000  0.7854  1.0472
+[cfg] conveyor place_tcp left= 0.4500  0.3000 -0.2500  0.0000  0.7854 -1.0472
+[cfg] conveyor offset right=(0.0000,0.0100,0.0100) left=(-0.0600,-0.0150,0.0100) prefer=belt0
+[cfg] conveyor grasp_rpy_deg 右=(0.0000,50.0000,50.0000) 左=(0.0000,50.0000,-30.0000) offset_识别系 左=(0.0830,0.1100,0.0100) 右=(0.0000,0.1200,0.0000) hover=0.1000m place_vel approach=0.3500 retract=0.4000 grasp_vel approach=0.3000 retract=0.6000m/s yaw_left=0.0000deg ready_grip=0.4000 belt_detect=on min_conf=0.2500 fixed_z=on 标定 -0.2900m@腰0.6300m 当前 -0.2900m 到站放置等=2.0000s 抓取拍照等=1.0000s
+[cfg] conveyor2 station x=0.1500 z=0.6300m head yaw=0.0000 pitch=38.0000 roll=0.0000 deg
+[cfg] conveyor2 tcp right= 0.4500 -0.2500 -0.2000  0.0000  0.7854  0.5236
+[cfg] conveyor2 tcp left= 0.4500  0.2500 -0.2000  0.0000  0.7854 -0.5236
+[cfg] conveyor2 grasp_tcp right= 0.5500 -0.3000 -0.1500  0.0000  0.0000  0.0000
+[cfg] conveyor2 grasp_tcp left= 0.5500  0.3000 -0.1500  0.0000  0.0000  0.0000
+[cfg] conveyor2 place_tcp right= 0.4500 -0.3000 -0.2500  0.0000  0.7854  1.0472
+[cfg] conveyor2 place_tcp left= 0.4500  0.3000 -0.2500  0.0000  0.7854 -1.0472
+[cfg] conveyor2 offset right=(0.0000,0.0080,-0.0050) left=(-0.0600,-0.0150,-0.0050) prefer=belt0
+[cfg] conveyor2 grasp_rpy_deg 右=(-2.0000,50.0000,60.0000) 左=(0.0000,50.0000,-45.0000) offset_识别系 左=(0.0720,0.1090,-0.0100) 右=(-0.0300,0.1350,-0.0160) hover=0.0900m place_vel approach=0.3000 retract=0.4000 grasp_vel approach=0.3000 retract=0.6000m/s yaw_left=0.0000deg ready_grip=0.3000 belt_detect=on min_conf=0.2500 fixed_z=on 标定 -0.2900m@腰0.6300m 当前 -0.2900m 到站放置等=2.0000s 抓取拍照等=1.0000s
+[cfg] chassis host=192.168.192.5 type=T170C2.0 seq=TH-T170C-0124 tray=AP1 tray2=AP4 belt=AP2 out=AP3 nav_timeout_ms=600000
+[cfg] head yaw=0.0000 pitch=40.0000 far_pitch=47.0000 roll=0.0000 deg speed=25.0000 deg/s
+[cfg] tray z_ref=-0.6180m at waist_z=0.5500m part_above=0.0150m refine_max=0.0030m fuse_frames=3
+[cfg] hand_z hover_above=0.1200m z_offset=-0.0010m use_hand_camera=off
+[cfg] grasp offset left xyz=(0.0400,0.0000,-0.0010) right xyz=(0.0400,0.0100,-0.0050)m hand_xy left=(0.0000,0.0000) right=(0.0000,0.0000)
+[cfg] row_rpy left ready1(row3/6)=(0.0000,55.0000,-60.0000) ready2(row2/5)=(5.0000,55.0000,-50.0000) ready3(row4)=(0.0000,55.0000,-40.0000) row1最远=(0.0000,40.0000,-30.0000) deg
+[cfg] row_rpy right ready1(row3/6)=(0.0000,55.0000,60.0000) ready2(row2/[arm_sdk] backend=Ti5_Robotics version=20261109 model=t170c_v2_3kg side=right joints=sdk_model_rad dh_tool_readback=matched line_solver=bounded_qp posture=adaptive_elbow
+[arm_sdk] backend=Ti5_Robotics version=20261109 model=t170c_v2_3kg side=left joints=sdk_model_rad dh_tool_readback=matched line_solver=bounded_qp posture=adaptive_elbow
+5)=(5.0000,55.0000,50.0000) ready3(row4)=(0.0000,55.0000,40.0000) row1最远=(0.0000,40.0000,30.0000) deg
+[cfg] tray2_place left ready1=(0.0000,55.0000,-50.0000) ready2=(0.0000,55.0000,-50.0000) ready3=(0.0000,55.0000,-50.0000) row1=(0.0000,40.0000,-30.0000) deg
+[cfg] tray2_place right ready1=(0.0000,55.0000,50.0000) ready2=(0.0000,55.0000,50.0000) ready3=(0.0000,55.0000,50.0000) row1=(0.0000,40.0000,30.0000) deg
+[cfg] tray2 offset left xyz=(0.0400,0.0100,-0.0080) right xyz=(0.0400,0.0100,-0.0080[cfg] endpoint_tol=0.0080m/3.0000deg
+[cfg] arm vel approach=0.4000 descend=0.1000 lift=0.2500 return=0.4000 grasp_retract_lift=0.4000 m/s pre_grasp_settle=0.1500s
+[cfg] retract connector v=1.5000 rad/s a=6.0000 rad/s2 j=80.0000 rad/s3 max=0.5000s
+[cfg] cameras 1280x720 head=15fps hand=15fps hand_live_preview=off hand_descent_correct=on grasp_px L=(588.0000,458.0000) R=(712.0000,458.0000) place_px L=(588.0000,458.0000) R=(788.0000,498.0000)
+[vision_debug] T170_VISION_DEBUG=0（业务识别图仍写 debug_picture）
+[device-sdk] 启动扫描最多 2 次：腰1-5、左臂23-29、右臂16-22、头30-32 必须齐全；夹爪允许少一个
+[can] 当前 UP 的 can 口: 4
+[device-sdk] 已配对电机: 1 2 3 4 5 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32
+[device-sdk] 已配对夹爪: 0 1
+[device-sdk] 第 1/2 次扫描：电机齐全，允许启动
+[device-sdk] left_h_id 电机 23 已配对
+[device-sdk] left_m_id 电机 26 已配对
+[device-sdk] left_l_id 电机 28 已配对
+[device-sdk] right_h_id 电机 16 已配对
+[device-sdk] right_m_id 电机 19 已配对
+[device-sdk] right_l_id 电机 21 已配对
+[can] 右臂已解锁，CAN 16-22 正常使能/通讯
+[device-sdk] waist_id 电机 2 已配对
+[device-sdk] head_id 电机 31 已配对
+[arm_limits] side=right device_min_deg=-180.0000  -90.0000 -180.0000  -45.0000 -180.0000  -59.9991  -90.0000 device_max_deg=180.0000  84.9998 180.0000 138.9990 180.0000  59.9991  99.9989 effective_model_min_deg=-179.9087 -179.9544 -179.9087  -45.0000 -179.9087  -59.5876  -89.9544 effective_model_max_deg=179.9087  -3.0002 179.9087 138.9990 179.9087  59.5876  99.9989
+[arm_limits] side=left device_min_deg=-180.0000  -84.9998 -180.0000 -138.9990 -180.0000  -59.9991  -90.0000 device_max_deg=180.0000  90.0000 180.0000  45.0000 180.0000  59.9991  99.9989 effective_model_min_deg=-179.9087    3.0002 -179.9087  -45.0000 -179.9087  -59.5876  -90.0000 effective_model_max_deg=179.9087 179.9544 179.9087 138.9990 179.9087  59.5876  89.9544
+[arm_limits] snapshot="/home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/logs/arm_limits.yaml"
+[gripper] 探活 id=0 io=ok merror=0
+[gripper] 探活 id=1 io=ok merror=0
+[gripper] motor_id=0 当前位置 q=4.3971 rad
+[gripper] 读位置 id=0 io=ok merror=0
+[gripper] motor_id=1 当前位置 q=4.3751 rad
+[gripper] 读位置 id=1 io=ok merror=0
+========== 位姿检测 ==========
+工程根: /home/ti5robot/.local/state/t170/session.FVo4L83G/runtime
+
+[1] 初始化相机 ... [realsense] 当前已连接 4 台:
+  - Intel RealSense D435I SN=261722072173  port=/sys/devices/platform/bus@0/3610000.usb/usb2/2-2/2-2:1.0/video4linux/video0
+  - Intel RealSense D405 SN=261922276772  port=/sys/devices/platform/bus@0/3610000.usb/usb2/2-3/2-3.1/2-3.1:1.0/video4linux/video6
+  - Intel RealSense D405 SN=261922275388  port=/sys/devices/platform/bus@0/3610000.usb/usb2/2-3/2-3.4/2-3.4:1.0/video4linux/video12
+  - Intel RealSense D435I SN=261922073079  port=/sys/devices/platform/bus@0/14100000.pcie/pci0001:00/0001:00:00.0/0001:01:00.0/usb4/4-2/4-2:1.0/video4linux/video18
+RealSense 已启动: 头部 (head) SN=261722072173 1280x720@15fps
+RealSense 已启动: 右手 (right_hand) SN=261922276772 1280x720@15fps 只采彩色
+RealSense 已启动: 左手 (left_hand) SN=261922275388 1280x720@15fps 只采彩色
+[handcam] 网页实时预览已关（cameras.hand_live_preview=false），不从手相机抽帧
+OK
+[2] 初始化算法引擎 ... [python] 锁定 /home/ti5robot/anaconda3/envs/human_interaction_env（无需 conda activate），numpy=1.26.4 @ /home/ti5robot/anaconda3/envs/human_interaction_env/lib/python3.10/site-packages/numpy/__init__.py
+CirclePoseEngine 已加载 (t170_vision.detection), 配置: /home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/vision/pose_params.yaml
+  头相机/料盘/传送带 /home/ti5robot/t170-124/assets/models/best1015.pt
+  手相机 /home/ti5robot/t170-124/assets/models/best1103.pt
+OK
+[3] 初始化头相机 ArUco 位姿 (online_pose) ... ArUco 单码引擎已加载, 配置: /home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/vision/marker.yaml (dict=DICT_5X5_1000 default_L=40mm id_map=10)
+OK
+[4] 初始化料盘 ArUco+孔位 (board_yf100) ... 料盘 ArUco 引擎已加载, 配置: /home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/vision/tray.yaml (dict=DICT_5X5_1000 holes=6x6 pitch=0.075m black=31.11mm ids=[2, 5, 6, 7] tray2=5x5 pitch=0.300m black=31.11mm grasp_code=locate:100 info:0-99 enabled:True)
+OK
+[5] 初始化传送带 ArUco (board_belt_aruco 5x5，独立于料盘) ... 传送带 ArUco 引擎已加载, 配置: /home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/config/vision/belt.yaml (dict=DICT_5X5_1000 belts=belt0,belt1 pitch_y=0.109m black=23.33mm ids=[500, 550, 551])
+OK
+[6] YOLO 预热（空图，权重留在进程内）... [dl] YOLO 预热完成 1280x720，两套权重已驻留
+  头相机 /home/ti5robot/t170-124/assets/models/best1015.pt
+  手相机 /home/ti5robot/t170-124/assets/models/best1103.pt
+OK 2428 ms
+[waist] LowerBody L1=0.260 L2=0.400 d2=0.110 m，站立 TCP z=0.660（电机零位=直立；踝/膝相对电机取反，笛卡尔锁姿态=直立 pitch/roll/yaw=0）
+[motor] right max_speed 2500 2500 2500 2500 2500 2500 2500
+[motor] left max_speed 2500 2500 2500 792 2500 2500 2500
+[waist] 启动 layer3 已按编码器同步 x=0.0229 y=0.0000 z=0.3595（home z=0.6000 偏差=-0.2405 m）
+[waist] 启动 几何deg 踝/膝/髋/滚/回=[74.9,-118.1,43.2,0.5,-0.0]
+[waist] 启动 姿态 pitch=0.03° roll=0.47° yaw=-0.01°
+[orch] 底盘状态上报已启动，2Hz 写入位置、电量和当前站名
+T170_FACTORY_READY port=8099 chassis=192.168.192.5 belt=AP2 out=AP3 mode=maintenance
+[orch] 底盘已连接 192.168.192.5
+[orch] home：头部标定姿态，双臂关节轨迹回固定 Home，再腰 yaw=0，先回 x 再升到 layer3_home
+[head] 通道 can0 电机 ID 30(偏航)/31(俯仰)/32(横滚) 清错并使能
+[head] 偏航 id=30 q=2.9 deg  limit=[-90.0,90.0] run=0 err=0x0 ok
+[head] 俯仰 id=31 q=-10.3 deg  limit=[-30.0,52.4] run=0 err=0x0 ok
+[head] 横滚 id=32 q=-2.1 deg  limit=[-30.0,45.0] run=0 err=0x0 ok
+[head] 当前 yaw=2.9 pitch=-10.3 roll=-2.1 → 目标 0.0,40.0,0.0 deg
+[head] 横滚/偏航先回正（当前 roll=-2.1°），再低头到 40.0°
+[head] 回正后 yaw=0.9 pitch=-10.3 roll=-0.6 deg
+[head] 编码器 yaw=0.1 pitch=38.8 roll=-0.1 deg
+[head] 偏航 id=30 q=0.1 deg  limit=[-90.0,90.0] run=8 err=0x0 ok
+[head] 俯仰 id=31 q=38.9 deg  limit=[-30.0,52.4] run=8 err=0x0 ok
+[head] 横滚 id=32 q=-0.1 deg  limit=[-30.0,45.0] run=8 err=0x0 ok
+[head] 到位
+[head] 已锁位置 yaw=0.0 pitch=40.0 roll=0.0 deg（用手扳不动才算使能）
+[home_joint] fixed targets model_deg right= -2.7 -25.2  28.2 118.7  29.0 -34.9  11.9 left= -2.7  25.2 -28.2 118.7 -28.9 -34.9 -12.1 nominal_s right=4.2 left=4.3
+[servo] 双手调试日志 /home/ti5robot/.local/state/t170/session.FVo4L83G/runtime/logs/visual_servo/servo_1795414356475500_20333.csv
+[retract] hand=0 stage=home_joint target_model_rad=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2 duration_s=4.3 limit_scale=1.0
+[retract] hand=0 stage=home_joint duration_s=4.3 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=1 stage=home_joint target_model_rad=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2 duration_s=4.2 limit_scale=1.0
+[retract] hand=1 stage=home_joint duration_s=4.2 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=0 stage=home_joint event=start elapsed_s=0.0 nominal_s=4.3 row=0/863 lag_deg=0.0 actual_q= 0.1  0.1  0.2  0.0 -0.1  0.0 -0.1 command_q= 0.1  0.1  0.2  0.0 -0.1  0.0 -0.1
+[retract] hand=1 stage=home_joint event=start elapsed_s=0.0 nominal_s=4.2 row=0/841 lag_deg=0.0 actual_q=-0.0 -0.1 -0.1  0.1  0.3 -0.0  0.2 command_q=-0.0 -0.1 -0.1  0.1  0.3 -0.0  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=0.5 nominal_s=4.3 row=100/863 lag_deg=1.1 actual_q= 0.1  0.1  0.2  0.0 -0.1  0.0 -0.1 command_q= 0.1  0.1  0.2  0.1 -0.1  0.0 -0.1
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=0.5 nominal_s=4.2 row=100/841 lag_deg=1.2 actual_q=-0.0 -0.1 -0.1  0.1  0.3 -0.0  0.2 command_q=-0.0 -0.1 -0.1  0.1  0.3 -0.0  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=1.0 nominal_s=4.3 row=200/863 lag_deg=4.9 actual_q= 0.1  0.1  0.2  0.1 -0.1 -0.0 -0.1 command_q= 0.0  0.1  0.1  0.2 -0.1 -0.0 -0.1
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=1.0 nominal_s=4.2 row=200/841 lag_deg=5.0 actual_q=-0.0 -0.1 -0.1  0.2  0.3 -0.1  0.2 command_q=-0.0 -0.1 -0.0  0.3  0.3 -0.1  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=1.5 nominal_s=4.3 row=300/863 lag_deg=9.5 actual_q= 0.0  0.1  0.1  0.3 -0.1 -0.1 -0.1 command_q= 0.0  0.1  0.0  0.5 -0.2 -0.1 -0.1
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=1.5 nominal_s=4.2 row=300/841 lag_deg=9.7 actual_q=-0.0 -0.2  0.0  0.4  0.3 -0.1  0.2 command_q=-0.0 -0.2  0.1  0.6  0.3 -0.2  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=2.0 nominal_s=4.3 row=400/863 lag_deg=13.1 actual_q= 0.0  0.2 -0.0  0.7 -0.2 -0.2 -0.1 command_q= 0.0  0.2 -0.1  0.9 -0.3 -0.3 -0.1
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=2.0 nominal_s=4.2 row=400/841 lag_deg=13.3 actual_q=-0.0 -0.2  0.1  0.8  0.3 -0.2  0.2 command_q=-0.0 -0.3  0.2  1.0  0.4 -0.3  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=2.5 nominal_s=4.3 row=500/863 lag_deg=14.1 actual_q= 0.0  0.3 -0.2  1.1 -0.3 -0.3 -0.2 command_q=-0.0  0.3 -0.2  1.3 -0.3 -0.4 -0.2
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=2.6 nominal_s=4.2 row=500/841 lag_deg=14.1 actual_q=-0.0 -0.3  0.2  1.2  0.4 -0.3  0.2 command_q=-0.0 -0.3  0.3  1.4  0.4 -0.4  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=3.1 nominal_s=4.3 row=600/863 lag_deg=12.2 actual_q=-0.0  0.3 -0.3  1.5 -0.4 -0.4 -0.2 command_q=-0.0  0.4 -0.4  1.7 -0.4 -0.5 -0.2
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=3.1 nominal_s=4.2 row=600/841 lag_deg=11.7 actual_q=-0.0 -0.4  0.3  1.6  0.4 -0.5  0.2 command_q=-0.0 -0.4  0.4  1.8  0.5 -0.5  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=3.6 nominal_s=4.3 row=699/863 lag_deg=8.1 actual_q=-0.0  0.4 -0.4  1.8 -0.5 -0.5 -0.2 command_q=-0.0  0.4 -0.5  2.0 -0.5 -0.6 -0.2
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=3.6 nominal_s=4.2 row=700/841 lag_deg=7.3 actual_q=-0.0 -0.4  0.4  1.9  0.5 -0.6  0.2 command_q=-0.0 -0.4  0.5  2.0  0.5 -0.6  0.2
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=4.1 nominal_s=4.3 row=799/863 lag_deg=3.4 actual_q=-0.0  0.4 -0.5  2.0 -0.5 -0.6 -0.2 command_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=4.1 nominal_s=4.2 row=800/841 lag_deg=2.7 actual_q=-0.0 -0.4  0.5  2.0  0.5 -0.6  0.2 command_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2
+[retract] hand=1 stage=home_joint event=command_complete elapsed_s=4.3 nominal_s=4.2 row=841/841 lag_deg=0.0
+[retract] hand=0 stage=home_joint event=command_complete elapsed_s=4.4 nominal_s=4.3 row=863/863 lag_deg=0.0
+[retract] hand=1 stage=home_joint event=measured_arrival elapsed_s=4.4 nominal_s=4.2 row=841/841 lag_deg=0.8 actual_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2 command_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2
+[retract] hand=0 stage=home_joint event=measured_arrival elapsed_s=4.5 nominal_s=4.3 row=863/863 lag_deg=0.8 actual_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2 command_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2
+[home_joint] measured_result right=0 left=0
+[orch] home 腰先平移回 x=0.0000，再竖直到 z=0.6000
+[waist] 回腰前 layer3 已按编码器同步 x=0.0230 y=0.0000 z=0.3595（home z=0.6000 偏差=-0.2405 m）
+[waist] 回腰前 几何deg 踝/膝/髋/滚/回=[74.8,-118.1,43.2,0.5,-0.0]
+[waist] 回腰前 姿态 pitch=0.05° roll=0.47° yaw=-0.01°
+[waist] 当前 x=0.0230 不在 home 0.0000，先平移回去再升降
+[waist] 恢复x前 layer3 已按编码器同步 x=0.0230 y=0.0000 z=0.3595（home z=0.6000 偏差=-0.2405 m）
+[waist] 恢复x前 几何deg 踝/膝/髋/滚/回=[74.8,-118.1,43.2,0.5,-0.0]
+[waist] 恢复x前 姿态 pitch=0.05° roll=0.47° yaw=-0.01°
+[waist] 恢复 layer3 x 0.0230 → 0.0000（锁 y/z/姿态）
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 笛卡尔直线 xyz (0.0230,0.0000,0.3595) → (0.0000,0.0000,0.3595) 目标姿态=直立 Tf=0.2304 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[74.8,-118.1,43.2,0.5,-0.0] 电机deg ID4/3/2/5/1=[-74.8,118.1,43.2,0.5,-0.0] pitch=0.0° tcp=(0.0230,0.0000,0.3595)
+[waist] 到位目标 几何deg 踝/膝/髋/滚/回=[78.6,-118.2,39.6,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-78.6,118.2,39.6,-0.0,-0.0] pitch=0.0° tcp=(0.0000,0.0000,0.3595)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[75.5,-118.4,42.4,0.4,-0.0] 电机deg ID4/3/2/5/1=[-75.5,118.4,42.4,0.4,-0.0] pitch=0.6° tcp=(0.0221,0.0000,0.3579)
+[waist] 恢复x后 layer3 已按编码器同步 x=0.0007 y=0.0000 z=0.3591（home z=0.6000 偏差=-0.2409 m）
+[waist] 恢复x后 几何deg 踝/膝/髋/滚/回=[78.6,-118.3,39.8,-0.1,-0.0]
+[waist] 恢复x后 姿态 pitch=-0.06° roll=-0.11° yaw=-0.00°
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直升降前 layer3 已按编码器同步 x=0.0008 y=0.0000 z=0.3591（home z=0.6000 偏差=-0.2409 m）
+[waist] 竖直升降前 几何deg 踝/膝/髋/滚/回=[78.6,-118.3,39.8,-0.1,-0.0]
+[waist] 竖直升降前 姿态 pitch=-0.04° roll=-0.11° yaw=-0.00°
+[waist] 竖直 Z 0.3591 → 0.6000 锁 x=0.0008 y=0.0000 m
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直 Z 锁 x=0.0008 y=0.0000 姿态=直立  0.3591 → 0.6000 m
+[waist] 笛卡尔直线 xyz (0.0008,0.0000,0.3591) → (0.0008,0.0000,0.6000) 目标姿态=直立 Tf=2.4090 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[78.6,-118.3,39.8,-0.1,-0.0] 电机deg ID4/3/2/5/1=[-78.6,118.3,39.8,-0.1,-0.0] pitch=-0.0° tcp=(0.0008,0.0000,0.3591)
+[waist] 到位目标 几何deg 踝/膝/髋/滚/回=[30.9,-50.5,19.6,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-30.9,50.5,19.6,-0.0,-0.0] pitch=0.0° tcp=(0.0008,0.0000,0.6000)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[31.3,-51.2,19.8,-0.1,-0.0] 电机deg ID4/3/2/5/1=[-31.3,51.2,19.8,-0.1,-0.0] pitch=0.1° tcp=(0.0016,0.0000,0.5983)
+[waist] 到位读角度 layer3 已按编码器同步 x=0.0015 y=0.0000 z=0.5983（home z=0.6000 偏差=-0.0017 m）
+[waist] 到位读角度 几何deg 踝/膝/髋/滚/回=[31.3,-51.2,19.8,-0.1,-0.0]
+[waist] 到位读角度 姿态 pitch=0.09° roll=-0.07° yaw=-0.00°
+[waist] 实时位姿用于基座 xyz=(0.0015,0.0000,0.5983) m pitch=0.09° roll=-0.07° yaw=-0.00°
+[head_ext] 已加载 head_transform T_head_cam  link=162.0 mm
+[head_ext] head_transform 编码器 rpy_deg=(0.02,40.02,-0.05) t_m=(0.1142,0.0261,0.2191)
+[grasp] 去料盘 AP1，路上同时摆头、手臂、开爪和下腰
+[head] 通道 can0 电机 ID 30(偏航)/31(俯仰)/32(横滚) 清错并使能
+[orch] 底盘去 AP1
+[head] 偏航 id=30 q=0.0 deg  limit=[-90.0,90.0] run=8 err=0x0 ok
+[head] 俯仰 id=31 q=40.0 deg  limit=[-30.0,52.4] run=8 err=0x0 ok
+[head] 横滚 id=32 q=-0.0 deg  limit=[-30.0,45.0] run[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.69579 peak_a=1.8759 peak_j=17.9158
+[arm_plan] side=right type=line planning_ms=20.35 rows=482 nominal_s=2.405 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.697033 peak_a=1.87444 peak_j=17.908
+[arm_plan] side=left type=line planning_ms=17.7219 rows=482 nominal_s=2.405 result=planned
+=8 err=0x0 ok
+[head] 当前 yaw=0.0 pitch=40.0 roll=-0.0 → 目标 0.0,40.0,0.0 deg
+[head] 已在目标姿态，不下发轨迹，写位置锁住
+[head] 已锁位置 yaw=0.0 pitch=40.0 roll=0.0 deg（用手扳不动才算使能）
+[home] 安全抬升/退出料盘 → yaml standby（抓取准备）
+[home] 右 起点 xyz=(0.4498,-0.3504,-0.0989) rpy_deg=(-0.0025,-0.1699,-0.0856) col=1 本侧OK q_deg=[-2.7,-25.2,28.3,118.8,28.9,-34.8,11.9]
+[home] 左 起点 xyz=(0.4502,0.3506,-0.1004) rpy_deg=(0.0769,0.0820,0.0827) col=6 本侧OK q_deg=[-2.7,25.3,-28.2,118.6,-28.8,-34.9,-12.0]
+[standby] 已退出低位，位置/姿态一次转场到准备位
+[retract] hand=0 stage=standby_transit duration_s=2.4 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=0 stage=standby_transit event=start elapsed_s=0.0 nominal_s=2.4 row=0/481 lag_deg=0.1 actual_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2 command_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2
+[retract] hand=1 stage=standby_transit duration_s=2.4 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=1 stage=standby_transit event=start elapsed_s=0.0 nominal_s=2.4 row=0/481 lag_deg=0.1 actual_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2 command_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2
+[orch] 已通知底盘去 AP1，等待到位
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=0.5 nominal_s=2.4 row=100/481 lag_deg=3.3 actual_q=-0.0  0.5 -0.5  2.1 -0.5 -0.6 -0.2 command_q=-0.0  0.5 -0.5  2.0 -0.5 -0.7 -0.3
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=0.5 nominal_s=2.4 row=100/481 lag_deg=3.3 actual_q=-0.0 -0.5  0.5  2.1  0.5 -0.6  0.2 command_q=-0.0 -0.5  0.5  2.0  0.5 -0.7  0.3
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=1.0 nominal_s=2.4 row=200/481 lag_deg=8.3 actual_q=-0.0  0.5 -0.5  2.0 -0.5 -0.7 -0.4 command_q=-0.0  0.6 -0.5  1.9 -0.4 -0.8 -0.6
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=1.0 nominal_s=2.4 row=200/481 lag_deg=8.3 actual_q=-0.0 -0.5  0.5  2.0  0.5 -0.7  0.4 command_q=-0.0 -0.6  0.5  1.9  0.4 -0.8  0.6
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=1.5 nominal_s=2.4 row=300/481 lag_deg=10.0 actual_q= 0.1  0.7 -0.4  1.8 -0.4 -0.8 -0.7 command_q= 0.2  0.8 -0.3  1.7 -0.3 -0.8 -0.9
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=1.5 nominal_s=2.4 row=300/481 lag_deg=9.9 actual_q= 0.1 -0.7  0.4  1.8  0.4 -0.8  0.7 command_q= 0.2 -0.8  0.3  1.7  0.3 -0.8  0.9
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=2.0 nominal_s=2.4 row=400/481 lag_deg=8.0 actual_q= 0.3  0.9 -0.1  1.6 -0.3 -0.8 -1.0 command_q= 0.4  0.9 -0.0  1.5 -0.2 -0.8 -1.1
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=2.0 nominal_s=2.4 row=400/481 lag_deg=8.0 actual_q= 0.3 -0.9  0.1  1.6  0.3 -0.8  1.0 command_q= 0.4 -0.9  0.0  1.5  0.2 -0.8  1.1
+[retract] hand=0 stage=standby_transit event=command_complete elapsed_s=2.4 nominal_s=2.4 row=481/481 lag_deg=0.0
+[retract] hand=1 stage=standby_transit event=command_complete elapsed_s=2.4 nominal_s=2.4 row=481/481 lag_deg=0.0
+[orch] 底盘站名已是 AP1，导航状态=2，尚未停稳，继续等
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=2.9 nominal_s=2.4 row=481/481 lag_deg=0.7 actual_q= 0.4  0.9  0.1  1.5 -0.2 -0.8 -1.2 command_q= 0.5  0.9  0.1  1.5 -0.2 -0.8 -1.2
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=3.0 nominal_s=2.4 row=481/481 lag_deg=0.7 actual_q= 0.4 -0.9 -0.1  1.5  0.2 -0.8  1.1 command_q= 0.5 -0.9 -0.1  1.5  0.2 -0.8  1.2
+[retract] hand=1 stage=standby_transit event=measured_arrival elapsed_s=3.3 nominal_s=2.4 row=481/481 lag_deg=0.3 actual_q= 0.4 -0.9 -0.1  1.5  0.2 -0.8  1.2 command_q= 0.5 -0.9 -0.1  1.5  0.2 -0.8  1.2
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=3.5 nominal_s=2.4 row=481/481 lag_deg=0.1 actual_q= 0.4  0.9  0.1  1.5 -0.2 -0.8 -1.2 command_q= 0.5  0.9  0.1  1.5 -0.2 -0.8 -1.2
+[retract] hand=0 stage=standby_transit event=measured_arrival elapsed_s=3.5 nominal_s=2.4 row=481/481 lag_deg=0.1 actual_q= 0.5  0.9  0.1  1.5 -0.2 -0.8 -1.2 command_q= 0.5  0.9  0.1  1.5 -0.2 -0.8 -1.2
+[arm] 到位 右 准备位转场 目标xyz=(0.4500,-0.3000,-0.2500) 实际xyz=(0.4499,-0.2996,-0.2502) 误差xyz=(-0.0001,0.0004,-0.0002) |err|=0.0004m 停稳
+[arm] 到位 左 准备位转场 目标xyz=(0.4500,0.3000,-0.2500) 实际xyz=(0.4498,0.2997,-0.2503) 误差xyz=(-0.0002,-0.0003,-0.0003) |err|=0.0005m 停稳
+[home] 右 关节回standby后 xyz=(0.4499,-0.2996,-0.2502) rpy_deg=(0.0822,44.9544,40.0219) col=1 本侧OK q_deg=[25.8,-53.5,-4.9,83.9,9.8,-46.1,66.3]
+[home] 左 关节回standby后 xyz=(0.4498,0.2997,-0.2503) rpy_deg=(-0.1222,44.9659,-40.0399) col=6 本侧OK q_deg=[25.8,53.5,4.9,83.9,-9.7,-46.1,-66.6]
+[home] 右 完成 xyz=(0.4499,-0.2996,-0.2501) rpy_deg=(0.0829,44.9545,40.0234) col=1 本侧OK q_deg=[25.8,-53.5,-4.9,83.9,9.8,-46.1,66.3]
+[home] 左 完成 xyz=(0.4498,0.2997,-0.2503) rpy_deg=(-0.1186,44.9638,-40.0412) col=6 本侧OK q_deg=[25.8,53.5,4.9,83.9,-9.7,-46.1,-66.6]
+[waist] ready/grasp 起始 x=0.0300（home_x=0.0000 再向前 0.0300 m）z=0.3600（home z=0.6000）
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 腰平移前 layer3 已按编码器同步 x=0.0017 y=0.0000 z=0.5999（home z=0.6000 偏差=-0.0001 m）
+[waist] 腰平移前 几何deg 踝/膝/髋/滚/回=[30.8,-50.5,19.7,-0.0,-0.0]
+[waist] 腰平移前 姿态 pitch=0.05° roll=-0.02° yaw=-0.02°
+[waist] 平移 X 0.0017 → 0.0300 锁 y=0.0000 z=0.5999 m
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 笛卡尔直线 xyz (0.0018,0.0000,0.5999) → (0.0300,0.0000,0.5999) 目标姿态=直立 Tf=0.2825 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[30.8,-50.5,19.7,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-30.8,50.5,19.7,-0.0,-0.0] pitch=0.1° tcp=(0.0017,0.0000,0.5999)
+[waist] 到位目标 几何deg 踝/膝/髋/滚/回=[27.9,-50.2,22.3,0.0,-0.0] 电机deg ID4/3/2/5/1=[-27.9,50.2,22.3,0.0,-0.0] pitch=0.0° tcp=(0.0300,0.0000,0.5999)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[28.9,-50.3,21.7,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-28.9,50.3,21.7,-0.0,-0.0] pitch=-0.3° tcp=(0.0198,0.0000,0.6000)
+[waist] 腰平移后 layer3 已按编码器同步 x=0.0200 y=0.0000 z=0.6000（home z=0.6000 偏差=-0.0000 m）
+[waist] 腰平移后 几何deg 踝/膝/髋/滚/回=[28.9,-50.3,21.7,-0.0,-0.0]
+[waist] 腰平移后 姿态 pitch=-0.26° roll=-0.03° yaw=-0.02°
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直升降前 layer3 已按编码器同步 x=0.0203 y=0.0000 z=0.6000（home z=0.6000 偏差=-0.0000 m）
+[waist] 竖直升降前 几何deg 踝/膝/髋/滚/回=[28.9,-50.3,21.7,-0.0,-0.0]
+[waist] 竖直升降前 姿态 pitch=-0.23° roll=-0.03° yaw=-0.02°
+[waist] 竖直 Z 0.6000 → 0.3600 锁 x=0.0203 y=0.0000 m
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直 Z 锁 x=0.0207 y=0.0000 姿态=直立  0.5999 → 0.3600 m
+[waist] 笛卡尔直线 xyz (0.0207,0.0000,0.5999) → (0.0207,0.0000,0.3600) 目标姿态=直立 Tf=2.3994 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[28.8,-50.3,21.7,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-28.8,50.3,21.7,-0.0,-0.0] pitch=-0.2° tcp=(0.0208,0.0000,0.5999)
+[waist] 到位目标 几何deg 踝/膝/髋/滚/回=[75.1,-118.0,42.8,0.0,-0.0] 电机deg ID4/3/2/5/1=[-75.1,118.0,42.8,0.0,-0.0] pitch=0.0° tcp=(0.0207,0.0000,0.3600)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[74.8,-117.6,42.8,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-74.8,117.6,42.8,-0.0,-0.0] pitch=0.1° tcp=(0.0210,0.0000,0.3617)
+[waist] 竖直升降后 layer3 已按编码器同步 x=0.0210 y=0.0000 z=0.3617（home z=0.6000 偏差=-0.2383 m）
+[waist] 竖直升降后 几何deg 踝/膝/髋/滚/回=[74.8,-117.6,42.8,-0.0,-0.0]
+[waist] 竖直升降后 姿态 pitch=0.05° roll=-0.03° yaw=-0.02°
+[waist] 到位读角度 layer3 已按编码器同步 x=0.0207 y=0.0000 z=0.3603（home z=0.6000 偏差=-0.2397 m）
+[waist] 到位读角度 几何deg 踝/膝/髋/滚/回=[75.1,-117.9,42.9,-0.0,0.0]
+[waist] 到位读角度 姿态 pitch=-0.05° roll=-0.03° yaw=0.01°
+[waist] 实时位姿用于基座 xyz=(0.0207,0.0000,0.3603) m pitch=-0.05° roll=-0.03° yaw=0.01°
+[waist] ready 已停，实际 x=0.0207 z=0.3603 目标 x=0.0300 z=0.3600 m
+[orch] 底盘导航完成并停稳 target=AP1 x=2.741 y=2.058
+[grasp] 已在 AP1，停稳 0.5s 再抓
+[grasp] 开始循环：夹后保持合爪；双手都有件才结束，缺的再去拿；抓完停在原地不走
+
+======== [grasp] 第 1 轮 持件 右=0 左=0 ========
+[head] 通道 can0 电机 ID 30(偏航)/31(俯仰)/32(横滚) 清错并使能
+[head] 偏航 id=30 q=0.0 deg  limit=[-90.0,90.0] run=8 err=0x0 ok
+[head] 俯仰 id=31 q=40.0 deg  limit=[-30.0,52.4] run=8 err=0x0 ok
+[head] 横滚 id=32 q=-0.0 deg  limit=[-30.0,45.0] run=8 err=0x0 ok
+[head] 当前 yaw=0.0 pitch=40.0 roll=-0.0 → 目标 0.0,40.0,0.0 deg
+[head] 已在目标姿态，不下发轨迹，写位置锁住
+[head] 已锁位置 yaw=0.0 pitch=40.0 roll=0.0 deg（用手扳不动才算使能）
+================================================================================
+>>> 抓取流程：头相机识别分配(class0) <<<
+================================================================================
+[head_ext] head_transform 编码器 rpy_deg=(0.02,40.02,-0.05) t_m=(0.1142,0.0261,0.2191)
+[head_ext] head_transform 编码器 rpy_deg=(0.02,40.02,-0.05) t_m=(0.1142,0.0261,0.2191)
+[vision] 料盘 YOLO∥二维码 368 ms
+[head_ext] head_transform 编码器 rpy_deg=(0.02,40.02,-0.05) t_m=(0.1142,0.0261,0.2191)
+[vision] 料盘使用并行检码结果，不再重复 detectMarkers
+
+--- 料盘孔位分配 (ArUco XY + YOLO class0) ---
+[tray] 行列绑定料盘系：+X前=row1  -X后=row6  -Y右=col1  +Y左=col6
+[tray] 左右分列按 ArUco 列号，不用机器人 Y=0；盘心 y=-0.0272（基座）；列号已对调(盘约转180°)
+[tray] 料盘相对机器人约转了 180°：ArUco row1 现在离机器人最近，抓取姿态改按基座X最远/最近匹配
+  ArUco row6 基座x=0.7390 → 最远 from_robot=1
+  ArUco row5 基座x=0.6641 → 中间 from_robot=2
+  ArUco row4 基座x=0.5891 → 中间 from_robot=3
+  ArUco row3 基座x=0.5142 → 中间 from_robot=4
+  ArUco row2 基座x=0.4393 → 中间 from_robot=5
+  ArUco row1 基座x=0.3644 → 最近 from_robot=6
+  hole 1 ArUco row=1 col=1 from_robot=6 分配col=6 左 xy=(0.3729,0.1686) top_z=-0.3916 conf=0.828
+  hole 4 ArUco row=1 col=4 from_robot=6 分配col=3 右 xy=(0.3627,-0.0561) top_z=-0.3882 conf=0.934
+[tray_xy] 3+3 近区优先：先抓离机器人近的三排（from_robot 4-6），远三排暂缓
+[tray_xy] 选孔：同行 from_robot=6 从左往右；满排同时对 (3,6)/(2,5)/(1,4) 本行右1孔 左1孔
+[tray_xy] 右手 hole 4 ArUco row=1 col=4 from_robot=6 分配col=3 xy=(0.3627,-0.0561)
+[tray_xy] 左手 hole 1 ArUco row=1 col=1 from_robot=6 分配col=6 xy=(0.3729,0.1686)
+[tray] 工作区 立件 右=1 左=1（列号已对调）
+[z_ref] 头右 相机顶面 -0.3882 与参考 -0.4133 差 25.0551 mm，超过 3.0000 mm，改用参考高度
+[z_ref] 头左 相机顶面 -0.3916 与参考 -0.4133 差 21.6332 mm，超过 3.0000 mm，改用参考高度
+[head] 右 物体 xyz=(0.3627,-0.0561,-0.3882) → 上方 z=-0.2933 (Z相机/参考比对) hover=0.1200 m offset_xyz=(0.0400,0.0100,-0.0050) row_xyz=(0.0000,0.0000,0.0000) from_robot=6 ready1 rpy_deg=(0.0,55.0,60.0)
+[head] 左 物体 xyz=(0.3729,0.1686,-0.3916) → 上方 z=-0.2933 (Z相机/参考比对) hover=0.1200 m offset_xyz=(0.0400,0.0000,-0.0010) row_xyz=(0.0000,0.0000,0.0000) from_robot=6 ready1 rpy_deg=(0.0,55.0,-60.0)
+[rpy] 右 from_robot=6 使用 ready 组 rpy_deg=(0.0,55.0,60.0)
+[rpy] 左 from_robot=6 使用 ready 组 rpy_deg=(0.0,55.0,-60.0)
+[waist] 抓取腰高 ready_z=0.3600 m（home z=0.6000）盘面参考 z=-0.4283 物体顶面参考=-0.4133 m
+[head] goal_last_r:  0.4027 -0.0461 -0.2933  0.0000  0.9599  1.0472
+[head] goal_last_l:  0.4129  0.1686 -0.2933  0.0000  0.9599 -1.0472
+[col] 本轮配对 右列=3 左列=6 差=3 同时门槛=3 (最小对 1-4/2-5/3-6)
+[head] 左右列分区均有目标且列间隔足够，双手同时抓取
+================================================================================
+>>> 抓取流程：先到孔上方再下降，本阶段不单独停车 <<<
+================================================================================
+[descent] 上方和下降接成一次直线，这里不移动
+[hand] 旧版停点复检未启用；连续下降视觉伺服=开启（cameras.hand_descent_correct）
+================================================================================
+>>> 抓取流程：直线到孔正上方，再竖直下降 <<<
+================================================================================
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=16 peak_v=0.811261 peak_a=1.62824 peak_j=15.2807
+[arm_plan] side=right type=line planning_ms=11.8224 rows=469 nominal_s=2.34 result=planned
+[arm_plan] side=left type=joint_approach nominal_s=1.14 peak_tcp_m_s=0.237983 peak_v=0.774546 peak_a=2.09205 peak_j=18.3252
+[z_ref] 右 相机顶面 -0.3882 与参考 -0.4133 差 25.0551 mm，超过 3.0000 mm，改用参考高度
+[hand_z] 右 z_ref=-0.4283 (yaml -0.6180 @waist 0.5500 now 0.3603) part_above=0.0150 hand_object_z=-0.3882 hover_z=-0.2933 final_grasp_z=-0.4183 (hover_above=0.1200 z_offset=-0.0050 m)
+[z_ref] 左 相机顶面 -0.3916 与参考 -0.4133 差 21.6332 mm，超过 3.0000 mm，改用参考高度
+[hand_z] 左 z_ref=-0.4283 (yaml -0.6180 @waist 0.5500 now 0.3603) part_above=0.0150 hand_object_z=-0.3916 hover_z=-0.2933 final_grasp_z=-0.4143 (hover_above=0.1200 z_offset=-0.0010 m)
+[waist_frame] 姿态误差 pitch=-0.05° roll=-0.03° yaw=0.01°，基座修正 Δxyz_mm=(-0.2,0.1,-0.4)
+[waist_frame] 姿态误差 pitch=-0.05° roll=-0.03° yaw=0.01°，基座修正 Δxyz_mm=(-0.1,0.1,-0.3)
+[waist_frame] 姿态误差 pitch=-0.05° roll=-0.03° yaw=0.01°，基座修正 Δxyz_mm=(-0.3,0.1,-0.4)
+[waist_frame] 姿态误差 pitch=-0.05° roll=-0.03° yaw=0.01°，基座修正 Δxyz_mm=(-0.2,0.1,-0.3)
+[descent] 直线 0.40 m/s 接近孔正上方，随后竖直 0.10 m/s 下降。下降段使用双轴闭环、延迟补偿与预测制动
+[servo] hand=0 session=1 map=geometry kp=1.50 kd=0.20 双轴闭环；失败禁止夹爪动作
+[servo] hand=1 session=2 map=geometry kp=1.50 kd=0.20 双轴闭环；失败禁止夹爪动作
+[servo] hand=0 session=1 acquiring -> descending err_mm=25.13 age_ms=263.94 reason=
+[servo] hand=0 session=1 descending -> hold err_mm=24.24 age_ms=294.55 reason=waiting_fresh_vision
+[servo] hand=0 session=1 hold -> descending err_mm=20.67 age_ms=98.10 reason=
+[servo] hand=1 session=2 acquiring -> descending err_mm=28.63 age_ms=121.03 reason=
+[servo] hand=0 session=1 descending -> commit err_mm=2.03 age_ms=191.27 reason=target_frozen_precise
+[servo] hand=0 session=1 commit -> settling err_mm=1.91 age_ms=1139.64 reason=holding_legal_reference
+[servo] hand=0 session=1 settling -> done err_mm=1.75 age_ms=1188.62 reason=ready_precise
+[servo] hand=1 session=2 descending -> failed err_mm=237.15 age_ms=128.44 reason=z_below_nominal_C
+[arm] 右手下降伺服中止 ret=-31，原因见 logs/visual_servo
+[arm] 本轮无抓取，停在当前 TCP
+[skill_result] {"interface_version":1,"request_id":"skill-1","workcell_id":"","target_id":"","skill":"tray.grasp","status":"failed","stage":"align_descend","error_code":1302,"native_code":-31,"failure_stage":"align_descend","legacy_status":3,"message":"native phase returned failure","elapsed_s":12.50720396,"waist_adjusted":false,"available_left":1,"available_right":1,"hands":{"left":{"requested":true,"started":true,"action_completed":false,"retreat_completed":false,"part_state":"unknown","evidence":"unknown","stage":"align_descend","error_code":1302,"native_code":-35,"failure_stage":"align_descend","nominal_target":{"frame":"upright_arm_base","pose_m_rad":[0.412925185882,0.168618673164,-0.414270837787,0,0.959931088597,-1.0471975512],"tray_row_aruco":1,"tray_column_aruco":1}},"right":{"requested":true,"started":true,"action_completed":false,"retreat_completed":false,"part_state":"unknown","evidence":"unknown","stage":"align_descend","error_code":1302,"native_code":-31,"failure_stage":"align_descend","nominal_target":{"frame":"upright_arm_base","pose_m_rad":[0.402673178447,-0.046147641802,-0.418270837787,0,0.959931088597,1.0471975512],"tray_row_aruco":1,"tray_column_aruco":4}}}}
+[grasp] 选孔与计数同一张照片，开抓前工作区毛坯 2 件（右=1 左=1）
+[grasp] 终止当前任务，不重试：native phase returned failure，阶段=align_descend，原始码=-31；右手：z_below_nominal_C
+[orch] home：头部标定姿态，双臂关节轨迹回固定 Home，再腰 yaw=0，先回 x 再升到 layer3_home
+[head] 通道 can0 电机 ID 30(偏航)/31(俯仰)/32(横滚) 清错并使能
+[head] 偏航 id=30 q=0.0 deg  limit=[-90.0,90.0] run=8 err=0x0 ok
+[head] 俯仰 id=31 q=40.0 deg  limit=[-30.0,52.4] run=8 err=0x0 ok
+[head] 横滚 id=32 q=-0.0 deg  limit=[-30.0,45.0] run=8 err=0x0 ok
+[head] 当前 yaw=0.0 pitch=40.0 roll=-0.0 → 目标 0.0,40.0,0.0 deg
+[head] 已在目标姿态，不下发轨迹，写位置锁住
+[head] 已锁位置 yaw=0.0 pitch=40.0 roll=0.0 deg（用手扳不动才算使能）
+[home_joint] fixed targets model_deg right= -2.7 -25.2  28.2 118.7  29.0 -34.9  11.9 left= -2.7  25.2 -28.2 118.7 -28.9 -34.9 -12.1 nominal_s right=3.2 left=2.1
+[retract] hand=1 stage=home_joint target_model_rad=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2 duration_s=3.2 limit_scale=1.0
+[retract] hand=0 stage=home_joint target_model_rad=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2 duration_s=2.1 limit_scale=1.0
+[retract] hand=1 stage=home_joint duration_s=3.2 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=0 stage=home_joint duration_s=2.1 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=1 stage=home_joint event=start elapsed_s=0.0 nominal_s=3.2 row=0/648 lag_deg=0.0 actual_q= 0.4 -0.1 -0.2  1.6 -1.0 -0.8  1.6 command_q= 0.4 -0.1 -0.2  1.6 -1.0 -0.8  1.6
+[retract] hand=0 stage=home_joint event=start elapsed_s=0.0 nominal_s=2.1 row=0/427 lag_deg=0.1 actual_q= 0.4  0.5  0.3  1.3  0.3 -0.6 -1.2 command_q= 0.4  0.5  0.3  1.3  0.3 -0.6 -1.2
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=0.5 nominal_s=3.2 row=100/648 lag_deg=1.7 actual_q= 0.4 -0.1 -0.2  1.6 -1.0 -0.8  1.6 command_q= 0.4 -0.1 -0.1  1.7 -1.0 -0.8  1.6
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=0.5 nominal_s=2.1 row=100/427 lag_deg=3.4 actual_q= 0.4  0.5  0.3  1.4  0.3 -0.6 -1.2 command_q= 0.4  0.5  0.2  1.4  0.2 -0.6 -1.1
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=1.0 nominal_s=3.2 row=200/648 lag_deg=7.1 actual_q= 0.4 -0.1 -0.1  1.7 -0.9 -0.8  1.5 command_q= 0.3 -0.1 -0.1  1.7 -0.8 -0.8  1.4
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=1.0 nominal_s=2.1 row=200/427 lag_deg=11.0 actual_q= 0.3  0.5  0.1  1.5  0.1 -0.6 -1.0 command_q= 0.2  0.5 -0.1  1.7 -0.0 -0.6 -0.8
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=1.5 nominal_s=3.2 row=300/648 lag_deg=12.2 actual_q= 0.3 -0.2  0.0  1.8 -0.6 -0.8  1.2 command_q= 0.2 -0.2  0.1  1.8 -0.4 -0.7  1.0
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=1.5 nominal_s=2.1 row=300/427 lag_deg=12.1 actual_q= 0.1  0.5 -0.2  1.8 -0.2 -0.6 -0.6 command_q= 0.0  0.5 -0.4  2.0 -0.4 -0.6 -0.4
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=2.0 nominal_s=3.2 row=400/648 lag_deg=13.5 actual_q= 0.2 -0.3  0.2  1.9 -0.2 -0.7  0.8 command_q= 0.1 -0.3  0.3  1.9  0.1 -0.7  0.6
+[retract] hand=0 stage=home_joint event=feedback elapsed_s=2.0 nominal_s=2.1 row=400/427 lag_deg=5.3 actual_q=-0.0  0.4 -0.4  2.0 -0.4 -0.6 -0.3 command_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2
+[retract] hand=0 stage=home_joint event=command_complete elapsed_s=2.2 nominal_s=2.1 row=427/427 lag_deg=0.0
+[retract] hand=0 stage=home_joint event=measured_arrival elapsed_s=2.3 nominal_s=2.1 row=427/427 lag_deg=2.3 actual_q=-0.0  0.4 -0.5  2.0 -0.5 -0.6 -0.3 command_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=2.5 nominal_s=3.2 row=500/648 lag_deg=10.1 actual_q= 0.0 -0.4  0.4  2.0  0.2 -0.7  0.5 command_q=-0.0 -0.4  0.4  2.0  0.4 -0.6  0.3
+[retract] hand=1 stage=home_joint event=feedback elapsed_s=3.1 nominal_s=3.2 row=600/648 lag_deg=4.3 actual_q=-0.0 -0.4  0.5  2.0  0.4 -0.6  0.3 command_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2
+[retract] hand=1 stage=home_joint event=command_complete elapsed_s=3.3 nominal_s=3.2 row=648/648 lag_deg=0.0
+[retract] hand=1 stage=home_joint event=measured_arrival elapsed_s=3.4 nominal_s=3.2 row=648/648 lag_deg=1.4 actual_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2 command_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.811666 peak_a=1.1548 peak_j=12.1167
+[arm_plan] side=right type=line planning_ms=25.5538 rows=607 nominal_s=3.03 result=planned
+
+[home_joint] measured_result right=0 left=0
+[orch] home 腰先平移回 x=0.0000，再竖直到 z=0.6000
+[waist] 回腰前 layer3 已按编码器同步 x=0.0198 y=0.0000 z=0.3603（home z=0.6000 偏差=-0.2397 m）
+[waist] 回腰前 几何deg 踝/膝/髋/滚/回=[75.2,-117.9,42.9,0.1,0.0]
+[waist] 回腰前 姿态 pitch=-0.17° roll=0.09° yaw=0.01°
+[waist] 当前 x=0.0198 不在 home 0.0000，先平移回去再升降
+[waist] 恢复x前 layer3 已按编码器同步 x=0.0198 y=0.0000 z=0.3603（home z=0.6000 偏差=-0.2397 m）
+[waist] 恢复x前 几何deg 踝/膝/髋/滚/回=[75.2,-117.9,42.9,0.1,0.0]
+[waist] 恢复x前 姿态 pitch=-0.17° roll=0.09° yaw=0.01°
+[waist] 恢复 layer3 x 0.0198 → 0.0000（锁 y/z/姿态）
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 笛卡尔直线 xyz (0.0198,0.0000,0.3603) → (0.0000,0.0000,0.3603) 目标姿态=直立 Tf=0.1983 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[75.2,-117.9,42.9,0.1,0.0] 电机deg ID4/3/2/5/1=[-75.2,117.9,42.9,0.1,0.0] pitch=-0.2° tcp=(0.0198,0.0000,0.3603)
+[waist] 到位目标 几何deg 踝/膝/髋/滚/回=[78.5,-118.0,39.6,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-78.5,118.0,39.6,-0.0,-0.0] pitch=0.0° tcp=(-0.0000,0.0000,0.3603)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[77.2,-118.0,40.9,0.1,0.0] 电机deg ID4/3/2/5/1=[-77.2,118.0,40.9,0.1,0.0] pitch=-0.1° tcp=(0.0074,0.0000,0.3606)
+[waist] 恢复x后 layer3 已按编码器同步 x=0.0006 y=0.0000 z=0.3605（home z=0.6000 偏差=-0.2395 m）
+[waist] 恢复x后 几何deg 踝/膝/髋/滚/回=[78.4,-118.0,39.4,0.1,0.0]
+[waist] 恢复x后 姿态 pitch=0.16° roll=0.06° yaw=0.01°
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直升降前 layer3 已按编码器同步 x=0.0006 y=0.0000 z=0.3605（home z=0.6000 偏差=-0.2395 m）
+[waist] 竖直升降前 几何deg 踝/膝/髋/滚/回=[78.4,-118.0,39.4,0.1,0.0]
+[waist] 竖直升降前 姿态 pitch=0.16° roll=0.06° yaw=0.01°
+[waist] 竖直 Z 0.3605 → 0.6000 锁 x=0.0006 y=0.0000 m
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直 Z 锁 x=0.0005 y=0.0000 姿态=直立  0.3605 → 0.6000 m
+[waist] 笛卡尔直线 xyz (0.0005,0.0000,0.3605) → (0.0005,0.0000,0.6000) 目标姿态=直立 Tf=2.3951 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[78.4,-118.0,39.4,0.1,0.0] 电机deg ID4/3/2/5/1=[-78.4,118.0,39.4,0.1,0.0] pitch=0.2° tcp=(0.0006,0.0000,0.3605)
+[waist] 到位目标 几何deg 踝/膝/髋/滚/回=[30.9,-50.5,19.6,0.0,-0.0] 电机deg ID4/3/2/5/1=[-30.9,50.5,19.6,0.0,-0.0] pitch=0.0° tcp=(0.0005,0.0000,0.6000)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[31.3,-51.2,19.8,0.1,0.0] 电机deg ID4/3/2/5/1=[-31.3,51.2,19.8,0.1,0.0] pitch=0.1° tcp=(0.0013,0.0000,0.5983)
+[waist] 到位读角度 layer3 已按编码器同步 x=0.0013 y=0.0000 z=0.5983（home z=0.6000 偏差=-0.0017 m）
+[waist] 到位读角度 几何deg 踝/膝/髋/滚/回=[31.3,-51.2,19.8,0.1,0.0]
+[waist] 到位读角度 姿态 pitch=0.09° roll=0.06° yaw=0.01°
+[waist] 实时位姿用于基座 xyz=(0.0013,0.0000,0.5983) m pitch=0.09° roll=0.06° yaw=0.01°
+[head] 通道 can0 电机 ID 30(偏航)/31(俯仰)/32(横滚) 清错并使能
+[head] 偏航 id=30 q=0.0 deg  limit=[-90.0,90.0] run=8 err=0x0 ok
+[head] 俯仰 id=31 q=40.0 deg  limit=[-30.0,52.4] run=8 err=0x0 ok
+[head] 横滚 id=32 q=-0.0 deg  limit=[-30.0,45.0] run=8 err=0x0 ok
+[head] 当前 yaw=0.0 pitch=40.0 roll=-0.0 → 目标 0.0,40.0,0.0 deg
+[head] 已在目标姿态，不下发轨迹，写位置锁住
+[head] 已锁位置 yaw=0.0 pitch=40.0 roll=0.0 deg（用手扳不动才算使能）
+[retract] hand=1 stage=calibration_transit duration_s=3.0 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=1 stage=calibration_transit event=start elapsed_s=0.0 nominal_s=3.0 row=0/606 lag_deg=0.0 actual_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2 command_q=-0.0 -0.4  0.5  2.1  0.5 -0.6  0.2
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=0.5 nominal_s=3.0 row=100/606 lag_deg=3.0 actual_q=-0.0 -0.5  0.5  2.1  0.5 -0.6  0.2 command_q=-0.0 -0.5  0.5  2.1  0.5 -0.7  0.3
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=1.0 nominal_s=3.0 row=200/606 lag_deg=7.5 actual_q=-0.0 -0.5  0.5  2.0  0.5 -0.7  0.4 command_q= 0.0 -0.6  0.5  2.0  0.4 -0.8  0.5
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=1.5 nominal_s=3.0 row=300/606 lag_deg=11.9 actual_q= 0.1 -0.6  0.5  1.9  0.3 -0.9  0.7 command_q= 0.2 -0.7  0.4  1.8  0.2 -0.9  0.9
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=2.0 nominal_s=3.0 row=400/606 lag_deg=10.9 actual_q= 0.3 -0.8  0.3  1.7  0.1 -0.9  1.1 command_q= 0.4 -0.9  0.1  1.6  0.0 -0.9  1.3
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=2.5 nominal_s=3.0 row=500/606 lag_deg=8.0 actual_q= 0.5 -0.9 -0.0  1.5 -0.1 -0.9  1.3 command_q= 0.7 -0.9 -0.2  1.4 -0.1 -0.8  1.5
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=3.0 nominal_s=3.0 row=600/606 lag_deg=3.3 actual_q= 0.7 -0.9 -0.2  1.3 -0.2 -0.8  1.5 command_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5
+[retract] hand=1 stage=calibration_transit event=command_complete elapsed_s=3.1 nominal_s=3.0 row=606/606 lag_deg=0.0
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=3.6 nominal_s=3.0 row=606/606 lag_deg=0.5 actual_q= 0.7 -0.9 -0.3  1.3 -0.2 -0.8  1.5 command_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5
+[retract] hand=1 stage=calibration_transit event=measured_arrival elapsed_s=3.8 nominal_s=3.0 row=606/606 lag_deg=0.3 actual_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5 command_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5
+[calibration_motion] hand=1 type=transit distance_m=0.2 nominal_s=3.0 elapsed_s=3.8 tolerance_m=0.0 residual_m=0.0 target= 0.5 -0.3 -0.2  0.1  1.0  0.9 measured= 0.4 -0.3 -0.2  0.1  1.0  0.9 code=0
+[waist] ready/grasp 起始 x=0.0300（home_x=0.0000 再向前 0.0300 m）z=0.3600（home z=0.6000）
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 腰平移前 layer3 已按编码器同步 x=0.0019 y=0.0000 z=0.5998（home z=0.6000 偏差=-0.0002 m）
+[waist] 腰平移前 几何deg 踝/膝/髋/滚/回=[30.8,-50.5,19.6,0.1,0.0]
+[waist] 腰平移前 姿态 pitch=0.10° roll=0.07° yaw=0.01°
+[waist] 平移 X 0.0019 → 0.0300 锁 y=0.0000 z=0.5998 m
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 笛卡尔直线 xyz (0.0019,0.0000,0.5998) → (0.0300,0.0000,0.5998) 目标姿态=直立 Tf=0.2806 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[30.8,-50.5,19.6,0.1,0.0] 电机deg ID4/3/2/5/1=[-30.8,50.5,19.6,0.1,0.0] pitch=0.1° tcp=(0.0019,0.0000,0.5998)
+[waist] 到位目标 几何deg 踝/膝/髋/滚/回=[27.9,-50.2,22.3,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-27.9,50.2,22.3,-0.0,-0.0] pitch=0.0° tcp=(0.0300,0.0000,0.5998)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[28.8,-50.4,21.5,0.0,0.0] 电机deg ID4/3/2/5/1=[-28.8,50.4,21.5,0.0,0.0] pitch=0.0° tcp=(0.0214,0.0000,0.5999)
+[waist] 腰平移后 layer3 已按编码器同步 x=0.0215 y=0.0000 z=0.5999（home z=0.6000 偏差=-0.0001 m）
+[waist] 腰平移后 几何deg 踝/膝/髋/滚/回=[28.8,-50.4,21.5,0.0,0.0]
+[waist] 腰平移后 姿态 pitch=0.05° roll=0.03° yaw=0.01°
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直升降前 layer3 已按编码器同步 x=0.0219 y=0.0000 z=0.5998（home z=0.6000 偏差=-0.0002 m）
+[waist] 竖直升降前 几何deg 踝/膝/髋/滚/回=[28.8,-50.4,21.5,0.0,0.0]
+[waist] 竖直升降前 姿态 pitch=0.08° roll=0.03° yaw=0.01°
+[waist] 竖直 Z 0.5998 → 0.3600 锁 x=0.0219 y=0.0000 m
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直 Z 锁 x=0.0223 y=0.0000 姿态=直立  0.5998 → 0.3600 m
+[waist] 笛卡尔直线 xyz (0.0223,0.0000,0.5998) → (0.0223,0.0000,0.3600) 目标姿态=直立 Tf=2.3984 s
+[waist] 起点 几何deg 踝/膝/髋/滚/回=[28.8,-50.4,21.5,0.0,0.0] 电机deg ID4/3/2/5/1=[-28.8,50.4,21.5,0.0,0.0] pitch=0.1° tcp=(0.0224,0.0000,0.5998)
+[waist] 到位目标 几何deg[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.366303 peak_a=1.70005 peak_j=18.805
+[arm_plan] side=right type=line planning_ms=6.17749 rows=255 nominal_s=1.27 result=planned
+[arm_plan] side=left type=joint_approach fallback=checked_line
+[arm_path] side=left reference=continuous stride=8 peak_v=0.697033 peak_a=1.87444 peak_j=17.908
+[arm_plan] side=left type=line planning_ms=15.7276 rows=482 nominal_s=2.405 result=planned
+ 踝/膝/髋/滚/回=[74.9,-118.0,43.1,-0.0,-0.0] 电机deg ID4/3/2/5/1=[-74.9,118.0,43.1,-0.0,-0.0] pitch=0.0° tcp=(0.0223,0.0000,0.3600)
+[waist] 到位回读 几何deg 踝/膝/髋/滚/回=[74.5,-117.6,42.9,0.0,0.0] 电机deg ID4/3/2/5/1=[-74.5,117.6,42.9,0.0,0.0] pitch=0.1° tcp=(0.0226,0.0000,0.3617)
+[waist] 竖直升降后 layer3 已按编码器同步 x=0.0227 y=0.0000 z=0.3617（home z=0.6000 偏差=-0.2383 m）
+[waist] 竖直升降后 几何deg 踝/膝/髋/滚/回=[74.5,-117.6,42.9,0.0,0.0]
+[waist] 竖直升降后 姿态 pitch=0.10° roll=0.01° yaw=0.01°
+[waist] 到位读角度 layer3 已按编码器同步 x=0.0220 y=0.0000 z=0.3603（home z=0.6000 偏差=-0.2397 m）
+[waist] 到位读角度 几何deg 踝/膝/髋/滚/回=[74.8,-117.9,43.2,0.0,0.0]
+[waist] 到位读角度 姿态 pitch=-0.15° roll=0.01° yaw=0.01°
+[waist] 实时位姿用于基座 xyz=(0.0220,0.0000,0.3603) m pitch=-0.15° roll=0.01° yaw=0.01°
+[waist] ready 已停，实际 x=0.0220 z=0.3603 目标 x=0.0300 z=0.3600 m
+[head_ext] head_transform 编码器 rpy_deg=(0.02,40.02,-0.04) t_m=(0.1142,0.0261,0.2191)
+[grasp] 去料盘 AP1，路上同时摆头、手臂、开爪和下腰
+[head] 通道 can0 电机 ID 30(偏航)/31(俯仰)/32(横滚) 清错并使能
+[orch] 底盘去 AP1
+[orch] 底盘已在 AP1，不再发导航
+[head] 偏航 id=30 q=0.0 deg  limit=[-90.0,90.0] run=8 err=0x0 ok
+[head] 俯仰 id=31 q=40.0 deg  limit=[-30.0,52.4] run=8 err=0x0 ok
+[head] 横滚 id=32 q=-0.0 deg  limit=[-30.0,45.0] run=8 err=0x0 ok
+[head] 当前 yaw=0.0 pitch=40.0 roll=-0.0 → 目标 0.0,40.0,0.0 deg
+[head] 已在目标姿态，不下发轨迹，写位置锁住
+[head] 已锁位置 yaw=0.0 pitch=40.0 roll=0.0 deg（用手扳不动才算使能）
+[home] 安全抬升/退出料盘 → yaml standby（抓取准备）
+[home] 右 起点 xyz=(0.4505,-0.2998,-0.2495) rpy_deg=(5.0164,54.8772,49.9593) col=1 本侧OK q_deg=[43.4,-49.7,-14.9,72.9,-11.4,-46.1,88.1]
+[home] 左 起点 xyz=(0.4498,0.3494,-0.0999) rpy_deg=(0.0063,-0.0443,-0.0661) col=6 本侧OK q_deg=[-2.8,25.2,-28.2,118.8,-28.9,-34.8,-12.1]
+[standby] 已退出低位，位置/姿态一次转场到准备位
+[retract] hand=0 stage=standby_transit duration_s=2.4 joint_limits=[retract] hand=0.9,2.5,1 stage=standby_transit duration_s=20.0 ready_tolerance_rad=0.1
+1.3 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=0 stage=standby_transit event=start elapsed_s=0.0 nominal_s=2.4 row=0/481 lag_deg=0.1 actual_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2 command_q=-0.0  0.4 -0.5  2.1 -0.5 -0.6 -0.2
+[retract] hand=1 stage=standby_transit event=start elapsed_s=0.0 nominal_s=1.3 row=0/254 lag_deg=0.1 actual_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5 command_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=0.5 nominal_s=2.4 row=100/481 lag_deg=3.3 actual_q=-0.0  0.5 -0.5  2.1 -0.5 -0.6 -0.2 command_q=-0.0  0.5 -0.5  2.0 -0.5 -0.7 -0.3
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=0.5 nominal_s=1.3 row=100/254 lag_deg=3.7 actual_q= 0.7 -0.9 -0.2  1.3 -0.2 -0.8  1.5 command_q= 0.6 -0.9 -0.2  1.3 -0.1 -0.8  1.4
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=1.0 nominal_s=2.4 row=200/481 lag_deg=8.2 actual_q=-0.0  0.5 -0.5  2.0 -0.5 -0.7 -0.4 command_q=-0.0  0.6 -0.5  1.9 -0.4 -0.8 -0.6
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=1.0 nominal_s=1.3 row=200/254 lag_deg=5.3 actual_q= 0.6 -0.9 -0.1  1.4 -0.0 -0.8  1.3 command_q= 0.5 -0.9 -0.1  1.4  0.1 -0.8  1.3
+[retract] hand=1 stage=standby_transit event=command_complete elapsed_s=1.3 nominal_s=1.3 row=254/254 lag_deg=0.0
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=1.5 nominal_s=2.4 row=300/481 lag_deg=10.0 actual_q= 0.1  0.7 -0.4  1.8 -0.4 -0.8 -0.7 command_q= 0.2  0.8 -0.3  1.7 -0.3 -0.8 -0.9
+[retract] hand=1 stage=standby_transit event=feedback elapsed_s=1.8 nominal_s=1.3 row=254/254 lag_deg=0.5 actual_q= 0.5 -0.9 -0.0  1.5  0.1 -0.8  1.2 command_q= 0.4 -0.9 -0.0  1.5  0.1 -0.8  1.2
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=2.0 nominal_s=2.4 row=400/481 lag_deg=8.0 actual_q= 0.3  0.9 -0.1  1.6 -0.3 -0.8 -1.0 command_q= 0.4  0.9 -0.0  1.5 -0.2 -0.8 -1.1
+[retract] hand=1 stage=standby_transit event=measured_arrival elapsed_s=2.1 nominal_s=1.3 row=254/254 lag_deg=0.2 actual_q= 0.5 -0.9 -0.0  1.5  0.1 -0.8  1.2 command_q= 0.4 -0.9 -0.0  1.5  0.1 -0.8  1.2
+[retract] hand=0 stage=standby_transit event=command_complete elapsed_s=2.4 nominal_s=2.4 row=481/481 lag_deg=0.0
+[retract] hand=0 stage=standby_transit event=feedback elapsed_s=2.9 nominal_s=2.4 row=481/481 lag_deg=0.7 actual_q= 0.4  0.9  0.1  1.5 -0.2 -0.8 -1.2 command_q= 0.5  0.9  0.1  1.5 -0.2 -0.8 -1.2
+[retract] hand=0 stage=standby_transit event=measured_arrival elapsed_s=3.3 nominal_s=2.4 row=481/481 lag_deg=0.2 actual_q= 0.4  0.9  0.1  1.5 -0.2 -0.8 -1.2 command_q= 0.5  0.9  0.1  1.5 -0.2 -0.8 -1.2
+[arm] 到位 右 准备位转场 目标xyz=(0.4500,-0.3000,-0.2500) 实际xyz=(0.4500,-0.2998,-0.2502) 误差xyz=(-0.0000,0.0002,-0.0002) |err|=0.0003m 停稳
+[arm] 到位 左 准备位转场 目标xyz=(0.4500,0.3000,-0.2500) 实际xyz=(0.4501,0.3000,-0.2496) 误差xyz=(0.0001,-0.0000,0.0004) |err|=0.0004m 停稳
+[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.366302 peak_a=1.70005 peak_j=18.805
+[arm_plan] side=right type=line planning_ms=2.84958 rows=255 nominal_s=1.27 result=planned
+[home] 右 关节回standby后 xyz=(0.4500,-0.2998,-0.2502) rpy_deg=(0.1183,45.0177,40.0778) col=1 本侧OK q_deg=[25.7,-51.3,-2.2,83.8,4.8,-46.4,69.8]
+[home] 左 关节回standby后 xyz=(0.4501,0.3000,-0.2496) rpy_deg=(0.0408,44.8885,-39.8676) col=6 本侧OK q_deg=[25.8,53.5,4.7,84.0,-9.7,-46.1,-66.5]
+[home] 右 完成 xyz=(0.4500,-0.2998,-0.2502) rpy_deg=(0.1183,45.0177,40.0778) col=1 本侧OK q_deg=[25.7,-51.3,-2.2,83.8,4.8,-46.4,69.8]
+[home] 左 完成 xyz=(0.4500,0.3000,-0.2497) rpy_deg=(0.0243,44.9002,-39.8832) col=6 本侧OK q_deg=[25.8,53.5,4.8,83.9,-9.7,-46.1,-66.5]
+[waist] ready/grasp 起始 x=0.0300（home_x=0.0000 再向前 0.0300 m）z=0.3600（home z=0.6000）
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 腰平移前 layer3 已按编码器同步 x=0.0228 y=0.0000 z=0.3599（home z=0.6000 偏差=-0.2401 m）
+[waist] 腰平移前 几何deg 踝/膝/髋/滚/回=[74.8,-118.0,43.0,-0.0,0.0]
+[waist] 腰平移前 姿态 pitch=0.11° roll=-0.03° yaw=0.03°
+[waist] 平移 X 已在 0.0228 m，跳过
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直升降前 layer3 已按编码器同步 x=0.0228 y=0.0000 z=0.3599（home z=0.6000 偏差=-0.2401 m）
+[waist] 竖直升降前 几何deg 踝/膝/髋/滚/回=[74.8,-118.0,43.0,-0.0,0.0]
+[waist] 竖直升降前 姿态 pitch=0.11° roll=-0.03° yaw=0.03°
+[waist] 竖直 Z 已在 0.3599 m，跳过
+[waist] 到位读角度 layer3 已按编码器同步 x=0.0228 y=0.0000 z=0.3599（home z=0.6000 偏差=-0.2401 m）
+[waist] 到位读角度 几何deg 踝/膝/髋/滚/回=[74.8,-118.0,43.0,-0.0,0.0]
+[waist] 到位读角度 姿态 pitch=0.11° roll=-0.03° yaw=0.03°
+[waist] 实时位姿用于基座 xyz=(0.0228,0.0000,0.3599) m pitch=0.11° roll=-0.03° yaw=0.03°
+[waist] ready 已停，实际 x=0.0228 z=0.3599 目标 x=0.0300 z=0.3600 m
+[head] 通道 can0 电机 ID 30(偏航)/31(俯仰)/32(横滚) 清错并使能
+[head] 偏航 id=30 q=0.0 deg  limit=[-90.0,90.0] run=8 err=0x0 ok
+[head] 俯仰 id=31 q=40.0 deg  limit=[-30.0,52.4] run=8 err=0x0 ok
+[head] 横滚 id=32 q=-0.0 deg  limit=[-30.0,45.0] run=8 err=0x0 ok
+[head] 当前 yaw=0.0 pitch=40.0 roll=-0.0 → 目标 0.0,40.0,0.0 deg
+[head] 已在目标姿态，不下发轨迹，写位置锁住
+[head] 已锁位置 yaw=0.0 pitch=40.0 roll=0.0 deg（用手扳不动才算使能）
+[retract] hand=1 stage=calibration_transit duration_s=1.3 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=1 stage=calibration_transit event=start elapsed_s=0.0 nominal_s=1.3 row=0/254 lag_deg=0.1 actual_q= 0.5 -0.9 -0.0  1.5  0.1 -0.8  1.2 command_q= 0.4 -0.9 -0.0  1.5  0.1 -0.8  1.2
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=0.5 nominal_s=1.3 row=100/254 lag_deg=3.9 actual_q= 0.5 -0.9 -0.1  1.4  0.0 -0.8  1.3 command_q= 0.6 -0.9 -0.1  1.4 -0.0 -0.8  1.3
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=1.0 nominal_s=1.3 row=200/254 lag_deg=5.1 actual_q= 0.6 -0.9 -0.2  1.4 -0.1 -0.8  1.4 command_q= 0.7 -0.9 -0.2  1.3 -0.2 -0.8  1.5
+[retract] hand=1 stage=calibration_transit event=command_complete elapsed_s=1.3 nominal_s=1.3 row=254/254 lag_deg=0.0
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=1.8 nominal_s=1.3 row=254/254 lag_deg=0.5 actual_q= 0.7 -0.9 -0.3  1.3 -0.2 -0.8  1.5 command_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5
+[retract] hand=1 stage=calibration_transit event=measured_arrival elapsed_s=2.0 nominal_s=1.3 row=254/254 lag_deg=0.3 actual_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5 command_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5
+[calibration_motion] hand=1 type=transit distance_m=0.0 nominal_s=1.3 elapsed_s=2.0 tolerance_m=0.0 residual_m=0.0 target= 0.5 -0.3 -0.2  0.1  1.0  0.9 measured= 0.4 -0.3 -0.3  0.1  1.0  0.9 code=0
+[waist] ready/grasp 起始 x=0.0300（home_x=0.0000 再向前 0.0300 m）z=0.3600（home z=0.6000）
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 腰平移前 layer3 已按编码器同步 x=0.0227 y=0.0000 z=0.3599（home z=0.6000 偏差=-0.2[arm_plan] side=right type=joint_approach fallback=checked_line
+[arm_path] side=right reference=continuous stride=8 peak_v=0.781118 peak_a=1.22769 peak_j=18.4661
+[arm_plan] side=right type=line planning_ms=9.76146 rows=656 nominal_s=3.275 result=planned
+[arm_path] side=right reference=continuous stride=4 peak_v=0.640683 peak_a=2.16523 peak_j=18.6248
+[arm_plan] side=right type=line planning_ms=12.2037 rows=1680 nominal_s=8.395 result=planned
+401 m）
+[waist] 腰平移前 几何deg 踝/膝/髋/滚/回=[74.8,-118.0,43.1,-0.0,0.0]
+[waist] 腰平移前 姿态 pitch=0.08° roll=-0.03° yaw=0.01°
+[waist] 平移 X 已在 0.0227 m，跳过
+[waist] 使能 4踝/3膝/2髋/5侧倾/1回转（LowerBody 五轴位置模式）
+[waist] 竖直升降前 layer3 已按编码器同步 x=0.0227 y=0.0000 z=0.3600（home z=0.6000 偏差=-0.2400 m）
+[waist] 竖直升降前 几何deg 踝/膝/髋/滚/回=[74.8,-118.0,43.1,-0.0,0.0]
+[waist] 竖直升降前 姿态 pitch=0.08° roll=-0.03° yaw=0.01°
+[waist] 竖直 Z 已在 0.3600 m，跳过
+[waist] 到位读角度 layer3 已按编码器同步 x=0.0227 y=0.0000 z=0.3600（home z=0.6000 偏差=-0.2400 m）
+[waist] 到位读角度 几何deg 踝/膝/髋/滚/回=[74.8,-118.0,43.1,-0.0,0.0]
+[waist] 到位读角度 姿态 pitch=0.08° roll=-0.03° yaw=0.01°
+[waist] 实时位姿用于基座 xyz=(0.0227,0.0000,0.3600) m pitch=0.08° roll=-0.03° yaw=0.01°
+[waist] ready 已停，实际 x=0.0227 z=0.3600 目标 x=0.0300 z=0.3600 m
+[head_ext] head_transform 编码器 rpy_deg=(0.02,40.02,-0.04) t_m=(0.1142,0.0261,0.2191)
+[vision] 料盘 YOLO∥二维码 360 ms
+[head_ext] head_transform 编码器 rpy_deg=(0.02,40.02,-0.04) t_m=(0.1142,0.0261,0.2191)
+[vision] 料盘使用并行检码结果，不再重复 detectMarkers
+[waist_frame] 姿态误差 pitch=0.08° roll=-0.03° yaw=0.01°，基座修正 Δxyz_mm=(-0.1,0.0,-0.0)
+[retract] hand=1 stage=calibration_transit duration_s=3.3 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=1 stage=calibration_transit event=start elapsed_s=0.0 nominal_s=3.3 row=0/655 lag_deg=0.1 actual_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5 command_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=0.5 nominal_s=3.3 row=100/655 lag_deg=2.7 actual_q= 0.8 -0.9 -0.3  1.3 -0.2 -0.8  1.5 command_q= 0.7 -0.9 -0.3  1.3 -0.1 -0.8  1.5
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=1.0 nominal_s=3.3 row=200/655 lag_deg=5.8 actual_q= 0.7 -0.9 -0.4  1.4 -0.0 -0.9  1.4 command_q= 0.7 -0.9 -0.4  1.4  0.1 -0.9  1.3
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=1.5 nominal_s=3.3 row=300/655 lag_deg=9.4 actual_q= 0.7 -0.9 -0.5  1.5  0.2 -1.0  1.2 command_q= 0.8 -1.0 -0.6  1.5  0.4 -1.0  1.0
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=2.0 nominal_s=3.3 row=400/655 lag_deg=11.7 actual_q= 0.8 -0.9 -0.7  1.6  0.5 -1.0  0.8 command_q= 0.8 -0.9 -0.8  1.6  0.7 -1.0  0.6
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=2.5 nominal_s=3.3 row=500/655 lag_deg=8.5 actual_q= 0.9 -0.9 -0.9  1.6  0.8 -1.0  0.5 command_q= 0.9 -0.9 -0.9  1.7  0.9 -1.0  0.4
+[retract] hand=1 stage=calibration_transit event=feedback elapsed_s=3.1 nominal_s=3.3 row=600/655 lag_deg=4.9 actual_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.3 command_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2
+[retract] hand=1 stage=calibration_transit event=command_complete elapsed_s=3.3 nominal_s=3.3 row=655/655 lag_deg=0.0
+[retract] hand=1 stage=calibration_transit event=measured_arrival elapsed_s=3.8 nominal_s=3.3 row=655/655 lag_deg=0.4 actual_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2 command_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2
+[calibration_motion] hand=1 type=transit distance_m=0.2 nominal_s=3.3 elapsed_s=3.8 tolerance_m=0.0 residual_m=0.0 target= 0.4 -0.1 -0.3  0.1  1.0  0.9 measured= 0.4 -0.1 -0.3  0.1  1.0  0.9 code=0
+[retract] hand=1 stage=calibration_local duration_s=8.4 joint_limits=0.9,2.5,20.0 ready_tolerance_rad=0.1
+[retract] hand=1 stage=calibration_local event=start elapsed_s=0.0 nominal_s=8.4 row=0/1679 lag_deg=0.4 actual_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2 command_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2
+[retract] hand=1 stage=calibration_local event=feedback elapsed_s=0.5 nominal_s=8.4 row=100/1679 lag_deg=0.2 actual_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2 command_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2
+[retract] hand=1 stage=calibration_local event=feedback elapsed_s=1.0 nominal_s=8.4 row=200/1679 lag_deg=0.7 actual_q= 0.9 -0.9 -1.0  1.7  1.0 -1.0  0.2 command_q=

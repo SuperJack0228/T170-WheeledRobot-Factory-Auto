@@ -1,0 +1,11 @@
+Test project /tmp/t170-sdk-build
+    Start 25: placement_calibration_web_test
+1/3 Test #25: placement_calibration_web_test ...   Passed    0.64 sec
+    Start 28: web_command_result_test
+2/3 Test #28: web_command_result_test ..........   Passed    1.13 sec
+    Start 34: web_launcher_test
+3/3 Test #34: web_launcher_test ................   Passed    0.52 sec
+
+100% tests passed out of 3
+
+Total Test time (real) =   2.29 sec

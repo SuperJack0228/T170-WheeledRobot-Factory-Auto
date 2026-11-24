@@ -1,0 +1,51 @@
+{
+  "base_commit": "fc310f8e7f4c2798a070640cf0d3a60a743bf2a5",
+  "hardware_connected": false,
+  "ctest_total": 44,
+  "ctest_passed": 44,
+  "browser": "Chrome, real Web backend and C++ failure JSON, simulated robot RPC, temporary robot profiles",
+  "unchanged_motion_and_parameters": {
+    "src/motion/arm.cpp": {
+      "unchanged": true,
+      "sha256": "309d9abb3d33b128f3f1dc83317bf840e8c835d391b8c95d48ae0d10be9242a9"
+    },
+    "src/motion/joint_motion.cpp": {
+      "unchanged": true,
+      "sha256": "6b16d7030e10f51079c515f99e73ce814f950268092d818f6db9cedec273b5c6"
+    },
+    "src/motion/pose_solver.cpp": {
+      "unchanged": true,
+      "sha256": "af50854fdf87a5ef97ddba546c4e4e947703906ace2cfc3cee2e2647ccae5268"
+    },
+    "src/motion/trajectory_executor.cpp": {
+      "unchanged": true,
+      "sha256": "3e8de955bdfc32263ea5da21a0516802089413fb69c16fce92f65a366eace310"
+    },
+    "src/motion/feedback.cpp": {
+      "unchanged": true,
+      "sha256": "563fabb45b4c97ad370d3e8657c5d4c5f7fe0dd6c782f50ac5a0e6fd5d2c5327"
+    },
+    "config/defaults/factory_baseline.yaml": {
+      "unchanged": true,
+      "sha256": "c914f713ac675f7d4b0904396fa262fae20480432d1a3d626e740d14dc6475b8"
+    },
+    "config/robot_models/t170c_v2_3kg/motion_policy.yaml": {
+      "unchanged": true,
+      "sha256": "4ea104ef2603bb0efd80bfae7e91141d3aadb200192fc7c875ac81d0b8ae170b"
+    },
+    "config/robot_models/t170c_v2_5kg/motion_policy.yaml": {
+      "unchanged": true,
+      "sha256": "ecaf07bd30f9988d1ec476b7be605913c0e6e1e69082536a6cb8553434d43ff6"
+    }
+  },
+  "changed_key_sources_sha256": {
+    "src/config/extrinsics.cpp": "46b085c49441e38172e8e9407fdc7c278ffaa73b1b579c14f57b52ad5e392172",
+    "src/app/task_result.cpp": "c8995f837343ea4ec731efa070e6906b5fb4c6a3c360c9f18f8668668fca0aa8",
+    "src/tasks/tray_grasp.cpp": "65ff4ba178130485a169eaa0aa2d2e7784a737e1ea23beb44096e79654109caf",
+    "src/tasks/tray_place.cpp": "ad65933d8b3c959916ea4e77b805c56155d93e46c46522e90bb438f49a402fce",
+    "web_debug/server.py": "fe0629397274d36caddaa4f3acd79ea321e7728ac4c28936ec5733dd57ad85f2",
+    "web_debug/static/app.js": "329fda97eb66cb3a3157d22501e1c57c6e506f599e3b27ac6718a46f643605f1",
+    "web_debug/static/index.html": "3acf36c1e171b70deae224491bf3d74d1dde46b560ea70d22bf6a9b58967b1c2",
+    "web_debug/static/styles.css": "d34469f2cc95222be28f6ce202882989886c3ddbbdcf0caffe57216d59d2b826"
+  }
+}

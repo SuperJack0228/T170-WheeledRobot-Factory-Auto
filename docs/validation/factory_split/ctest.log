@@ -1,0 +1,785 @@
+Start testing: Nov 16 15:13 CST
+----------------------------------------------------------
+1/34 Testing: common_paths_test
+1/34 Test: common_paths_test
+Command: "/tmp/t170-deployment-build/common_paths_test"
+Directory: /tmp/t170-deployment-build
+"common_paths_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+common paths: root precedence, old entry points, external config/logs and defaults passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"common_paths_test" end time: Nov 16 15:13 CST
+"common_paths_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/34 Testing: visual_servo_test
+2/34 Test: visual_servo_test
+Command: "/tmp/t170-deployment-build/visual_servo_test"
+Directory: /tmp/t170-deployment-build
+"visual_servo_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+sim hand=0 accepted=19 residual_mm=1.89045
+sim hand=1 accepted=19 residual_mm=1.92119
+[servo] 双手调试日志 /var/folders/nr/c9l_x5ln6ggcmtrmlqvh1qyr0000gn/T/t170_servo_trace_test/servo_1794813187146056_23123.csv
+visual_servo: all regression checks passed (model tests, not robot validation)
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"visual_servo_test" end time: Nov 16 15:13 CST
+"visual_servo_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/34 Testing: visual_servo_runtime_test
+3/34 Test: visual_servo_runtime_test
+Command: "/tmp/t170-deployment-build/visual_servo_runtime_test"
+Directory: /tmp/t170-deployment-build
+"visual_servo_runtime_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[servo] 双手调试日志 /var/folders/nr/c9l_x5ln6ggcmtrmlqvh1qyr0000gn/T/t170_servo_runtime_model_test/logs/visual_servo/servo_1794813187149046_23124.csv
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=1 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=2 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 传送带抓取共用料盘参考点 (710,410)，不使用料盘XY补偿
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=3 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=4 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 传送带抓取共用料盘参考点 (710,410)，不使用料盘XY补偿
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=5 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 传送带抓取共用料盘参考点 (710,410)，不使用料盘XY补偿
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=6 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=7 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=8 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=1 session=9 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] hand=1 session=9 acquiring -> descending err_mm=11.1803 age_ms=110.053 reason=
+[servo] hand=0 session=8 acquiring -> descending err_mm=13.4164 age_ms=113.875 reason=
+[servo] hand=0 session=8 descending -> commit err_mm=0.666529 age_ms=117.011 reason=target_frozen_precise
+[servo] hand=1 session=9 descending -> commit err_mm=0.713549 age_ms=195.248 reason=target_frozen_precise
+[servo] hand=1 session=9 commit -> settling err_mm=0.71129 age_ms=1231.39 reason=holding_legal_reference
+[servo] hand=0 session=8 commit -> settling err_mm=0.662208 age_ms=1158.49 reason=holding_legal_reference
+[servo] hand=1 session=9 settling -> done err_mm=0.711271 age_ms=1322.5 reason=ready_precise
+[servo] hand=0 session=8 settling -> done err_mm=0.662172 age_ms=1250.31 reason=ready_precise
+[servo] 模型文件备份失败: No such file or directory
+[servo] hand=0 session=10 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] hand=0 session=10 acquiring -> failed err_mm=1.51633 age_ms=-1000 reason=no_valid_observation_timeout
+[servo] 模型文件备份失败: No such file or directory
+[tray_place] board snapshot: No such file or directory
+[servo] hand=0 session=11 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] 模型文件备份失败: No such file or directory
+[tray_place] board snapshot: No such file or directory
+[servo] hand=1 session=12 map=table kp=1.5 kd=0.2 双轴闭环；失败禁止夹爪动作
+[servo] hand=1 session=12 acquiring -> aligning err_mm=8.94427 age_ms=98.7025 reason=place_B_observe_align_XY
+[servo] hand=0 session=11 acquiring -> aligning err_mm=8.94427 age_ms=106.174 reason=place_B_observe_align_XY
+[servo] hand=1 session=12 aligning -> commit err_mm=1.54341 age_ms=174.735 reason=target_frozen_place_visible
+[servo] hand=0 session=11 aligning -> commit err_mm=1.56354 age_ms=167.021 reason=target_frozen_place_visible
+[servo] hand=1 session=12 commit -> settling err_mm=0.782137 age_ms=2863.31 reason=holding_legal_reference
+[servo] hand=0 session=11 commit -> settling err_mm=0.781936 age_ms=2852.39 reason=holding_legal_reference
+[servo] hand=1 session=12 settling -> done err_mm=0.782112 age_ms=2951.51 reason=ready_place_locked
+[servo] hand=0 session=11 settling -> done err_mm=0.781913 age_ms=2928.17 reason=ready_place_locked
+visual_servo_runtime: dual delayed vision, bounded Z, missing vision and exclusive hold-to-retract handoff passed (synthetic adapters)
+<end of output>
+Test time =  10.33 sec
+----------------------------------------------------------
+Test Passed.
+"visual_servo_runtime_test" end time: Nov 16 15:13 CST
+"visual_servo_runtime_test" time elapsed: 00:00:10
+----------------------------------------------------------
+
+4/34 Testing: retract_trajectory_test
+4/34 Test: retract_trajectory_test
+Command: "/tmp/t170-deployment-build/retract_trajectory_test"
+Directory: /tmp/t170-deployment-build
+"retract_trajectory_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+retract_trajectory: sub-degree handoff, hidden prefix jump, C2 boundaries, derivative bounds and rejection passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"retract_trajectory_test" end time: Nov 16 15:13 CST
+"retract_trajectory_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/34 Testing: retreat_gate_test
+5/34 Test: retreat_gate_test
+Command: "/tmp/t170-deployment-build/retreat_gate_test"
+Directory: /tmp/t170-deployment-build
+"retreat_gate_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+retreat_gate: measured clearance, failed plan, false completion and timeout passed
+<end of output>
+Test time =   0.04 sec
+----------------------------------------------------------
+Test Passed.
+"retreat_gate_test" end time: Nov 16 15:13 CST
+"retreat_gate_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/34 Testing: grasp_execution_test
+6/34 Test: grasp_execution_test
+Command: "/tmp/t170-deployment-build/grasp_execution_test"
+Directory: /tmp/t170-deployment-build
+"grasp_execution_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[grasp] tray 合爪前位置复核失败
+[grasp] 收手预规划启动失败: plan failure
+[grasp] hand=1 合爪异常: synthetic claw failure
+grasp_execution: shared tray/belt phase ordering, selected hands, dual close, empty feedback and failures passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"grasp_execution_test" end time: Nov 16 15:13 CST
+"grasp_execution_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/34 Testing: visual_servo_config_test
+7/34 Test: visual_servo_config_test
+Command: "/tmp/t170-deployment-build/visual_servo_config_test" "/Users/superjack/Ti5/T170-field-review-20261111/config/move_box_params.yaml"
+Directory: /tmp/t170-deployment-build
+"visual_servo_config_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+visual_servo_config: actual YAML, snapshot and invalid-input checks passed
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"visual_servo_config_test" end time: Nov 16 15:13 CST
+"visual_servo_config_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/34 Testing: tray_place_latency_test
+8/34 Test: tray_place_latency_test
+Command: "/tmp/t170-deployment-build/tray_place_latency_test" "/Users/superjack/Ti5/T170-field-review-20261111/config/move_box_params.yaml" "/Users/superjack/Ti5/T170-field-review-20261111/tests/fixtures/tray_place_latency_20261106.json"
+Directory: /tmp/t170-deployment-build
+"tray_place_latency_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+field timing session=1 completed t=6.2 accepted=5
+field timing session=2 completed t=8.04 accepted=5
+field timing session=3 completed t=5.16 accepted=5
+field timing session=4 completed t=7.01 accepted=6
+tray latency regression passed (recorded timing with synthetic mechanics, not robot accuracy)
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"tray_place_latency_test" end time: Nov 16 15:13 CST
+"tray_place_latency_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/34 Testing: tray_acquisition_test
+9/34 Test: tray_acquisition_test
+Command: "/tmp/t170-deployment-build/tray_acquisition_test"
+Directory: /tmp/t170-deployment-build
+"tray_acquisition_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+large bias: ok candidates=35 hypotheses=25 reject_task_envelope=0 boundary_edges=4 matches=35 complete=35 partial=0 partial_bootstrap=0 required_partial_support=4 identity_margin=100 model=affine inliers=35/35 scales=1.00066 1.00061 rotation_rad=4.66257e-07 rms_model_mm=0.383816 outside_support_mm=0 alternative0_shift_mm=-49.9883:-15.0191_score=34.3428_support=35 model=affine inliers=6/6 scales= 1.00001 0.997817 rotation_rad=0.000768317 rms_model_mm=0.364177 outside_support_mm=0 pruned=0 r2c3_shift_mm=-0.38:-0.26 r3c2_shift_mm=0.26:0.40 r4c3_shift_mm=-0.25:-0.25 r4c2_shift_mm=-0.24:0.40 r3c4_shift_mm=0.25:0.25 r2c2_shift_mm=-0.38:0.39
+ambiguous: tray_acquire_ambiguous_grid candidates=4 hypotheses=8 reject_task_envelope=0 boundary_edges=0 matches=4 complete=4 partial=0 partial_bootstrap=0 required_partial_support=4 identity_margin=1.86265e-07 model=affine inliers=4/4 scales=1 1 rotation_rad=0 rms_model_mm=1.40008e-06 outside_support_mm=75 alternative0_shift_mm=25:0_score=4_support=4 alternative1_shift_mm=-50:0_score=4_support=4 alternative2_shift_mm=25:-75_score=3_support=3 alternative3_shift_mm=25:75_score=2_support=2
+arcs: ok neighbors=2 partial=2
+tray acquisition: large bias, identity ambiguity, sparse history, partial rims and reacquisition passed
+<end of output>
+Test time =   0.20 sec
+----------------------------------------------------------
+Test Passed.
+"tray_acquisition_test" end time: Nov 16 15:13 CST
+"tray_acquisition_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+10/34 Testing: tray_localizer_test
+10/34 Test: tray_localizer_test
+Command: "/tmp/t170-deployment-build/tray_localizer_test" "/Users/superjack/Ti5/T170-field-review-20261111/board_yf100_aruco/config.yaml" "/Users/superjack/Ti5/T170-field-review-20261111/tests/fixtures/tray_neighbor_correspondences_20261105.json"
+Directory: /tmp/t170-deployment-build
+"tray_localizer_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+field pair reject session=2 target_identity_budget
+field pair reject session=2 target_identity_budget
+field pair reject session=4 target_identity_budget
+field pair reject session=4 target_identity_budget
+field pair reject session=4 target_identity_budget
+11/05 logged candidate replay accepted=35 rejected=5
+neighbor result=ok source=neighbor_homography n=35 residual=1.68552
+perspective=ok n=26
+markers=ok corners=0
+tray_localizer: hidden target, sparse support, lost features, perspective, distortion, marker independence and moving camera passed; fixture suite ms=198.22
+<end of output>
+Test time =   0.25 sec
+----------------------------------------------------------
+Test Passed.
+"tray_localizer_test" end time: Nov 16 15:13 CST
+"tray_localizer_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+11/34 Testing: python_runtime_paths_test
+11/34 Test: python_runtime_paths_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/runtime_paths_test.py"
+Directory: /tmp/t170-deployment-build
+"python_runtime_paths_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.245s
+
+OK
+<end of output>
+Test time =   0.31 sec
+----------------------------------------------------------
+Test Passed.
+"python_runtime_paths_test" end time: Nov 16 15:13 CST
+"python_runtime_paths_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+12/34 Testing: lower_body_self_test
+12/34 Test: lower_body_self_test
+Command: "/tmp/t170-deployment-build/libs/lower_body/lower_body_self_test"
+Directory: /tmp/t170-deployment-build
+"lower_body_self_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+L1=0.2600 L2=0.4000 d2=0.1100 m
+
+[OK] 站立零位
+  q(rad) 0.0000 0.0000 0.0000 0.0000 0.0000
+  IK  0.0000 0.0000 0.0000 0.0000 0.0000
+  T.p=[0.0000, 0.0000, 0.6600]  ||T-T2||=0.0000
+
+[OK] 只下蹲
+  q(rad) 0.8000 -1.5000 0.7000 0.0000 0.0000
+  IK  0.8000 -1.5000 0.7000 0.0000 0.0000
+  T.p=[0.0712, 0.0000, 0.4871]  ||T-T2||=0.0000
+
+[OK] 只前点头
+  q(rad) 0.0000 0.0000 -0.3491 0.0000 0.0000
+  IK  0.0000 0.0000 -0.3491 0.0000 0.0000
+  T.p=[0.0376, 0.0000, 0.6534]  ||T-T2||=0.0000
+
+[OK] 只后仰
+  q(rad) 0.0000 0.0000 0.2618 0.0000 0.0000
+  IK  0.0000 0.0000 0.2618 0.0000 0.0000
+  T.p=[-0.0285, 0.0000, 0.6563]  ||T-T2||=0.0000
+
+[OK] 只侧倾
+  q(rad) 0.0000 0.0000 0.0000 0.1745 0.0000
+  IK  0.0000 0.0000 0.0000 0.1745 0.0000
+  T.p=[0.0000, 0.0000, 0.6600]  ||T-T2||=0.0000
+
+[OK] 只转腰
+  q(rad) 0.0000 0.0000 0.0000 0.0000 0.4363
+  IK  0.0000 0.0000 0.0000 0.0000 0.4363
+  T.p=[0.0000, 0.0000, 0.6600]  ||T-T2||=0.0000
+
+[OK] 下蹲+前点头
+  q(rad) 0.7000 -1.3000 0.2509 0.0000 0.0000
+  IK  0.7000 -1.3000 0.2509 0.0000 0.0000
+  T.p=[0.0960, 0.0000, 0.5224]  ||T-T2||=0.0000
+
+[OK] 下蹲+点头+侧倾+转腰
+  q(rad) 0.6000 -1.2000 0.3382 -0.1396 0.3491
+  IK  0.6000 -1.2000 0.3382 -0.1396 0.3491
+  T.p=[0.1075, 0.0000, 0.5410]  ||T-T2||=0.0000
+
+[OK] 超长不可达
+[OK] 随机93组 最大角误差=0.0000 最大T误差=0.0000
+[OK] 前点头 cx=37.6222 mm  cz=-6.6338 mm
+
+==== 全部通过 fail=0 ====
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"lower_body_self_test" end time: Nov 16 15:13 CST
+"lower_body_self_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+13/34 Testing: public_module_headers_test
+13/34 Test: public_module_headers_test
+Command: "/tmp/t170-deployment-build/public_module_headers_test"
+Directory: /tmp/t170-deployment-build
+"public_module_headers_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+public module headers: SDK-free interfaces and preserved slot/class identities passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"public_module_headers_test" end time: Nov 16 15:13 CST
+"public_module_headers_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+14/34 Testing: model_registry_test
+14/34 Test: model_registry_test
+Command: "/tmp/t170-deployment-build/model_registry_test"
+Directory: /tmp/t170-deployment-build
+"model_registry_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+model registry: configured engine identities and unbound state passed (no weights loaded)
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"model_registry_test" end time: Nov 16 15:13 CST
+"model_registry_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+15/34 Testing: python_vision_package_test
+15/34 Test: python_vision_package_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/python_vision_package_test.py"
+Directory: /tmp/t170-deployment-build
+"python_vision_package_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.514s
+
+OK
+tray_fusion self-test OK
+<end of output>
+Test time =   0.56 sec
+----------------------------------------------------------
+Test Passed.
+"python_vision_package_test" end time: Nov 16 15:13 CST
+"python_vision_package_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+16/34 Testing: module_boundaries_test
+16/34 Test: module_boundaries_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/module_boundaries_test.py"
+Directory: /tmp/t170-deployment-build
+"module_boundaries_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 0.023s
+
+OK
+<end of output>
+Test time =   0.06 sec
+----------------------------------------------------------
+Test Passed.
+"module_boundaries_test" end time: Nov 16 15:13 CST
+"module_boundaries_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+17/34 Testing: joint_motion_test
+17/34 Test: joint_motion_test
+Command: "/tmp/t170-deployment-build/joint_motion_test"
+Directory: /tmp/t170-deployment-build
+"joint_motion_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+joint_motion: smooth bounds, exact endpoints, feedback, dual hands and failure cases passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"joint_motion_test" end time: Nov 16 15:13 CST
+"joint_motion_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+18/34 Testing: pose_math_test
+18/34 Test: pose_math_test
+Command: "/tmp/t170-deployment-build/pose_math_test"
+Directory: /tmp/t170-deployment-build
+"pose_math_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+extracted pose math: conventions, singular matrix and interpolation passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"pose_math_test" end time: Nov 16 15:13 CST
+"pose_math_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+19/34 Testing: placement_calibration_math_test
+19/34 Test: placement_calibration_math_test
+Command: "/tmp/t170-deployment-build/placement_calibration_math_test" "/Users/superjack/Ti5/T170-field-review-20261111"
+Directory: /tmp/t170-deployment-build
+"placement_calibration_math_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+tray calibration geometry, task isolation, fixed poses and hole selection passed
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"placement_calibration_math_test" end time: Nov 16 15:13 CST
+"placement_calibration_math_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+20/34 Testing: placement_calibration_web_test
+20/34 Test: placement_calibration_web_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/placement_calibration_web_test.py"
+Directory: /tmp/t170-deployment-build
+"placement_calibration_web_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.583s
+
+OK
+<end of output>
+Test time =   0.67 sec
+----------------------------------------------------------
+Test Passed.
+"placement_calibration_web_test" end time: Nov 16 15:13 CST
+"placement_calibration_web_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+21/34 Testing: placement_calibration_session_test
+21/34 Test: placement_calibration_session_test
+Command: "/tmp/t170-deployment-build/placement_calibration_session_test" "/Users/superjack/Ti5/T170-field-review-20261111"
+Directory: /tmp/t170-deployment-build
+"placement_calibration_session_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[cfg] 已加载 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.left=(0.0,40.0,-30.0)
+[cfg] 已加载 tray2 最远行 row1_rpy_deg.right=(0.0,40.0,30.0)
+session ordering, stop, replay and no-motion exit checks passed
+<end of output>
+Test time =   0.08 sec
+----------------------------------------------------------
+Test Passed.
+"placement_calibration_session_test" end time: Nov 16 15:13 CST
+"placement_calibration_session_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+22/34 Testing: calibration_hole_test
+22/34 Test: calibration_hole_test
+Command: "/tmp/t170-deployment-build/calibration_hole_test"
+Directory: /tmp/t170-deployment-build
+"calibration_hole_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+calibration visible-rim refinement passed (synthetic image, not physical accuracy)
+<end of output>
+Test time =   0.07 sec
+----------------------------------------------------------
+Test Passed.
+"calibration_hole_test" end time: Nov 16 15:13 CST
+"calibration_hole_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+23/34 Testing: dispatch_metrics_test
+23/34 Test: dispatch_metrics_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/dispatch_metrics_test.py" "/tmp/t170-deployment-build/dispatch_metrics_emitter"
+Directory: /tmp/t170-deployment-build
+"dispatch_metrics_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+async dispatch writer, unique IDs, JSON escaping, captured span context and clean flush passed
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"dispatch_metrics_test" end time: Nov 16 15:13 CST
+"dispatch_metrics_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+24/34 Testing: dispatch_report_test
+24/34 Test: dispatch_report_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/dispatch_report_test.py"
+Directory: /tmp/t170-deployment-build
+"dispatch_report_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.002s
+
+OK
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Passed.
+"dispatch_report_test" end time: Nov 16 15:13 CST
+"dispatch_report_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+25/34 Testing: deployment_test
+25/34 Test: deployment_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/deployment_test.py" "/tmp/t170-deployment-build/t170_config_dump"
+Directory: /tmp/t170-deployment-build
+"deployment_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.459s
+
+OK
+<end of output>
+Test time =   0.51 sec
+----------------------------------------------------------
+Test Passed.
+"deployment_test" end time: Nov 16 15:13 CST
+"deployment_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+26/34 Testing: skills_contract_test
+26/34 Test: skills_contract_test
+Command: "/tmp/t170-deployment-build/skills_contract_test"
+Directory: /tmp/t170-deployment-build
+"skills_contract_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+skills contract: leases, overlap, partial effects, cancellation, progress and failure stages passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"skills_contract_test" end time: Nov 16 15:13 CST
+"skills_contract_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+27/34 Testing: skills_contract_json_test
+27/34 Test: skills_contract_json_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/skills_contract_json_test.py" "/tmp/t170-deployment-build/skills_contract_test"
+Directory: /tmp/t170-deployment-build
+"skills_contract_json_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+C++ skill JSON: schema identity, escaping, confirmed partial release and unknown peer passed
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"skills_contract_json_test" end time: Nov 16 15:13 CST
+"skills_contract_json_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+28/34 Testing: conveyor_skill_test
+28/34 Test: conveyor_skill_test
+Command: "/tmp/t170-deployment-build/conveyor_skill_test"
+Directory: /tmp/t170-deployment-build
+"conveyor_skill_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[orch] belt_grasp 右手 0.12m/s 先到正上方 8.00 cm，再竖直 0.04 m/s 下降。下降段使用双轴闭环、延迟补偿与预测制动
+[orch] belt_grasp 右手 0.12m/s 先到正上方 8.00 cm，再竖直 0.04 m/s 下降。下降段使用双轴闭环、延迟补偿与预测制动
+[orch] belt_grasp 右手 0.12m/s 先到正上方 8.00 cm，再竖直 0.04 m/s 下降。下降段使用双轴闭环、延迟补偿与预测制动
+[orch] belt_grasp 右手 伸手失败 code=-16
+[orch] belt_grasp 右手 0.12m/s 先到正上方 8.00 cm，再竖直 0.04 m/s 下降。下降段使用双轴闭环、延迟补偿与预测制动
+[orch] belt 右手 0.25m/s 先到上方，再竖直 0.25 m/s 放下
+[servo] 传送带放置使用既有开环目标；未定义可观测特征，不计入视觉闭环验收
+[orch] belt 右手 放置点松爪到 0.2（0全开 1全合）
+[orch] belt 右手 0.25m/s 先到上方，再竖直 0.25 m/s 放下
+[servo] 传送带放置使用既有开环目标；未定义可观测特征，不计入视觉闭环验收
+[orch] belt 右手 放置点松爪到 0.2（0全开 1全合）
+[orch] belt_grasp 右手 合爪后先竖直抬离，再规划返回，目标=固定关节中转准备位 speed=0.25m/s
+[orch] belt_grasp 右手 收手失败 code=-16，保留夹爪状态
+[orch] belt_grasp 右手 合爪后先竖直抬离，再规划返回，目标=伸手前实测关节（空抓） speed=0.25m/s
+[orch] belt_grasp 右手 合爪后先竖直抬离，再规划返回，目标=固定关节中转准备位 speed=0.25m/s
+[orch] belt_grasp 左手 0.12m/s 先到正上方 8.00 cm，再竖直 0.04 m/s 下降。下降段使用双轴闭环、延迟补偿与预测制动
+conveyor skills: production contact/retreat, native errors, release uncertainty, cancellation and peer overlap passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"conveyor_skill_test" end time: Nov 16 15:13 CST
+"conveyor_skill_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+29/34 Testing: tray_skill_service_test
+29/34 Test: tray_skill_service_test
+Command: "/tmp/t170-deployment-build/tray_skill_service_test"
+Directory: /tmp/t170-deployment-build
+"tray_skill_service_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+tray service: selection, target identity, no target, partial release, held-part failure and scope cleanup passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"tray_skill_service_test" end time: Nov 16 15:13 CST
+"tray_skill_service_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+30/34 Testing: app_policy_test
+30/34 Test: app_policy_test
+Command: "/tmp/t170-deployment-build/app_policy_test"
+Directory: /tmp/t170-deployment-build
+"app_policy_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+application policy: explicit modes, old alias, invalid CLI, command coverage and production access passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"app_policy_test" end time: Nov 16 15:13 CST
+"app_policy_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+31/34 Testing: factory_entrypoints_test
+31/34 Test: factory_entrypoints_test
+Command: "/opt/homebrew/Frameworks/Python.framework/Versions/3.13/bin/python3.13" "/Users/superjack/Ti5/T170-field-review-20261111/tests/factory_entrypoints_test.py" "/tmp/t170-deployment-build/app_policy_test"
+Directory: /tmp/t170-deployment-build
+"factory_entrypoints_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.228s
+
+OK
+<end of output>
+Test time =   0.27 sec
+----------------------------------------------------------
+Test Passed.
+"factory_entrypoints_test" end time: Nov 16 15:13 CST
+"factory_entrypoints_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+32/34 Testing: factory_navigation_test
+32/34 Test: factory_navigation_test
+Command: "/tmp/t170-deployment-build/factory_navigation_test"
+Directory: /tmp/t170-deployment-build
+"factory_navigation_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[orch] 底盘去 group5-out
+[orch] 已通知底盘去 group5-out，等待到位
+[orch] 底盘站名已是 group5-out，导航状态=2，尚未停稳，继续等
+[orch] 站名已变为 group5-out，提前准备腰和手臂
+[orch] 底盘导航完成并停稳 target=group5-out x=1.000 y=2.000
+[orch] 底盘去 group5-out
+[orch] 底盘已在 group5-out，不再发导航
+[orch] 底盘去 group5-out
+[orch] 已通知底盘去 group5-out，等待到位
+[orch] 底盘遇到障碍，取消导航
+[orch] 底盘去 group5-out
+[orch] 已通知底盘去 group5-out，等待到位
+[orch] 等待底盘到位时中止，取消导航
+[orch] 底盘去 group5-out
+[orch] 已通知底盘去 group5-out，等待到位
+[orch] 底盘站名已是 group5-out，导航状态=2，尚未停稳，继续等
+[orch] 底盘 导航失败 target=group5-out
+[orch] 底盘去 group5-out
+[orch] 底盘去 group5-out 下发失败 code=-42 synthetic
+factory navigation: station-name timing, arrival, obstacle, cancel and native errors passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"factory_navigation_test" end time: Nov 16 15:13 CST
+"factory_navigation_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+33/34 Testing: factory_assignment_test
+33/34 Test: factory_assignment_test
+Command: "/tmp/t170-deployment-build/factory_assignment_test"
+Directory: /tmp/t170-deployment-build
+"factory_assignment_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+[dispatch] 调度点位 上料架=tray-A 工序一口一=machine-group1-in 口二= 采用上料点=machine-group1-in 工序二口一= 口二=machine-group1-out 采用下料点=machine-group1-out 下料架=tray-B 待命点= 充电点=
+[dispatch] 调度点位 上料架=tray-A 工序一口一= 口二=machine-group5-in 采用上料点=machine-group5-in 工序二口一= 口二=machine-group5-out 采用下料点=machine-group5-out 下料架=tray-B 待命点= 充电点=
+[dispatch] 任务 TASK_LOAD 缺少点位 raw_material_point
+factory assignment: dispatch point changes, no robot-machine pairing, fallbacks and restoration passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"factory_assignment_test" end time: Nov 16 15:13 CST
+"factory_assignment_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+34/34 Testing: dispatch_adapter_test
+34/34 Test: dispatch_adapter_test
+Command: "/tmp/t170-deployment-build/dispatch_adapter_test"
+Directory: /tmp/t170-deployment-build
+"dispatch_adapter_test" start time: Nov 16 15:13 CST
+Output:
+----------------------------------------------------------
+dispatch adapter: identities, grants, native faults, status and blocked receiver shutdown passed (contract double)
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"dispatch_adapter_test" end time: Nov 16 15:13 CST
+"dispatch_adapter_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Nov 16 15:13 CST

@@ -1,15 +1,19 @@
 schema_version: 1
 joint_coordinates: sdk_mdh_model_deg
-# J2 opened 8 deg outward from the nominal TCP pose.
-# 260 mm tool TCP is about (0.449, +/-0.365, -0.077) m. Elbow |Y| increases about 35 mm.
-# Model-FK checked; physical motion/clearance requires field verification.
+# Nominal 260 mm tool: TCP (0.45, +/-0.35, -0.10) m, RPY=0.
+# Full seven-joint solution: outward elbows with TCP position/orientation preserved.
+# Reference FK verified; robot clearance and execution require field validation.
 posture_gain: 0.15
 elbow_gain: 8.0
 limit_gain: 0.002
-elbow_outward_ratio: 0.3
+elbow_outward_ratio: 1.0
+# Soft comfort objectives; effective joint limits and fixed Home are unchanged.
+wrist_margin_rad: 0.14
+wrist_gain: 2.0
+elbow_clearance_m: 0.08
 right:
-  home_deg: [2.63714986618, -24.6913673489, 32.9380517906, 118.702173017, 16.0936990614, -38.9965176999, 24.0989002056]
-  preferred_deg: [2.63714986618, -24.6913673489, 32.9380517906, 118.702173017, 16.0936990614, -38.9965176999, 24.0989002056]
+  home_deg: [-2.74449651782, -25.2084264235, 28.1870718795, 118.706854063, 28.9510146295, -34.8726850194, 11.8766032185]
+  preferred_deg: [-2.74449651782, -25.2084264235, 28.1870718795, 118.706854063, 28.9510146295, -34.8726850194, 11.8766032185]
 left:
-  home_deg: [2.60180731194, 24.7437358441, -32.9061793394, 118.702113326, -16.0989002063, -38.9781858938, -24.2458342402]
-  preferred_deg: [2.60180731194, 24.7437358441, -32.9061793394, 118.702113326, -16.0989002063, -38.9781858938, -24.2458342402]
+  home_deg: [-2.74442985137, 25.2084587613, -28.1870186545, 118.706781667, -28.8889619824, -34.8731597135, -12.0741532484]
+  preferred_deg: [-2.74442985137, 25.2084587613, -28.1870186545, 118.706781667, -28.8889619824, -34.8731597135, -12.0741532484]

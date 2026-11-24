@@ -37,5 +37,5 @@ Arm::Arm(const std::string &sdk_model,const std::string &robot_model,const std::
         throw std::runtime_error("Arm IO and solver selected different configuration files");
     can_id_list=definition_.can_ids;backend_=std::make_shared<VendorArm>(definition_);
     std::clog<<"[arm_sdk] backend=Ti5_Robotics version=20261109 model="<<robot_model<<" side="<<side
-        <<" joints=sdk_model_rad dh_tool_readback=matched line_solver=bounded_qp posture=adaptive_elbow\n";
+        <<" joints=sdk_model_rad dh_tool_readback=matched line_solver=bounded_qp servo_solver=velocity_qp posture=outward_elbow_wrist\n";
 }

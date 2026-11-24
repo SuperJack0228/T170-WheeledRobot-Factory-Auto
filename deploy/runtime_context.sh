@@ -3,7 +3,9 @@
 set -euo pipefail
 T170_SOURCE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -n "${T170_RUNTIME_DIR:-}" ]]; then
-  export T170_ROOT="$(cd -- "$T170_RUNTIME_DIR" && pwd)"
+  # Assignment must fail before export: `export X=$(cd ...)` hides cd's exit code.
+  T170_ROOT="$(cd -- "$T170_RUNTIME_DIR" && pwd)" || exit 1
+  export T170_ROOT
 fi
 export T170_ROOT="${T170_ROOT:-${MARKET_SIMPLE_ROOT:-$T170_SOURCE_ROOT}}"
 T170_ROOT="$(cd -- "$T170_ROOT" && pwd)"

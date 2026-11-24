@@ -10,7 +10,7 @@ chassis:
   nav_timeout_ms: 600000
 head_grasp:
   hover_above_m: 0.12
-  grasp_z_offset_m: -0.001
+  grasp_z_offset_m: -0.01
   goal_z_base: -0.3
   goal_x_offset: 0.04
   goal_y_offset: 0.0

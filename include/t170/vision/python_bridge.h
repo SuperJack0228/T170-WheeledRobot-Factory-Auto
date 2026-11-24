@@ -1,4 +1,5 @@
 #pragma once
+#include "t170/config/extrinsics.h"
 #include "t170/app/lifecycle.h" // Compatibility: application owns these declarations.
 #include "t170/vision/visualization.h"
 #include "t170/vision/perception_types.h"
@@ -204,8 +205,6 @@ HeadBeltPerception perceive_belt_head(
 /** 打印某一部位自己的缓存数组 */
 
 
-/** 从 config/camera_to_base_result.yaml 读取 a.matrix（yaml 平移 mm，内部转为 m） */
-bool load_cam2robot_matrix(const std::string &yaml_path, std::array<double, 16> &out, std::string &err);
 
 /** pose_robot = cam2robot @ det_pose；cam2robot 与 det_pose 均为米 */
 std::array<double, 16> transform_pose_cam_to_robot(

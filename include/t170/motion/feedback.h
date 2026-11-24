@@ -17,6 +17,11 @@ bool record_arm_cartesian_arrival(
     const char *stage = nullptr,
     double settle_sec = 15.0);
 
+// Record a feedback snapshot after an executor has already verified arrival.
+// This does not start a second encoder-settling loop.
+void record_arm_cartesian_snapshot(Arm &arm,const Eigen::Matrix<double,1,6> &goal,
+                                   const char *stage,bool arrival_verified);
+
 void log_arm_encoder_command_vs_actual(Arm &arm, const char *tag);
 
 Eigen::Matrix<double, 1, 7> arm_get_joint_pos(Arm &arm);

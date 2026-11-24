@@ -5,24 +5,25 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>T170C工厂自动上下料控制器</title>
-  <link rel="stylesheet" href="/styles.css?v=11">
+  <link rel="stylesheet" href="/styles.css?v=21">
 </head>
 <body>
   <header class="nav">
     <a class="brand" href="/" title="T170C工厂自动上下料控制器">
-      <img class="brand-logo" src="/logo-tis-robot.png?v=2" alt="TiS ROBOT" width="160" height="49">
       <span class="brand-text">T170C工厂自动上下料控制器</span>
     </a>
     <nav class="tabs">
       <button class="tab active" data-page="status">状态</button>
       <button class="tab" data-page="motion">动作</button>
-      <button class="tab" data-page="dispatch">调度</button>
-      <a class="tab" href="/calibration">标定向导</a>
+      <button class="tab" data-page="dispatch" id="taskTab">任务联调</button>
+      <a class="tab" id="calibrationLink" href="/calibration">标定向导</a>
       <button class="tab" data-page="config">参数</button>
+      <button class="tab" data-page="profiles">机器人档案</button>
       <button class="tab" data-page="vision">视觉</button>
       <button class="tab" data-page="logs">日志</button>
     </nav>
     <div class="nav-side">
+      <span id="modeChip" class="pill">模式未知</span>
       <span id="serviceChip" class="pill">连接中</span>
       <button id="stopButton" class="stop">停止</button>
     </div>
@@ -30,8 +31,9 @@
 
   <div id="versionBanner" class="banner" hidden></div>
   <p id="modeNotice" class="hint" role="status" hidden></p>
+  <div id="actionNotice" class="action-notice" role="status" hidden></div>
 
-  <section class="hand-live" aria-label="手相机实时画面">
+  <section class="hand-live" aria-label="手相机实时画面" hidden>
     <figure>
       <figcaption>左手相机</figcaption>
       <img id="liveLeft" alt="左手相机实时画面">
@@ -49,6 +51,7 @@
     <section id="page-status" class="page active">
       <p class="kicker">Status</p>
       <h1>实时状态</h1>
+      <p class="robot-context"><strong id="activeRobot">等待机器人服务</strong> <span id="activeModel"></span> <button id="openProfiles" class="quiet">切换机器人</button></p>
       <p class="lead" id="statusLead">空闲时每秒读取双臂 TCP、腰高、持件和底盘站位。动作进行中不打断电机，沿用上一次读数。</p>
       <div class="stats">
         <article><span>服务</span><strong id="metricService">—</strong></article>
@@ -77,83 +80,18 @@
       <p class="kicker">Motion</p>
       <h1>单步动作</h1>
       <p class="lead">每条都会让机器人真的动。旁边有人守着急停。</p>
-      <div class="grid three">
-        <article class="card mod-pose">
-          <div class="mod-head">
-            <h2>姿态</h2>
-            <p class="hint">home、挥手、鞠躬等姿态动作。</p>
-          </div>
-          <div class="actions">
-            <button class="cmd" data-command="home">回到 home</button>
-            <button class="cmd" data-command="waist_cycle">腰循环 3 次</button>
-            <button class="cmd" data-command="wave_ready">挥手前下垂</button>
-            <button class="cmd" data-command="wave">挥右手</button>
-            <button class="cmd" data-command="bow">鞠躬</button>
-            <button class="cmd" data-command="welcome">迎宾循环</button>
-          </div>
-        </article>
-        <article class="card mod-tray">
-          <div class="mod-head">
-            <h2>料盘</h2>
-            <p class="hint">抓一次：两只手各抓到一件就停，夹爪保持合上，底盘不走。清空：一直抓到料盘空，每轮抓完松爪。</p>
-          </div>
-          <div class="actions">
-            <button class="cmd" data-command="vision_grasp_once">抓一次料盘</button>
-            <button class="cmd" data-command="vision_grasp">清空料盘（每轮抓完松爪）</button>
-            <button class="cmd" data-command="tray_servo_test">伺服测试 第二近排</button>
-            <button class="cmd" data-command="grasp_ready1">准备 近排</button>
-            <button class="cmd" data-command="grasp_ready3">准备 远排</button>
-            <button class="cmd" data-command="tray2_auto">tray2_auto</button>
-          </div>
-        </article>
-        <article class="card mod-belt">
-          <div class="mod-head">
-            <h2>传送带</h2>
-            <p class="hint">一号 / 二号传送带的准备、放置与抓取。</p>
-          </div>
-          <div class="actions">
-            <button class="cmd" data-command="belt_ready">一号准备</button>
-            <button class="cmd" data-command="belt">一号放置</button>
-            <button class="cmd" data-command="belt_grasp">一号抓取</button>
-            <button class="cmd" data-command="belt2_ready">二号准备</button>
-            <button class="cmd" data-command="belt2">二号放置</button>
-            <button class="cmd" data-command="belt2_grasp">二号抓取</button>
-          </div>
-        </article>
-      </div>
-      <div class="grid two">
-        <article class="card mod-cycle">
-          <div class="mod-head">
-            <h2>整圈</h2>
-            <p class="hint cycle-hint">cycle：整圈 · cycle1：料盘一↔传送带一 · cycle3：传送带二→料盘二</p>
-          </div>
-          <div class="actions row wrap cycle-row">
-            <button class="cmd" data-command="grasp_belt">cycle</button>
-            <button class="cmd" data-command="grasp_belt1">cycle1</button>
-            <button class="cmd" data-command="cycle3">cycle3</button>
-          </div>
-        </article>
-        <article class="card mod-charge">
-          <div class="mod-head">
-            <h2>充电</h2>
-            <p class="hint">调试充电：home → 等待点 → 挥手下垂 → 腰降到抓取高度 → 充电点，检测到开始充电就结束。调度任务里的充电要充到阈值，再去充电等待点。</p>
-          </div>
-          <div class="actions">
-            <button class="cmd" data-command="charge">充电</button>
-          </div>
-        </article>
-      </div>
+      <div id="actionGroups" class="grid three"><p class="hint">连接服务后加载有效动作。</p></div>
       <article class="card">
-        <h2>刚才的结果</h2>
-        <pre id="motionResult">还没有从这里发过动作。</pre>
+        <h2>执行结果</h2>
+        <p id="motionStatus" class="hint">尚未执行动作。</p><details><summary>查看返回详情</summary><pre id="motionResult">尚未执行动作。</pre></details>
       </article>
     </section>
 
     <section id="page-dispatch" class="page">
       <p class="kicker">Dispatch</p>
-      <h1>调度</h1>
-      <p class="lead">手动由你排顺序。自动去等待点，听工厂调度系统发来的任务。</p>
-      <div class="monitor">
+      <h1 id="taskHeading">任务联调</h1>
+      <p class="lead" id="taskLead">维护模式下手动验证任务，不自动进入调度。</p>
+      <div class="monitor" id="dispatchMonitor">
         <div class="monitor-head">
           <h2>自动调度监控</h2>
           <span id="dmUpdated" class="hint"></span>
@@ -162,8 +100,8 @@
         <div id="dmBody"></div>
       </div>
       <div class="grid two">
-        <article class="card">
-          <h2>手动</h2>
+        <article class="card" id="manualTaskCard">
+          <h2>手动任务联调</h2>
           <p class="hint">上料：料盘抓毛坯，再放到传送带一。转运：传送带一按检测框窗口抓，再放到传送带二。下料：传送带二抓成品，再放到料盘二。这里不向调度申请。</p>
           <div class="actions row">
             <button class="quiet" id="addLoad" type="button">加上料</button>
@@ -177,9 +115,7 @@
           </div>
           <p class="hint" id="jobLine">当前没有编排在跑。</p>
         </article>
-        <article class="card">
-          <h2>自动</h2>
-          <p class="hint">和命令行里的 dispatch 相同。到等待点后听调度。上料：料盘抓完、去传送带一时申请放置，超时就直接放。转运：不申请，检测框中心落在码系窗口内才抓，有件才去传送带二并申请放置。下料：传送带二只申请一次再抓，然后放到成品盘。放置申请超时都是直接放。顶部「停止」只中止当前动作；离开调度请点「退出调度」。调试充电在「动作」页。</p>
+        <article class="card" id="automaticTaskCard"><h2>自动调度</h2><p class="hint">进入后由工厂调度分配任务。退出调度会中止当前流程并离开调度模式。</p>
           <button class="cmd fill dispatch-enter" data-command="dispatch">进入调度</button>
           <button type="button" id="exitDispatch" class="dispatch-exit">退出调度</button>
           <p class="hint">退出调度会中止动作、断开与调度系统的等待，并结束调度模式；监控里「调度中」应变为未进入。</p>
@@ -191,9 +127,9 @@
       <p class="kicker">Parameters</p>
       <h1>参数</h1>
       <div class="actions row wrap">
-        <button class="cmd" id="reloadRobot" type="button">reload</button>
+        <button class="quiet" id="reloadRobot" type="button">重载运行参数</button>
       </div>
-      <p class="lead" id="configNote">运动参数保存后会 reload。</p>
+      <p class="lead" id="configNote">分层生成的运行快照只读；请按来源文件修改参数。</p>
       <div class="actions row wrap" id="fileTabs"></div>
       <div id="fieldForm"></div>
       <div class="actions row">
@@ -216,6 +152,14 @@
       </article>
     </section>
 
+    <section id="page-profiles" class="page">
+      <p class="kicker">Robot profiles</p><h1>机器人档案</h1>
+      <p class="lead">选择机器人编号与臂型。保存后在下次启动主服务时生效。</p>
+      <div class="profile-summary card"><div><span class="workspace-label">正在运行</span><strong id="profileActive">—</strong></div><div><span class="workspace-label">下次启动</span><strong id="profileSelected">—</strong></div></div>
+      <article class="card"><h2>选择部署档案</h2><div class="profile-fields"><label>机器人编号<select id="profileSelect"></select></label><label>机械臂型号<select id="profileModel"><option value="t170c_v2_3kg">T170C V2 · 3 kg</option><option value="t170c_v2_5kg">T170C V2 · 5 kg</option></select></label></div><p id="profileDetail" class="hint"></p><button id="applyProfile" class="fill">保存为下次启动档案</button><p id="profileMessage" class="hint" role="status"></p></article>
+      <details class="card"><summary>新增机器人档案</summary><p class="hint">复用选中档案的接口、相机、工具和示教配置。本机手眼与手相机标定单独导入，不复制其他机器人的标定。</p><div class="profile-fields"><label>新机器人编号<input id="newRobotId" placeholder="TH-T170C-0125" pattern="TH-T170C-[0-9]{4,8}"></label><label>底盘地址<input id="newRobotHost" placeholder="192.168.192.5"></label></div><button id="createProfile" class="quiet">创建档案</button></details>
+    </section>
+
     <section id="page-logs" class="page">
       <p class="kicker">Log</p>
       <h1>日志</h1>
@@ -229,6 +173,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=16"></script>
+  <script src="/app.js?v=21"></script>
 </body>
 </html>

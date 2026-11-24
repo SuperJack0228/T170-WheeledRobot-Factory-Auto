@@ -32,7 +32,13 @@ namespace detail {
 State measured(Arm &arm, Runtime &slot, double &read_ms) {
     const double before = monotonic_seconds();
     Joints q;
-    if(!read_joint_feedback(hand_index(arm),q)) throw std::runtime_error("joint_feedback_read_failed");
+    if(!read_joint_feedback(hand_index(arm),q)) {
+        std::lock_guard lock(slot.mutex);
+        // The caller sees the original timestamp and skips the control tick.
+        // Neither the observer history nor velocity/camera estimates see this frame.
+        if(slot.context.latest.time_s>0 && before-slot.context.latest.time_s<=.10)return slot.context.latest;
+        throw std::runtime_error("joint_feedback_validity_timeout");
+    }
     const double after = monotonic_seconds();
     State s; s.time_s = 0.5*(before+after); s.joints=q;
     s.sampling_uncertainty_s=0.5*(after-before)+slot.context.config.feedback_age_budget_s;

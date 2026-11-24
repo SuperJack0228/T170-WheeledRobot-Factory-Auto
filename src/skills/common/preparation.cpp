@@ -30,6 +30,7 @@
 #include "t170/common/units.h"
 #include "t170/motion/cartesian_tracking.h"
 #include "t170/motion/feedback.h"
+#include "t170/motion/cartesian_arrival.h"
 #include "t170/motion/kinematics_adapter.h"
 #include "t170/motion/planning.h"
 #include "t170/common/pose_math.h"
@@ -81,17 +82,6 @@ constexpr double kFoldedElbowAbsRad = 70.0 * rad;
 
 constexpr double kJointHomeArriveXyzM = 0.05;
 
-bool solve_standby_joints(Arm &arm, bool is_right, Eigen::Matrix<double,1,6> goal,
-                          Eigen::Matrix<double,1,7> &qd)
-    {
-        Eigen::RowVectorXd q=arm_get_joint_pos(arm);
-        const int rc=arm.Inverse_Kinematics(goal,q);
-        if(rc!=0 || q.size()!=7 || arm.Check_Joint_Limit(q)) {
-            std::cerr<<"[standby] side="<<(is_right?"right":"left")<<" bounded_IK_failed="<<rc<<'\n';return false;
-        }
-        qd=q;return true;
-    }
-
 bool arm_pose_needs_joint_home(Arm &arm)
     {
         const Eigen::Matrix<double, 1, 6> tcp = arm_get_tcp_pos(arm);
@@ -110,41 +100,54 @@ bool retract_joint_to_standby(
         Eigen::Matrix<double, 1, 6> standby_l,
         bool check_zone)
     {
-        Eigen::Matrix<double, 1, 7> qd_r = Eigen::Matrix<double, 1, 7>::Zero();
-        Eigen::Matrix<double, 1, 7> qd_l = Eigen::Matrix<double, 1, 7>::Zero();
         const bool move_r = !right_arm_motors_locked();
-        if (move_r && !solve_standby_joints(arm_r, true, standby_r, qd_r))
-            return false;
-        if (!solve_standby_joints(arm_l, false, standby_l, qd_l))
-            return false;
-        if (hardware_abort_requested())
-            return false;
-
-        int ret_r = 0;
-        int ret_l = 0;
+        Eigen::MatrixXd path_r,path_l;
+        auto plan=[&](Arm &arm,const Eigen::Matrix<double,1,6> &goal,Eigen::MatrixXd &path) {
+            wrist_servo::Joints start=arm_get_joint_pos(arm);
+            wrist_servo::peek_final_hold(arm.definition().hand,start);
+            const int code=arm.Approach_Trajectory(Eigen::MatrixXd(start),goal,path,g_move_cfg.head_grasp.approach_vel_m_s);
+            if(code!=0)return false;
+            for(int i=0;i<path.rows();++i) {
+                const auto p=arm.Forward_Kinematics(path.row(i)).topRightCorner<3,1>().eval();
+                if(check_zone && (arm.definition().hand==1 ? !arm_y_allowed_right(p(1)) : !arm_y_allowed_left(p(1))))return false;
+            }
+            return true;
+        };
+        // Preflight both arms before either arm moves. Execute those same paths.
+        if((move_r && !plan(arm_r,standby_r,path_r)) || !plan(arm_l,standby_l,path_l))return false;
+        if(hardware_abort_requested())return false;
+        int ret_r=0,ret_l=0;
+        auto execute=[&](Arm &arm,const Eigen::MatrixXd &path,int &code) {
+            try {
+                t170::motion::CartesianArrivalGate gate(arm.Forward_Kinematics(path.bottomRows(1)),
+                    kJointHomeArriveXyzM,kRetractSkipRpyRad);
+                code=arm_execute_joint_path(arm,path,"standby_transit",[&](const wrist_servo::Joints &q) {
+                    return gate(arm.Forward_Kinematics(q));
+                });
+            }
+            catch(const std::exception &e) {std::cerr<<"[standby] side="<<arm.definition().side<<" exception="<<e.what()<<'\n';code=-32;}
+        };
         std::thread tr;
-        std::thread tl([&]() { ret_l = arm_joint_move(arm_l, qd_l); });
-        if (move_r)
-            tr = std::thread([&]() { ret_r = arm_joint_move(arm_r, qd_r); });
-        if (tr.joinable())
-            tr.join();
+        std::thread tl([&](){execute(arm_l,path_l,ret_l);});
+        if(move_r)tr=std::thread([&](){execute(arm_r,path_r,ret_r);});
+        if(tr.joinable())tr.join();
         tl.join();
 
         bool ok = true;
         if (move_r && ret_r != 0)
         {
-            log_arm_traj_plan_fail("右手(home关节)", ret_r);
+            log_arm_traj_plan_fail("右手(准备位转场)", ret_r);
             ok = false;
         }
         if (ret_l != 0)
         {
-            log_arm_traj_plan_fail("左手(home关节)", ret_l);
+            log_arm_traj_plan_fail("左手(准备位转场)", ret_l);
             ok = false;
         }
         if (move_r && ret_r == 0)
-            record_arm_cartesian_arrival(arm_r, standby_r, "关节回standby");
+            record_arm_cartesian_snapshot(arm_r, standby_r, "准备位转场",true);
         if (ret_l == 0)
-            record_arm_cartesian_arrival(arm_l, standby_l, "关节回standby");
+            record_arm_cartesian_snapshot(arm_l, standby_l, "准备位转场",true);
         if (move_r)
             log_retract_arm_state("关节回standby后", true, arm_r);
         log_retract_arm_state("关节回standby后", false, arm_l);
@@ -320,7 +323,7 @@ bool move_arms_retract_to(
         if ((!right_arm_motors_locked() && arm_pose_needs_joint_home(arm_r)) ||
             arm_pose_needs_joint_home(arm_l))
         {
-            std::cout << "[home] 垂臂直接关节回 yaml standby，不限制起点关节限位\n";
+            std::cout << "[home] 垂臂直接转场回 yaml standby，保留有效关节限位\n";
             const bool joint_ok =
                 retract_joint_to_standby(arm_r, arm_l, standby_r, standby_l, check_zone);
             log_retract_arm_state("完成", true, arm_r);
@@ -391,123 +394,10 @@ bool move_arms_retract_to(
             }
         }
 
-        // 3) 本侧分区内平移到 standby XY，Z 保持抬升高度，RPY 仍用当前值。
-        {
-            cur_r = arm_get_tcp_pos(arm_r);
-            cur_l = arm_get_tcp_pos(arm_l);
-            bool xy_r = !right_arm_motors_locked() &&
-                        (!check_zone || arm_y_allowed_right(cur_r(1)));
-            bool xy_l = !check_zone || arm_y_allowed_left(cur_l(1));
-            if (!right_arm_motors_locked() && !xy_r)
-            {
-                std::cerr << "[home] 右手仍越区，停止后续阶段\n";
-                return false;
-            }
-            if (!xy_l)
-            {
-                std::cerr << "[home] 左手仍越区，停止后续阶段\n";
-                return false;
-            }
-            Eigen::Matrix<double, 1, 6> xy_r_g =
-                hold_rpy_goal(cur_r, standby_r(0), standby_r(1), cur_r(2));
-            Eigen::Matrix<double, 1, 6> xy_l_g =
-                hold_rpy_goal(cur_l, standby_l(0), standby_l(1), cur_l(2));
-            std::cout << "[home] 保持当前姿态，平移到准备位 XY"
-                      << (check_zone ? "（卡本侧分区）\n" : "（不卡中缝）\n");
-            if (!retract_phase_move(
-                    arm_r, arm_l, xy_r_g, xy_r, xy_l_g, xy_l, "home平移到准备XY", check_zone))
-                return false;
-            if (hardware_abort_requested())
-                return false;
-        }
-
-        auto near_standby_xy = [](const Eigen::Matrix<double, 1, 6> &cur,
-                                  const Eigen::Matrix<double, 1, 6> &sb) {
-            // 左臂 XY 常停在 4cm 级误差；3cm 会跳过落 Z，左右高度差一整段。
-            return std::hypot(cur(0) - sb(0), cur(1) - sb(1)) <= 0.08;
-        };
-
-        // 4) 已在准备位上方，再竖直落到 standby Z（仍不转腕）。
-        {
-            cur_r = arm_get_tcp_pos(arm_r);
-            cur_l = arm_get_tcp_pos(arm_l);
-            const bool down_r = near_standby_xy(cur_r, standby_r) &&
-                                (!check_zone || arm_y_allowed_right(cur_r(1))) &&
-                                std::abs(cur_r(2) - standby_r(2)) > 0.01;
-            const bool down_l = near_standby_xy(cur_l, standby_l) &&
-                                (!check_zone || arm_y_allowed_left(cur_l(1))) &&
-                                std::abs(cur_l(2) - standby_l(2)) > 0.01;
-            if (down_r || down_l)
-            {
-                Eigen::Matrix<double, 1, 6> z_r =
-                    hold_rpy_goal(cur_r, standby_r(0), standby_r(1), standby_r(2));
-                Eigen::Matrix<double, 1, 6> z_l =
-                    hold_rpy_goal(cur_l, standby_l(0), standby_l(1), standby_l(2));
-                std::cout << std::fixed << std::setprecision(4)
-                          << "[home] 竖直校正准备Z 右 " << cur_r(2) << "→" << standby_r(2)
-                          << (down_r ? "" : " 跳过")
-                          << " 左 " << cur_l(2) << "→" << standby_l(2)
-                          << (down_l ? "" : " 跳过") << "\n";
-                if (!retract_phase_move(
-                        arm_r, arm_l, z_r, down_r, z_l, down_l, "home落到准备Z", check_zone))
-                    return false;
-                if (hardware_abort_requested())
-                    return false;
-            }
-        }
-
-        // 5) 已在准备位 XYZ，仅当姿态差够大才转腕；否则跳过，避免无谓旋转。
-        {
-            cur_r = arm_get_tcp_pos(arm_r);
-            cur_l = arm_get_tcp_pos(arm_l);
-            const bool rpy_r = near_standby_xy(cur_r, standby_r) &&
-                               (!check_zone || arm_y_allowed_right(cur_r(1))) &&
-                               !retract_rpy_close(cur_r, standby_r);
-            const bool rpy_l = near_standby_xy(cur_l, standby_l) &&
-                               (!check_zone || arm_y_allowed_left(cur_l(1))) &&
-                               !retract_rpy_close(cur_l, standby_l);
-            if (rpy_r || rpy_l)
-            {
-                std::cout << "[home] 准备位原地转到 standby 姿态\n";
-                Eigen::Matrix<double, 1, 6> rpy_goal_r = standby_r;
-                Eigen::Matrix<double, 1, 6> rpy_goal_l = standby_l;
-                rpy_goal_r(0) = cur_r(0);
-                rpy_goal_r(1) = cur_r(1);
-                rpy_goal_r(2) = standby_r(2);
-                rpy_goal_l(0) = cur_l(0);
-                rpy_goal_l(1) = cur_l(1);
-                rpy_goal_l(2) = standby_l(2);
-                if (!retract_phase_move(
-                        arm_r, arm_l, rpy_goal_r, rpy_r, rpy_goal_l, rpy_l, "home准备姿态", check_zone))
-                    return false;
-            }
-            else
-                std::cout << "[home] 当前腕角已接近 standby，或尚未到准备XY，跳过转腕\n";
-        }
-
-        // 6) 转腕后若 Z 仍偏，再竖直对齐，避免左右手高度不一致。
-        {
-            cur_r = arm_get_tcp_pos(arm_r);
-            cur_l = arm_get_tcp_pos(arm_l);
-            const bool z_r = !right_arm_motors_locked() &&
-                             (!check_zone || arm_y_allowed_right(cur_r(1))) &&
-                             std::abs(cur_r(2) - standby_r(2)) > 0.015;
-            const bool z_l = (!check_zone || arm_y_allowed_left(cur_l(1))) &&
-                             std::abs(cur_l(2) - standby_l(2)) > 0.015;
-            if (z_r || z_l)
-            {
-                Eigen::Matrix<double, 1, 6> z_r_g =
-                    hold_rpy_goal(cur_r, cur_r(0), cur_r(1), standby_r(2));
-                Eigen::Matrix<double, 1, 6> z_l_g =
-                    hold_rpy_goal(cur_l, cur_l(0), cur_l(1), standby_l(2));
-                std::cout << std::fixed << std::setprecision(4)
-                          << "[home] 转腕后Z仍偏，再竖直对齐 右 " << cur_r(2) << "→"
-                          << standby_r(2) << " 左 " << cur_l(2) << "→" << standby_l(2) << "\n";
-                if (!retract_phase_move(
-                        arm_r, arm_l, z_r_g, z_r, z_l_g, z_l, "home转腕后对齐Z", check_zone))
-                    return false;
-            }
-        }
+        // Once clear, position and orientation travel together in one transit.
+        // Do not force XY, Z and wrist rotation into independent stopped lines.
+        std::cout<<"[standby] 已退出低位，位置/姿态一次转场到准备位\n";
+        ok=retract_joint_to_standby(arm_r,arm_l,standby_r,standby_l,check_zone);
 
         log_retract_arm_state("完成", true, arm_r);
         log_retract_arm_state("完成", false, arm_l);

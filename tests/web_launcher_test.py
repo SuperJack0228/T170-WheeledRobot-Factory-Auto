@@ -128,6 +128,12 @@ class WebLauncherTest(unittest.TestCase):
         self.assertEqual(result.stdout, '')
         self.assertEqual(set(self.base.iterdir()), before)
 
+    def test_explicit_missing_runtime_does_not_fall_back_to_source(self):
+        self.env['T170_RUNTIME_DIR']=str(self.base/'does not exist')
+        result=self.run_web()
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(result.stdout,'')
+
 
 if __name__ == '__main__':
     unittest.main()

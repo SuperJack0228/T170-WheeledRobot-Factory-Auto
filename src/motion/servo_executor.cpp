@@ -67,7 +67,9 @@ int run_descent(Arm &arm,const Eigen::Matrix<double,1,6> &goal,
         const State previous_feedback=state;
         state=measured(arm,slot,read_ms);
         const double dt=state.time_s-previous_time; previous_time=state.time_s;
-        if(dt<=0) continue;
+        if(dt<=0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));continue;
+        }
         if(std::abs(state.position.z()-previous_feedback.position.z())>std::max(.005,1.5*speed*dt)) {
             TraceRow row;row.time_s=monotonic_seconds();row.hand=hand;row.session=context.session;
             row.event="feedback_step";row.reason="FK_Z_step_exceeds_descent_profile";
@@ -182,25 +184,20 @@ int run_descent(Arm &arm,const Eigen::Matrix<double,1,6> &goal,
             solved=true; next_reference=reference; joint_velocity.setZero();
             solver_reason="hold_final_reference";
         }
-        for(int attempt=0;attempt<8 && !solved;++attempt) {
-            const double fraction=std::ldexp(1.0,-attempt);
-            const Vec3 trial=reference+fraction*increment;
-            const Eigen::Matrix3d trial_rotation=Eigen::Quaterniond(command_rotation).slerp(
-                rotation_fraction*fraction,Eigen::Quaterniond(rotation)).toRotationMatrix();
-            if(!solve_local_pose(arm,command,trial,trial_rotation,cfg,candidate,xyz,rot)) continue;
-            const Joints velocity=(candidate-command)/step_dt;
-            if(velocity.cwiseAbs().maxCoeff()>cfg.max_joint_speed_rad_s) { solver_reason="joint_speed_limit"; continue; }
-            if(((velocity-joint_velocity)/step_dt).cwiseAbs().maxCoeff()>cfg.max_joint_accel_rad_s2) {
-                solver_reason="joint_acceleration_limit"; continue;
-            }
-            const Vec3 achieved=arm_tcp_from_joints(arm,candidate).head<3>().transpose();
+        if(!solved) {
             const bool tray_place=context.target_class==1 && context.tray_target.valid && cfg.tray_place.enabled;
-            if(achieved.z()<goal(2)+(context.target_class==0?cfg.grasp_height_margin_m:
-                    (tray_place?cfg.place_height_margin_m:0.0))-cfg.solver_position_tolerance_m) {
-                solver_reason="reference_below_safe_Z"; continue;
+            const double floor=goal(2)+(context.target_class==0?cfg.grasp_height_margin_m:
+                (tray_place?cfg.place_height_margin_m:0.))-cfg.solver_position_tolerance_m;
+            t170::motion::DifferentialReport report;
+            const auto target_rotation=Eigen::Quaterniond(command_rotation).slerp(rotation_fraction,Eigen::Quaterniond(rotation)).toRotationMatrix();
+            solved=solve_dynamic_pose(arm,command,next_reference,target_rotation,cfg,joint_velocity,step_dt,floor,candidate,report);
+            xyz=report.position_error;rot=report.rotation_error;solver_reason=report.reason;
+            if(solved) {
+                next_reference=arm_tcp_from_joints(arm,candidate).head<3>().transpose();
+                joint_velocity=(candidate-command)/step_dt;
+                const double requested=increment.norm();
+                applied_scale=requested>1e-9?(next_reference-reference).dot(increment)/(requested*requested):1.;
             }
-            next_reference=achieved; joint_velocity=velocity; solved=true; applied_scale=fraction;
-            solver_reason=attempt==0?"accepted":"scaled_"+solver_reason; break;
         }
         const double solve_ms=(monotonic_seconds()-solve_start)*1000;
         if(solved) {

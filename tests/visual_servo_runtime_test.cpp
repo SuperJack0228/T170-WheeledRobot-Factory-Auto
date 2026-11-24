@@ -83,6 +83,10 @@ void send_joint_reference(int hand,const Joints &q) {
     if(q(2)<0) unsafe_reference.store(true);
     p.command=q;
 }
+bool solve_dynamic_pose(Arm &,const Joints &seed,const Vec3 &position,const Eigen::Matrix3d &,
+    const Config &,const Joints &,double,double,Joints &out,t170::motion::DifferentialReport &r) {
+    out=seed;out.head<3>()=position.transpose();r.reason="test_affine_pose";return true;
+}
 bool solve_local_pose(Arm &,const Joints &seed,const Vec3 &position,const Eigen::Matrix3d &,
                       const Config &,Joints &out,double &xyz,double &rotation) {
     out=seed; out.head<3>()=position.transpose(); xyz=0; rotation=0; return true;

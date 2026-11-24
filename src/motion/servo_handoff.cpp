@@ -64,7 +64,7 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
                 TR(pose).block<3,3>(0,0).transpose()).angle();
             if((pose.head<3>()-guide.head<3>()).norm()<=cfg.handoff_distance_m &&
                v<=cfg.handoff_speed_m_s &&
-               qv<=std::min(cfg.max_joint_speed_rad_s,0.5*cfg.max_joint_accel_rad_s2*cfg.period_s) && angle<=0.002 &&
+               qv<=cfg.max_joint_speed_rad_s && angle<=0.002 &&
                pose(2)>goal(2)+cfg.freeze_height_m) {
                 wrist_servo::handoff_event(arm,command,previous,"blended_before_B");
                 break;
@@ -74,7 +74,7 @@ int execute_descent_table(const Eigen::MatrixXd &traj, int hand, int descent_row
             stop_at_B?"place_stop_at_B":"SDK_endpoint_fallback");
     }
     g_servo_joint_origin[hand]=command;
-    wrist_servo::task_event(hand,"joint_policy","effective_model_driver_limits_and_relative_envelope");
+    wrist_servo::task_event(hand,"joint_policy","velocity_QP_position_speed_acceleration_braking_elbow_wrist");
     const int result=wrist_servo::run_descent(arm,goal,command,previous,descent_speed);
     guard.success=result==0;
     return result;
@@ -126,7 +126,10 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
             arm,mid,goal,vel_first_m_s,vel_second_m_s,trajectory,log_tag,nullptr,use_prepared);
         wrist_servo::Joints q;
         if(!wrist_servo::read_joint_feedback(arm_hand_side(arm),q)) return -32;
-        const int code=plan_arm_line_from(arm,mid,vel_first_m_s,Eigen::MatrixXd(q),trajectory);
+        // Continue from the held command, not a lagged encoder sample; otherwise
+        // the player must insert a second connector or refuse a stale handoff.
+        wrist_servo::peek_final_hold(arm_hand_side(arm),q);
+        const int code=arm.Approach_Stroke(Eigen::MatrixXd(q),mid,goal,trajectory,vel_first_m_s);
         if(code==0) g_planned_descent_row[arm_hand_side(arm)]=static_cast<int>(trajectory.rows());
         // Execute the SDK approach up to its bounded handoff region; the local
         // reference controller rounds the guide and owns all subsequent motion.
@@ -206,9 +209,19 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
         Eigen::Matrix<double,1,6> corrected=goal;
         double x=0,y=0;
         if(visual && descent_commanded_xy(arm_hand_side(arm),x,y)) { corrected(0)=x; corrected(1)=y; }
-        record_arm_cartesian_arrival(arm,corrected,done);
+        if(visual) {
+            // The closed-loop descent has already passed its measured terminal
+            // gates. A second generic encoder wait can add up to 15 seconds.
+            record_arm_cartesian_snapshot(arm,corrected,done,true);return 0;
+        }
+        if(record_arm_cartesian_arrival(arm,corrected,done,g_move_cfg.retract_motion.settle_timeout_s))return 0;
+        if(hardware_abort_requested())return -4;
+        if(can_io_faulted())return -2;
+        const auto measured=arm_get_joint_pos(arm);
+        if(!arm.Check_Joint_Limit(measured))wrist_servo::hold_joint_reference(arm_hand_side(arm),measured);
+        return -8;
     };
-    if (move_r && out.ret_r == 0) arrival(arm_r,goal_r);
-    if (move_l && out.ret_l == 0) arrival(arm_l,goal_l);
+    if (move_r && out.ret_r == 0) out.ret_r=arrival(arm_r,goal_r);
+    if (move_l && out.ret_l == 0) out.ret_l=arrival(arm_l,goal_l);
     return out;
 }

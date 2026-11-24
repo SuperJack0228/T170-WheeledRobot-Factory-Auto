@@ -8,6 +8,20 @@ namespace t170::motion {
 namespace {
 bool positive(double x) { return std::isfinite(x) && x > 0; }
 }
+JointMotionLimits joint_path_peaks(const Eigen::MatrixXd &path,double dt) {
+    JointMotionLimits peak{0,0,0};
+    if(path.rows()<1 || path.cols()!=7 || !path.allFinite() || !positive(dt))return {INFINITY,INFINITY,INFINITY};
+    JointVector previous=path.row(0),v=JointVector::Zero(),a=v;
+    for(int k=0;k<path.rows()+3;++k) {
+        const JointVector current=path.row(std::min(k,static_cast<int>(path.rows())-1));
+        const JointVector next_v=(current-previous)/dt,next_a=(next_v-v)/dt;
+        peak.velocity=std::max(peak.velocity,next_v.cwiseAbs().maxCoeff());
+        peak.acceleration=std::max(peak.acceleration,next_a.cwiseAbs().maxCoeff());
+        peak.jerk=std::max(peak.jerk,((next_a-a)/dt).cwiseAbs().maxCoeff());
+        previous=current;v=next_v;a=next_a;
+    }
+    return peak;
+}
 Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &points, double dt,
                                const JointMotionLimits &limit, double minimum_duration,bool preserve_knot_bounds) {
     if(points.rows()<2 || points.cols()!=7 || !points.allFinite() || !positive(dt) ||
@@ -77,18 +91,9 @@ Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &points, double dt,
                 ((a*a*a-a)*second[interval]+(b*b*b-b)*second[interval+1])*(h*h/6);
         }
         out.row(0)=q.front(); out.bottomRows(1)=q.back();
-        JointVector previous=q.front(), v=JointVector::Zero(), a=v;
-        double pv=0,pa=0,pj=0;
-        for(int k=0;k<out.rows()+3;++k) {
-            const JointVector current=out.row(std::min(k,static_cast<int>(out.rows())-1));
-            const JointVector next_v=(current-previous)/dt, next_a=(next_v-v)/dt;
-            pv=std::max(pv,next_v.cwiseAbs().maxCoeff());
-            pa=std::max(pa,next_a.cwiseAbs().maxCoeff());
-            pj=std::max(pj,((next_a-a)/dt).cwiseAbs().maxCoeff());
-            previous=current; v=next_v; a=next_a;
-        }
-        const double scale=std::max({pv/limit.velocity,std::sqrt(pa/limit.acceleration),
-                                     std::cbrt(pj/limit.jerk)});
+        const auto peak=joint_path_peaks(out,dt);
+        const double scale=std::max({peak.velocity/limit.velocity,std::sqrt(peak.acceleration/limit.acceleration),
+                                     std::cbrt(peak.jerk/limit.jerk)});
         if(scale<=1.000001) return out;
         duration*=std::max(1.05,1.03*scale);
     }

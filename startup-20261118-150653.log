@@ -1,0 +1,2 @@
+{"robot_id": "TH-T170C-0124", "robot_model": "t170c_v2_3kg", "runtime_root": "/home/ti5robot/.local/state/t170/session.yFs9IWZ5/runtime", "task_assignment": "dispatch", "arm_model_prepared": true, "missing_task_calibrations": []}
+/home/ti5robot/t170-124/deploy/runtime_context.sh: 行 32: /home/ti5robot/t170-124/build_robot/t170_config_dump: 没有那个文件或目录

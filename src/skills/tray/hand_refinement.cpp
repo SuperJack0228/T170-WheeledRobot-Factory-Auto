@@ -273,7 +273,9 @@ HandMoveState run_hand_detect_and_validate(
 
         if (!g_move_cfg.head_grasp.use_hand_camera)
         {
-            std::cout << "[hand] 手相机已关闭，XY 用孔位+goal_x/y_offset，Z 用头相机顶面（可抬不可再往下探）\n";
+            std::cout << "[hand] 旧版停点复检未启用；连续下降视觉伺服="
+                      << (g_move_cfg.cameras.hand_descent_correct?"开启":"关闭")
+                      << "（cameras.hand_descent_correct）\n";
             hs.move_r = enable_r;
             hs.move_l = enable_l;
             hs.have_object_z_r = enable_r && st.have_r && std::isfinite(st.right_hand_pos[2]);

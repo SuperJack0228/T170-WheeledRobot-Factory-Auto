@@ -8,6 +8,8 @@ using JointVector = Eigen::Matrix<double, 1, 7>;
 struct JointMotionLimits {
     double velocity = 0.9, acceleration = 2.5, jerk = 20.0;
 };
+// Sampled joint derivatives, including the stationary tails.
+JointMotionLimits joint_path_peaks(const Eigen::MatrixXd &path, double dt);
 // Natural cubic path, or a convex-hull-preserving C2 clamped B-spline when
 // preserve_knot_bounds is requested; one rest-to-rest quintic clock in both cases.
 // Limits apply to the sampled position stream, including the stationary tails.

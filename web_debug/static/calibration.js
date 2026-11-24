@@ -4,9 +4,10 @@ const params = new URLSearchParams(location.search), supplied = params.get("toke
 if (supplied) {localStorage.setItem("t170_token", supplied);history.replaceState(null,"",location.pathname);}
 const token = supplied || localStorage.getItem("t170_token") || "";
 const labels = ["选择任务与准备", "识别固定空孔 · 去D点", "D点XY对准", "保持手臂 · 准备参考物", "点击视觉参考点", "保存与完成"];
+let maintenance=false,uiConnected=false;
 let state={active:false,step:0,phase:"idle"},busy=false,viewStep=null,selected=null,jogSize="0.2",taskChoice="grasp",handChoice="1";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const fmt=(n,d=2)=>Number.isFinite(Number(n))?Number(n).toFixed(d):"—";
+const fmt=(n,d=2)=>n!==null&&n!==undefined&&n!==""&&Number.isFinite(Number(n))?Number(n).toFixed(d):"—";
 const grasp=()=> (state.active?state.task:taskChoice)==="grasp";
 const taskName=()=>grasp()?"料盘抓取":"料盘放置";
 async function api(path,body) {
@@ -46,21 +47,22 @@ function render() {
   else if(phase==="saved"||phase==="returned")body+=`<div class="success">${taskName()}标定已保存并加载；已完成人工标定，尚未验证实际作业精度。</div><p>文件：<code>${esc(state.saved_file)}</code></p><p>日志：<code>${esc(state.log_directory)}</code></p>${phase==="saved"?button("return_ready","抬离并返回准备位（可选）"):""}${button("end","结束本次标定",true)}`;
   body+='</div><div class="note">无强制C点精调或重新装件回放。保存后用实际料盘抓放验证效果。相机、工具或夹持方式改变后重新标定。</div>';
  }
- if(page===1&&state.head_image_revision) body+=`<div class="card"><h3>头相机 · 固定目标核对</h3><img style="width:100%;height:auto" alt="料盘孔位编号" src="/api/calibration/image?kind=head&session=${encodeURIComponent(state.session)}&revision=${state.head_image_revision}&token=${encodeURIComponent(token)}"></div>`;
+ if(page===1&&state.head_image_revision) body+=`<div class="card"><h3>头相机 · 固定目标核对</h3><img style="width:100%;height:auto" alt="料盘孔位编号" id="headFrame" data-frozen-kind="head"></div>`;
  if(state.active&&state.current_tcp)body+=`<p class="muted">最近实际TCP X / Y / Z：${state.current_tcp.slice(0,3).map(v=>fmt(v*1000)).join(" / ")} mm</p>`;
  $("content").innerHTML=body;
  if($("task"))$("task").onchange=e=>{taskChoice=e.target.value;render();};
  if($("hand"))$("hand").onchange=e=>{handChoice=e.target.value;};
  if($("stepSize"))$("stepSize").onchange=e=>{jogSize=e.target.value;};
- document.querySelectorAll("[data-action]").forEach(b=>{b.disabled ||= busy||readonly||(state.active&&state.interrupted);b.onclick=()=>run(b.dataset.action);});
- document.querySelectorAll("[data-jog]").forEach(b=>{b.disabled=busy||readonly||(state.active&&state.interrupted);b.onclick=()=>{const [axis,sign]=b.dataset.jog.split(",");run("jog",{[axis==="x"?"dx_mm":"dy_mm"]:Number(sign)*Number($("stepSize").value)});};});
+ document.querySelectorAll("[data-action]").forEach(b=>{b.disabled ||= !maintenance||busy||readonly||(state.active&&state.interrupted);b.onclick=()=>run(b.dataset.action);});
+ document.querySelectorAll("[data-jog]").forEach(b=>{b.disabled=!maintenance||busy||readonly||(state.active&&state.interrupted);b.onclick=()=>{const [axis,sign]=b.dataset.jog.split(",");run("jog",{[axis==="x"?"dx_mm":"dy_mm"]:Number(sign)*Number($("stepSize").value)});};});
  if($("exit"))$("exit").onclick=()=>$("exitDialog").showModal();
+ if($("headFrame"))loadFrozenImage($("headFrame"),"head");
  if($("frame")) {
-  const img=$("frame");img.src=`/api/calibration/image?session=${encodeURIComponent(state.session)}&revision=${state.image_revision}&token=${encodeURIComponent(token)}`;
+  const img=$("frame");loadFrozenImage(img,"hand");
   img.onload=draw;
   const point=e=>{const box=img.getBoundingClientRect();return {u:(e.clientX-box.left)*state.width/box.width,v:(e.clientY-box.top)*state.height/box.height,revision:state.image_revision};};
   img.onmousemove=e=>zoom(point(e));
-  img.onclick=e=>{if(busy||readonly||(state.active&&state.interrupted)||phase!=="captured")return;selected=point(e);draw();$("selection").textContent=`已选 ${fmt(selected.u,1)}, ${fmt(selected.v,1)}。${grasp()?"将记录此顶面圆心。":"将精定位附近孔环。"}`;document.querySelector('[data-action="reference"]').disabled=false;};
+  img.onclick=e=>{if(!maintenance||busy||readonly||!img.complete||!img.naturalWidth||(state.active&&state.interrupted)||phase!=="captured")return;selected=point(e);draw();$("selection").textContent=`已选 ${fmt(selected.u,1)}, ${fmt(selected.v,1)}。${grasp()?"将记录此顶面圆心。":"将精定位附近孔环。"}`;document.querySelector('[data-action="reference"]').disabled=false;};
  }
 }
 function zoom(p) {
@@ -74,7 +76,7 @@ function draw() {
  if(marked?.revision===state.image_revision){const selected=marked;ctx.strokeStyle="#00e4ce";ctx.lineWidth=2;ctx.beginPath();ctx.arc(selected.u,selected.v,12,0,2*Math.PI);ctx.moveTo(selected.u-22,selected.v);ctx.lineTo(selected.u+22,selected.v);ctx.moveTo(selected.u,selected.v-22);ctx.lineTo(selected.u,selected.v+22);ctx.stroke();zoom(selected);}
 }
 async function run(action,extra={}) {
- if(busy)return;error();
+ if(busy||!maintenance)return;error();
  try {
   if(action==="reset_stop") {if(!$("workspace")?.checked)throw Error("请先确认现场与机器人状态");extra.acknowledged=true;}
   if(action==="begin") {if(!$("workspace")?.checked)throw Error("请先确认工位和当前夹持状态");extra={hand:Number($("hand").value),task:$("task").value,clearance_mm:Number($("clearance").value)};}
@@ -90,10 +92,11 @@ async function run(action,extra={}) {
  } catch(e){error(e.message);}finally{busy=false;render();}
 }
 async function refresh() {
- try {const next=await api("/api/calibration");if(!next.ok)throw Error(next.error||"请重新编译并启动支持料盘标定的机器人程序");
-  $("connection").textContent=`机器人已连接 · ${next.active?"标定会话有效":"空闲"}`;$("connection").className="connection";
-  if(!busy){const changed=next.phase!==state.phase||next.session!==state.session||next.interrupted!==state.interrupted||next.software_stopped!==state.software_stopped;state=next;if(changed){selected=null;render();}}
- }catch(e){$("connection").textContent=e.message;$("connection").className="connection bad";}
+ const previousMaintenance=maintenance;
+ try {const [next,caps]=await Promise.all([api("/api/calibration"),api("/api/capabilities")]);maintenance=caps.mode==="maintenance";if(!next.ok)throw Error(next.error||"请重新编译并启动支持料盘标定的机器人程序");
+  $("connection").textContent=maintenance?`维护模式 · ${next.active?"标定会话有效":"空闲"}`:"生产模式：请使用维护入口进行标定";$("connection").className="connection";
+  if(!busy){const changed=maintenance!==previousMaintenance||next.head_image_revision!==state.head_image_revision||next.image_revision!==state.image_revision||next.phase!==state.phase||next.session!==state.session||next.interrupted!==state.interrupted||next.software_stopped!==state.software_stopped;state=next;if(changed||!uiConnected){selected=null;uiConnected=true;render();}}
+ }catch(e){maintenance=false;uiConnected=false;$("connection").textContent=e.message;$("connection").className="connection bad";if(previousMaintenance)render();}
 }
 $("stop").onclick=async()=>{try{await api("/api/command",{cmd:"abort"});error("已请求停止；不会自动松爪或回位。等待动作结束后退出会话。");await refresh();}catch(e){error(e.message);}};
 $("back").onclick=()=>{viewStep=Math.max(0,(viewStep??state.step)-1);render();};
@@ -101,3 +104,18 @@ $("resume").onclick=()=>{viewStep=null;render();};
 $("cancelExit").onclick=()=>$("exitDialog").close();
 $("confirmExit").onclick=()=>{$("exitDialog").close();run("end");};
 render();refresh();setInterval(refresh,1500);
+
+async function loadFrozenImage(img,kind) {
+ const session=state.session,revision=kind==="head"?state.head_image_revision:state.image_revision;
+ const url=`/api/calibration/image?kind=${kind}&session=${encodeURIComponent(session)}&revision=${revision}`;
+ try {
+  const response=await fetch(url,{headers:{"X-T170-Token":token},cache:"no-store"});
+  if(!response.ok){const result=await response.json();throw Error(result.error||`图像读取失败 HTTP ${response.status}`);}
+  const blob=await response.blob();
+  if(!img.isConnected||state.session!==session||(kind==="head"?state.head_image_revision:state.image_revision)!==revision)return;
+  const objectURL=URL.createObjectURL(blob);
+  img.addEventListener("load",()=>URL.revokeObjectURL(objectURL),{once:true});
+  img.addEventListener("error",()=>{URL.revokeObjectURL(objectURL);error("图像解码失败，请重新拍摄当前参考图。");},{once:true});
+  img.src=objectURL;
+ }catch(e){if(img.isConnected)error(`${kind==="head"?"头相机":"手相机"}图像：${e.message}`);}
+}

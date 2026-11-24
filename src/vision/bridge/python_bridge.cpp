@@ -1111,29 +1111,6 @@ void SegPoseBridge::close_visualization()
 namespace
 {
 
-bool parse_matrix_doubles(const std::string &text, std::array<double, 16> &out)
-{
-    std::vector<double> vals;
-    const char *p = text.c_str();
-    while (*p != '\0')
-    {
-        char *end = nullptr;
-        const double v = std::strtod(p, &end);
-        if (end == p)
-        {
-            ++p;
-            continue;
-        }
-        vals.push_back(v);
-        p = end;
-    }
-    if (vals.size() != 16)
-        return false;
-    for (int i = 0; i < 16; ++i)
-        out[static_cast<size_t>(i)] = vals[static_cast<size_t>(i)];
-    return true;
-}
-
 std::array<double, 16> mat4_mul_row_major(const std::array<double, 16> &a, const std::array<double, 16> &b)
 {
     std::array<double, 16> c{};
@@ -1148,14 +1125,6 @@ std::array<double, 16> mat4_mul_row_major(const std::array<double, 16> &a, const
         }
     }
     return c;
-}
-
-/** yaml 标定矩阵平移 mm → m（仅平移列） */
-void cam2robot_translation_mm_to_m(std::array<double, 16> &cam2robot)
-{
-    cam2robot[3] /= 1000.0;
-    cam2robot[7] /= 1000.0;
-    cam2robot[11] /= 1000.0;
 }
 
 Eigen::Matrix<double, 4, 4> row_major_pose_to_matrix4(const std::array<double, 16> &pose)
@@ -1189,39 +1158,6 @@ void print_head_target_cam4x4_robot6(
 }
 
 } // namespace
-
-bool load_cam2robot_matrix(const std::string &yaml_path, std::array<double, 16> &out, std::string &err)
-{
-    err.clear();
-    std::ifstream in(yaml_path);
-    if (!in)
-    {
-        err = "无法打开: " + yaml_path;
-        return false;
-    }
-
-    std::string line;
-    if (!std::getline(in, line))
-    {
-        err = "文件为空: " + yaml_path;
-        return false;
-    }
-
-    const auto pos = line.find("matrix:");
-    if (pos == std::string::npos)
-    {
-        err = "未找到 matrix 字段";
-        return false;
-    }
-
-    if (!parse_matrix_doubles(line.substr(pos), out))
-    {
-        err = "matrix 需要 16 个数";
-        return false;
-    }
-    cam2robot_translation_mm_to_m(out);
-    return true;
-}
 
 std::array<double, 16> transform_pose_cam_to_robot(
     const std::array<double, 16> &cam2robot,

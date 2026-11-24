@@ -25,6 +25,7 @@ struct ArmDefinition {
     double period = .005, velocity = .9, acceleration = 2.5, jerk = 20;
     bool ideal_t7 = false;
     ArmJoints home=ArmJoints::Constant(std::numeric_limits<double>::quiet_NaN()), preferred=ArmJoints::Zero();
+    double wrist_margin_rad=.14,wrist_gain=2.,elbow_clearance_m=.08;
     double posture_gain=.15, elbow_gain=8, limit_gain=.002, elbow_outward_ratio=.3;
     std::shared_ptr<ArmLimitState> limits;
 };
@@ -78,9 +79,21 @@ public:
     int Inverse_Kinematics_Numeric(Eigen::Matrix<double,1,6> &target,Eigen::Ref<Eigen::RowVectorXd> q);
     int Inverse_Kinematics_Analytic(const Eigen::Matrix<double,1,6> &target,Eigen::Ref<Eigen::RowVectorXd> q,double j2);
     int Joint_Trajectory(const Eigen::MatrixXd &start,const Eigen::MatrixXd &end,Eigen::MatrixXd &out);
+    // Free-space transit: joint interpolation with a checked Cartesian envelope;
+    // falls back to a Cartesian line if the joint arc leaves that envelope.
+    int Approach_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> target,
+                            Eigen::MatrixXd &out,double tcp_speed);
+    int Approach_Stroke(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> guide,
+                        const Eigen::Matrix<double,1,6> &finish,Eigen::MatrixXd &out,double speed);
     int Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> &target,
-                        Eigen::MatrixXd &out,std::optional<double> j2=std::nullopt);
+                        Eigen::MatrixXd &out,std::optional<double> j2=std::nullopt,
+                        std::optional<t170::motion::ArmJoints> endpoint=std::nullopt);
 private:
+    // lateral_margin_m is the XY room outside the endpoint box. Preparation
+    // transits use 0.15 m; work strokes keep 0.03 m. The vertical fence is shared.
+    int approach_to_joints(const Eigen::MatrixXd &,Eigen::Matrix<double,1,6>,const t170::motion::ArmJoints &,Eigen::MatrixXd &,double,double lateral_margin_m);
+    std::vector<t170::motion::ArmJoints> inverse_candidates(const Eigen::Matrix<double,1,6> &,const t170::motion::ArmJoints &);
+    double posture_cost(const t170::motion::ArmJoints &,const Eigen::Matrix4d &,const t170::motion::ArmJoints &) const;
     int local_inverse(const Eigen::Matrix4d &,t170::motion::ArmJoints &,std::optional<double>);
     bool valid_solution(const Eigen::Matrix4d &,const t170::motion::ArmJoints &);
     t170::motion::ArmDefinition definition_;
