@@ -82,6 +82,14 @@ class WorkspaceTest(unittest.TestCase):
     def test_head_editor_uses_actual_theory_file(self):
         self.assertEqual(self.workspace.source_file('hand_eye').name, 'extrinsics_urdf.yaml')
 
+    def test_legacy_measured_eye_follows_declared_old_image_axes(self):
+        binding=yaml.safe_load((self.runtime/'config/arm_binding.yaml').read_text())
+        frames=yaml.safe_load((self.runtime/'config/arm_frames.yaml').read_text())
+        eye=yaml.safe_load((self.root/'config/calibration/TH-T170C-0124/hand_eye/left.yaml').read_text())
+        old=hand_eye_for_servo(eye,binding,frames,'left',180)
+        new=hand_eye_for_servo(eye,binding,frames,'left',0)
+        np.testing.assert_allclose(np.array(new['a. matrix']),np.array(old['a. matrix'])@np.diag([-1,-1,1,1]))
+
     def test_metadata_failure_after_commit_does_not_revert_parameters(self):
         real_write = atomic_write
         def fail_record(path, content):
@@ -133,7 +141,7 @@ class WorkspaceTest(unittest.TestCase):
                 source = yaml.safe_load((self.root / ('config/robot_models/t170c_v2_common/cameras/'+side+'_nominal.yaml')).read_text())
                 actual = yaml.safe_load((run / ('config/'+side+'_hand_to_base_result.yaml')).read_text())
                 expected = np.array(frames[side]['sdk_flange_from_urdf_wrist']); expected[:3,3] *= 1000
-                expected = expected @ np.array(source['a. matrix']) @ np.diag([-1,-1,1,1])
+                expected = expected @ np.array(source['a. matrix'])
                 np.testing.assert_allclose(actual['a. matrix'], expected, atol=1e-10)
                 self.assertEqual(actual['image_convention'], SERVO_IMAGES[side])
                 # Rotation changes only axes; camera centre stays in the same place.
@@ -172,6 +180,30 @@ class PersistentHTTPTest(unittest.TestCase):
         status,result=self.save_fields({'head_grasp.grasp_z_offset_m':'-0.021'})
         self.assertEqual(status,200);self.assertTrue(result['applied'])
         self.assertEqual(yaml.safe_load(self.fixture.workspace.source_file('motion').read_text())['head_grasp']['grasp_z_offset_m'],-.021)
+
+    def test_save_all_98_fields_with_block_arrays_and_restart(self):
+        fields={field['key']:str(field['value']) for group in self.web.read_field_groups('motion') for field in group['fields']}
+        self.assertEqual(len(fields),98)
+        fields['waist.layer3_home.2']='0.61'
+        fields['head_grasp.row1_rpy_deg.left.1']='42'
+        status,result=self.save_fields(fields)
+        self.assertEqual(status,200,result);self.assertTrue(result['applied'])
+        run=self.fixture.base/'after-web-save';resolve(self.fixture.root,self.fixture.manifest,run)
+        data=yaml.safe_load((run/'config/effective_params.yaml').read_text())
+        self.assertEqual(data['waist']['layer3_home'][2],.61)
+        self.assertEqual(data['head_grasp']['row1_rpy_deg']['left'],[0,42,-30])
+
+    def test_scalar_spans_preserve_comments_and_support_flow_and_block(self):
+        for text in ['a: [1, 2, 3] # keep\n','a:\n  - 1 # first\n  - 2 # second\n  - 3\n']:
+            result=self.web._replace_yaml_value(text,'a.1','4.5')
+            self.assertEqual(yaml.safe_load(result),{'a':[1,4.5,3]})
+            self.assertEqual(text.count('#'),result.count('#'))
+        text='a: {x: 1, y: 2} # keep\n'
+        self.assertEqual(self.web._replace_yaml_value(text,'a.x','3'),'a: {x: 3, y: 2} # keep\n')
+        text=yaml.safe_dump({'a. matrix':[[1,0,0,1],[0,1,0,2],[0,0,1,3],[0,0,0,1]],
+                            'b. translation_xyz_mm':[1,2,3]},sort_keys=False)
+        data=yaml.safe_load(self.web._sync_hand_eye_matrix(text,[4,5,6]))
+        self.assertEqual([row[3] for row in data['a. matrix']],[4,5,6,1])
 
     def test_web_invalid_value_rolls_back(self):
         path=self.fixture.workspace.source_file('motion');before=path.read_bytes()

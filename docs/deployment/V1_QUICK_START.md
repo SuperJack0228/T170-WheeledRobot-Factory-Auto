@@ -1,6 +1,6 @@
 # T170 V1 候选版部署与参数操作
 
-版本：1.0.0-rc.1。程序、配置和运行数据独立保存。`move_box_params.yaml` 已退出当前运行链路。
+版本：1.0.0-rc.2。程序、配置和运行数据独立保存。`move_box_params.yaml` 已退出当前运行链路。已有机器人升级见 [运行包升级说明](PACKAGE_UPGRADE.md)。
 
 ## 日常调参
 
@@ -37,7 +37,7 @@
 ./deploy/run_web.sh
 ```
 
-新档案默认使用头、左右手相机的理论值，来源在 `config/robot_models/t170c_v2_common/cameras/`。理论值从 URDF 腕部转换到所选 SDK 法兰，并匹配实际伺服图像：左手旋转 180°，右手原始图。No.124 原有手眼和任务参考保留；新机器人仍需建立自己的左/右抓取、左/右放置四份图像参考。
+新档案默认使用头、左右手相机的理论值，来源在 `config/robot_models/t170c_v2_common/cameras/`。理论值从 URDF 腕部转换到所选 SDK 法兰。标准图像方向为左手原图、右手旋转 180°；本机 `cameras/realsense_cameras.yaml` 的 `image_rotation_deg` 为统一来源。No.124 装反，明确保留左 180°／右 0° 的独立配置。新机器人仍需建立自己的左/右抓取、左/右放置四份图像参考。
 
 完成维护验证后，停止维护服务：
 

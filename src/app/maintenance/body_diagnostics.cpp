@@ -118,7 +118,6 @@ int go_waist_debug(int pose)
     }
     RealSenseMultiCam &cameras = g_hw->pipeline->cameras();
     CameraFrameData frame = cameras.grab_fresh(CameraSlot::Head);
-    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), CameraSlot::Head);
     if (!frame.ok || frame.color_bgr.empty() || frame.width <= 0 || frame.height <= 0)
     {
         std::cerr << "[orch] waist2 截帧失败: " << frame.message << "\n";

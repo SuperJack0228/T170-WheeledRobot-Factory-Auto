@@ -5,7 +5,7 @@ from pathlib import Path
 import hashlib,json,os,shutil,tempfile
 import yaml
 from .arm_model import prepare_arm_model
-from .camera_nominal import hand_eye_for_servo
+from .camera_nominal import hand_eye_for_servo, image_rotations
 from .parameter_catalog import QUICK_FIELDS, quick_key_allowed
 
 def sha(path):
@@ -107,9 +107,10 @@ def resolve(root, manifest, output):
         # coordinates. Original robot calibration files remain immutable inputs.
         binding=yaml.safe_load(arm_resources['config/arm_binding.yaml'])
         frame_data=yaml.safe_load(arm_resources['config/arm_frames.yaml'])
+        rotations=image_rotations(yaml.safe_load((temp/'config/realsense_cameras.yaml').read_text()))
         for side in ['left','right']:
             p=temp/'config'/(side+'_hand_to_base_result.yaml')
-            eye=hand_eye_for_servo(yaml.safe_load(p.read_text()),binding,frame_data,side)
+            eye=hand_eye_for_servo(yaml.safe_load(p.read_text()),binding,frame_data,side,rotations[side])
             p.write_text(yaml.safe_dump(eye,sort_keys=False,allow_unicode=True))
         (temp/'config').mkdir(exist_ok=True)
         (temp/'config/effective_params.yaml').write_text(yaml.safe_dump(merged,allow_unicode=True,sort_keys=False))

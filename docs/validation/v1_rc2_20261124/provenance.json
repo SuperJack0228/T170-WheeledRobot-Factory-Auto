@@ -1,0 +1,11 @@
+{
+  "base_commit": "6dbb68bfbd799321dbb510e047d2b4de242c57fc",
+  "target_tag": "v1.0.0-rc.2",
+  "provided_rc1_package_sha256": "205655c54c55b7eb6953b0869468fc74ca916e5009ed3c766aa09bbfa60c7ac5",
+  "no124_effective_values_byte_identical": true,
+  "no124_generated_hand_eyes_byte_identical": true,
+  "cpp_effective_sha256": "c263189a6c88f5963434073fd57013bbf6859c95a738a4ee3ac8cf742df6be00",
+  "offline_ctest_total": 51,
+  "native_linux_rc2_build_executed": false,
+  "robot_operated": false
+}

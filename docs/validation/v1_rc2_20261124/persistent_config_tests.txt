@@ -1,0 +1,7 @@
+Test project /tmp/t170-v1-audit-20261124/build
+    Start 9: config_workspace_test
+1/1 Test #9: config_workspace_test ............   Passed    5.01 sec
+
+100% tests passed out of 1
+
+Total Test time (real) =   5.01 sec

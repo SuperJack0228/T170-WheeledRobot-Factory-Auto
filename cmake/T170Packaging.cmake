@@ -11,8 +11,8 @@ function(t170_install_resources root)
     install(FILES "${root}/assets/models/runtime_manifest.json" DESTINATION assets/models RENAME manifest.json)
     install(DIRECTORY "${root}/deploy/" DESTINATION deploy USE_SOURCE_PERMISSIONS)
     install(PROGRAMS "${root}/tools/resolve_deployment.py" "${root}/tools/active_runtime.py"
-        "${root}/tools/apply_config.py" "${root}/tools/setup_robot.py" DESTINATION tools)
-    install(FILES "${root}/docs/deployment/V1_QUICK_START.md" DESTINATION docs)
+        "${root}/tools/apply_config.py" "${root}/tools/setup_robot.py" "${root}/tools/upgrade_robot.py" DESTINATION tools)
+    install(FILES "${root}/docs/deployment/V1_QUICK_START.md" "${root}/docs/deployment/PACKAGE_UPGRADE.md" DESTINATION docs)
 endfunction()
 
 if(T170_PACKAGING_RESOURCES_ONLY)

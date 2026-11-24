@@ -3,7 +3,6 @@
 import argparse
 from pathlib import Path
 import json
-import shutil
 import sys
 import yaml
 
@@ -11,22 +10,7 @@ PACKAGE = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(PACKAGE), str(PACKAGE / 'python')]
 from t170_common.config_workspace import atomic_write, workspace_root
 from web_debug.profiles import ProfileStore, read
-
-
-def initialize(package, workspace):
-    if not (package / 'release.json').is_file(): return
-    workspace.mkdir(parents=True, exist_ok=True)
-    if not (workspace / 'config').exists():
-        shutil.copytree(package / 'share/config', workspace / 'config')
-        atomic_write(workspace / 'config/deployment.yaml', 'manifest: null\n')
-    for name in ('bin', 'lib', 'assets', 'python', 'web_debug', 'tools', 'deploy', 'release.json', 'environment.lock.json'):
-        source = package / name; target = workspace / name
-        if not source.exists(): continue
-        if target.is_symlink():
-            if target.resolve() == source.resolve(): continue
-            target.unlink()
-        elif target.exists(): raise ValueError('拒绝覆盖现有资源目录: ' + str(target))
-        target.symlink_to(source, target_is_directory=source.is_dir())
+from t170_common.installation import initialize
 
 
 def main():

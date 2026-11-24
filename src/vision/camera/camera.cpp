@@ -52,7 +52,6 @@ std::vector<Frame> grab_head_fused(ICameraBackend &cam, int fuse_n)
     for (int i = 0; i < n; ++i)
     {
         Frame one = cam.grab_wait(CameraSlot::Head);
-        one = RealSenseMultiCam::prepare_frame_for_slot(std::move(one), CameraSlot::Head);
         if (!one.ok)
             continue;
         frames.push_back(std::move(one));

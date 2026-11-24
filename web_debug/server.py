@@ -108,81 +108,34 @@ def _yaml_lookup(node: Any, parts: list[str]) -> Any:
     return cur
 
 
+def _replace_yaml_scalar(text: str, parts: list[str], value_text: str) -> str:
+    # Node spans support both block and flow collections and preserve comments,
+    # quoting and every unrelated value instead of guessing from indentation.
+    node = yaml.compose(text)
+    for part in parts:
+        if isinstance(node, yaml.MappingNode):
+            matches = [value for key, value in node.value if key.value == part]
+            if len(matches) != 1: raise KeyError(".".join(parts))
+            node = matches[0]
+        elif isinstance(node, yaml.SequenceNode) and part.isdigit() and int(part) < len(node.value):
+            node = node.value[int(part)]
+        else: raise KeyError(".".join(parts))
+    if not isinstance(node, yaml.ScalarNode): raise KeyError(".".join(parts))
+    return text[:node.start_mark.index] + value_text + text[node.end_mark.index:]
+
+
 def _replace_yaml_value(text: str, path: str, value_text: str) -> str:
-    parts = path.split(".")
-    lines = text.splitlines()
-    stack: list[tuple[int, str]] = []
-    for index, line in enumerate(lines):
-        stripped = line.lstrip(" ")
-        if not stripped or stripped.startswith("#"):
-            continue
-        indent = len(line) - len(stripped)
-        code, hash_sep, comment = stripped.partition("#")
-        if ":" not in code:
-            continue
-        key, _, rest = code.partition(":")
-        key = key.strip()
-        rest = rest.strip()
-        while stack and stack[-1][0] >= indent:
-            stack.pop()
-        here = [item[1] for item in stack] + [key]
-        comment_s = f"  #{comment}" if hash_sep else ""
-        if here == parts:
-            lines[index] = " " * indent + f"{key}: {value_text}" + comment_s
-            break
-        if (
-            len(parts) == len(here) + 1
-            and parts[: len(here)] == here
-            and parts[-1].isdigit()
-            and rest.startswith("[")
-            and "]" in rest
-        ):
-            slot = int(parts[-1])
-            body = rest[1:rest.index("]")]
-            nums = [item.strip() for item in body.split(",")]
-            if slot >= len(nums):
-                raise KeyError(path)
-            nums[slot] = value_text
-            lines[index] = " " * indent + f"{key}: [" + ", ".join(nums) + "]" + comment_s
-            break
-        if (
-            len(parts) == len(here) + 1
-            and parts[: len(here)] == here
-            and rest.startswith("{")
-        ):
-            child = parts[-1]
-            new_rest, count = re.subn(
-                rf"({re.escape(child)}\s*:\s*)[-+0-9.eE]+",
-                rf"\g<1>{value_text}",
-                rest,
-                count=1,
-            )
-            if count != 1:
-                raise KeyError(path)
-            lines[index] = " " * indent + f"{key}: {new_rest}" + comment_s
-            break
-        if rest == "" or rest.startswith("|") or rest.startswith(">"):
-            stack.append((indent, key))
-    else:
-        raise KeyError(path)
-    ending = "\n" if text.endswith("\n") else ""
-    return "\n".join(lines) + ending
+    return _replace_yaml_scalar(text, path.split("."), value_text)
 
 
 def _sync_hand_eye_matrix(text: str, xyz: list[float]) -> str:
     """平移写在 b. translation 和 a. matrix 的最后一列。旋转不动。"""
-    import ast
-
-    match = re.search(r"(a\. matrix:\s*)(\[\[.*?\]\])", text, re.S)
-    if not match:
-        raise KeyError("a. matrix")
-    matrix = ast.literal_eval(match.group(2))
-    if len(matrix) != 4 or any(len(row) != 4 for row in matrix):
+    matrix = yaml.safe_load(text).get("a. matrix")
+    if not isinstance(matrix, list) or len(matrix) != 4 or any(len(row) != 4 for row in matrix):
         raise KeyError("a. matrix")
     for row, value in enumerate(xyz):
-        matrix[row][3] = value
-    rendered = "[" + ", ".join("[" + ", ".join(repr(float(n)) for n in row) + "]" for row in matrix) + "]"
-    return text[: match.start(2)] + rendered + text[match.end(2) :]
+        text = _replace_yaml_scalar(text, ["a. matrix", str(row), "3"], repr(float(value)))
+    return text
 
 
 def read_field_groups(file_id: str) -> list[dict[str, Any]]:
@@ -214,15 +167,8 @@ def render_field_groups(file_id: str, updates: dict[str, str], text: str | None 
         slot = {"tx": 0, "ty": 1, "tz": 2}
         for key, raw in updates.items():
             vec[slot[key]] = float(raw)
-        rendered = "[" + ", ".join(format(v, ".8g") for v in vec) + "]"
-        text, count = re.subn(
-            r"(?m)^(b\. translation_xyz_mm:\s*)\[[^\]]*\]",
-            rf"\g<1>{rendered}",
-            text,
-            count=1,
-        )
-        if count != 1:
-            raise KeyError("b. translation_xyz_mm")
+        for index, value in enumerate(vec):
+            text = _replace_yaml_scalar(text, ["b. translation_xyz_mm", str(index)], repr(value))
         text = _sync_hand_eye_matrix(text, vec)
     else:
         for key, raw in updates.items():

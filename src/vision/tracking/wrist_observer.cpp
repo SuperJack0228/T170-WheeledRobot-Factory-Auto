@@ -173,14 +173,6 @@ void save_place_overlay(int hand,std::uint64_t session,std::uint64_t frame_id,
     static DebugImageWriter writer;writer.put(hand,path,std::move(canvas),std::move(raw),metadata.str());
 }
 
-void rotate_left(CameraFrameData &f,int hand) {
-    if(hand!=0) return;
-    cv::Mat view(f.height,f.width,CV_8UC3,f.color_bgr.data());
-    cv::rotate(view,view,cv::ROTATE_180);
-    f.K[2]=f.width-1-f.K[2]; f.K[5]=f.height-1-f.K[5];
-    f.dist[2]=-f.dist[2]; f.dist[3]=-f.dist[3];
-}
-
 void observe(int hand) {
     wrist_servo::ObservationContext context;
     if(!wrist_servo::observation_context(hand,context) || !context.vision_required || !context.descending)
@@ -210,7 +202,6 @@ void observe(int hand) {
     obs.device_timestamp_ms=frame.device_timestamp_ms; obs.timestamp_source=frame.timestamp_source;
     obs.grab_ms=(wrist_servo::monotonic_seconds()-before)*1000;
     if(!frame.ok) { wrist_servo::observation_event(hand,context.session,"grab_failed",obs); return; }
-    rotate_left(frame,hand);
     obs.fx=frame.K[0]; obs.fy=frame.K[4]; obs.cx=frame.K[2]; obs.cy=frame.K[5];
     obs.width=frame.width; obs.height=frame.height;
     const auto &cfg=context.config;

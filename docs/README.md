@@ -3,6 +3,7 @@
 当前代码与配置是事实来源，历史文档仅用于现场溯源。
 
 - **[V1 候选版快速入口](deployment/V1_QUICK_START.md)**：快捷参数、统一应用、新机理论手眼、安装包与维护/生产启动。
+- **[运行包升级与 No.120 迁移](deployment/PACKAGE_UPGRADE.md)**：自动备份、保留本机参数、相机方向迁移及抓放参考更新。
 - **[同环境新机快速部署与调参](deployment/NEW_ROBOT_DEPLOYMENT_GUIDE.md)**：机型/编号、相机 SN、四份抓放参考及 SDK 安装。
 - [仓库目录地图](REPOSITORY_MAP.md)：新工程师快速浏览目录、调用主线和参数入口。
 - [仓库和模块指南](architecture/REPOSITORY_GUIDE.md)：目录、调用关系、各模块职责与剩余工作。

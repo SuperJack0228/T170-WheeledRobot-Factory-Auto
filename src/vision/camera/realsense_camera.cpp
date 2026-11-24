@@ -1,4 +1,5 @@
 #include "t170/vision/realsense_camera.h"
+#include "t170/vision/image_orientation.h"
 
 #include <cmath>
 #include <cstring>
@@ -394,6 +395,7 @@ struct RealSenseMultiCam::Impl
     int head_fps = 15;
     int hand_fps = 15;
     bool hand_live_preview = false;
+    std::array<int,3> rotations{0,180,0};
     std::map<std::string, SlotDevice> slots;
     std::atomic<bool> preview_run{false};
     std::thread preview_thread;
@@ -450,6 +452,16 @@ bool RealSenseMultiCam::init(std::string &err)
     {
         err = "配置缺少 realsense 节点: " + impl_->yaml_path;
         return false;
+    }
+
+    for(const CameraSlot slot:{CameraSlot::Head,CameraSlot::RightHand,CameraSlot::LeftHand}) {
+        const auto node=realsense[slot_name(slot)];
+        const int rotation=node && node["image_rotation_deg"] ? node["image_rotation_deg"].as<int>() : vision::default_image_rotation(slot);
+        if((rotation!=0 && rotation!=180) || (slot==CameraSlot::Head && rotation!=0)) {
+            err="手相机 image_rotation_deg 只支持 0 或 180，头相机必须为 0";return false;
+        }
+        impl_->rotations[static_cast<int>(slot)]=rotation;
+        std::cout<<"[camera_orientation] slot="<<slot_name(slot)<<" image_rotation_deg="<<rotation<<'\n';
     }
 
     const YAML::Node head = realsense["head"];
@@ -670,7 +682,7 @@ CameraFrameData RealSenseMultiCam::grab(CameraSlot slot, unsigned timeout_ms)
     {
         out.message = std::string("grab 异常: ") + e.what();
     }
-    return out;
+    return prepare_frame_for_slot(std::move(out),slot);
 }
 
 CameraFrameData RealSenseMultiCam::grab_wait(CameraSlot slot)
@@ -698,7 +710,7 @@ CameraFrameData RealSenseMultiCam::grab_wait(CameraSlot slot)
     {
         out.message = std::string("grab_wait 异常: ") + e.what();
     }
-    return out;
+    return prepare_frame_for_slot(std::move(out),slot);
 }
 
 CameraFrameData RealSenseMultiCam::grab_fresh(CameraSlot slot)
@@ -725,40 +737,15 @@ CameraFrameData RealSenseMultiCam::grab_fresh(CameraSlot slot)
     {
         out.message = std::string("grab_fresh 异常: ") + e.what();
     }
-    return out;
+    return prepare_frame_for_slot(std::move(out),slot);
 }
 
-CameraFrameData RealSenseMultiCam::prepare_frame_for_slot(CameraFrameData frame, CameraSlot slot)
-{
-    if (!frame.ok || slot != CameraSlot::RightHand)
-        return frame;
+int RealSenseMultiCam::image_rotation_deg(CameraSlot slot) const {
+    return impl_->rotations.at(static_cast<int>(slot));
+}
 
-    const int w = frame.width;
-    const int h = frame.height;
-    if (w <= 0 || h <= 0)
-        return frame;
-
-    cv::Mat bgr(h, w, CV_8UC3, frame.color_bgr.data());
-
-    cv::Mat bgr_rot;
-    cv::rotate(bgr, bgr_rot, cv::ROTATE_180);
-    mat_bgr_to_vector(bgr_rot, frame.color_bgr);
-
-    if (frame.depth_m.size() == static_cast<size_t>(w) * static_cast<size_t>(h))
-    {
-        cv::Mat depth(h, w, CV_32FC1, frame.depth_m.data());
-        cv::Mat depth_rot;
-        cv::rotate(depth, depth_rot, cv::ROTATE_180);
-        mat_depth_to_vector(depth_rot, frame.depth_m);
-    }
-
-    // 图像旋转 180° 后主点与切向畸变需同步变换
-    frame.K[2] = static_cast<double>(w - 1) - frame.K[2];
-    frame.K[5] = static_cast<double>(h - 1) - frame.K[5];
-    frame.dist[2] = -frame.dist[2]; // p1
-    frame.dist[3] = -frame.dist[3]; // p2
-
-    return frame;
+CameraFrameData RealSenseMultiCam::prepare_frame_for_slot(CameraFrameData frame,CameraSlot slot) const {
+    return vision::orient_frame(std::move(frame),image_rotation_deg(slot));
 }
 
 namespace
@@ -793,7 +780,6 @@ void save_one_hand_grasp_snapshot(
     }
 
     CameraFrameData frame = cameras.grab_fresh(slot);
-    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), slot);
     if (!frame.ok || frame.color_bgr.empty() || frame.width <= 0 || frame.height <= 0)
     {
         std::cerr << "[snap] " << subdir << " 取图失败: " << frame.message << "\n";
@@ -920,7 +906,7 @@ void RealSenseMultiCam::start_hand_preview()
                     if (frame_number == seen)
                         continue;
                     seen = frame_number;
-                    if (slot == CameraSlot::LeftHand)
+                    if (image_rotation_deg(slot)==180)
                         cv::rotate(color, color, cv::ROTATE_180);
                     const char *name = slot == CameraSlot::RightHand ? "right_hand.jpg" : "left_hand.jpg";
                     if (!write_jpeg_atomic(dir / name, color))

@@ -138,7 +138,6 @@ int detect_head_aruco(RealSenseMultiCam &cameras, SegPoseBridge &bridge)
         g_hw->last_aruco_head = 0;
         return 0;
     }
-    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), slot);
 
     const ArucoDetectResult det = bridge.run_aruco(frame, kDebugVisualize, slot);
     if (!det.ok)

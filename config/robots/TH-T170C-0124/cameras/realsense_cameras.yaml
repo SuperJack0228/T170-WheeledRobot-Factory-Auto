@@ -13,6 +13,7 @@ realsense:
     usb_type: '3.2'
     # Jetson 原生 USB 2-2（3610000.usb），与手相机 Hub 同控制器相邻口
   right_hand:
+    image_rotation_deg: 0  # No.124 装反的特例；标准新机右手为 180。
     label: 右手
     serial: '261922276772'
     name: Intel RealSense D405
@@ -20,6 +21,7 @@ realsense:
     usb_type: '3.2'
     # Hub 口 2-3.1。若左右拍反，和 left_hand 对调 serial。
   left_hand:
+    image_rotation_deg: 180  # No.124 装反的特例；标准新机左手为 0。
     label: 左手
     serial: '261922275388'
     name: Intel RealSense D405

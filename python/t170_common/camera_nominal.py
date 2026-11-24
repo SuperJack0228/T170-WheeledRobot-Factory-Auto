@@ -4,10 +4,20 @@ import math
 
 from .arm_model import legacy_flange_bridge, multiply
 
-SERVO_IMAGES = {"left": "rgb_rotated_180", "right": "raw_rgb"}
+SERVO_IMAGES = {"left": "raw_rgb", "right": "rgb_rotated_180"}
 
 
-def hand_eye_for_servo(eye, binding, frames, side):
+def image_rotations(cameras):
+    result = {}
+    for side, default in [('left', 0), ('right', 180)]:
+        rotation = cameras['realsense'][side+'_hand'].get('image_rotation_deg', default)
+        if type(rotation) is not int or rotation not in (0, 180):
+            raise ValueError('image_rotation_deg must be 0 or 180')
+        result[side] = rotation
+    return result
+
+
+def hand_eye_for_servo(eye, binding, frames, side, image_rotation_deg=None):
     result = deepcopy(eye)
     key = "a. matrix" if "a. matrix" in result else "matrix"
     matrix = result[key]
@@ -27,10 +37,12 @@ def hand_eye_for_servo(eye, binding, frames, side):
     for i in range(3):
         bridge[i][3] *= 1000  # Source hand-eye translations are millimetres.
     matrix = multiply(bridge, matrix)
-    convention = result.get("image_convention", SERVO_IMAGES[side])
+    target = SERVO_IMAGES[side] if image_rotation_deg is None else ('rgb_rotated_180' if image_rotation_deg == 180 else 'raw_rgb')
+    legacy = {'left':'rgb_rotated_180','right':'raw_rgb'}
+    convention = result.get("image_convention", legacy[side] if parent=='legacy_t7_flange' else target)
     if convention not in ("raw_rgb", "rgb_rotated_180"):
         raise ValueError("Unknown camera image convention: " + str(convention))
-    if convention != SERVO_IMAGES[side]:
+    if convention != target:
         matrix = multiply(matrix, [[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     result[key] = matrix
     for name in ("b. translation_xyz_mm", "c. euler_angles_xyz_deg"):
@@ -39,7 +51,7 @@ def hand_eye_for_servo(eye, binding, frames, side):
     result["source_parent_frame"] = parent
     if "image_convention" in eye:
         result["source_image_convention"] = convention
-        result["image_convention"] = SERVO_IMAGES[side]
+        result["image_convention"] = target
     return result
 
 

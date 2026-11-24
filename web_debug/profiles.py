@@ -126,6 +126,22 @@ class ProfileStore:
             identity = read(destination / "identity.yaml")
             identity["chassis"].update(sequence_number=robot_id, host=host)
             atomic_yaml(destination / "identity.yaml", identity)
+            camera_file=destination / 'cameras/realsense_cameras.yaml'
+            cameras=read(camera_file)
+            from t170_common.camera_nominal import image_rotations
+            from t170_common.installation import rotate_reference_pixels
+            previous=image_rotations(cameras)
+            changed=[side for side,rotation in previous.items() if rotation!=({'left':0,'right':180}[side])]
+            dimensions={'width':1280,'height':720}
+            for name in template['layers']:
+                layer=read(inside(self.root,name))
+                dimensions.update({key:value for key,value in layer.get('cameras',{}).items() if key in dimensions})
+            pixels=destination/'reference_pixels.yaml'
+            if changed and pixels.is_file():
+                atomic_yaml(pixels,rotate_reference_pixels(read(pixels),changed,dimensions['width'],dimensions['height']))
+            cameras['realsense']['left_hand']['image_rotation_deg']=0
+            cameras['realsense']['right_hand']['image_rotation_deg']=180
+            atomic_yaml(camera_file,cameras)
             calibration.mkdir(parents=True)
             (calibration / "tasks").mkdir()
             (calibration / "tasks/.gitkeep").touch()

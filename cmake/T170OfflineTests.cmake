@@ -48,6 +48,11 @@
         ${PROJECT_SOURCE_DIR}/tests/config_workspace_test.py $<TARGET_FILE:t170_config_dump>)
     add_test(NAME release_layout_test COMMAND ${Python3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/release_layout_test.py $<TARGET_FILE:t170_config_dump>)
+    add_executable(image_orientation_test tests/image_orientation_test.cpp)
+    target_include_directories(image_orientation_test PRIVATE include)
+    add_test(NAME image_orientation_test COMMAND image_orientation_test)
+    add_test(NAME upgrade_workspace_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/upgrade_workspace_test.py $<TARGET_FILE:t170_config_dump>)
     t170_add_observation_support()
     # Compile real SDK-adapter/planner/player translation units against their public
     # declarations. No fake SDK implementation is linked; robot linking is a separate gate.

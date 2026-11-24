@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import socket
 import sys
 import tempfile
 import unittest
@@ -62,6 +63,8 @@ include(CPack)
             self.assertFalse((package / 'src').exists())
             self.assertFalse((package / 'assets/models/archive').exists())
             self.assertTrue((package / 'assets/models/best1103.pt').is_file())
+            self.assertTrue((package / 'tools/upgrade_robot.py').is_file())
+            self.assertTrue((package / 'deploy/upgrade_robot.sh').is_file())
             workspace = base / 'persistent workspace'
             env = dict(os.environ, T170_WORKSPACE=str(workspace), T170_PYTHON=sys.executable,
                        T170_STATE_DIR=str(base/'state'), T170_LOG_DIR=str(base/'logs'))
@@ -69,6 +72,9 @@ include(CPack)
                 env.pop(key,None)
             subprocess.run([sys.executable,str(package/'tools/setup_robot.py'),'TH-T170C-0125','--model','3',
                             '--head-serial','test-head','--left-serial','test-left','--right-serial','test-right'],env=env,check=True,capture_output=True)
+            camera=yaml.safe_load((workspace/'config/robots/TH-T170C-0125/cameras/realsense_cameras.yaml').read_text())['realsense']
+            self.assertEqual(camera['left_hand']['image_rotation_deg'],0)
+            self.assertEqual(camera['right_hand']['image_rotation_deg'],180)
             launch = ['bash',str(package/'deploy/run_maintenance.sh')]
             subprocess.run(launch,env=env,check=True,capture_output=True)
             run = next((base/'state').glob('session.*/runtime'))
@@ -80,6 +86,12 @@ include(CPack)
             runs = list((base/'state').glob('session.*/runtime'))
             self.assertEqual(len(runs),2)
             self.assertIn(-.017,[yaml.safe_load((p/'config/effective_params.yaml').read_text())['head_grasp']['grasp_z_offset_m'] for p in runs])
+            self.assertEqual(yaml.safe_load(quick.read_text())['head_grasp']['grasp_z_offset_m'],-.017)
+            with socket.socket() as sock:
+                sock.bind(('127.0.0.1',0));port=str(sock.getsockname()[1])
+            result=subprocess.run([sys.executable,str(package/'tools/upgrade_robot.py'),
+                '--robot-port',port,'--web-port',port],env=env,check=True,capture_output=True,text=True)
+            self.assertEqual(json.loads(result.stdout)['version'],'layout-test')
             self.assertEqual(yaml.safe_load(quick.read_text())['head_grasp']['grasp_z_offset_m'],-.017)
 
 
