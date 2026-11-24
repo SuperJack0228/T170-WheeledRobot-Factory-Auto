@@ -1,0 +1,16 @@
+# Heights are measured from the floor to the QR marker plane, in centimetres.
+# Existing QR order is preserved: first semi-finished (conveyor), then finished (conveyor2).
+schema_version: 1
+enabled: true
+reference_machine: "1.2"  # Existing fixed_origin_z_m=-0.29 at reference waist Z=0.63.
+machines:
+  - {machine_id: "1.2", business_id: YF-0001, locate_id: 500, info_id: 550, operation_profile: conveyor,  qr_plane_height_cm: 123.6}
+  - {machine_id: "1.1", business_id: YF-0002, locate_id: 500, info_id: 551, operation_profile: conveyor2, qr_plane_height_cm: 122.7}
+  - {machine_id: "2.2", business_id: YF-0003, locate_id: 500, info_id: 552, operation_profile: conveyor,  qr_plane_height_cm: 122.0}
+  - {machine_id: "2.1", business_id: YF-0004, locate_id: 500, info_id: 553, operation_profile: conveyor2, qr_plane_height_cm: 122.8}
+  - {machine_id: "3.2", business_id: YF-0005, locate_id: 500, info_id: 554, operation_profile: conveyor,  qr_plane_height_cm: 122.5}
+  - {machine_id: "3.1", business_id: YF-0006, locate_id: 500, info_id: 555, operation_profile: conveyor2, qr_plane_height_cm: 121.0}
+  - {machine_id: "4.2", business_id: YF-0007, locate_id: 500, info_id: 556, operation_profile: conveyor,  qr_plane_height_cm: 123.2}
+  - {machine_id: "4.1", business_id: YF-0008, locate_id: 500, info_id: 557, operation_profile: conveyor2, qr_plane_height_cm: 122.7}
+  - {machine_id: "5.2", business_id: YF-0009, locate_id: 500, info_id: 558, operation_profile: conveyor,  qr_plane_height_cm: 123.0}
+  - {machine_id: "5.1", business_id: YF-0010, locate_id: 500, info_id: 559, operation_profile: conveyor2, qr_plane_height_cm: 121.6}

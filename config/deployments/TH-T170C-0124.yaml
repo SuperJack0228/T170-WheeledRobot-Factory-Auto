@@ -13,6 +13,7 @@ layers:
 - config/robots/TH-T170C-0124/reference_pixels.yaml
 - config/robots/TH-T170C-0124/quick_params.yaml
 files:
+  config/conveyor_heights.yaml: config/sites/current_factory/conveyor_heights.yaml
   config/realsense_cameras.yaml: config/robots/TH-T170C-0124/cameras/realsense_cameras.yaml
   config/right_hand_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/right.yaml
   config/camera_profile_d405.yaml: config/robot_models/t170/camera_profile_d405.yaml

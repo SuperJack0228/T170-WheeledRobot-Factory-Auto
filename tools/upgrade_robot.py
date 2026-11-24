@@ -35,6 +35,20 @@ def upgrade(package, root, backup_parent):
         try:
             for manifest in sorted((root/'config/deployments').glob('*.yaml')):
                 doc=yaml.safe_load(manifest.read_text());robot=doc['robot_id']
+                # Site data is shared by every robot and independent of its ID.
+                relative='config/sites/'+doc['site_id']+'/conveyor_heights.yaml'
+                target=(root/relative).resolve()
+                if not target.is_relative_to(root):raise ValueError('站点高度表路径超出工作区')
+                if not target.exists():
+                    target.parent.mkdir(parents=True,exist_ok=True)
+                    shutil.copy2(package/'share'/relative,target)
+                doc['files'].setdefault('config/conveyor_heights.yaml',relative)
+                atomic_write(manifest,yaml.safe_dump(doc,sort_keys=False,allow_unicode=True))
+                belt_file=(root/doc['files']['config/vision/belt.yaml']).resolve()
+                if not belt_file.is_relative_to(root):raise ValueError('传送带配置路径超出工作区')
+                belt=yaml.safe_load(belt_file.read_text())
+                belt['belt']['height_catalog_file']='../conveyor_heights.yaml'
+                atomic_write(belt_file,yaml.safe_dump(belt,sort_keys=False,allow_unicode=True))
                 camera_file=(root/doc['files']['config/realsense_cameras.yaml']).resolve()
                 if not camera_file.is_relative_to(root):raise ValueError('相机配置超出工作区')
                 cameras=yaml.safe_load(camera_file.read_text());changed=[]

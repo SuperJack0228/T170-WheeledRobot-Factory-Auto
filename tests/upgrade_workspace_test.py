@@ -31,6 +31,8 @@ class UpgradeTest(unittest.TestCase):
         (path/'bin/t170_config_dump').symlink_to(CHECKER)
         (path/'release.json').write_text(json.dumps({'version':version}))
         (path/'environment.lock.json').write_text('{}')
+        catalog=path/'share/config/sites/current_factory/conveyor_heights.yaml';catalog.parent.mkdir(parents=True)
+        shutil.copy2(ROOT/'config/sites/current_factory/conveyor_heights.yaml',catalog)
         return path
 
     def test_no124_legacy_cameras_and_references_are_preserved(self):
@@ -86,6 +88,20 @@ class UpgradeTest(unittest.TestCase):
         self.assertEqual(quick.read_bytes(),before)
         self.assertEqual((self.root/'bin').resolve(),(self.old/'bin').resolve())
         self.assertEqual(json.loads((self.root/'release.json').read_text())['version'],'1.0.0-rc.1')
+
+    def test_upgrade_adds_missing_site_catalog_without_resetting_belt_geometry(self):
+        catalog=self.root/'config/sites/current_factory/conveyor_heights.yaml';catalog.unlink()
+        manifest=self.root/'config/deployments/TH-T170C-0124.yaml'
+        doc=yaml.safe_load(manifest.read_text());doc['files'].pop('config/conveyor_heights.yaml')
+        manifest.write_text(yaml.safe_dump(doc))
+        belt=self.root/'config/sites/current_factory/vision/belt.yaml'
+        data=yaml.safe_load(belt.read_text());data['belt'].pop('height_catalog_file');data['belt']['pitch_y_m']=.111
+        belt.write_text(yaml.safe_dump(data))
+        result=upgrade_module.upgrade(self.new,self.root,self.base/'backups')
+        self.assertTrue(result['saved']);self.assertTrue(catalog.is_file())
+        data=yaml.safe_load(belt.read_text())
+        self.assertEqual(data['belt']['pitch_y_m'],.111)
+        self.assertEqual(data['belt']['height_catalog_file'],'../conveyor_heights.yaml')
 
 
 if __name__=='__main__':unittest.main()

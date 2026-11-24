@@ -12,7 +12,8 @@ function(t170_install_resources root)
     install(DIRECTORY "${root}/deploy/" DESTINATION deploy USE_SOURCE_PERMISSIONS)
     install(PROGRAMS "${root}/tools/resolve_deployment.py" "${root}/tools/active_runtime.py"
         "${root}/tools/apply_config.py" "${root}/tools/setup_robot.py" "${root}/tools/upgrade_robot.py" DESTINATION tools)
-    install(FILES "${root}/docs/deployment/V1_QUICK_START.md" "${root}/docs/deployment/PACKAGE_UPGRADE.md" DESTINATION docs)
+    install(FILES "${root}/docs/deployment/V1_QUICK_START.md" "${root}/docs/deployment/PACKAGE_UPGRADE.md"
+        "${root}/docs/deployment/CONVEYOR_HEIGHT_BINDINGS.md" DESTINATION docs)
 endfunction()
 
 if(T170_PACKAGING_RESOURCES_ONLY)

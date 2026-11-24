@@ -778,6 +778,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         return false;
     try {
         const auto directory=std::filesystem::path(path).parent_path();
+        candidate.conveyor.height_profile="conveyor";
+        candidate.conveyor2.height_profile="conveyor2";
+        const auto heights=directory/"conveyor_heights.yaml";
+        if(std::filesystem::is_regular_file(heights))
+            candidate.conveyor_heights=t170::config::load_conveyor_heights(heights.string());
         // Task-local catalog: never overwrite the four legacy/global image profiles,
         // which are also used by conveyor sessions.
         for(const std::string task:{"grasp","placement"}) for(int hand=0;hand<2;++hand) {
@@ -835,6 +840,8 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[conveyor_height] enabled="<<cfg.conveyor_heights.enabled
+             <<" reference="<<cfg.conveyor_heights.reference_machine<<" machines="<<cfg.conveyor_heights.machines.size()<<'\n';
     std::cout<<"[arm_coordinates] sdk_mdh_model_rad pending_task_references="<<cfg.pending_model_calibrations.size()<<'\n';
     std::cout<<"[calibration] placement tilt families left="<<cfg.visual_servo.calibrated_placement[0].size()
              <<" right="<<cfg.visual_servo.calibrated_placement[1].size()<<"; tray grasp left="<<cfg.visual_servo.calibrated_tray_grasp[0].size()

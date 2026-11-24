@@ -313,6 +313,15 @@ YAML::Node encode(const RetractMotionConfig &v) {
 }
 YAML::Node encode(const MoveBoxConfig &v) {
  YAML::Node n;
+ n["conveyor_heights"]["enabled"]=v.conveyor_heights.enabled;
+ n["conveyor_heights"]["reference_machine"]=v.conveyor_heights.reference_machine;
+ n["conveyor_heights"]["machines"]=YAML::Node(YAML::NodeType::Sequence);
+ for(const auto &entry:v.conveyor_heights.machines) {
+     YAML::Node row;row["machine_id"]=entry.machine_id;row["business_id"]=entry.business_id;
+     row["locate_id"]=entry.locate_id;row["info_id"]=entry.info_id;
+     row["operation_profile"]=entry.operation_profile;row["qr_plane_height_m"]=entry.qr_plane_height_m;
+     n["conveyor_heights"]["machines"].push_back(row);
+ }
  n["pending_model_calibrations"] = encode(v.pending_model_calibrations);
  n["standby"] = encode(v.standby);
  n["home_tcp"] = encode(v.home_tcp);

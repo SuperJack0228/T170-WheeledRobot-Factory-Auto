@@ -10,9 +10,8 @@
 #        边缘 +167 mm                    边缘 −70 mm
 #              后 (−X)  边缘 −152 mm
 #
-# 本期两条共用定位码 500，靠右信息码区分：
-# 皮带 0 = YF-0001：左 500、右 550
-# 皮带 1 = YF-0002：左 500、右 551
+# 当前十条共用定位码 500，信息码为 550–559。
+# 机床身份、机床类型及实测码平面高度由 conveyor_heights.yaml 统一维护。
 
 aruco:
   dictionary: DICT_5X5_1000
@@ -22,13 +21,14 @@ aruco:
   white_border_cells: 1
 
 belt:
+  height_catalog_file: ../conveyor_heights.yaml  # Unique authority for machine ID, marker ID and measured height.
   pitch_y_m: 0.109                # 两码心左右间距
   edge:
     front_m: 0.152                # +X 到前边缘
     rear_m: 0.152                 # −X 到后边缘
     left_m: 0.167                 # +Y 到左边缘
     right_m: 0.070                # −Y 到右边缘
-  items:
+  items:  # 仅在高度表关闭时使用的旧版回退配置。
     - name: belt0
       left_id: 500
       right_id: 550

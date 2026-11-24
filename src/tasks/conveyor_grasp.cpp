@@ -224,7 +224,7 @@ static int go_belt_grasp_attempt(
         std::cerr << "[orch] belt_grasp 二维码解算失败，不往码上走\n";
         return kVisionQrFail;
     }
-    apply_fixed_belt_origin_z(det, c, name);
+    if(!apply_fixed_belt_origin_z(det, c, name))return kVisionQrFail;
     if (det.have_grasp_l)
         g_hw->last_belt_z = det.grasp_lz;
     else if (det.in_robot)
@@ -621,7 +621,7 @@ static int belt_recheck_after_empty(const ConveyorStationConfig &c, const char *
         std::cerr << "[orch] " << name << " 空抓后再拍二维码失败\n";
         return kVisionQrFail;
     }
-    apply_fixed_belt_origin_z(perc.belt, c, name);
+    if(!apply_fixed_belt_origin_z(perc.belt, c, name))return kVisionQrFail;
     const BeltPartList parts = detect_belt_parts_full(
         bridge, perc.frame, c, perc.belt, name, perc.yolo_ran ? &perc.yolo : nullptr);
     if (!parts.ok)

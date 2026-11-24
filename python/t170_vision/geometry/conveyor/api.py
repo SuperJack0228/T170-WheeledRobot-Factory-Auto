@@ -119,6 +119,20 @@ def _draw_grasp(vis, K, dist, grasp_cam: np.ndarray, label: str, color) -> None:
     )
 
 
+def select_belt(found,prefer,catalog_enabled):
+    prefer=str(prefer or '').strip()
+    if not catalog_enabled:
+        chosen=next((item for item in found if item['name']==prefer),None)
+        return chosen or (found[0] if found else None),'未检测到传送带 5x5 码'
+    profile={'belt0':'conveyor','belt1':'conveyor2','conveyor':'conveyor','conveyor2':'conveyor2'}.get(prefer)
+    if profile:candidates=[item for item in found if item['operation_profile']==profile]
+    elif prefer:candidates=[item for item in found if prefer in (item['name'],item['machine_id'])]
+    else:candidates=list(found)
+    if len(candidates)==1:return candidates[0],'ok'
+    if len(candidates)>1:return None,'多台符合任务的机床同时入画，无法唯一选择传送带'
+    return None,'未识别当前任务对应的传送带信息码'
+
+
 def detect_frame(
     bgr,
     K,
@@ -157,6 +171,8 @@ def detect_frame(
         found.append(
             {
                 "name": pose.name,
+                "machine_id": belt.machine_id,
+                "operation_profile": belt.operation_profile,
                 "used_ids": list(pose.used_ids),
                 "reproj_px": float(pose.reproj_px),
                 "origin_cam": origin_cam.tolist(),
@@ -167,15 +183,7 @@ def detect_frame(
             }
         )
 
-    chosen = None
-    prefer = str(prefer_name or "").strip()
-    if prefer:
-        for item in found:
-            if item["name"] == prefer:
-                chosen = item
-                break
-    if chosen is None and found:
-        chosen = found[0]
+    chosen,selection_message=select_belt(found,prefer_name,cfg.height_catalog_enabled)
 
     grasp_cam_l = None
     grasp_robot_l = None
@@ -203,7 +211,7 @@ def detect_frame(
 
     out: dict[str, Any] = {
         "ok": chosen is not None,
-        "message": "ok" if chosen is not None else "未检测到传送带 5x5 码",
+        "message": "ok" if chosen is not None else selection_message,
         "name": chosen["name"] if chosen else "",
         "used_ids": list(chosen["used_ids"]) if chosen else [],
         "reproj_px": float(chosen["reproj_px"]) if chosen else -1.0,

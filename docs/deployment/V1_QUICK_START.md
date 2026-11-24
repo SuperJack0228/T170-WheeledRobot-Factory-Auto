@@ -1,6 +1,6 @@
 # T170 V1 候选版部署与参数操作
 
-版本：1.0.0-rc.2。程序、配置和运行数据独立保存。`move_box_params.yaml` 已退出当前运行链路。已有机器人升级见 [运行包升级说明](PACKAGE_UPGRADE.md)。
+版本：1.0.0-rc.3。程序、配置和运行数据独立保存。`move_box_params.yaml` 已退出当前运行链路。已有机器人升级见 [运行包升级说明](PACKAGE_UPGRADE.md)，十台机床高度配置见 [信息码与高度绑定](CONVEYOR_HEIGHT_BINDINGS.md)。
 
 ## 日常调参
 

@@ -158,7 +158,7 @@ enum class DispatchNote
     Mission
 };
 int waist_rotate_deg(double yaw_deg, double speed_deg_s);
-void apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfig &c, const char *tag);
+bool apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfig &c, const char *tag);
 int conveyor_waist_and_head(const ConveyorStationConfig &c, const char *tag);
 const char *belt_yolo_class_zh(int class_id);
 void log_gripper_qs(const char *tag);

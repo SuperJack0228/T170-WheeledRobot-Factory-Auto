@@ -199,7 +199,7 @@ int go_belt_station(
     if (aborted())
         return -4;
 
-    apply_fixed_belt_origin_z(det, c, name);
+    if(!apply_fixed_belt_origin_z(det, c, name))return kVisionQrFail;
     if (det.in_robot)
         g_hw->last_belt_z = det.origin_z;
 

@@ -1,9 +1,12 @@
 # 运行包升级与 No.120 迁移
 
-当前候选版本为 `1.0.0-rc.2`。源码提交到 GitHub 与运行包交付是两个环节：更新源码后，需要在匹配机器人的 Linux 环境重新构建，机器人使用新的运行包。GitHub Release 用于保存和分发包，不承担编译。
+当前候选版本为 `1.0.0-rc.3`。源码提交到 GitHub 与运行包交付是两个环节：更新源码后，需要在匹配机器人的 Linux 环境重新构建，机器人使用新的运行包。GitHub Release 用于保存和分发包，不承担编译。
 
 ## 本次修复
 
+rc.3 包含原 rc.2 修复，并新增五组十台机床的信息码与高度绑定。
+
+- 新增公共站点高度表，以机床 1.2 为参考，由实际信息码匹配传送带高度，升级时为旧档案补入映射，保留已调几何参数。
 - 标准相机方向统一为左手 0°、右手 180°。伺服、标定、预览、存图使用同一本机配置；No.124 保留左 180°／右 0° 的例外。
 - 网页保存支持 YAML 行内和竖排数组，按语法树定位标量，保留其他字段与注释。
 - 标定 XY 微调保持当前实测姿态和 Z。2 mm 微调的位置允许误差为 0.8 mm，反馈停稳判断适度放宽；无运动、反向、反馈缺失、通信故障和停止请求仍不会报告成功。日志及向导返回包含目标、实际位置、残差、容差和执行码。
@@ -16,7 +19,7 @@
 
 ```bash
 git fetch origin --tags
-git switch --detach v1.0.0-rc.2
+git switch --detach v1.0.0-rc.3
 conda activate human_interaction_env
 ./packaging/build_release.sh
 ```
@@ -31,8 +34,8 @@ conda activate human_interaction_env
 
 ```bash
 mkdir -p ~/t170/releases
-tar -xzf ~/Downloads/t170-factory-1.0.0-rc.2-Linux-aarch64.tar.gz -C ~/t170/releases
-cd ~/t170/releases/t170-factory-1.0.0-rc.2-Linux-aarch64
+tar -xzf ~/Downloads/t170-factory-1.0.0-rc.3-Linux-aarch64.tar.gz -C ~/t170/releases
+cd ~/t170/releases/t170-factory-1.0.0-rc.3-Linux-aarch64
 conda activate human_interaction_env
 ./deploy/upgrade_robot.sh
 ```
@@ -45,7 +48,7 @@ conda activate human_interaction_env
 - 将原始像素参考转换到新画面坐标。由于 No.120 从旧的左 180°／右 0° 改成左 0°／右 180°，旧任务参考中的像素、K 和手眼指纹不再匹配，归档到 `tasks/orientation_before_时间戳/`，不作为当前标定继续加载。
 - 将程序资源链接切换到新版，调用真实 C++ 加载器校验；失败则恢复原配置和旧资源链接。不启动硬件。
 
-因此，No.120 本次需通过向导重新建立左/右抓取、左/右放置参考。No.124 方向没有变化，原任务参考保留。以后图像方向及几何未变的常规修复升级，不因升级操作本身清空标定。
+从 rc.1 升级的 No.120 需通过向导重新建立左/右抓取、左/右放置参考；如果已经升级 rc.2 并完成参考，rc.2 → rc.3 不再次改变图像方向，不因新增机床高度表而清空料盘标定。No.124 方向没有变化，原任务参考保留。以后图像方向及几何未变的常规修复升级，不因升级操作本身清空标定。
 
 启动维护和网页，在不同终端执行：
 

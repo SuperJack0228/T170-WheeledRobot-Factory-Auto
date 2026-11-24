@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "t170/control/visual_servo.h"
+#include "t170/config/conveyor_heights.h"
 
 struct ArmPosePairConfig
 {
@@ -224,6 +225,7 @@ struct Tray2PlaceConfig
  *  `belt`：准备后认码，先右手放到码+offset再回准备，再左手；不回 home。 */
 struct ConveyorStationConfig
 {
+    std::string height_profile = "conveyor"; // Derived runtime role, never a robot/workcell binding.
     double waist_x = -0.15;
     double waist_z = 0.63;
     double head_yaw_deg = 0.0;
@@ -235,7 +237,7 @@ struct ConveyorStationConfig
     /** 相对识别板系（+X 前、+Y 左、+Z 上）：放置 XYZ = 码原点 + R_识别 × offset。 */
     ConveyorXyzOffset offset_right;
     ConveyorXyzOffset offset_left;
-    /** 优先用哪条皮带（belt0/belt1）。该条没码则用第一条解到的。 */
+    /** 高度表启用时 belt0/belt1 选择半加工/精加工类型，跨组匹配；也可指定 YF 业务编号。 */
     std::string prefer_belt = "belt0";
     /** 传送带抓取专用 RPY（deg）。XYZ 用左右各自的 grasp_offset。 */
     GraspRpyDeg grasp_rpy_left{0.0, 45.0, -30.0};
@@ -275,11 +277,11 @@ struct ConveyorStationConfig
     std::vector<int> yolo_part_class_ids;
     /** true：码原点 Z 不用相机，改用随腰高变化的固定平面。XY 和板姿态仍用二维码。 */
     bool use_fixed_origin_z = false;
-    /** 标定时的手臂基座系码平面高度（米，向上为正）。对应下面的参考腰高。 */
+    /** 参考机床的码平面基座 Z（米）；启用高度表后对应 reference_machine，而非所有机床。 */
     double fixed_origin_z_m = -0.29;
     /** fixed_origin_z_m 对应的腰高（米）。腰每升高 1cm，实际平面 Z 降低 1cm。 */
     double fixed_origin_ref_waist_z_m = 0.63;
-    /** 当前 waist_z 下的码平面 Z。腰升高时手在基座里更低，空间高度不变。 */
+    /** 当前腰高下参考机床的码平面 Z；实际机床还需叠加高度表中的相对高度差。 */
     double fixed_plane_z() const
     {
         return fixed_origin_z_m - (waist_z - fixed_origin_ref_waist_z_m);
@@ -327,7 +329,7 @@ struct CameraStreamConfig
     bool hand_live_preview = false;
     /** 为真时，竖直下降段把锁定工件的检测框中心对齐到夹爪像素，只改尚未发出的水平位置。 */
     bool hand_descent_correct = false;
-    /** 夹爪中点在手相机画面里的像素。左手是转过 180° 之后的图。原点在左上角。 */
+    /** 夹爪中点在本机已定向手相机画面中的像素，原点在左上角。 */
     float left_gripper_u = 602.f;
     float left_gripper_v = 452.f;
     float right_gripper_u = 633.f;
@@ -363,6 +365,7 @@ struct RetractMotionConfig
 
 struct MoveBoxConfig
 {
+    t170::config::ConveyorHeightCatalog conveyor_heights;
     std::vector<std::string> pending_model_calibrations;
     ArmPosePairConfig standby;
     ArmPosePairConfig home_tcp;
