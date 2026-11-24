@@ -47,7 +47,7 @@ class RuntimePathsTest(unittest.TestCase):
             with patch.dict(os.environ, environment, clear=True), \
                  patch.dict(sys.modules, {"yaml": types.ModuleType("yaml")}):
                 module = runpy.run_path(str(repository / "web_debug/server.py"), run_name="web_paths_test")
-                self.assertEqual(module["CONFIG_FILES"]["motion"], root / "machine/move_box_params.yaml")
+                self.assertEqual(module["CONFIG_FILES"]["motion"], root / "machine/effective_params.yaml")
                 self.assertEqual(module["CONFIG_FILES"]["hand_eye_fallback"], root / "machine/camera_to_base_result.yaml")
                 self.assertEqual(module["RUNTIME_ROOT"], root / "run logs/web")
                 with patch.object(sys, "argv", ["server.py"]):

@@ -81,7 +81,7 @@ bool begin_session(Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,cons
         if(const auto *calibrated=calibrated_placement_for(cfg,hand,goal(3),goal(4))) {
             profile=calibrated->image;cfg.profiles[2+hand]=profile;
         } else if(!cfg.calibrated_placement[hand].empty())
-            std::cerr<<"[servo] 本放置倾角尚未示教，沿用move_box_params中的显式参考，不套用其他倾角标定\n";
+            std::cerr<<"[servo] 本放置倾角尚未示教，沿用当前有效配置中的显式参考，不套用其他倾角标定\n";
     }
     Eigen::Matrix4d eye=Eigen::Matrix4d::Identity();
     if (profile.mode=="geometry" || tray_placement) {

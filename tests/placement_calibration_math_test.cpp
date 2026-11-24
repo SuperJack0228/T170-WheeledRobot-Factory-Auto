@@ -32,9 +32,9 @@ int main(int argc,char **argv) {
     const auto root=std::filesystem::temp_directory_path()/"t170-calibration-config-test";
     std::filesystem::remove_all(root);std::filesystem::create_directories(root/"calibration/placement");
     const auto repository=std::filesystem::path(argv[1]);
-    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","right_hand_to_base_result.yaml","Robot_Model.yaml"})
+    for(const auto &name:{"effective_params.yaml","realsense_cameras.yaml","right_hand_to_base_result.yaml","Robot_Model.yaml"})
         std::filesystem::copy_file(repository/"config"/name,root/name);
-    MoveBoxConfig base;std::string error;check(load_move_box_config((root/"move_box_params.yaml").string(),base,error),error.c_str());
+    MoveBoxConfig base;std::string error;check(load_move_box_config((root/"effective_params.yaml").string(),base,error),error.c_str());
     const auto cameras=YAML::LoadFile((root/"realsense_cameras.yaml").string());
     YAML::Node record;record["schema_version"]=1;record["validated"]=true;record["hand"]=1;
     record["robot_id"]=base.chassis.sequence_number;record["camera_serial"]=cameras["realsense"]["right_hand"]["serial"].as<std::string>();
@@ -46,7 +46,7 @@ int main(int argc,char **argv) {
     for(double v:{.4,-.2,-.4,0.,.95,.7})record["reference_pose_tcp"].push_back(v);
     record["compensation_xy_upright_m"].push_back(.012);record["compensation_xy_upright_m"].push_back(-.008);
     auto write=[&]{std::ofstream f(root/"calibration/placement/right.yaml");f<<record;};write();
-    MoveBoxConfig loaded;check(load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),error.c_str());
+    MoveBoxConfig loaded;check(load_move_box_config((root/"effective_params.yaml").string(),loaded,error),error.c_str());
     const auto *entry=calibrated_placement_for(loaded.visual_servo,1,0,.95);
     check(entry && entry->image.plane_relative_reference && entry->image.reference_px.x()==701.5,
           "saved reference not loaded");
@@ -54,13 +54,13 @@ int main(int argc,char **argv) {
     check(!calibrated_placement_for(loaded.visual_servo,1,0,.7),"another tool tilt reused a wrong reference");
     check(loaded.tray2_place.right_goal_x_offset==base.tray2_place.right_goal_x_offset,"catalog overwrote explicit legacy fallback");
     check(loaded.visual_servo.profiles[1].reference_px==base.visual_servo.profiles[1].reference_px,"placement changed grasp reference");
-    check(load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),error.c_str());
+    check(load_move_box_config((root/"effective_params.yaml").string(),loaded,error),error.c_str());
     check(loaded.visual_servo.calibrated_placement[1].size()==1,"reload accumulated calibration entries");
     record["camera_serial"]="different-camera";write();
-    check(!load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),"camera change silently reused calibration");
+    check(!load_move_box_config((root/"effective_params.yaml").string(),loaded,error),"camera change silently reused calibration");
     check(loaded.visual_servo.calibrated_placement[1].size()==1 && calibrated_placement_for(loaded.visual_servo,1,0,.95)->head_xy_bias==Vec2(.012,-.008),"rejected calibration changed last valid config");
     record["camera_serial"]=cameras["realsense"]["right_hand"]["serial"].as<std::string>();record["reference_px"][0]=1300;write();
-    check(!load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),"out-of-image calibration loaded");
+    check(!load_move_box_config((root/"effective_params.yaml").string(),loaded,error),"out-of-image calibration loaded");
     // New canonical file supersedes the old tilt catalog, without changing belt profiles.
     record["reference_px"][0]=701.5;record["schema_version"]=2;record["task"]="placement";
     record["scope"]="tray_only";record["validation_kind"]="manual_at_D";record["field_verified"]=false;write();
@@ -69,12 +69,12 @@ int main(int argc,char **argv) {
     auto grasp=YAML::Clone(record);grasp["task"]="grasp";grasp["reference_px"][0]=620.;grasp["reference_px"][1]=380.;
     grasp["reference_tcp_above_plane_m"]=.032;grasp["compensation_xy_upright_m"][0]=-.004;
     auto write_grasp=[&]{std::ofstream f(root/"calibration/grasp/right.yaml");f<<grasp;};write_grasp();
-    check(load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),error.c_str());
+    check(load_move_box_config((root/"effective_params.yaml").string(),loaded,error),error.c_str());
     check(calibrated_placement_for(loaded.visual_servo,1,.2,.7)->universal,"canonical reference still restricted to tilt");
     check(loaded.visual_servo.calibrated_placement[1].size()==1,"new and obsolete placement references were combined");
     std::filesystem::rename(root/"calibration/placement/right.yaml",root/"calibration/placement/right.saved");
     MoveBoxConfig without_canonical;
-    check(load_move_box_config((root/"move_box_params.yaml").string(),without_canonical,error),error.c_str());
+    check(load_move_box_config((root/"effective_params.yaml").string(),without_canonical,error),error.c_str());
     check(without_canonical.visual_servo.calibrated_placement[1].empty(),"retired tilt backup was loaded without canonical reference");
     std::filesystem::rename(root/"calibration/placement/right.saved",root/"calibration/placement/right.yaml");
     check(calibrated_tray_grasp_for(loaded.visual_servo,1)->head_xy_bias.x()==-.004,"tray grasp compensation missing");
@@ -93,10 +93,10 @@ int main(int argc,char **argv) {
     check(session.profiles[1].reference_px==base.visual_servo.profiles[1].reference_px,"placement changed grasp reference");
     check(!apply_tray_calibration(session,0,0,-.3,-.32,0,0),"unmarked hand inherited the other hand's reference");
     grasp["scope"]="conveyor";write_grasp();
-    check(!load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),"wrong task scope accepted");
+    check(!load_move_box_config((root/"effective_params.yaml").string(),loaded,error),"wrong task scope accepted");
     check(calibrated_tray_grasp_for(loaded.visual_servo,1)->head_xy_bias.x()==-.004,"rejected reload lost last valid grasp");
     grasp["scope"]="tray_only";grasp["task"]="placement";write_grasp();
-    check(!load_move_box_config((root/"move_box_params.yaml").string(),loaded,error),"placement file accepted in grasp catalog");
+    check(!load_move_box_config((root/"effective_params.yaml").string(),loaded,error),"placement file accepted in grasp catalog");
     g_move_cfg=base;
     const auto expected_r=base.tray2_place.right_row_rpy_deg[1],expected_l=base.tray2_place.left_row_rpy_deg[1];
     const auto far_r=base.tray2_place.right_row6_rpy_deg,far_l=base.tray2_place.left_row6_rpy_deg;

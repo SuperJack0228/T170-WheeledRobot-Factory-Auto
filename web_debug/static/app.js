@@ -526,7 +526,7 @@ $("reloadRobot").addEventListener("click", async () => {
   btn.disabled = true;
   try {
     const result = await api("/api/command", { method: "POST", body: { cmd: "reload_config" } });
-    toast(result.ok ? "已 reload" : (result.error || "reload 没有完成"));
+    toast(result.message || result.error || "应用配置完成");
   } catch (error) {
     toast(error.message);
   } finally {
@@ -548,7 +548,7 @@ $("saveConfig").addEventListener("click", async () => {
       method: "POST",
       body: { file: configFile, values, confirm: "save_config" },
     });
-    toast(result.reload ? "已保存并重载" : (result.error || "已保存，重启后生效"));
+    toast(result.message || result.error || "已保存，启动时加载");
     await loadConfig();
   } catch (error) { toast(error.message); }
 });

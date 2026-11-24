@@ -1,6 +1,5 @@
 schema_version: 1
 robot_id: TH-T170C-0124
-# No.124: V2.0 3 kg; active Ti5_Robotics model-angle backend.
 robot_model: t170c_v2_3kg
 site_id: current_factory
 task_assignment: dispatch
@@ -12,6 +11,7 @@ layers:
 - config/robots/TH-T170C-0124/identity.yaml
 - config/robots/TH-T170C-0124/taught_poses.yaml
 - config/robots/TH-T170C-0124/reference_pixels.yaml
+- config/robots/TH-T170C-0124/quick_params.yaml
 files:
   config/realsense_cameras.yaml: config/robots/TH-T170C-0124/cameras/realsense_cameras.yaml
   config/right_hand_to_base_result.yaml: config/calibration/TH-T170C-0124/hand_eye/right.yaml

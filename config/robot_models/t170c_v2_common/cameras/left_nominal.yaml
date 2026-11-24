@@ -1,0 +1,43 @@
+name: left_rgb_from_camera_model
+camera_model: D405
+source: T170C_10/urdf/camera nominal.D405
+parent_frame: urdf_wrist
+transform_direction: parent_from_camera_optical
+parent_link: L_WRIST_R_S
+image_convention: raw_rgb
+urdf_xyz_m:
+- 0.167658222425
+- 0.009609872479
+- 0.056442580002
+urdf_rpy_rad:
+- -2.093479578604
+- -0.012480851601
+- -1.571103360496
+a. matrix:
+- - -0.000307009783
+  - -0.499210220488
+  - 0.866480848897
+  - 167.658222425
+- - -0.999922068052
+  - -0.010660888656
+  - -0.006496404902
+  - 9.609872479
+- - 0.012480527576
+  - -0.866415316816
+  - -0.499168043065
+  - 56.442580002
+- - 0
+  - 0
+  - 0
+  - 1
+frame: rgb_from_camera_model
+urdf_joint: L_CAMERA
+child_link: L_CAMERA_S
+translation_xyz_mm:
+- 167.658222425
+- 9.609872479
+- 56.442580002
+euler_angles_xyz_deg:
+- -119.94754435081
+- -0.715100121446
+- -90.017591735241

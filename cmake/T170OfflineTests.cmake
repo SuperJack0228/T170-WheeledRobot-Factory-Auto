@@ -44,6 +44,10 @@
     target_link_libraries(extrinsics_test PRIVATE t170::configuration)
     add_test(NAME extrinsics_test COMMAND extrinsics_test ${T170_TEST_RUNTIME})
     add_test(NAME config_reload_test COMMAND config_reload_test ${T170_TEST_RUNTIME})
+    add_test(NAME config_workspace_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/config_workspace_test.py $<TARGET_FILE:t170_config_dump>)
+    add_test(NAME release_layout_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/release_layout_test.py $<TARGET_FILE:t170_config_dump>)
     t170_add_observation_support()
     # Compile real SDK-adapter/planner/player translation units against their public
     # declarations. No fake SDK implementation is linked; robot linking is a separate gate.
@@ -84,13 +88,13 @@
     add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp)
     target_link_libraries(visual_servo_config_test PRIVATE t170::configuration)
     add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
-        ${T170_TEST_RUNTIME}/config/move_box_params.yaml)
+        ${T170_TEST_RUNTIME}/config/effective_params.yaml)
     add_executable(tray_localizer_test tests/tray_localizer_test.cpp)
     add_executable(tray_acquisition_test tests/tray_acquisition_test.cpp)
     add_executable(tray_place_latency_test tests/tray_place_latency_test.cpp)
     target_link_libraries(tray_place_latency_test PRIVATE t170::configuration t170::servo_core)
     add_test(NAME tray_place_latency_test COMMAND tray_place_latency_test
-        ${T170_TEST_RUNTIME}/config/move_box_params.yaml
+        ${T170_TEST_RUNTIME}/config/effective_params.yaml
         ${PROJECT_SOURCE_DIR}/tests/fixtures/tray_place_latency_20261106.json)
     target_link_libraries(tray_acquisition_test PRIVATE t170::tray_geometry)
     add_test(NAME tray_acquisition_test COMMAND tray_acquisition_test)

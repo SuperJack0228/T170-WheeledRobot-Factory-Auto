@@ -22,7 +22,7 @@ def main():
     paths = load_paths(args.root)
     root = paths.root
     config_dir = paths.config_dir
-    config = yaml.safe_load((config_dir / "move_box_params.yaml").read_text())
+    config = yaml.safe_load((config_dir / "effective_params.yaml").read_text())
     vision_root = root
     vision = yaml.safe_load((paths.config_file("vision/pose_params.yaml")).read_text())
     errors = []
@@ -34,7 +34,7 @@ def main():
         errors.append("下降速度必须为正数")
     arch='aarch64' if platform.machine() in ['aarch64','arm64'] else 'x86_64'
     resources = [config_dir / "Robot_Model.yaml", root / f"dependencies/sdk/arm/lib/{arch}-glibc227/libti5_robot.so", config_dir / "arm_binding.yaml", config_dir / "left_hand_to_base_result.yaml",
-                 config_dir / "right_hand_to_base_result.yaml", config_dir / "move_box_params.yaml",
+                 config_dir / "right_hand_to_base_result.yaml", config_dir / "effective_params.yaml",
                  config_dir / "realsense_cameras.yaml", paths.config_file("vision/pose_params.yaml")]
     for key in ("model", "hand_model"):
         value = vision.get("segmentation", {}).get(key)

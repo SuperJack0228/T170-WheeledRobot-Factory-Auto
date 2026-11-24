@@ -55,7 +55,9 @@ class ProfileStore:
         return path
 
     def selected(self) -> str:
-        selected = inside(self.selector.parent, str(read(self.selector)["manifest"]))
+        value=read(self.selector).get("manifest")
+        if not value:return ""
+        selected = inside(self.selector.parent, str(value))
         return str(selected.relative_to(self.root))
 
     def list(self) -> dict:
@@ -72,7 +74,8 @@ class ProfileStore:
                     "models": list(MODELS), "source_root": str(self.root)}
 
     def update(self, payload: dict) -> dict:
-        with _lock:
+        from t170_common.config_workspace import ConfigWorkspace
+        with _lock, ConfigWorkspace(self.root).locked():
             if payload.get("expected_manifest") != self.selected():
                 raise ValueError("档案选择已被其他页面修改，请刷新后重试")
             model = payload.get("robot_model")
@@ -116,8 +119,8 @@ class ProfileStore:
         host = str(payload.get("host", "")).strip()
         if not host or len(host) > 253 or not re.fullmatch(r"[a-zA-Z0-9.:-]+", host):
             raise ValueError("请填写底盘 IP 或主机名")
-        # Copy reusable IO/tool/pose settings only. Per-robot hand-eye and wrist
-        # calibration are deliberately absent until the engineer imports them.
+        # Copy reusable IO/tool/pose settings; camera geometry defaults to the
+        # common nominal model. Task image references remain robot-specific.
         try:
             shutil.copytree(inside(self.root, "config/robots/" + old_id), destination)
             identity = read(destination / "identity.yaml")
@@ -129,6 +132,8 @@ class ProfileStore:
             doc = json.loads(json.dumps(template).replace("config/robots/" + old_id + "/", "config/robots/" + robot_id + "/")
                              .replace("config/calibration/" + old_id + "/", "config/calibration/" + robot_id + "/"))
             doc.update(robot_id=robot_id, robot_model=payload["robot_model"])
+            from t170_common.camera_nominal import nominal_files
+            doc['files'].update(nominal_files())
             atomic_yaml(manifest, doc)
         except BaseException:
             shutil.rmtree(destination, ignore_errors=True)
@@ -136,4 +141,4 @@ class ProfileStore:
             manifest.unlink(missing_ok=True)
             raise
         return {"ok": True, "manifest": str(manifest.relative_to(self.root)), "restart_required": False,
-                "message": "档案已创建。先按列表路径导入本机标定文件，再选择为下次启动档案；未复制其他机器人的标定。"}
+                "message": "档案已创建，默认使用理论手眼。核对本机相机 SN，选择为下次启动档案后，通过向导建立本机抓放参考。"}

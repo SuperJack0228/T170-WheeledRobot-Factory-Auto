@@ -11,7 +11,7 @@ MoveBoxConfig g_move_cfg;
 void require(bool ok,const char *message) { if(!ok) throw std::runtime_error(message); }
 int main(int argc,char **argv) {
     try {
-        if(argc!=2) throw std::runtime_error("usage: visual_servo_config_test config/move_box_params.yaml");
+        if(argc!=2) throw std::runtime_error("usage: visual_servo_config_test config/effective_params.yaml");
         auto root=YAML::LoadFile(argv[1]); wrist_servo::Config c;
         MoveBoxConfig full;
         std::string config_error;

@@ -40,15 +40,17 @@ LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from t170_common.paths import load_paths
+from t170_common.config_workspace import ConfigWorkspace, workspace_root
 from web_debug.profiles import ProfileStore
 from web_debug.actions import catalog as action_catalog
 
 RUNTIME_PATHS = load_paths()
 PROJECT_ROOT = RUNTIME_PATHS.root
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
-PROFILE_STORE = ProfileStore(Path(__file__).resolve().parents[1])
+WORKSPACE = ConfigWorkspace(workspace_root(PROJECT_ROOT))
+PROFILE_STORE = ProfileStore(WORKSPACE.root)
 CONFIG_FILES = {
-    "motion": RUNTIME_PATHS.config_dir / "move_box_params.yaml",
+    "motion": RUNTIME_PATHS.config_dir / "effective_params.yaml",
     "tray_code": PROJECT_ROOT / "board_yf100_aruco" / "config.yaml",
     "belt_code": PROJECT_ROOT / "board_belt_aruco" / "config.yaml",
     "hand_eye": PROJECT_ROOT / "free_calib" / "config" / "camera_to_head_connector_result.yaml",
@@ -56,13 +58,28 @@ CONFIG_FILES = {
     "hand_eye_fallback": RUNTIME_PATHS.config_dir / "camera_to_base_result.yaml",
 }
 CONFIG_NOTES = {
-    "motion": "保存后会立刻 reload。手臂模型、新代码仍要重启 t170_factory。",
+    "motion": "修改永久保存到本机 quick_params.yaml；空闲时热更新，需重启的改动在下次启动加载。",
     "tray_code": "料盘二维码。保存后要重启 t170_factory 才生效。",
     "belt_code": "传送带二维码。保存后要重启 t170_factory 才生效。",
     "hand_eye": "相机到头部的平移。保存后要重启 t170_factory。程序读矩阵，平移会同时写进矩阵。",
     "head_geom": "头部离基座的高度。保存后要重启 t170_factory。",
     "hand_eye_fallback": "手眼失败时的回退。这一页仍是原文，保存后要重启。",
 }
+
+
+def config_path(file_id):
+    if (WORKSPACE.root / "config/deployment.yaml").is_file():
+        return WORKSPACE.source_file(file_id)
+    return CONFIG_FILES[file_id]
+
+
+def apply_persistent(state, file_id=None, content=None, render=None):
+    def request(payload, timeout=30):
+        try: return state.robot_request(payload, timeout=timeout)
+        except RobotClientError as error: raise ConnectionError(str(error)) from error
+    if file_id is None: return WORKSPACE.apply(request)
+    if render is not None: return WORKSPACE.edit(file_id, render, request)
+    return WORKSPACE.save(file_id, content, request)
 MANUAL_TASKS = {
     "load": ["vision_grasp_once", "belt"],
     "transfer": ["belt_grasp", "belt2"],
@@ -71,171 +88,7 @@ MANUAL_TASKS = {
 MANUAL_LABELS = {"load": "上料", "transfer": "转运", "unload": "下料"}
 
 # 只暴露平时会改的数。path 用点号，列表用下标。保存时按行替换，注释保留。
-FIELD_GROUPS = {
-    "motion": [
-        ("腰", [
-            ("waist.ready_forward_m", "料盘抓取时，腰相对 home 再向前", "米"),
-            ("waist.far_row_forward_m", "料盘一远三排，腰再向前伸", "米"),
-            ("waist.ready_z_m", "抓取时腰的高度", "米"),
-            ("waist.layer3_home.2", "回到 home 时腰的高度", "米"),
-            ("waist.move_settle_sec", "腰到位后再停一会儿", "秒"),
-            ("tray2_place.far_row_forward_m", "料盘二放置时，远排腰向前伸", "米"),
-        ]),
-        ("头", [
-            ("head.pitch_deg", "平时低头角度", "度"),
-            ("head.far_pitch_deg", "看远排时再低头的角度", "度"),
-            ("head.speed_deg_s", "头转动速度", "度/秒"),
-        ]),
-        ("料盘高度", [
-            ("tray.z_ref_m", "料盘上表面在手臂基座下的高度", "米"),
-            ("head_grasp.hover_above_m", "手停在孔上方的高度", "米"),
-            ("head_grasp.lift_after_grasp_z", "夹住后再抬起的高度", "米"),
-            ("head_grasp.pre_grasp_settle_sec", "下到孔里后再等一会儿才合爪", "秒"),
-            ("head_grasp.bezier_endpoint_xyz_tol_m", "手离目标超过这个距离就不合爪", "米"),
-        ]),
-        ("料盘抓取速度", [
-            ("head_grasp.approach_vel_m_s", "伸向孔位的速度", "米/秒"),
-            ("head_grasp.descend_vel_m_s", "下压速度", "米/秒"),
-            ("head_grasp.lift_vel_m_s", "抬起速度", "米/秒"),
-            ("head_grasp.return_vel_m_s", "收回速度", "米/秒"),
-        ]),
-        ("料盘抓取偏置，左手", [
-            ("head_grasp.goal_x_offset", "前后，向前为正", "米"),
-            ("head_grasp.goal_y_offset", "左右，向左为正", "米"),
-            ("head_grasp.grasp_z_offset_m", "上下，向上为正", "米"),
-        ]),
-        ("料盘抓取偏置，右手", [
-            ("head_grasp.right_goal_x_offset", "前后，向前为正", "米"),
-            ("head_grasp.right_goal_y_offset", "左右，向左为正", "米"),
-            ("head_grasp.right_grasp_z_offset_m", "上下，向上为正", "米"),
-        ]),
-        ("料盘最远一排的手腕角度，左手", [
-            ("head_grasp.row1_rpy_deg.left.0", "翻滚", "度"),
-            ("head_grasp.row1_rpy_deg.left.1", "俯仰", "度"),
-            ("head_grasp.row1_rpy_deg.left.2", "偏航", "度"),
-        ]),
-        ("料盘最远一排的手腕角度，右手", [
-            ("head_grasp.row1_rpy_deg.right.0", "翻滚", "度"),
-            ("head_grasp.row1_rpy_deg.right.1", "俯仰", "度"),
-            ("head_grasp.row1_rpy_deg.right.2", "偏航", "度"),
-        ]),
-        ("料盘二放置偏置，左手", [
-            ("tray2_place.offset.left.x", "前后，向前为正", "米"),
-            ("tray2_place.offset.left.y", "左右，向左为正", "米"),
-            ("tray2_place.offset.left.z", "上下，向上为正", "米"),
-        ]),
-        ("料盘二放置偏置，右手", [
-            ("tray2_place.offset.right.x", "前后，向前为正", "米"),
-            ("tray2_place.offset.right.y", "左右，向左为正", "米"),
-            ("tray2_place.offset.right.z", "上下，向上为正", "米"),
-        ]),
-        ("传送带一", [
-            ("conveyor.waist_x", "拍照时腰向前", "米"),
-            ("conveyor.waist_z", "拍照时腰的高度", "米"),
-            ("conveyor.head_pitch_deg", "头低头角度", "度"),
-            ("conveyor.grasp_hover_above_m", "抓取时先停在上方", "米"),
-            ("conveyor.place_hover_above_m", "放置时先停在上方", "米"),
-            ("conveyor.place_approach_vel_m_s", "放置伸手速度", "米/秒"),
-            ("conveyor.place_retract_vel_m_s", "放置收手速度", "米/秒"),
-            ("conveyor.grasp_approach_vel_m_s", "抓取伸手速度", "米/秒"),
-            ("conveyor.grasp_retract_vel_m_s", "抓取收手速度", "米/秒"),
-            ("conveyor.grasp_ready_close_ratio", "下去前夹爪合上的程度，0 全开 1 全合", ""),
-            ("conveyor.fixed_origin_z_m", "腰在标定高度时，码平面在基座下的高度。实际高度随腰高变化", "米"),
-            ("conveyor.fixed_origin_ref_waist_z_m", "上面这个高度对应的腰高，一般保持 0.63", "米"),
-            ("conveyor.photo_after_arrival_sec", "到站后放置拍照前再等", "秒"),
-            ("conveyor.grasp_photo_settle_sec", "腰头到位后抓取拍照前再等", "秒"),
-            ("conveyor.offset.right.x", "右手放置前后", "米"),
-            ("conveyor.offset.right.y", "右手放置左右", "米"),
-            ("conveyor.offset.right.z", "右手放置上下", "米"),
-            ("conveyor.offset.left.x", "左手放置前后", "米"),
-            ("conveyor.offset.left.y", "左手放置左右", "米"),
-            ("conveyor.offset.left.z", "左手放置上下", "米"),
-            ("conveyor.grasp_offset.right.x", "右手抓取前后", "米"),
-            ("conveyor.grasp_offset.right.y", "右手抓取左右", "米"),
-            ("conveyor.grasp_offset.right.z", "右手抓取上下", "米"),
-            ("conveyor.grasp_offset.left.x", "左手抓取前后", "米"),
-            ("conveyor.grasp_offset.left.y", "左手抓取左右", "米"),
-            ("conveyor.grasp_offset.left.z", "左手抓取上下", "米"),
-        ]),
-        ("传送带二", [
-            ("conveyor2.waist_x", "拍照时腰向前", "米"),
-            ("conveyor2.waist_z", "拍照时腰的高度", "米"),
-            ("conveyor2.head_pitch_deg", "头低头角度", "度"),
-            ("conveyor2.grasp_hover_above_m", "抓取时先停在上方", "米"),
-            ("conveyor2.place_hover_above_m", "放置时先停在上方", "米"),
-            ("conveyor2.place_approach_vel_m_s", "放置伸手速度", "米/秒"),
-            ("conveyor2.place_retract_vel_m_s", "放置收手速度", "米/秒"),
-            ("conveyor2.grasp_approach_vel_m_s", "抓取伸手速度", "米/秒"),
-            ("conveyor2.grasp_retract_vel_m_s", "抓取收手速度", "米/秒"),
-            ("conveyor2.fixed_origin_z_m", "腰在标定高度时，码平面在基座下的高度。实际高度随腰高变化", "米"),
-            ("conveyor2.fixed_origin_ref_waist_z_m", "上面这个高度对应的腰高，一般保持 0.63", "米"),
-            ("conveyor2.photo_after_arrival_sec", "到站后放置拍照前再等", "秒"),
-            ("conveyor2.grasp_photo_settle_sec", "腰头到位后抓取拍照前再等", "秒"),
-            ("conveyor2.offset.right.x", "右手放置前后", "米"),
-            ("conveyor2.offset.right.y", "右手放置左右", "米"),
-            ("conveyor2.offset.right.z", "右手放置上下", "米"),
-            ("conveyor2.offset.left.x", "左手放置前后", "米"),
-            ("conveyor2.offset.left.y", "左手放置左右", "米"),
-            ("conveyor2.offset.left.z", "左手放置上下", "米"),
-            ("conveyor2.grasp_offset.right.x", "右手抓取前后", "米"),
-            ("conveyor2.grasp_offset.right.y", "右手抓取左右", "米"),
-            ("conveyor2.grasp_offset.right.z", "右手抓取上下", "米"),
-            ("conveyor2.grasp_offset.left.x", "左手抓取前后", "米"),
-            ("conveyor2.grasp_offset.left.y", "左手抓取左右", "米"),
-            ("conveyor2.grasp_offset.left.z", "左手抓取上下", "米"),
-        ]),
-        ("空抓检测", [
-            ("gripper_check.enable", "合爪后判空抓，true 开 false 关", ""),
-            ("gripper_check.empty_q_rad", "合爪结束 q 不大于这个值算空抓，要明显小于夹住零件时的 q", "弧度"),
-            ("gripper_check.max_empty_retry", "同一只手空抓后最多重抓几次", "次"),
-        ]),
-        ("站点", [
-            ("chassis.tray_station", "料盘一", ""),
-            ("chassis.belt_station", "传送带一", ""),
-            ("chassis.out_station", "传送带二", ""),
-            ("chassis.tray2_station", "料盘二", ""),
-            ("chassis.dispatch_wait_station", "调度未下发待命点时，失败/无任务回这里", ""),
-            ("chassis.charge_station", "调试充电点（charge 指令；调度仍用系统下发点）", ""),
-            ("chassis.charge_wait_station", "充完电后待命点", ""),
-            ("chassis.charge_done_percent", "调度充电结束电量阈值", "%"),
-        ]),
-    ],
-    "tray_code": [
-        ("正在使用的四角码", [
-            ("tray_grasp_code.pitch_xy_m", "四个码中心的间距", "米"),
-            ("tray_grasp_code.print_size_m", "打印外边长", "米"),
-            ("tray_grasp_code.black_side_m", "黑框边长", "米"),
-            ("tray_grasp_code.locate_id", "左上和右下常见的码号", ""),
-        ]),
-        ("料盘二，和料盘一同一套四角码，不按号码分角", [
-            ("tray2.print_size_m", "打印外边长", "米"),
-            ("tray2.black_side_m", "黑框边长", "米"),
-            ("tray2.pitch_xy_m", "四个码中心的间距", "米"),
-        ]),
-    ],
-    "belt_code": [
-        ("传送带码", [
-            ("aruco.print_size_m", "打印外边长", "米"),
-            ("belt.pitch_y_m", "两个码心的左右间距", "米"),
-            ("belt.edge.front_m", "码心到皮带前端", "米"),
-            ("belt.edge.rear_m", "码心到皮带后端", "米"),
-            ("belt.edge.left_m", "码心到皮带左端", "米"),
-            ("belt.edge.right_m", "码心到皮带右端", "米"),
-        ]),
-    ],
-    "hand_eye": [
-        ("相机到头部的平移，程序读的是矩阵，改这里会写回矩阵最后一列", [
-            ("tx", "相机相对头部，前后方向的平移", "毫米"),
-            ("ty", "相机相对头部，左右方向的平移", "毫米"),
-            ("tz", "相机相对头部，上下方向的平移", "毫米"),
-        ]),
-    ],
-    "head_geom": [
-        ("头部高度", [
-            ("link_length_mm", "头部电机末端离基座的高度", "毫米"),
-        ]),
-    ],
-}
+from t170_common.parameter_catalog import FIELD_GROUPS
 
 
 def _yaml_lookup(node: Any, parts: list[str]) -> Any:
@@ -333,7 +186,7 @@ def _sync_hand_eye_matrix(text: str, xyz: list[float]) -> str:
 
 
 def read_field_groups(file_id: str) -> list[dict[str, Any]]:
-    path = CONFIG_FILES[file_id]
+    path = config_path(file_id)
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     groups = []
     for title, fields in FIELD_GROUPS[file_id]:
@@ -349,9 +202,8 @@ def read_field_groups(file_id: str) -> list[dict[str, Any]]:
     return groups
 
 
-def write_field_groups(file_id: str, updates: dict[str, str]) -> None:
-    path = CONFIG_FILES[file_id]
-    text = path.read_text(encoding="utf-8")
+def render_field_groups(file_id: str, updates: dict[str, str], text: str | None = None) -> str:
+    if text is None: text = config_path(file_id).read_text(encoding="utf-8")
     allowed = {key for _title, fields in FIELD_GROUPS[file_id] for key, _label, _unit in fields}
     unknown = [key for key in updates if key not in allowed]
     if unknown:
@@ -375,13 +227,7 @@ def write_field_groups(file_id: str, updates: dict[str, str]) -> None:
     else:
         for key, raw in updates.items():
             text = _replace_yaml_value(text, key, str(raw).strip())
-    backup_dir = path.parent / ".web_backups"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    backup = backup_dir / f"{path.name}_{datetime.now():%Y%m%d_%H%M%S}.bak"
-    backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-    temp = path.with_suffix(path.suffix + ".web.tmp")
-    temp.write_text(text, encoding="utf-8")
-    os.replace(temp, path)
+    return text
 
 PICTURE_ROOT = PROJECT_ROOT / "debug_picture"
 RUNTIME_ROOT = RUNTIME_PATHS.log_dir / "web"
@@ -887,16 +733,15 @@ class DebugHandler(BaseHTTPRequestHandler):
                     {
                         "ok": True,
                         "file": file_id,
-                        "note": ("当前为分层部署的运行参数快照；请修改来源 YAML 并重新生成运行目录。"
-                                 if os.environ.get("T170_DEPLOYMENT") else CONFIG_NOTES.get(file_id, "")),
-                        "editable": not bool(os.environ.get("T170_DEPLOYMENT")),
+                        "note": CONFIG_NOTES.get(file_id, ""),
+                        "editable": True,
                         "groups": read_field_groups(file_id),
                     },
                 )
                 return
             if parsed.path == "/api/config":
                 file_id = parse_qs(parsed.query).get("file", ["motion"])[0]
-                path = CONFIG_FILES.get(file_id)
+                path = config_path(file_id) if file_id in CONFIG_FILES else None
                 if path is None or not path.is_file():
                     self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "没有这份配置"})
                     return
@@ -1092,7 +937,8 @@ class DebugHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, result)
                 return
             if parsed.path in {"/api/fields", "/api/config"}:
-                calibration = self.state.robot_request({"cmd": "calibration_status"}, timeout=3.0)
+                try: calibration = self.state.robot_request({"cmd": "calibration_status"}, timeout=3.0)
+                except RobotClientError: calibration = {}
                 if calibration.get("active"):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "标定期间禁止修改正式配置"})
                     return
@@ -1110,9 +956,8 @@ class DebugHandler(BaseHTTPRequestHandler):
                 action_error = ""
                 try:
                     # 调度模式一直跑到退出/停止，不能被 30 分钟超时断开后又放开网页的动作锁。
-                    result = command_result(cmd, self.state.robot_request(
-                        payload, timeout=None if cmd == "dispatch" else 1800.0
-                    ))
+                    result = apply_persistent(self.state) if cmd == "reload_config" else command_result(cmd, self.state.robot_request(
+                        payload, timeout=None if cmd == "dispatch" else 1800.0))
                     if not result["ok"]:
                         action_error = result["error"]
                 except Exception as exc:
@@ -1141,9 +986,6 @@ class DebugHandler(BaseHTTPRequestHandler):
                 threading.Thread(target=self.state.run_sequence, args=(list(steps),), daemon=True).start()
                 self._json(HTTPStatus.OK, {"ok": True, "steps": steps})
                 return
-            if parsed.path in {"/api/fields", "/api/config"} and os.environ.get("T170_DEPLOYMENT"):
-                self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "部署配置由分层文件生成，请修改来源配置并重新生成运行目录；禁止改写临时合并文件。标定向导仍可保存本机标定。"})
-                return
             if parsed.path == "/api/fields":
                 file_id = str(payload.get("file") or "motion")
                 values = payload.get("values")
@@ -1157,27 +999,13 @@ class DebugHandler(BaseHTTPRequestHandler):
                     self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "没有要保存的数"})
                     return
                 try:
-                    write_field_groups(file_id, {str(k): str(v) for k, v in values.items()})
+                    result = apply_persistent(self.state, file_id, render=lambda text: render_field_groups(
+                        file_id, {str(k): str(v) for k, v in values.items()}, text))
                 except KeyError as exc:
                     self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": f"找不到参数 {exc}"})
                     return
-                except ValueError:
-                    self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "有数字填得不对"})
-                    return
-                if file_id != "motion":
-                    self.state.log(f"{file_id} 参数已保存，重启 t170_factory 后生效", "config")
-                    self._json(HTTPStatus.OK, {"ok": True, "reload": False})
-                    return
-                try:
-                    result = self.state.robot_request({"cmd": "reload_config"}, timeout=20.0)
-                except RobotClientError:
-                    self._json(HTTPStatus.OK, {"ok": True, "reload": False, "error": "已写入文件，但机器人没在运行，未能 reload"})
-                    return
-                if not result.get("ok"):
-                    self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": result.get("error", "重载失败")})
-                    return
-                self.state.log("运动参数已保存并重载", "config")
-                self._json(HTTPStatus.OK, {"ok": True, "reload": True})
+                self.state.log(result["message"], "config")
+                self._json(HTTPStatus.OK, result)
                 return
             if parsed.path == "/api/config":
                 file_id = str(payload.get("file") or "motion")
@@ -1192,36 +1020,9 @@ class DebugHandler(BaseHTTPRequestHandler):
                 if not isinstance(content, str) or not content.strip() or len(content.encode("utf-8")) > 256 * 1024:
                     self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "配置内容为空或过大"})
                     return
-                backup_dir = path.parent / ".web_backups"
-                backup_dir.mkdir(parents=True, exist_ok=True)
-                old_content = path.read_text(encoding="utf-8") if path.is_file() else ""
-                backup = backup_dir / f"{path.name}_{datetime.now():%Y%m%d_%H%M%S}.bak"
-                backup.write_text(old_content, encoding="utf-8")
-                temp = path.with_suffix(path.suffix + ".web.tmp")
-                temp.write_text(content, encoding="utf-8")
-                os.replace(temp, path)
-                if file_id != "motion":
-                    self.state.log(f"{path.name} 已保存，重启 t170_factory 后生效，备份={backup.name}", "config")
-                    self._json(HTTPStatus.OK, {"ok": True, "backup": backup.name, "reload": False})
-                    return
-                try:
-                    result = self.state.robot_request({"cmd": "reload_config"}, timeout=20.0)
-                except RobotClientError:
-                    path.write_text(old_content, encoding="utf-8")
-                    raise
-                if not result.get("ok"):
-                    path.write_text(old_content, encoding="utf-8")
-                    try:
-                        self.state.robot_request({"cmd": "reload_config"}, timeout=20.0)
-                    except RobotClientError:
-                        pass
-                    self._json(
-                        HTTPStatus.BAD_REQUEST,
-                        {"ok": False, "error": result.get("error", "配置校验失败"), "restored": True},
-                    )
-                    return
-                self.state.log(f"运动参数已保存并重载，备份={backup.name}", "config")
-                self._json(HTTPStatus.OK, {"ok": True, "backup": backup.name, "reload": True})
+                result = apply_persistent(self.state, file_id, content)
+                self.state.log(result["message"], "config")
+                self._json(HTTPStatus.OK, result)
                 return
             if parsed.path == "/api/service/start":
                 ok = self.state.start_robot()

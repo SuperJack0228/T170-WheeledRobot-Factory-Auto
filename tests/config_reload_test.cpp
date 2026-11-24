@@ -21,7 +21,7 @@ int main(int argc,char **argv) {
             else if(entry.path().filename()!="calibration")std::filesystem::create_directory_symlink(std::filesystem::absolute(entry.path()),target);
         }
         std::filesystem::create_directories(directory/"calibration");
-        const auto path=directory/"move_box_params.yaml";
+        const auto path=directory/"effective_params.yaml";
         const auto original=YAML::LoadFile(path.string());
         auto write=[&](const YAML::Node &node){std::ofstream out(path);out<<node;};
         MoveBoxConfig current;std::string error;
@@ -59,6 +59,17 @@ int main(int argc,char **argv) {
         require(pending.wait_for(std::chrono::milliseconds(20))==std::future_status::timeout,"writer bypassed common reader lock");
         const auto observed=current.visual_servo.kp;read.unlock();
         require(pending.get().ok && observed==before+.2 && current.visual_servo.kp==before+.4,"reader saw partial config");
+        const auto candidate=directory.parent_path()/(directory.filename().string()+"-candidate");
+        Cleanup clean_candidate{candidate};
+        std::filesystem::copy(directory,candidate,std::filesystem::copy_options::recursive);
+        auto candidate_params=YAML::Clone(original);candidate_params["visual_servo"]["kp"]=before+.6;
+        const auto candidate_path=candidate/"effective_params.yaml";
+        {std::ofstream out(candidate_path);out<<candidate_params;}
+        auto apply=[&]{return t170::config::reload_when_idle(hardware,[&]{return calibration;},[&]{return stopping;},candidate_path.string(),current,path.string());};
+        require(apply().ok && current.visual_servo.kp==before+.6,"candidate configuration was not applied");
+        require(YAML::LoadFile(path.string())["visual_servo"]["kp"].as<double>()==before+.6,"accepted snapshot was not published");
+        {std::ofstream out(candidate/"head/extrinsics_urdf.yaml",std::ios::app);out<<"\n# changed nominal camera\n";}
+        require(apply().code=="restart_required" && current.visual_servo.kp==before+.6,"candidate resource update bypassed restart guard");
         std::cout<<"Reload: busy/calibration/shutdown exclusion, invalid rollback, restart contracts and background reader serialization passed\n";
     }catch(const std::exception &ex){std::cerr<<ex.what()<<'\n';return 1;}
 }

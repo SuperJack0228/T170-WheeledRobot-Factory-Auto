@@ -1,5 +1,5 @@
 [Unit]
-Description=T170 Factory 开机进入调度，原地 home 后待命
+Description=T170 Factory production service
 After=network-online.target
 Wants=network-online.target
 
@@ -7,11 +7,9 @@ Wants=network-online.target
 Type=simple
 User=ti5robot
 Group=ti5robot
-WorkingDirectory=/home/ti5robot/T170Clean
 ExecStartPre=/bin/sleep 8
-Environment=T170_ROOT=/home/ti5robot/T170Clean
-EnvironmentFile=-/etc/t170-factory/runtime.env
-ExecStart=/home/ti5robot/T170Clean/deploy/run_production.sh
+EnvironmentFile=/etc/t170-factory/runtime.env
+ExecStart=/bin/bash -c 'exec "$T170_INSTALL_ROOT/deploy/run_production.sh"'
 Restart=no
 KillSignal=SIGTERM
 TimeoutStopSec=90

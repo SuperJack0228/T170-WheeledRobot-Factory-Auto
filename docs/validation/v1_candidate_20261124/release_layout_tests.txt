@@ -1,0 +1,7 @@
+Test project /tmp/t170-v1-audit-20261124/build
+    Start 10: release_layout_test
+1/1 Test #10: release_layout_test ..............   Passed    2.11 sec
+
+100% tests passed out of 1
+
+Total Test time (real) =   2.11 sec

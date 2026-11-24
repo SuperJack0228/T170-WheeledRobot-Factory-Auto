@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(t170_factory LANGUAGES CXX)
+project(t170_factory VERSION 1.0.0 LANGUAGES CXX)
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build configuration" FORCE)
 endif()
@@ -84,6 +84,8 @@ else()
     set(UNITREE_MOTOR_LIB "${T170_UNITREE_ROOT}/lib/x86_64/libUnitreeMotorSDK_Linux64.so")
 endif()
 get_filename_component(UNITREE_MOTOR_LIBRARY_DIR "${UNITREE_MOTOR_LIB}" DIRECTORY)
+add_library(t170_unitree SHARED IMPORTED)
+set_target_properties(t170_unitree PROPERTIES IMPORTED_LOCATION "${UNITREE_MOTOR_LIB}" IMPORTED_NO_SONAME TRUE)
 foreach(required_lib IN ITEMS
         "${TI5_ARM_SOLVER_LIB}"
         "${UNITREE_MOTOR_LIB}"
@@ -140,7 +142,7 @@ target_link_directories(t170_robot_platform INTERFACE
 )
 target_link_libraries(t170_robot_platform INTERFACE
     t170_arm_vendor
-    ${UNITREE_MOTOR_LIB}
+    t170_unitree
     ${TI5_DEVICE_SDK_LIB}
     ${TI5_AGV_SEER_LIB}
     ${TI5_JINDI_CLIENT_LIB}
@@ -228,7 +230,7 @@ function(t170_add_robot_app target entry)
     target_link_libraries(${target} PRIVATE t170::runtime)
     set_target_properties(${target} PROPERTIES
     BUILD_RPATH "${TI5_ARM_SOLVER_DIRECTORY}:${UNITREE_MOTOR_LIBRARY_DIR}:${T170_SERIALPORT_ROOT}/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
-    INSTALL_RPATH "${TI5_ARM_SOLVER_DIRECTORY}:${UNITREE_MOTOR_LIBRARY_DIR}:${T170_SERIALPORT_ROOT}/lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
+    INSTALL_RPATH "$ORIGIN/../lib:/usr/local/lib:${HUMAN_INTERACTION_ENV_ROOT}/lib:${TI5_DEVICE_RPATH}"
     BUILD_RPATH_USE_ORIGIN ON
     )
     target_link_options(${target} PRIVATE "-Wl,--disable-new-dtags")
@@ -236,3 +238,4 @@ endfunction()
 
 t170_add_robot_app(t170_factory apps/t170_factory_main.cpp)
 add_dependencies(t170_factory t170_config_dump)
+include(cmake/T170Packaging.cmake)

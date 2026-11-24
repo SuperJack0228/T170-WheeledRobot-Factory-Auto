@@ -281,7 +281,7 @@ MoveBoxConfig default_move_box_config()
 
 std::string default_move_box_config_path()
 {
-    return t170::paths::config_file("move_box_params.yaml").string();
+    return t170::paths::config_file("effective_params.yaml").string();
 }
 
 namespace {

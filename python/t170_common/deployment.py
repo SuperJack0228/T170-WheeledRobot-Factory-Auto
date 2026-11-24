@@ -4,7 +4,9 @@ No camera/SDK/motor imports. Legacy application files retain their byte identity
 from pathlib import Path
 import hashlib,json,os,shutil,tempfile
 import yaml
-from .arm_model import prepare_arm_model,legacy_flange_bridge,multiply
+from .arm_model import prepare_arm_model
+from .camera_nominal import hand_eye_for_servo
+from .parameter_catalog import QUICK_FIELDS, quick_key_allowed
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -30,7 +32,7 @@ def resolve(root, manifest, output):
                 if k in dst and not isinstance(dst[k],dict):raise ValueError('Type conflict: '+key)
                 merge(dst.setdefault(k,{}),v,key,filename)
             else:
-                if k in dst:raise ValueError('Ambiguous duplicate ownership: '+key)
+                if k in dst:raise ValueError('Ambiguous duplicate ownership: '+key+' in '+provenance.get(key,'another layer')+' and '+filename)
                 dst[k]=v;provenance[key]=filename
     for name in doc['layers']:
         p=source(name);inputs[name]=sha(p);layer=yaml.safe_load(p.read_text())
@@ -45,6 +47,16 @@ def resolve(root, manifest, output):
                     'left_gripper_u','left_gripper_v','right_gripper_u','right_gripper_v'}
                 for profile,values in layer.get('visual_servo',{}).items():
                     valid=valid and profile in {'left_grasp','right_grasp','left_place','right_place'} and set(values)=={'reference_px'}
+            elif name==parent+'quick_params.yaml':
+                def keys(value,prefix=''):
+                    if isinstance(value,dict):
+                        return {k for key,v in value.items() for k in keys(v,(prefix+'.'+str(key)).strip('.'))}
+                    if isinstance(value,list):
+                        return {k for i,v in enumerate(value) for k in keys(v,prefix+'.'+str(i))}
+                    return {prefix}
+                present=keys(layer)
+                if not QUICK_FIELDS<=present:raise ValueError('quick_params.yaml missing required fields: '+', '.join(sorted(QUICK_FIELDS-present)))
+                valid=isinstance(layer,dict) and all(quick_key_allowed(key) for key in present)
             else:valid=False
             if not valid:raise ValueError('Invalid robot identity/calibration ownership; never bind workcells/stations to a robot')
         merge(merged,layer,'',name)
@@ -54,7 +66,7 @@ def resolve(root, manifest, output):
     files=doc['files']
     if set(files) & set(arm_resources):raise ValueError('Selected arm model owns its runtime files; remove conflicting manual mappings')
     for target,name in files.items():
-        if Path(target).is_absolute() or '..' in Path(target).parts or target in ['config/move_box_params.yaml','config/calibration']:raise ValueError('Invalid runtime target '+target)
+        if Path(target).is_absolute() or '..' in Path(target).parts or target in ['config/effective_params.yaml','config/calibration']:raise ValueError('Invalid runtime target '+target)
         p=source(name)
         if not p.is_file():raise ValueError('Mapped resource must be a file: '+name)
         inputs[name]=sha(p)
@@ -79,7 +91,7 @@ def resolve(root, manifest, output):
             dst.mkdir(exist_ok=True)
             for child in src.iterdir():
                 rel=f'{prefix}/{child.name}'.lstrip('/');target=dst/child.name
-                if rel in ['.git','config','logs','debug_picture','reports']:continue
+                if rel in ['.git','.t170-config.lock','config','logs','field_logs','debug_picture','reports']:continue
                 if rel in files:target.write_bytes(source(files[rel]).read_bytes())
                 elif child.is_dir() and any(k.startswith(rel+'/') for k in files):overlay(child,target,rel)
                 else:target.symlink_to(child.resolve(),target_is_directory=child.is_dir())
@@ -94,19 +106,13 @@ def resolve(root, manifest, output):
         # Re-express existing eye-in-hand transforms in the exact selected flange
         # coordinates. Original robot calibration files remain immutable inputs.
         binding=yaml.safe_load(arm_resources['config/arm_binding.yaml'])
-        if binding.get('hand_eye_coordinates')=='legacy_t7_flange':
-            frame_data=yaml.safe_load(arm_resources['config/arm_frames.yaml'])
-            for side in ['left','right']:
-                p=temp/'config'/(side+'_hand_to_base_result.yaml')
-                eye=yaml.safe_load(p.read_text());key='a. matrix' if 'a. matrix' in eye else 'matrix'
-                bridge=legacy_flange_bridge(frame_data,side)
-                for i in range(3):bridge[i][3]*=1000 # hand-eye source translations are mm
-                eye[key]=multiply(bridge,eye[key])
-                for k in ['b. translation_xyz_mm','c. euler_angles_xyz_deg']:eye.pop(k,None)
-                eye['parent_frame']='selected_sdk_flange';eye['source_parent_frame']='legacy_t7_flange'
-                p.write_text(yaml.safe_dump(eye,sort_keys=False,allow_unicode=True))
+        frame_data=yaml.safe_load(arm_resources['config/arm_frames.yaml'])
+        for side in ['left','right']:
+            p=temp/'config'/(side+'_hand_to_base_result.yaml')
+            eye=hand_eye_for_servo(yaml.safe_load(p.read_text()),binding,frame_data,side)
+            p.write_text(yaml.safe_dump(eye,sort_keys=False,allow_unicode=True))
         (temp/'config').mkdir(exist_ok=True)
-        (temp/'config/move_box_params.yaml').write_text(yaml.safe_dump(merged,allow_unicode=True,sort_keys=False))
+        (temp/'config/effective_params.yaml').write_text(yaml.safe_dump(merged,allow_unicode=True,sort_keys=False))
         # Directory link preserves atomic calibration saves and *_before_ history
         # inside the selected robot's writable calibration package.
         (temp/'config/calibration').symlink_to(calibration,target_is_directory=True)
@@ -120,8 +126,8 @@ def resolve(root, manifest, output):
             "feeding_cylindrical_parts_alg/config/pose_params.yaml": "config/vision/pose_params.yaml",
             "feeding_cylindrical_parts_alg/models": "assets/models",
             "free_calib/config/head_params.yaml": "config/head/geometry.yaml",
-            "free_calib/config/camera_to_head_connector_result.yaml": "config/head/extrinsics.yaml",
-            "free_calib/config/extrinsics.yaml": "config/head/extrinsics.yaml",
+            "free_calib/config/camera_to_head_connector_result.yaml": "config/head/"+yaml.safe_load((temp/'config/head/geometry.yaml').read_text()).get('camera_to_head_yaml','extrinsics.yaml'),
+            "free_calib/config/extrinsics.yaml": "config/head/"+yaml.safe_load((temp/'config/head/geometry.yaml').read_text()).get('camera_to_head_yaml','extrinsics.yaml'),
         }
         for old, canonical in web_aliases.items():
             target = temp / canonical

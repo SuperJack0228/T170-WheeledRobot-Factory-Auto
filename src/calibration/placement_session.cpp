@@ -344,7 +344,7 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
             s.image_revision=0;s.head_revision=0;s.saved_file.clear();s.frozen={};s.nominal.setZero();s.aligned.setZero();s.reference_pose.setZero();s.latest.setZero();s.row=s.col=0;s.coarse.setZero();s.bias.setZero();s.reference.setZero();s.candidates=Json::Value(Json::arrayValue);
             s.camera_identity();
             std::filesystem::create_directories(s.directory/"inputs");
-            for(const auto &name:std::vector<std::string>{"move_box_params.yaml","realsense_cameras.yaml","Robot_Model.yaml",s.side_name()+"_hand_to_base_result.yaml"})
+            for(const auto &name:std::vector<std::string>{"effective_params.yaml","realsense_cameras.yaml","Robot_Model.yaml",s.side_name()+"_hand_to_base_result.yaml"})
                 std::filesystem::copy_file(std::filesystem::path(default_move_box_config_path()).parent_path()/name,s.directory/"inputs"/name);
             for(const auto &name:{"arm_binding.yaml","arm_model_metadata.yaml","arm_frames.yaml"}) {
                 const auto source=std::filesystem::path(default_move_box_config_path()).parent_path()/name;

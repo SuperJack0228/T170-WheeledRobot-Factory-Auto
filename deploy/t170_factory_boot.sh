@@ -7,10 +7,11 @@ set -u
 ROOT="${T170_ROOT:-${MARKET_SIMPLE_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}}"
 ROOT="$(cd -- "$ROOT" && pwd)"
 export T170_ROOT="$ROOT"
-LOG_DIR="${T170_LOG_DIR:-logs}"
+LOG_DIR="${T170_LOG_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/t170/logs}"
 [[ "$LOG_DIR" = /* ]] || LOG_DIR="$ROOT/$LOG_DIR"
 LOG="$LOG_DIR/t170_factory_boot.log"
 BIN="$ROOT/build_robot/t170_factory"
+if [[ -f "$ROOT/release.json" ]]; then BIN="$ROOT/bin/t170_factory"; unset T170_ROOT; fi
 export PATH="/usr/bin:/bin"
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
@@ -85,7 +86,7 @@ for attempt in 1 2 3; do
     mark="BOOTMARK attempt=${attempt} pid=$$ time=$(date +%s)"
     log "开机启动 --production 第${attempt}次"
     echo "$mark" >> "$LOG"
-    "$BIN" --production >> "$LOG" 2>&1 &
+    "$ROOT/deploy/run_production.sh" >> "$LOG" 2>&1 &
     child=$!
     while kill -0 "$child" 2>/dev/null; do
         if ready_after_mark "$mark"; then

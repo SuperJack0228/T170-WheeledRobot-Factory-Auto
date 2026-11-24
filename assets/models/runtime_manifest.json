@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "path": "assets/models/best1015.pt",
+      "source": "feeding_cylindrical_parts_alg/models/best1015.pt",
+      "size_bytes": 5537498,
+      "sha256": "0aa83e3f4ef3b6672fd6efdc6b7a9caaaf20367781c55b68c42e15ab15f64211",
+      "role": "head"
+    },
+    {
+      "path": "assets/models/best1103.pt",
+      "source": "feeding_cylindrical_parts_alg/models/best1103.pt",
+      "size_bytes": 5535450,
+      "sha256": "0ce3b7004e1f705f949b4d73374a0c6e7bfe2bc4935a058086d0c4d2024da485",
+      "role": "wrist"
+    }
+  ],
+  "class_names_from_configuration": {
+    "0": "workpiece",
+    "1": "feeding_hole",
+    "2": "fallen"
+  },
+  "weights_inference_verified_locally": false
+}

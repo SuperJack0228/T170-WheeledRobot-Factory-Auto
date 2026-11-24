@@ -92,10 +92,10 @@ int main(int argc,char **argv) {
     check(argc==2,"repository required");
     const auto root=std::filesystem::temp_directory_path()/"t170-calibration-session-test";
     std::filesystem::remove_all(root);std::filesystem::create_directories(root/"config");
-    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","Robot_Model.yaml","right_hand_to_base_result.yaml","left_hand_to_base_result.yaml"})
+    for(const auto &name:{"effective_params.yaml","realsense_cameras.yaml","Robot_Model.yaml","right_hand_to_base_result.yaml","left_hand_to_base_result.yaml"})
         std::filesystem::copy_file(std::filesystem::path(argv[1])/"config"/name,root/"config"/name);
     setenv("T170_ROOT",root.c_str(),1);unsetenv("T170_CONFIG_DIR");
-    std::string error;check(load_move_box_config((root/"config/move_box_params.yaml").string(),g_move_cfg,error),error.c_str());
+    std::string error;check(load_move_box_config((root/"config/effective_params.yaml").string(),g_move_cfg,error),error.c_str());
     t170::calibration::PlacementSession session;orch::HwSession hardware;
     auto call=[&](std::string action,std::string rid="new"){
         Json::Value q;q["action"]=action;q["request_id"]=rid;q["session"]=session.status()["session"];q["hand"]=1;

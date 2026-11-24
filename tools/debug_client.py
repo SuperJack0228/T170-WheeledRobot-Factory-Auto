@@ -3,6 +3,7 @@
 
 import argparse
 import json
+from pathlib import Path
 import socket
 import sys
 
@@ -156,6 +157,14 @@ def main() -> int:
         help="waist_jog: 模型弧度，默认 0.05（约 2.9°），限幅 ±0.12",
     )
     args = parser.parse_args()
+    if args.command == "reload":
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
+        from t170_common.config_workspace import ConfigWorkspace, workspace_root
+        try:
+            result = ConfigWorkspace(workspace_root()).apply(lambda payload, timeout=30: request(payload, args.host, args.port))
+            print(json.dumps(result, ensure_ascii=False, indent=2)); return 0
+        except (OSError, ValueError) as error:
+            print(str(error), file=sys.stderr); return 2
     payload = dict(COMMANDS[args.command])
     if args.command == "waist_jog":
         payload["joint"] = args.joint

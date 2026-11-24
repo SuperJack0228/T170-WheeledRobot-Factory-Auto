@@ -29,7 +29,7 @@ def discover(host, port):
     for value in (runtime, config):
         if not isinstance(value, str) or '\n' in value or '\r' in value or not Path(value).is_absolute():
             raise ValueError('主程序返回的目录格式无效')
-    if not Path(runtime).is_dir() or not (Path(config) / 'move_box_params.yaml').is_file():
+    if not Path(runtime).is_dir() or not (Path(config) / 'effective_params.yaml').is_file():
         raise ValueError('主程序返回的运行配置在本机不存在')
     return runtime, config
 

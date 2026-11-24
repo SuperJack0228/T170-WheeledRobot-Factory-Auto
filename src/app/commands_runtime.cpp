@@ -2,6 +2,8 @@
 #include "t170/config/access.h"
 #include "t170/hardware/device_bus.h"
 #include "t170/vision/debug.h"
+#include "t170/common/paths.h"
+#include <filesystem>
 #include <cmath>
 #include <cstdlib>
 #include <exception>
@@ -24,9 +26,20 @@ if (cmd == "abort" || cmd == "dispatch_exit")
     }
 if (cmd == "reload_config")
     {
+        const auto current_path=default_move_box_config_path();
+        std::string candidate=request.get("candidate_config",current_path).asString();
+        if(candidate!=current_path) {
+            const auto p=std::filesystem::weakly_canonical(candidate);
+            const auto root=std::filesystem::weakly_canonical(t170::paths::resource_root());
+            if(p.filename()!="effective_params.yaml" || p.parent_path().filename()!="config" ||
+               p.parent_path().parent_path().parent_path()!=root ||
+               p.parent_path().parent_path().filename().string().rfind(".config-apply-",0)!=0)
+                return reply(false,"配置候选文件不在当前运行目录内");
+            candidate=p.string();
+        }
         const auto result=t170::config::reload_when_idle(g_hw_mu,
             []{return g_placement_calibration.active();},app_stop_requested,
-            default_move_box_config_path(),g_move_cfg);
+            candidate,g_move_cfg,candidate==current_path?std::string{}:current_path);
         Json::Value out = reply(result.ok,result.error);
         out["code"]=result.code;
         if(result.ok) {
