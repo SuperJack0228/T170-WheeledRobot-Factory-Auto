@@ -10,7 +10,7 @@ set(T170_SKILLS_SOURCES
     src/skills/tray/target_policy.cpp
     src/skills/tray/selection.cpp
     src/skills/tray/perception.cpp
-    src/skills/tray/hand_refinement.cpp
+    src/skills/tray/descent_state.cpp
     src/skills/tray/approach.cpp
     src/skills/tray/descent.cpp
     src/skills/tray/reach_coordination.cpp

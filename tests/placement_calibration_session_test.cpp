@@ -47,7 +47,7 @@ bool record_arm_cartesian_arrival(Arm &,const Matrix<double,1,6>&,const char*,do
 int arm_vertical_lift(Arm &,double,double,const std::function<void(double)>&){no_hardware();return -1;}
 int arm_return_after_lift(Arm &,const Matrix<double,1,7>&,const std::function<void()>&,double,double){no_hardware();return -1;}
 ArmLineMoveResult arm_dual_line_then_line_nostop(Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,
- Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,double,double,const std::function<void()>&,bool,const char*,bool,bool,int){no_hardware();return {-1,-1};}
+ Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,double,double,const std::function<void()>&,bool,const char*,bool,bool,int,const std::function<void()>&){no_hardware();return {-1,-1};}
 int enable_head_calib_pose(){no_hardware();return -1;}
 int enable_head_far_pitch(){no_hardware();return -1;}
 Eigen::Matrix4d Arm::Forward_Kinematics(const Eigen::Ref<const Eigen::RowVectorXd>&){no_hardware();return Eigen::Matrix4d::Identity();}
@@ -92,10 +92,10 @@ int main(int argc,char **argv) {
     check(argc==2,"repository required");
     const auto root=std::filesystem::temp_directory_path()/"t170-calibration-session-test";
     std::filesystem::remove_all(root);std::filesystem::create_directories(root/"config");
-    for(const auto &name:{"move_box_params.yaml","realsense_cameras.yaml","Robot_Model.yaml","right_hand_to_base_result.yaml","left_hand_to_base_result.yaml"})
+    for(const auto &name:{"effective_params.yaml","realsense_cameras.yaml","Robot_Model.yaml","right_hand_to_base_result.yaml","left_hand_to_base_result.yaml"})
         std::filesystem::copy_file(std::filesystem::path(argv[1])/"config"/name,root/"config"/name);
     setenv("T170_ROOT",root.c_str(),1);unsetenv("T170_CONFIG_DIR");
-    std::string error;check(load_move_box_config((root/"config/move_box_params.yaml").string(),g_move_cfg,error),error.c_str());
+    std::string error;check(load_move_box_config((root/"config/effective_params.yaml").string(),g_move_cfg,error),error.c_str());
     t170::calibration::PlacementSession session;orch::HwSession hardware;
     auto call=[&](std::string action,std::string rid="new"){
         Json::Value q;q["action"]=action;q["request_id"]=rid;q["session"]=session.status()["session"];q["hand"]=1;

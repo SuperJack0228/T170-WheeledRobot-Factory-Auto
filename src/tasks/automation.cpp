@@ -396,12 +396,14 @@ static int run_dispatch_mode_body()
                 return r;
             continue;
         }
-        if (rc == kDispatchNoPartStay || rc == kDispatchHoldStay || rc == kVisionQrFail)
+        if (rc == kDispatchNoPartStay || rc == kDispatchHoldStay || rc == kVisionQrFail ||
+            rc == kDispatchGripperStay)
         {
             if (rc == kVisionQrFail)
                 dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::QrUnrecognized), "二维码识别错误");
             g_dispatch_stay_at_tray2 = false;
             const std::string why = rc == kDispatchNoPartStay ? "抓取点没有料"
+                                   : rc == kDispatchGripperStay ? "夹爪未到准备开度"
                                    : rc == kVisionQrFail      ? "二维码识别错误"
                                                               : "异常";
             board_mission_end(false, why + "，原地待命");

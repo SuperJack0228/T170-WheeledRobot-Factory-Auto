@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>T170C工厂自动上下料控制器</title>
-  <link rel="stylesheet" href="/styles.css?v=21">
+  <link rel="stylesheet" href="/styles.css?v=22">
 </head>
 <body>
   <header class="nav">
@@ -32,6 +32,11 @@
   <div id="versionBanner" class="banner" hidden></div>
   <p id="modeNotice" class="hint" role="status" hidden></p>
   <div id="actionNotice" class="action-notice" role="status" hidden></div>
+  <section id="maintenanceWorkcells" class="workcell-toolbar" aria-label="维护机床组" hidden>
+    <label>当前调试机床组<select id="workcellGroup" disabled><option>读取中…</option></select></label>
+    <div><p id="workcellStations" class="workcell-stations">读取站点配置…</p>
+      <p id="workcellNote" class="hint" role="status">切换组别只应用站点配置；执行单步动作时才导航。</p></div>
+  </section>
 
   <section class="hand-live" aria-label="手相机实时画面" hidden>
     <figure>
@@ -127,7 +132,7 @@
       <p class="kicker">Parameters</p>
       <h1>参数</h1>
       <div class="actions row wrap">
-        <button class="quiet" id="reloadRobot" type="button">重载运行参数</button>
+        <button class="quiet" id="reloadRobot" type="button">应用配置</button>
       </div>
       <p class="lead" id="configNote">分层生成的运行快照只读；请按来源文件修改参数。</p>
       <div class="actions row wrap" id="fileTabs"></div>
@@ -157,7 +162,7 @@
       <p class="lead">选择机器人编号与臂型。保存后在下次启动主服务时生效。</p>
       <div class="profile-summary card"><div><span class="workspace-label">正在运行</span><strong id="profileActive">—</strong></div><div><span class="workspace-label">下次启动</span><strong id="profileSelected">—</strong></div></div>
       <article class="card"><h2>选择部署档案</h2><div class="profile-fields"><label>机器人编号<select id="profileSelect"></select></label><label>机械臂型号<select id="profileModel"><option value="t170c_v2_3kg">T170C V2 · 3 kg</option><option value="t170c_v2_5kg">T170C V2 · 5 kg</option></select></label></div><p id="profileDetail" class="hint"></p><button id="applyProfile" class="fill">保存为下次启动档案</button><p id="profileMessage" class="hint" role="status"></p></article>
-      <details class="card"><summary>新增机器人档案</summary><p class="hint">复用选中档案的接口、相机、工具和示教配置。本机手眼与手相机标定单独导入，不复制其他机器人的标定。</p><div class="profile-fields"><label>新机器人编号<input id="newRobotId" placeholder="TH-T170C-0125" pattern="TH-T170C-[0-9]{4,8}"></label><label>底盘地址<input id="newRobotHost" placeholder="192.168.192.5"></label></div><button id="createProfile" class="quiet">创建档案</button></details>
+      <details class="card"><summary>新增机器人档案</summary><p class="hint">复用选中档案的接口、工具和示教配置，默认使用理论手眼。核对本机相机 SN 后，通过向导建立本机抓放参考。</p><div class="profile-fields"><label>新机器人编号<input id="newRobotId" placeholder="TH-T170C-0125" pattern="TH-T170C-[0-9]{4,8}"></label><label>底盘地址<input id="newRobotHost" placeholder="192.168.192.5"></label></div><button id="createProfile" class="quiet">创建档案</button></details>
     </section>
 
     <section id="page-logs" class="page">
@@ -173,6 +178,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=21"></script>
+  <script src="/app.js?v=22"></script>
 </body>
 </html>

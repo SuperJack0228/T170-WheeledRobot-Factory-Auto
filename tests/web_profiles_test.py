@@ -38,23 +38,14 @@ class ProfileTest(unittest.TestCase):
         result=self.store.update(payload)
         self.assertEqual(self.store.selected(),self.selected)
         profile=next(p for p in self.store.list()['profiles'] if p['robot_id']=='TH-T170C-0125')
-        self.assertTrue(profile['missing_files'])
+        self.assertFalse(profile['missing_files']) # New profiles use complete nominal camera resources.
         self.assertEqual(profile['host'],'192.168.192.6')
         self.assertFalse((self.root/'config/calibration/TH-T170C-0125/hand_eye').exists())
         self.assertFalse(list((self.root/'config/calibration/TH-T170C-0125/tasks').glob('**/*.yaml')))
         choose=self.payload();choose['manifest']=result['manifest']
-        with self.assertRaises(ValueError):self.store.update(choose)
-        self.assertEqual(self.store.selected(),self.selected)
-        # Complete the files in this temporary fixture, then select the new ID.
-        template=read(self.root/self.selected)
-        created=read(self.root/result['manifest'])
-        for target,name in created['files'].items():
-            destination=self.root/name
-            if not destination.exists():
-                destination.parent.mkdir(parents=True,exist_ok=True)
-                shutil.copyfile(self.root/template['files'][target],destination)
         self.store.update(choose)
         self.assertEqual(self.store.selected(),result['manifest'])
+        # Complete the files in this temporary fixture, then select the new ID.
         with self.assertRaises(ValueError):self.store.update(choose) # stale page
 
     def test_invalid_profile_or_model_cannot_modify_selector(self):

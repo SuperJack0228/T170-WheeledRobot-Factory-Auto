@@ -13,22 +13,33 @@ class DeploymentTest(unittest.TestCase):
  def tearDown(self):self.tmp.cleanup()
  def manifest(self):
   p=self.base/'deployment.yaml';p.write_text(yaml.safe_dump(self.doc));return p
- def test_real_loader_equivalence(self):
+ def test_real_loader_preserves_unmodified_controls(self):
   out=self.base/'run';record=resolve(ROOT,self.manifest(),out)
   self.assertEqual(record['task_assignment'],'dispatch')
   # Compare effective controls after explicitly normalizing the old device-angle
   # fixture to the new coordinate contract. Physical ready targets are checked
   # independently below; a string comparison cannot compare unlike coordinates.
   baseline=yaml.safe_load((ROOT/'tests/fixtures/no124_factory_baseline.yaml').read_text())
-  current=yaml.safe_load((out/'config/move_box_params.yaml').read_text())
+  current=yaml.safe_load((out/'config/effective_params.yaml').read_text())
   for key in ['ready_right_deg','ready_left_deg','joint_coordinates']:
    baseline['retract_motion'][key]=current['retract_motion'][key]
+  # Explicitly approved offset changes; all other parsed controls must still
+  # match the field baseline. The C++ snapshot no longer contains retired fields.
+  baseline['tray']['z_ref_m']=-.623
+  for key in ('goal_x_offset','goal_y_offset','grasp_z_offset_m',
+              'right_goal_x_offset','right_goal_y_offset','right_grasp_z_offset_m'):
+   baseline['head_grasp'][key]=0.
+  for side in ('left','right'):baseline['tray2_place']['offset'][side]=dict(x=0.,y=0.,z=0.)
+  for belt in ('conveyor','conveyor2'):
+   baseline[belt]['grasp_offset']={'left':dict(x=.050,y=.120,z=0.),'right':dict(x=-.030,y=.120,z=0.)}
+   baseline[belt]['offset']={'left':dict(x=-.070,y=-.015,z=0.),'right':dict(x=0.,y=-.015,z=0.)}
+  baseline['conveyor2']['prefer_belt']='belt1'
   (out/'config/baseline.yaml').write_text(yaml.safe_dump(baseline))
   for alias in json.loads((out/'web_compat_paths.json').read_text()):
    self.assertTrue((out/alias).exists(),alias)
-  subprocess.run([DUMP,'--compare',str(out/'config/baseline.yaml'),str(out/'config/move_box_params.yaml')],check=True,capture_output=True)
+  subprocess.run([DUMP,'--compare',str(out/'config/baseline.yaml'),str(out/'config/effective_params.yaml')],check=True,capture_output=True)
   # Detect an effective, safety-relevant change rather than just file hashes.
-  p=out/'config/move_box_params.yaml';data=yaml.safe_load(p.read_text());data['head_grasp']['grasp_z_offset_m']+=.01;p.write_text(yaml.safe_dump(data))
+  p=out/'config/effective_params.yaml';data=yaml.safe_load(p.read_text());data['head_grasp']['grasp_z_offset_m']+=.01;p.write_text(yaml.safe_dump(data))
   self.assertEqual(subprocess.run([DUMP,'--compare',str(out/'config/baseline.yaml'),str(p)],capture_output=True).returncode,1)
   self.assertTrue((out/'config/calibration').is_symlink())
   self.assertEqual((out/'config/calibration').resolve(),ROOT/self.doc['calibration_directory'])
@@ -44,7 +55,7 @@ class DeploymentTest(unittest.TestCase):
   shutil.copyfile(ROOT/'tools/resolve_deployment.py',fake/'tools/resolve_deployment.py')
   (fake/'build_robot/t170_config_dump').symlink_to(Path(DUMP).resolve())
   app=fake/'build_robot/t170_factory'
-  app.write_text('#!/bin/bash\ntest -f "$T170_CONFIG_DIR/move_box_params.yaml" || exit 9\nprintf "%s\\n" "$T170_ROOT" "$T170_CONFIG_DIR" "$@" > "$T170_ROOT/launch_record.txt"\n')
+  app.write_text('#!/bin/bash\ntest -f "$T170_CONFIG_DIR/effective_params.yaml" || exit 9\nprintf "%s\\n" "$T170_ROOT" "$T170_CONFIG_DIR" "$@" > "$T170_ROOT/launch_record.txt"\n')
   app.chmod(0o755)
   env=dict(os.environ,T170_ROOT=str(fake),T170_PYTHON=sys.executable,T170_STATE_DIR=str(self.base/'state'))
   for key in ['T170_RUNTIME_DIR','T170_CONFIG_DIR','T170_DEPLOYMENT']:env.pop(key,None)
@@ -104,7 +115,7 @@ class DeploymentTest(unittest.TestCase):
  def test_ready_targets_and_tcp_camera_relation_preserve_physical_frames(self):
   from t170_common.arm_model import pose_matrix
   out=self.base/'frame-test';resolve(ROOT,self.manifest(),out)
-  config=yaml.safe_load((out/'config/move_box_params.yaml').read_text())
+  config=yaml.safe_load((out/'config/effective_params.yaml').read_text())
   binding=yaml.safe_load((out/'config/arm_binding.yaml').read_text())
   sdk=yaml.safe_load((out/'config/Robot_Model.yaml').read_text())['T7_170']
   before=yaml.safe_load((ROOT/'tests/fixtures/no124_factory_baseline.yaml').read_text())
@@ -124,7 +135,7 @@ class DeploymentTest(unittest.TestCase):
   out=self.base/'bootstrap';record=resolve(fake,self.manifest(),out)
   self.assertEqual(len(record['missing_task_calibrations']),4)
   self.assertEqual(list((out/'config/calibration').glob('*/*.yaml')),[])
-  subprocess.run([DUMP,str(out/'config/move_box_params.yaml'),str(out/'effective.yaml')],check=True,capture_output=True)
+  subprocess.run([DUMP,str(out/'config/effective_params.yaml'),str(out/'effective.yaml')],check=True,capture_output=True)
  def test_parameter_index_locates_canonical_owner(self):
   result=subprocess.run([sys.executable,str(ROOT/'tools/parameter_index.py'),'visual_servo.kp'],check=True,capture_output=True,text=True)
   self.assertIn('visual_servo.kp = ',result.stdout)

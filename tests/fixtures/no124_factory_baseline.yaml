@@ -53,7 +53,7 @@ head:
 head_grasp:
   hover_above_m: 0.12
   # 左手孔位偏置（基座系）。X 前为正，Y 左为正，Z 上为正。
-  grasp_z_offset_m: -0.001
+  grasp_z_offset_m: -0.01
   goal_z_base: -0.30
   goal_x_offset: 0.04
   goal_y_offset: 0.00

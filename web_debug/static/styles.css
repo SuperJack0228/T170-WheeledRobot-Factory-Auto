@@ -474,3 +474,13 @@ button:focus-visible,a:focus-visible,select:focus-visible { outline:2px solid #0
 #page-motion #actionGroups .card { display:block; }
 #page-motion #actionGroups .hint { height:auto; display:block; overflow:visible; -webkit-line-clamp:unset; line-clamp:unset; }
 #page-motion #actionGroups .actions { margin-top:0; gap:8px; }
+
+/* Maintenance station context, shared by the existing pages. */
+.workcell-toolbar {width:min(1080px,calc(100% - 48px));margin:18px auto 0;padding:16px 24px;display:flex;align-items:center;gap:28px;background:#fff;border:1px solid #dfe6ec;border-radius:12px;box-sizing:border-box}
+.workcell-toolbar[hidden] {display:none}
+.workcell-toolbar label {display:flex;align-items:center;gap:12px;white-space:nowrap;font-weight:600}
+.workcell-toolbar select {font:inherit;padding:8px 30px 8px 12px;border:1px solid #c9d7e0;border-radius:8px;background:#fff;color:inherit}
+.workcell-toolbar p {margin:0}
+.workcell-toolbar .hint {margin-top:4px;font-size:13px}
+.workcell-stations {font-size:14px;color:#294653}
+@media(max-width:760px){.workcell-toolbar{margin:12px 16px 0;padding:14px;align-items:flex-start;flex-direction:column;gap:10px}.workcell-stations{line-height:1.9}}

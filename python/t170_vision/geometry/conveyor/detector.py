@@ -2,7 +2,7 @@
 """
 RealSense 在线传送带 6D 位姿：每条皮带横贴 2 个 5×5 ArUco，独立 PnP。
 
-圆方本期：定位码可共用，信息码每条唯一。皮带 0 左 500 右 550，皮带 1 左 500 右 551。
+圆方：定位码可共用，信息码每条唯一；机床绑定来自独立高度表，当前使用 500 + 550–559。
 原点在两码心连线中点。+X 前、+Y 左、+Z 上。
 码水平贴在上表面，码的「上」朝皮带前方。
 
@@ -65,6 +65,8 @@ class BeltSpec:
     name: str
     left_id: int
     right_id: int
+    machine_id: str = ""
+    operation_profile: str = ""
 
     @property
     def ids(self) -> set[int]:
@@ -95,6 +97,7 @@ class AppConfig:
     print_every: int
     save_dir: Path
     window_name: str
+    height_catalog_enabled: bool = False
 
     @property
     def black_side_m(self) -> float:
@@ -172,6 +175,15 @@ def load_config(path: Path) -> AppConfig:
     display = raw.get("display", {})
 
     items_raw = belt.get("items", [])
+    catalog_enabled=False
+    if belt.get('height_catalog_file'):
+        from t170_common.conveyor_heights import load_catalog
+        catalog=load_catalog(path.parent/belt['height_catalog_file'])
+        catalog_enabled=catalog['enabled']
+        if catalog_enabled:
+            items_raw=[dict(name=row['business_id'],left_id=row['locate_id'],right_id=row['info_id'],
+                            machine_id=row['machine_id'],operation_profile=row['operation_profile'])
+                       for row in catalog['machines']]
     if not items_raw:
         raise ValueError("belt.items 不能为空")
     belts: list[BeltSpec] = []
@@ -181,6 +193,8 @@ def load_config(path: Path) -> AppConfig:
             name=str(item["name"]),
             left_id=int(item["left_id"]),
             right_id=int(item["right_id"]),
+            machine_id=str(item.get('machine_id','')),
+            operation_profile=str(item.get('operation_profile','')),
         )
         if spec.left_id == spec.right_id:
             raise ValueError(f"{spec.name} 左右 ID 不能相同")
@@ -237,6 +251,7 @@ def load_config(path: Path) -> AppConfig:
         print_every=int(display.get("print_pose_every_n_frames", 15)),
         save_dir=save_dir,
         window_name=str(display.get("window_name", "board_belt_aruco")),
+        height_catalog_enabled=catalog_enabled,
     )
 
 
@@ -314,6 +329,8 @@ def estimate_belt_pose(
         return None
     seen_ids = {int(v) for v in ids.flatten()}
     left_shared = sum(b.left_id == belt.left_id for b in cfg.belts) > 1
+    counts={int(mid):int(np.count_nonzero(ids==mid)) for mid in np.unique(ids)}
+    if counts.get(belt.right_id,0)>1:return None
     # 多条皮带共用定位码时，只看见定位码不能判断是哪一条。
     if belt.right_id not in seen_ids and left_shared:
         return None
@@ -324,6 +341,9 @@ def estimate_belt_pose(
         mid = int(mid_raw)
         if mid not in belt.ids:
             continue
+        # Several machines may share location ID500 in one frame. Use the
+        # unique information marker rather than combining unrelated 500s.
+        if mid==belt.left_id and counts.get(mid,0)>1:continue
         obj_list.append(marker_corners_in_belt(cfg, belt, mid))
         img_list.append(corners[i].reshape(4, 2).astype(np.float64))
         used.append(mid)

@@ -28,6 +28,7 @@
 #include "t170/vision/tray_localizer.h"
 #include "t170/vision/calibration_hole.h"
 #include "t170/vision/pipeline.h"
+#include "t170/vision/image_orientation.h"
 #include "t170/common/abort_query.h"
 #include <yaml-cpp/yaml.h>
 #include <opencv2/calib3d.hpp>
@@ -85,6 +86,7 @@ struct PlacementSession::Impl {
     wrist_servo::TrayTarget target;
     Json::Value candidates{Json::arrayValue};
     std::map<std::string,Json::Value> replies;
+    Json::Value motion{Json::objectValue};
     Arm &arm() {return hand?*hw->arm_r:*hw->arm_l;}
     gripper::Side side() const {return hand?gripper::Side::Right:gripper::Side::Left;}
     std::string side_name() const {return hand?"right":"left";}
@@ -109,6 +111,7 @@ struct PlacementSession::Impl {
         v["reference_fit_residual"]=reference_fit_residual;v["reference_coverage"]=reference_coverage;v["have_reference"]=have_reference;v["reference_method"]=reference_method;v["feature_plane_z_m"]=feature_plane;
         if(image_revision) v["image_path"]=std::filesystem::relative(directory/("frame_"+std::to_string(image_revision)+".jpg"),project_root_dir()).string();
         v["log_directory"]=directory.string();v["saved_file"]=saved_file;
+        v["last_motion"]=motion;
         {std::lock_guard<std::mutex> lock(mutex);view=v;}
         if(!directory.empty()) atomic_json(directory/"session.json",v);
     }
@@ -127,7 +130,7 @@ struct PlacementSession::Impl {
         const Pose peer=cached_peer?*cached_peer:arm_get_tcp_pos(hand?*hw->arm_l:*hw->arm_r);
         require((p.head<3>()-peer.head<3>()).norm()>=g_move_cfg.visual_servo.pair_clearance_m,"目标距离另一只手过近");
     }
-    void move_checked(Pose goal,double speed,bool straight) {
+    void move_checked(Pose goal,double speed,bool straight,bool teach_jog=false) {
         stopped();check_workspace(goal);
         require(std::isfinite(speed) && speed>0,"运动速度无效");
         Joints seed=arm_get_joint_pos(arm());
@@ -149,21 +152,28 @@ struct PlacementSession::Impl {
                 require((path.row(i)-seed).cwiseAbs().maxCoeff()<=g_move_cfg.visual_servo.max_joint_excursion_rad,
                     "微调关节变化过大，尚未下发");
         }
-        const double tolerance=straight && distance<=.0051 ? t170::motion::teach_jog_tolerance(distance) : .002;
-        t170::motion::CartesianArrivalGate gate(TR(goal),tolerance);
+        const double tolerance=teach_jog ? t170::motion::teach_jog_tolerance(distance) : .002;
+        t170::motion::CartesianArrivalGate gate(TR(goal),tolerance,teach_jog?.03:.01,
+            teach_jog?std::clamp(.25*distance,.00003,.00025):0,teach_jog?.003:.001);
         const auto arrived=[&](const Joints &q) {return gate(arm().Forward_Kinematics(Eigen::RowVectorXd(q)));};
         const auto begin=Clock::now();
         stopped();
         const int code=arm_execute_joint_path(arm(),path,straight?"calibration_local":"calibration_transit",arrived,
             [&](){return interrupted.load();});
         const Pose measured=actual();
+        wrist_servo::start_final_hold_repeat();
+        motion=Json::Value(Json::objectValue);motion["code"]=code;motion["teach_jog"]=teach_jog;
+        motion["requested_distance_mm"]=distance*1000;motion["tolerance_mm"]=tolerance*1000;
+        motion["residual_mm"]=(measured.head<3>()-goal.head<3>()).norm()*1000;
+        motion["target_tcp"]=array(goal);motion["actual_tcp"]=array(measured);
+        motion["elapsed_s"]=std::chrono::duration<double>(Clock::now()-begin).count();publish();
         std::cout<<"[calibration_motion] hand="<<hand<<" type="<<(straight?"line":"transit")
             <<" distance_m="<<distance<<" nominal_s="<<(path.rows()-1)*arm().definition().period
             <<" elapsed_s="<<std::chrono::duration<double>(Clock::now()-begin).count()
             <<" tolerance_m="<<tolerance<<" residual_m="<<(measured.head<3>()-goal.head<3>()).norm()
             <<" target="<<goal<<" measured="<<measured<<" code="<<code<<'\n';
-        wrist_servo::start_final_hold_repeat();
-        require(code==0,"标定运动未到位 code="+std::to_string(code)+"，已保持当前位置");stopped();
+        require(code==0,"标定运动未到位 code="+std::to_string(code)+"，残差="+
+            std::to_string(motion["residual_mm"].asDouble())+"mm，允许="+std::to_string(tolerance*1000)+"mm，已保持当前位置");stopped();
     }
     void line(Pose goal,double speed) {move_checked(goal,speed,false);}
     void local(Pose goal,double speed=.015) {move_checked(goal,speed,true);}
@@ -272,10 +282,6 @@ struct PlacementSession::Impl {
             "松爪取件后位姿发生变化，不能直接使用这张图标定；请重新对准");
         auto &cams=hw->pipeline->cameras();auto next=cams.grab_fresh(hand?CameraSlot::RightHand:CameraSlot::LeftHand);
         require(next.ok,"手相机取图失败: "+next.message);
-        if(!hand) {
-            cv::Mat bgr(next.height,next.width,CV_8UC3,next.color_bgr.data());cv::rotate(bgr,bgr,cv::ROTATE_180);
-            next.K[2]=next.width-1-next.K[2];next.K[5]=next.height-1-next.K[5];next.dist[2]*=-1;next.dist[3]*=-1;
-        }
         const Pose next_pose=actual();require((before.head<3>()-next_pose.head<3>()).norm()<=.001,"拍照时机械臂未稳定");
         const auto next_camera=camera(next_pose);const auto revision=image_revision+1;
         cv::Mat image(next.height,next.width,CV_8UC3,next.color_bgr.data());
@@ -311,7 +317,7 @@ struct PlacementSession::Impl {
         r["compensation_xy_upright_m"]=array(bias.transpose());r["coarse_xy_upright_m"]=array(coarse.transpose());
         r["K"]=Json::Value(Json::arrayValue);for(double v:frozen.K)r["K"].append(v);
         r["dist"]=Json::Value(Json::arrayValue);for(double v:frozen.dist)r["dist"].append(v);
-        r["pixel_coordinates"]="raw_color_left_rotated_180";r["log_directory"]=directory.string();return r;
+        r["pixel_coordinates"]=vision::image_convention(frozen.image_rotation_deg);r["image_rotation_deg"]=frozen.image_rotation_deg;r["log_directory"]=directory.string();return r;
     }
 };
 PlacementSession::PlacementSession():impl_(std::make_unique<Impl>()) {impl_->publish();}
@@ -339,12 +345,12 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
             require(!s.hand || !right_arm_motors_locked(),"右手电机当前锁定");
             s.id=std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(Clock::now().time_since_epoch()).count());
             s.directory=std::filesystem::path(project_root_dir())/"debug_picture"/"calibration"/s.id;
-            s.replies.clear();s.held=s.have_reference=s.aligned_recorded=false;
+            s.replies.clear();s.motion=Json::Value(Json::objectValue);s.held=s.have_reference=s.aligned_recorded=false;
             s.reference_fit_residual=0;s.reference_coverage=0;s.reference_method.clear();s.feature_plane=s.plane=s.reference_above_plane=0;
             s.image_revision=0;s.head_revision=0;s.saved_file.clear();s.frozen={};s.nominal.setZero();s.aligned.setZero();s.reference_pose.setZero();s.latest.setZero();s.row=s.col=0;s.coarse.setZero();s.bias.setZero();s.reference.setZero();s.candidates=Json::Value(Json::arrayValue);
             s.camera_identity();
             std::filesystem::create_directories(s.directory/"inputs");
-            for(const auto &name:std::vector<std::string>{"move_box_params.yaml","realsense_cameras.yaml","Robot_Model.yaml",s.side_name()+"_hand_to_base_result.yaml"})
+            for(const auto &name:std::vector<std::string>{"effective_params.yaml","realsense_cameras.yaml","Robot_Model.yaml",s.side_name()+"_hand_to_base_result.yaml"})
                 std::filesystem::copy_file(std::filesystem::path(default_move_box_config_path()).parent_path()/name,s.directory/"inputs"/name);
             for(const auto &name:{"arm_binding.yaml","arm_model_metadata.yaml","arm_frames.yaml"}) {
                 const auto source=std::filesystem::path(default_move_box_config_path()).parent_path()/name;
@@ -377,8 +383,10 @@ Json::Value PlacementSession::execute(const Json::Value &request,orch::HwSession
                 require(s.phase=="at_d","只能在D点对准页微调");
                 const double dx=request.get("dx_mm",0.).asDouble()/1000,dy=request.get("dy_mm",0.).asDouble()/1000;
                 require(valid_teach_jog(dx,dy),"单次XY微调合位移必须在5mm内");
-                Pose p=s.actual();p.tail<3>()=s.nominal.tail<3>();p(0)+=dx;p(1)+=dy;
-                require((p.head<2>()-s.nominal.head<2>()).norm()<=.10,"累计补偿超过100mm，请检查识别和工具参数");s.local(p,.04);s.publish();s.capture(false);s.publish();
+                // A pure XY jog preserves the measured wrist orientation and Z;
+                // do not turn a 2 mm click into a separate attitude correction.
+                Pose p=s.actual();p(0)+=dx;p(1)+=dy;
+                require((p.head<2>()-s.nominal.head<2>()).norm()<=.10,"累计补偿超过100mm，请检查识别和工具参数");s.move_checked(p,.04,true,true);s.publish();s.capture(false);s.publish();
             } else if(action=="observe") {
                 require(s.phase=="at_d","只允许在D点刷新观察画面");s.capture(false);s.publish();
             } else if(action=="record_aligned") {

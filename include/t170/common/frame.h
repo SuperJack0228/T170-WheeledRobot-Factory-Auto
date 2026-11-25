@@ -20,6 +20,7 @@ struct CameraFrameData
     std::array<double, 9> K{};      /**< 3×3 行主序 */
     std::array<double, 5> dist{};   /**< k1,k2,p1,p2,k3 */
     bool ok = false;
+    int image_rotation_deg = 0;   /**< 相对原始彩色图的图像方向：0 / 180 */
     std::string message;
     std::uint64_t frame_number = 0;
     double capture_steady_s = 0.0;

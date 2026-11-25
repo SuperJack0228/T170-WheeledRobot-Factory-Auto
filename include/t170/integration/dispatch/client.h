@@ -4,7 +4,9 @@
 
 namespace t170::integration::dispatch {
 enum class Fault { CameraDisconnected, InitFailed, LoadPortBlocked, MotorDisconnected,
-                   QrUnrecognized, UnloadPointEmpty, WorkpieceFallen };
+                   QrUnrecognized, UnloadPointEmpty, WorkpieceFallen, GripperNotReady };
+// 1404 是本机新增的机器人异常。已安装的调度 SDK 枚举只到 1403，report_exception 接收整数。
+inline constexpr int kGripperNotReadyCode = 1404;
 struct Snapshot {
     bool is_map_updated=false;
     std::string raw_material_point,well_done_point,standby_point,charge_point;

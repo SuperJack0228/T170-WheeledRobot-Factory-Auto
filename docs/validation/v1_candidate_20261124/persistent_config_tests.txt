@@ -1,0 +1,13 @@
+Test project /tmp/t170-v1-audit-20261124/build
+    Start  9: config_workspace_test
+1/4 Test  #9: config_workspace_test ............   Passed    4.31 sec
+    Start 10: release_layout_test
+2/4 Test #10: release_layout_test ..............   Passed    2.32 sec
+    Start 30: placement_calibration_web_test
+3/4 Test #30: placement_calibration_web_test ...   Passed    0.63 sec
+    Start 31: web_profiles_test
+4/4 Test #31: web_profiles_test ................   Passed    0.25 sec
+
+100% tests passed out of 4
+
+Total Test time (real) =   7.51 sec

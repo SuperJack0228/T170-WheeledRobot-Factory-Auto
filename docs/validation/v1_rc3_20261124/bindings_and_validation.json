@@ -1,0 +1,115 @@
+{
+  "base_commit": "4f9e189feddff960986eeae53a5bbc20ddc17371",
+  "candidate_tag": "v1.0.0-rc.3",
+  "height_catalog_sha256": "6430fc0a47ffcec1df88e4ca70dd9da4e86aa438018b1619f51dd9cbc1b9ab64",
+  "reference_machine": "1.2",
+  "reference_qr_plane_height_cm": 123.6,
+  "reference_plane_z_m": -0.29,
+  "reference_waist_z_m": 0.63,
+  "all_preexisting_effective_motion_controls_unchanged": true,
+  "offline_ctest_total": 53,
+  "native_arm64_release_built": false,
+  "robot_operated": false,
+  "bindings": [
+    {
+      "machine_id": "1.2",
+      "business_id": "YF-0001",
+      "locate_id": 500,
+      "info_id": 550,
+      "operation_profile": "conveyor",
+      "qr_plane_height_cm": 123.6,
+      "delta_height_mm": 0.0,
+      "plane_z_at_reference_waist_m": -0.29
+    },
+    {
+      "machine_id": "1.1",
+      "business_id": "YF-0002",
+      "locate_id": 500,
+      "info_id": 551,
+      "operation_profile": "conveyor2",
+      "qr_plane_height_cm": 122.7,
+      "delta_height_mm": -9.0,
+      "plane_z_at_reference_waist_m": -0.299
+    },
+    {
+      "machine_id": "2.2",
+      "business_id": "YF-0003",
+      "locate_id": 500,
+      "info_id": 552,
+      "operation_profile": "conveyor",
+      "qr_plane_height_cm": 122.0,
+      "delta_height_mm": -16.0,
+      "plane_z_at_reference_waist_m": -0.306
+    },
+    {
+      "machine_id": "2.1",
+      "business_id": "YF-0004",
+      "locate_id": 500,
+      "info_id": 553,
+      "operation_profile": "conveyor2",
+      "qr_plane_height_cm": 122.8,
+      "delta_height_mm": -8.0,
+      "plane_z_at_reference_waist_m": -0.298
+    },
+    {
+      "machine_id": "3.2",
+      "business_id": "YF-0005",
+      "locate_id": 500,
+      "info_id": 554,
+      "operation_profile": "conveyor",
+      "qr_plane_height_cm": 122.5,
+      "delta_height_mm": -11.0,
+      "plane_z_at_reference_waist_m": -0.301
+    },
+    {
+      "machine_id": "3.1",
+      "business_id": "YF-0006",
+      "locate_id": 500,
+      "info_id": 555,
+      "operation_profile": "conveyor2",
+      "qr_plane_height_cm": 121.0,
+      "delta_height_mm": -26.0,
+      "plane_z_at_reference_waist_m": -0.316
+    },
+    {
+      "machine_id": "4.2",
+      "business_id": "YF-0007",
+      "locate_id": 500,
+      "info_id": 556,
+      "operation_profile": "conveyor",
+      "qr_plane_height_cm": 123.2,
+      "delta_height_mm": -4.0,
+      "plane_z_at_reference_waist_m": -0.294
+    },
+    {
+      "machine_id": "4.1",
+      "business_id": "YF-0008",
+      "locate_id": 500,
+      "info_id": 557,
+      "operation_profile": "conveyor2",
+      "qr_plane_height_cm": 122.7,
+      "delta_height_mm": -9.0,
+      "plane_z_at_reference_waist_m": -0.299
+    },
+    {
+      "machine_id": "5.2",
+      "business_id": "YF-0009",
+      "locate_id": 500,
+      "info_id": 558,
+      "operation_profile": "conveyor",
+      "qr_plane_height_cm": 123.0,
+      "delta_height_mm": -6.0,
+      "plane_z_at_reference_waist_m": -0.296
+    },
+    {
+      "machine_id": "5.1",
+      "business_id": "YF-0010",
+      "locate_id": 500,
+      "info_id": 559,
+      "operation_profile": "conveyor2",
+      "qr_plane_height_cm": 121.6,
+      "delta_height_mm": -20.0,
+      "plane_z_at_reference_waist_m": -0.31
+    }
+  ]
+}

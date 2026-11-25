@@ -234,7 +234,8 @@ int withdraw_place(ConveyorContext &context,const ConveyorRetreatRequest &reques
         const ArmLineMoveResult back = arm_dual_line_then_line_nostop(
             *g_hw->arm_r, lift, ready, is_right,
             *g_hw->arm_l, lift, ready, !is_right,
-            place_mps, place_mps, {}, false, "放置收手");
+            place_mps, place_mps, {}, false, "放置收手", false, false, 0,
+            context.hooks.on_return_started);
         const int back_rc = is_right ? back.ret_r : back.ret_l;
         run.native(back_rc,{!is_right,is_right},Stage::Return);
         if (back_rc != 0)

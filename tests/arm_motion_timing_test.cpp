@@ -81,6 +81,18 @@ void feedback_arrival_test(Arm &arm,const ArmJoints &seed) {
     require(run(false,true)==0,"lagged motion did not reach TCP gate");
 }
 void arrival_tests() {
+    auto jog_goal=Eigen::Matrix4d::Identity().eval();jog_goal(0,3)=.002;
+    CartesianArrivalGate jog(jog_goal,teach_jog_tolerance(.002),.03,.00025,.003);
+    auto no_op=Eigen::Matrix4d::Identity().eval();
+    require(!jog(no_op)&&!jog(no_op),"2mm jog no-op accepted");
+    auto near=jog_goal;near(0,3)=.0014;
+    require(!jog(near),"moving jog accepted before stability");
+    near(0,3)=.0015;
+    require(jog(near),"completed 2mm jog rejected by submillimetre feedback jitter");
+    auto reversed=no_op;reversed(0,3)=-.002;
+    require(!jog(reversed)&&!jog(reversed),"reverse jog accepted");
+    auto missing=jog_goal;missing(0,3)=NAN;
+    require(!jog(missing),"invalid jog feedback accepted");
     auto target=Eigen::Matrix4d::Identity().eval();target(0,3)=.005;
     CartesianArrivalGate gate(target,teach_jog_tolerance(.005));
     auto missed=target;missed(0,3)=.0007;

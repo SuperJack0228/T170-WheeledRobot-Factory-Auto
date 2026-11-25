@@ -151,7 +151,7 @@ private:
 
 /** 头相机 best1015.pt 与手相机 best1103.pt 类别号相同：0 立件，1 空孔，2 倒件。没有类别 3。 */
 
-/** 抓取阶段：按 move_box_params.yaml vision_detect 与相机槽返回 algorithm_id（-1/0/1/2） */
+/** 抓取阶段：按 effective_params.yaml vision_detect 与相机槽返回 algorithm_id（-1/0/1/2） */
 int algorithm_id_for_slot(CameraSlot slot);
 
 /**

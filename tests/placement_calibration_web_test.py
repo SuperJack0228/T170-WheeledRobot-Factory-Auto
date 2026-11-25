@@ -70,11 +70,11 @@ class CalibrationHTTPTest(unittest.TestCase):
     def setUp(self):
         self.state.requests.clear();self.state.running=False;self.state.active=False
         self.state.runtime=None;self.state.mode='maintenance'
-    def test_deployment_generated_config_cannot_be_overwritten(self):
+    def test_unknown_or_invalid_persistent_configuration_is_rejected(self):
         from unittest.mock import patch
         with patch.dict(web.os.environ, {'T170_DEPLOYMENT':'selected-profile'}):
-            self.assertEqual(self.request('/api/config', {'file':'motion','content':'bad','confirm':'save_config'})[0],409)
-            self.assertEqual(self.request('/api/fields', {'file':'motion','values':{'x':'1'},'confirm':'save_config'})[0],409)
+            self.assertEqual(self.request('/api/config', {'file':'motion','content':'bad','confirm':'save_config'})[0],400)
+            self.assertEqual(self.request('/api/fields', {'file':'motion','values':{'x':'1'},'confirm':'save_config'})[0],400)
         self.assertEqual([r["cmd"] for r in self.state.requests],["calibration_status","calibration_status"])
     def test_wizard_is_independent_static_route(self):
         status,data=self.request('/calibration',token=False)

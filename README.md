@@ -37,9 +37,9 @@
 | 标定运维 | 料盘抓放补偿与参考点校准、Web 单步控制和状态显示 |
 | 运行统计 | 伺服 CSV、调度事件、阶段耗时与离线报告 |
 
-当前为首版工程集成阶段，采用源码部署；安装包与发布验收尚未完成。
+当前为 V1 候选版。源码与安装包共用启动入口，参数永久保存并支持空闲热更新。部署及候选包构建见 [V1 快速入口](docs/deployment/V1_QUICK_START.md)。Linux 发布包和实机验证记录随候选版本交付。
 
-手臂后端已接入 Ti5_Robotics 20261109，支持独立选择 V2.0 3 kg / 5 kg 模型，No.124 当前使用 3 kg。新 SDK 的 Linux 加载和实机回归尚待现场验证，旧料盘抓放参考需重新确认；步骤见 [SDK 接入与验证](docs/deployment/ARM_SDK_MIGRATION.md)。
+手臂后端已接入 Ti5_Robotics 20261109，支持独立选择 V2.0 3 kg / 5 kg 模型，No.124 当前使用 3 kg。No.124 已有现场动作记录；5 kg 与新机仍需对应实机确认。步骤见 [SDK 接入与验证](docs/deployment/ARM_SDK_MIGRATION.md)。
 
 ## 软件架构
 

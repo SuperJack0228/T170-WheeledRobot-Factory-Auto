@@ -2,7 +2,10 @@
 
 当前代码与配置是事实来源，历史文档仅用于现场溯源。
 
-- **[同环境新机快速部署与调参](deployment/NEW_ROBOT_DEPLOYMENT_GUIDE.md)**：复用 No.124 环境和主要参数，只改机型/编号、导入标定、启动服务与网页，以及抓放高度偏置。
+- **[V1 候选版快速入口](deployment/V1_QUICK_START.md)**：快捷参数、统一应用、新机理论手眼、安装包与维护/生产启动。
+- **[运行包升级与 No.120 迁移](deployment/PACKAGE_UPGRADE.md)**：自动备份、保留本机参数、相机方向迁移及抓放参考更新。
+- **[机床信息码与高度绑定](deployment/CONVEYOR_HEIGHT_BINDINGS.md)**：五组十台机床的二维码、测量高度、参考基准及统一抓放高度计算。
+- **[同环境新机快速部署与调参](deployment/NEW_ROBOT_DEPLOYMENT_GUIDE.md)**：机型/编号、相机 SN、四份抓放参考及 SDK 安装。
 - [仓库目录地图](REPOSITORY_MAP.md)：新工程师快速浏览目录、调用主线和参数入口。
 - [仓库和模块指南](architecture/REPOSITORY_GUIDE.md)：目录、调用关系、各模块职责与剩余工作。
 - [2026-11-18 仓库复核](validation/repository_review_20261118/RESULTS.md)：关键链路、发现的问题与本轮验证边界。

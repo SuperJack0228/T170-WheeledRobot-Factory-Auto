@@ -18,5 +18,6 @@ struct ReloadResult {
 ReloadResult reload_when_idle(std::mutex &hardware_mutex,
     const std::function<bool()> &calibration_active,
     const std::function<bool()> &stopping,
-    const std::string &path, MoveBoxConfig &current);
+    const std::string &path, MoveBoxConfig &current,
+    const std::string &publish_path = {});
 }

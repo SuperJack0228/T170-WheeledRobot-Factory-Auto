@@ -1483,7 +1483,6 @@ PoseDetectionRecords detect_pose_at_slot(
         return {};
     }
 
-    frame = RealSenseMultiCam::prepare_frame_for_slot(std::move(frame), slot);
 
     const int algorithm_id = algorithm_id_for_slot(slot);
     const PoseRunResult result = bridge.run_yolo(

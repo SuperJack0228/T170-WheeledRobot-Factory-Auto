@@ -75,7 +75,9 @@ Eigen::MatrixXd bridge_from_hold(const Eigen::MatrixXd &src, const wrist_servo::
 namespace t170::motion::detail {
 int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
                            Arm *retract_arm,
-                           const std::function<void(const wrist_servo::Joints &)> &observe_progress)
+                           const std::function<void(const wrist_servo::Joints &)> &observe_progress,
+                           const std::function<void()> &on_notify,
+                           int notify_row)
 {
     if (hand == 1 && right_arm_motors_locked()) return 0;
     if (traj_in.rows()<2 || traj_in.cols()!=7 || !traj_in.allFinite() || !std::isfinite(dt) || dt<=0)
@@ -143,6 +145,13 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
           0,0,previous_v,previous_a,previous_a,initial_feedback ? &initial_actual : nullptr);
     double last_tick=0;
     double peak_step=0,peak_v=0,peak_a=0,peak_j=0;
+    const int prefix=static_cast<int>(traj.rows()-traj_in.rows());
+    int played_notify=-1;
+    if(on_notify && notify_row>=0) {
+        played_notify=notify_row+std::max(0,prefix);
+        if(played_notify>=traj.rows()) played_notify=static_cast<int>(traj.rows())-1;
+    }
+    bool notified=false;
     for (int i=0; i<traj.rows(); ++i) {
         if (hardware_abort_requested() || can_io_faulted()) {
             trace("retract_abort",hardware_abort_requested() ? "STOP" : "CAN_fault",
@@ -157,6 +166,9 @@ int execute_arm_trajectory(const MatrixXd &traj_in, int hand, double dt,
         catch(const std::exception &e) {
             std::cerr<<"[arm_player] hand="<<hand<<" row="<<i<<" write_failed="<<e.what()<<'\n';
             return -2;
+        }
+        if(on_notify && !notified && played_notify>=0 && i>=played_notify) {
+            notified=true;on_notify();
         }
         // Only staged retreats request feedback, at 20 Hz. Planning/photography never
         // runs in this callback; it only publishes measured clearance to a waiting peer.

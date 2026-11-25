@@ -1,8 +1,5 @@
 conveyor:
-  waist_x: 0.15
-  waist_z: 0.63
   head_yaw_deg: 0
-  head_pitch_deg: 38
   head_roll_deg: 0
   prefer_belt: belt0
   tcp:
@@ -35,15 +32,6 @@ conveyor:
     - 0
     - 45
     - -60
-  offset:
-    right:
-      x: 0.0
-      y: 0.01
-      z: 0.01
-    left:
-      x: -0.06
-      y: -0.015
-      z: 0.01
   grasp_rpy_deg:
     left:
     - 0
@@ -53,15 +41,6 @@ conveyor:
     - 0
     - 50
     - 50
-  grasp_offset:
-    left:
-      x: 0.083
-      y: 0.11
-      z: 0.01
-    right:
-      x: 0.0
-      y: 0.12
-      z: 0.0
   grasp_tcp:
     right:
     - 0.55
@@ -77,34 +56,20 @@ conveyor:
     - 0
     - 0
     - 0
-  grasp_hover_above_m: 0.1
-  place_hover_above_m: 0.06
-  place_approach_vel_m_s: 0.35
-  place_retract_vel_m_s: 0.4
-  grasp_approach_vel_m_s: 0.3
-  grasp_retract_vel_m_s: 0.6
   grasp_descend_vel_m_s: 0.18
   next_hand_clearance_m: 0.05
   next_hand_clearance_timeout_s: 4.0
   grasp_waist_yaw_deg: 0
-  grasp_ready_close_ratio: 0.4
   yolo_roi_enable: true
   yolo_min_conf: 0.25
   yolo_part_class_ids:
   - 0
   - 2
   use_fixed_origin_z: true
-  fixed_origin_z_m: -0.29
-  fixed_origin_ref_waist_z_m: 0.63
-  photo_after_arrival_sec: 2.0
-  grasp_photo_settle_sec: 1
 conveyor2:
-  waist_x: 0.15
-  waist_z: 0.63
   head_yaw_deg: 0
-  head_pitch_deg: 38
   head_roll_deg: 0
-  prefer_belt: belt0
+  prefer_belt: belt1
   tcp:
     right:
     - 0.45
@@ -135,15 +100,6 @@ conveyor2:
     - 0
     - 45
     - -60
-  offset:
-    right:
-      x: 0.0
-      y: 0.008
-      z: -0.005
-    left:
-      x: -0.06
-      y: -0.015
-      z: -0.005
   grasp_rpy_deg:
     left:
     - 0
@@ -153,15 +109,6 @@ conveyor2:
     - -2
     - 50
     - 60
-  grasp_offset:
-    left:
-      x: 0.072
-      y: 0.109
-      z: -0.01
-    right:
-      x: -0.03
-      y: 0.135
-      z: -0.016
   grasp_tcp:
     right:
     - 0.55
@@ -177,12 +124,6 @@ conveyor2:
     - 0
     - 0
     - 0
-  grasp_hover_above_m: 0.09
-  place_hover_above_m: 0.06
-  place_approach_vel_m_s: 0.3
-  place_retract_vel_m_s: 0.4
-  grasp_approach_vel_m_s: 0.3
-  grasp_retract_vel_m_s: 0.6
   grasp_descend_vel_m_s: 0.18
   next_hand_clearance_m: 0.05
   next_hand_clearance_timeout_s: 4.0
@@ -194,7 +135,3 @@ conveyor2:
   - 0
   - 2
   use_fixed_origin_z: true
-  fixed_origin_z_m: -0.29
-  fixed_origin_ref_waist_z_m: 0.63
-  photo_after_arrival_sec: 2.0
-  grasp_photo_settle_sec: 1.0

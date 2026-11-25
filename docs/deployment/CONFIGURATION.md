@@ -1,69 +1,51 @@
-# 配置选择、启动与调参
+# 配置来源与统一应用
 
-更新：2026-11-17。已统一资源来源并接入新手臂 SDK，尚未制作安装包。
+V1.0.0 的配置链路为“持久来源 → 校验候选 → 主程序空闲提交 → 运行快照”。新机与安装包步骤见 [V1 快速入口](V1_QUICK_START.md)。
 
-部署一台新机器人时，先按 [新机器人完整部署引导](NEW_ROBOT_DEPLOYMENT_GUIDE.md) 建档、导入真实基础标定，再进行启动。本文保留现有配置机制和 No.124 示例。
+## 参数归属
 
-2026-11-18：已补充空闲重载的统一读写保护及参数来源查询工具；操作方法见 [参数档案与重载](PARAMETER_OPERATIONS.md)。新机器人首次维护准备允许缺失四份抓放参考，缺失项写入部署记录，仍需完成现场标定。
+| 内容 | 持久来源 |
+|---|---|
+| 网页现有的 94 项常调参数 | `config/robots/机器人编号/quick_params.yaml` |
+| 稳定控制默认值 | `config/defaults/factory_baseline.yaml` |
+| 场景视觉、料盘及传送带结构 | `config/sites/current_factory/` |
+| 维护机床组与四个抓放站点 | `config/sites/current_factory/maintenance_workcells.yaml` |
+| 身份、相机 SN、工具与角度约定 | `config/robots/机器人编号/` |
+| 3 kg 或 5 kg 模型及肘腕策略 | `config/robot_models/t170c_v2_3kg/`、`t170c_v2_5kg/` |
+| 新机默认头与手相机理论值 | `config/robot_models/t170c_v2_common/cameras/` |
+| 本机四份抓放参考 | `config/calibration/机器人编号/tasks/` |
 
-## 配置不是编译进程序的常量
+每个普通参数只在一个来源中定义。常调字段已从原默认/场景文件迁走，不存在两份数值争夺优先级。同一个键重复定义时应用会指出两个来源，不能通过在另一个文件重复添加来覆盖。`quick_params.yaml` 纳入当前 deployment 的 layers，网页与手工编辑使用相同文件。
 
-`config/defaults/factory_baseline.yaml` 是共有控制/策略；`robot_models/t170/` 是型号和运动模型；`sites/current_factory/` 是工厂料盘、传送带、导航与视觉参数；`robots/TH-T170C-0124/` 是身份、相机 SN、设备和准备位；`calibration/TH-T170C-0124/` 是头/手眼及料盘抓放结果。`deployments/TH-T170C-0124.yaml` 选择这些真实输入。
+`config/deployment.yaml` 选择机器人 manifest，manifest 的 `robot_model` 选择 3/5 kg。作业点位由调度分配，快捷文件中的站点为维护/备用值，不将机器人与机床固定绑定。
 
-默认选择只在 `config/deployment.yaml` 这个数据文件里，C++ 没有固定选择 124。十台机器人可以共享型号/工厂配置，分别维护身份和标定；机床点位由每次调度任务提供，不固定机器人和机床组合。
+维护模式的四个抓放站点由机床组表的 `selected_group` 选择，合成为原有 `chassis.tray_station/belt_station/out_station/tray2_station` 供单步技能调用；不要在其他层重复添加这些字段。网页切组通过统一配置事务热更新，只有机器人确认接收后才显示生效。充电、待命等其余常调站点继续位于本机快捷文件中。调度任务仍临时使用任务下发的站点，维护组不绑定生产机床。
 
-V2.0 双臂的 3 kg / 5 kg 模型分别保存在 `robot_models/t170c_v2_3kg/` 和 `robot_models/t170c_v2_5kg/`，deployment 的 `robot_model` 选择其一，No.124 选择 3 kg。正式运动后端已切换为 `Ti5_Robotics`，运行目录生成实际 `Robot_Model.yaml`、电机角绑定、工具和手眼 frame 转换，启动时回读核验 SDK 参数。旧模型下的四份料盘任务参考已标记待复核，原记录保留。完整边界及机器人侧验证顺序见 [双臂机型配置](ARM_MODELS.md) 和 [SDK 接入说明](ARM_SDK_MIGRATION.md)。
+## 文件用途
 
-合成器目前要求各字段只有一个归属。重复字段会报错，不存在随意“后面的覆盖前面的”。修改参数要改对应来源文件；来源记录见生成的 `deployment_resolved.json`。任意单机参数覆盖白名单属于后续工作。
+旧 `move_box_params.yaml` 已退出活动代码。程序启动或应用时自动生成 `config/effective_params.yaml`，供 C++ 加载完整配置；工程不要求人工维护它。`effective_config.yaml` 是 C++ 解析后的快照，`deployment_resolved.json` 记录来源和摘要，接受热更新后一起更新。
 
-## 运行目录与源码分开
+配置和标定保存在持久工作区。源码模式默认是仓库根目录；新版安装模式默认是运行包根目录，直接编辑包内 `config/`。显式设置 `T170_WORKSPACE` 可以继续使用外部目录。rc.3 及更早版本的默认位置是 `~/.config/t170-factory/workspace`，导入方式见 [升级说明](PACKAGE_UPGRADE.md)。运行会话及日志仍保存在 `~/.local/state/t170`，由 `T170_STATE_DIR` 和 `T170_LOG_DIR` 调整。
 
-启动时把分层参数合成为运行目录的 `config/move_box_params.yaml`。SDK、相机、手眼和视觉配置复制到运行目录的统一路径，标定 tasks 链接到选定机器人的可写数据包，模型和代码仍引用源码。旧根目录的大杂烩 YAML 和资源目录已删除；tests/fixtures/no124_factory_baseline.yaml 仅为固定回归输入，不能拿它调现场参数。
+当前模板的料盘人工 XYZ 已清零，传送带 XYZ 已统一；实际参数与历史差异见 [偏置清理记录](OFFSET_AUDIT_20261125.md#10-本次清理结果)。本机任务标定的 XY 和像素参考继续保留。`config/robots/机器人编号/parameter_migrations.yaml` 记录已完成的一次性迁移，不属于运行参数层；保留该文件可避免后续升级覆盖现场调参。
 
-在已具备机器人依赖的环境构建：
+## 统一应用命令
 
 ```bash
-cmake -S . -B build_robot
-cmake --build build_robot -j4
+./deploy/apply_config.sh
 ```
 
-明确选择机器人并生成一个不存在的、源码树外的新运行目录。以下会初始化硬件，production 还会进入调度，必须在现场按当前工作要求启动：
+该命令重新读取选中档案引用的 YAML、生成完整候选并调用真实 C++ 配置加载器。主程序空闲且资源允许时热更新；正在动作、标定或改动了缓存资源时保留持久修改，并提示再次应用或下次启动加载。主程序未启动时只校验。明确只校验使用 `--validate-only`。
+
+网页参数页保存走同一链路。非法网页修改会恢复原文件；忙碌或需要重启不是保存失败，回复会区分 `saved` 与 `applied`。手工编辑的非法文件由操作者修正，程序保留上一份合法运行配置。
+
+热点参数在硬件事务锁和统一配置锁保护下提交。相机流、设备连接、模型、手眼及 Python 引擎资源变化需要重启，不能用更新一个参数对象代替重建实例。
+
+## 启动入口
 
 ```bash
-./deploy/run_deployment.sh config/deployments/TH-T170C-0124.yaml /absolute/path/to/new-runtime --production
-```
-
-也可以直接用 `./deploy/run_production.sh` 或 `./deploy/run_maintenance.sh`。源码目录启动时，它们读取 config/deployment.yaml 自动生成新会话目录，默认放在 `$XDG_STATE_HOME/t170`，未设置则为 `$HOME/.local/state/t170`；`T170_STATE_DIR` 可指定。启动输出会打印 `T170_RUNTIME_DIR`。生产自动收任务，维护等待人工命令；二者共用同一程序/设备，不能同时启动。
-
-只生成配置、不访问硬件：
-
-```bash
-python3 tools/resolve_deployment.py config/deployments/TH-T170C-0124.yaml /absolute/path/to/new-runtime
-./build_robot/t170_config_dump /absolute/path/to/new-runtime/config/move_box_params.yaml /absolute/path/to/new-runtime/effective_config.yaml
-```
-
-预检也使用同一个已生成目录：
-
-```bash
-T170_ROOT=/absolute/path/to/new-runtime python3 tools/servo_preflight.py
-```
-
-已生成目录重启：`T170_RUNTIME_DIR=/absolute/path/to/existing-runtime ./deploy/run_maintenance.sh`。要读取源文件新参数，应新生成会话；改来源文件不会自动改旧运行副本。参数首版优先重新生成/重启生效，避免误以为编辑旧副本能影响下一次启动。
-
-## 网页启动
-
-网页与程序必须指向同一运行目录。主程序启动后，在另一终端执行：
-
-```bash
+./deploy/run_maintenance.sh
 ./deploy/run_web.sh
 ```
 
-启动包装通过主程序 ping 返回的 runtime_root/config_dir 自动定位，不按最近目录猜测，也不另建配置。需要指定目录时仍支持 `T170_RUNTIME_DIR=/absolute/path/from/startup ./deploy/run_web.sh`；自定义命令端口用 `--robot-port`。首次使用自动定位需重新编译并重启包含该接口的主程序。
-
-只启动原 Web 服务，不自动发运动命令。生成目录临时包含旧 Web 所需的板参数/模型/头外参路径别名，清单为 `web_compat_paths.json`；源码中不保留旧算法转发目录。网页静态页面和服务实现本轮未改。Web 内部启动动作仍有原来的权限/模式约束；不要另启第二份机器人进程。
-
-## 改动与验证边界
-
-普通有效参数由真实 C++ loader 与固定基线对比。逐行偏置及最近排额外 Z 补偿已按本轮授权退役，因此“加载值一致”不代表所有旧回退数值仍被应用。最近排抓取高度需实机确认。
-
-完整配置快照可复核来源和磁盘模型；不证明 SDK 内部已使用对应 DH，也不证明手眼真实精度。安装、打包、现场数据保留/升级回滚流程仍待发布阶段完成。
+两条命令在不同终端执行。维护结束后停止主程序，再使用 `./deploy/run_production.sh` 接受调度。每次启动自动合成持久配置，不需手工准备会话目录。不要沿用旧终端中指向历史会话的 `T170_RUNTIME_DIR`。

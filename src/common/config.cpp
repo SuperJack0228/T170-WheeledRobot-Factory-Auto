@@ -37,12 +37,6 @@ bool read_pose(const YAML::Node &node, Eigen::Matrix<double, 1, 6> &out)
     return true;
 }
 
-void read_hand_offset(const YAML::Node &node, HandXyOffsetConfig &out)
-{
-    read_value(node, "offset_x", out.offset_x);
-    read_value(node, "offset_y", out.offset_y);
-}
-
 int clamp_algorithm_id(int value)
 {
     // -1=沿用模型配置；0=PnP；1=mask重心；2=检测框中心
@@ -252,21 +246,16 @@ MoveBoxConfig default_move_box_config()
     }
     cfg.tray2_place.left_row6_rpy_deg = cfg.head_grasp.left_row6_rpy_deg;
     cfg.tray2_place.right_row6_rpy_deg = cfg.head_grasp.right_row6_rpy_deg;
-    cfg.head_grasp.goal_y_offset = 0.012;
-    cfg.head_grasp.hand_left.offset_x = -0.01;
-    cfg.head_grasp.hand_left.offset_y = -0.02;
-    cfg.head_grasp.hand_right.offset_x = -0.01;
-    cfg.head_grasp.hand_right.offset_y = 0.02;
     cfg.conveyor.tcp.right << 0.45, -0.30, -0.25, 0.0, 45.0 * kDegToRad, 40.0 * kDegToRad;
     cfg.conveyor.tcp.left << 0.45, 0.30, -0.25, 0.0, 45.0 * kDegToRad, -40.0 * kDegToRad;
     cfg.conveyor.place_tcp = cfg.conveyor.tcp;
     cfg.conveyor.grasp_rpy_left = {0.0, 45.0, -30.0};
     cfg.conveyor.grasp_rpy_right = {0.0, 45.0, 30.0};
-    cfg.conveyor.grasp_offset_left = {0.00, 0.12, 0.00};
-    cfg.conveyor.grasp_offset_right = {0.00, 0.12, 0.00};
+    cfg.conveyor.grasp_offset_left = {0.050, 0.120, 0.0};
+    cfg.conveyor.grasp_offset_right = {-0.030, 0.120, 0.0};
     cfg.conveyor.grasp_tcp = cfg.conveyor.tcp;
-    cfg.conveyor.offset_right = {-0.04, 0.00, 0.08};
-    cfg.conveyor.offset_left = {-0.04, 0.00, 0.08};
+    cfg.conveyor.offset_right = {0.0, -0.015, 0.0};
+    cfg.conveyor.offset_left = {-0.070, -0.015, 0.0};
     cfg.conveyor.grasp_hover_above_m = 0.06;
     cfg.conveyor.place_hover_above_m = 0.06;
     cfg.conveyor.place_approach_vel_m_s = 0.25;
@@ -276,12 +265,14 @@ MoveBoxConfig default_move_box_config()
     cfg.conveyor.grasp_waist_yaw_deg = 0.0;
     cfg.conveyor.grasp_ready_close_ratio = 0.30;
     cfg.conveyor2 = cfg.conveyor;
+    cfg.conveyor2.prefer_belt = "belt1";
+    cfg.conveyor2.height_profile = "conveyor2";
     return cfg;
 }
 
 std::string default_move_box_config_path()
 {
-    return t170::paths::config_file("move_box_params.yaml").string();
+    return t170::paths::config_file("effective_params.yaml").string();
 }
 
 namespace {
@@ -467,12 +458,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         }
         cfg.tray2_place.left_row6_rpy_deg = cfg.head_grasp.left_row6_rpy_deg;
         cfg.tray2_place.right_row6_rpy_deg = cfg.head_grasp.right_row6_rpy_deg;
-        cfg.tray2_place.goal_x_offset = cfg.head_grasp.goal_x_offset;
-        cfg.tray2_place.goal_y_offset = cfg.head_grasp.goal_y_offset;
-        cfg.tray2_place.grasp_z_offset_m = cfg.head_grasp.grasp_z_offset_m;
-        cfg.tray2_place.right_goal_x_offset = cfg.head_grasp.right_goal_x_offset;
-        cfg.tray2_place.right_goal_y_offset = cfg.head_grasp.right_goal_y_offset;
-        cfg.tray2_place.right_grasp_z_offset_m = cfg.head_grasp.right_grasp_z_offset_m;
         const YAML::Node t2 = root["tray2_place"];
         if (t2)
         {
@@ -568,9 +553,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         read_value(hg, "right_goal_y_offset", cfg.head_grasp.right_goal_y_offset);
         read_value(hg, "right_grasp_z_offset_m", cfg.head_grasp.right_grasp_z_offset_m);
 
-        read_value(hg, "use_hand_camera", cfg.head_grasp.use_hand_camera);
-        read_value(hg, "hand_match_xy_max_m", cfg.head_grasp.hand_match_xy_max_m);
-        read_value(hg, "hand_xy_refine_max_m", cfg.head_grasp.hand_xy_refine_max_m);
         read_value(hg, "lift_after_grasp_z", cfg.head_grasp.lift_after_grasp_z);
         read_value(hg, "bezier_endpoint_xyz_tol_m", cfg.head_grasp.bezier_endpoint_xyz_tol_m);
         read_value(hg, "bezier_endpoint_rpy_tol_deg", cfg.head_grasp.bezier_endpoint_rpy_tol_deg);
@@ -603,19 +585,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
             cfg.head_grasp.retract_connector_max_s<.02 || cfg.head_grasp.retract_connector_max_s>1.0)
             throw std::runtime_error("head_grasp.retract_connector_max_s 必须在 0.02 到 1.0 秒之间");
         read_value(hg, "pre_grasp_settle_sec", cfg.head_grasp.pre_grasp_settle_sec);
-        read_value(hg, "hand_detect_invalid_redo_max", cfg.head_grasp.hand_detect_invalid_redo_max);
-        read_hand_offset(hg["hand_grasp"]["left"], cfg.head_grasp.hand_left);
-        if (hg["hand_grasp"]["right"])
-        {
-            read_hand_offset(hg["hand_grasp"]["right"], cfg.head_grasp.hand_right);
-        }
-        else
-        {
-            cfg.head_grasp.hand_right.offset_x = cfg.head_grasp.hand_left.offset_x;
-            cfg.head_grasp.hand_right.offset_y = -cfg.head_grasp.hand_left.offset_y;
-            std::cout << "[cfg] 未读到 hand_grasp.right，用左手 offset_y 取反\n";
-        }
-
         const YAML::Node valid = root["grasp_valid"];
         read_value(valid, "z_min", cfg.grasp_valid.z_min);
         read_value(valid, "z_max", cfg.grasp_valid.z_max);
@@ -703,8 +672,6 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
         cfg.visual_servo.profiles[2].reference_px = cfg.visual_servo.profiles[0].reference_px;
         cfg.visual_servo.profiles[3].reference_px = cfg.visual_servo.profiles[1].reference_px;
         wrist_servo::load_config(root["visual_servo"], cfg.visual_servo);
-        if(cfg.cameras.hand_descent_correct && cfg.head_grasp.use_hand_camera)
-            throw std::runtime_error("新 visual_servo 与旧 use_hand_camera 不可同时启用；新流程应设 use_hand_camera=false");
         if (!std::isfinite(cfg.head_grasp.descend_vel_m_s) || cfg.head_grasp.descend_vel_m_s <= 0)
             throw std::runtime_error("head_grasp.descend_vel_m_s 必须为有限正数，禁止静默提速");
 
@@ -725,13 +692,10 @@ bool parse_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::str
             throw std::runtime_error("grasp_valid 的 min 必须小于 max");
         if (cfg.waist.x_min >= cfg.waist.x_max || cfg.waist.z_min >= cfg.waist.z_max)
             throw std::runtime_error("waist 的 min 必须小于 max");
-        if (cfg.waist.stagger_max_steps < 0 || cfg.head_grasp.hand_detect_invalid_redo_max < 0)
-            throw std::runtime_error("重试次数/腰进步数不能为负数");
-        if (cfg.head_grasp.hand_match_xy_max_m <= 0.0 ||
-            cfg.grasp_zone.front_row_tolerance_m < 0.0)
-            throw std::runtime_error("目标匹配距离必须为正，前排容差不能为负数");
-        if (cfg.head_grasp.hand_xy_refine_max_m < 0.0)
-            throw std::runtime_error("hand_xy_refine_max_m 不能为负数");
+        if (cfg.waist.stagger_max_steps < 0)
+            throw std::runtime_error("腰进步数不能为负数");
+        if (cfg.grasp_zone.front_row_tolerance_m < 0.0)
+            throw std::runtime_error("前排容差不能为负数");
         if (cfg.tray.z_refine_max_m < 0.0)
             throw std::runtime_error("tray.z_refine_max_m 不能为负数");
         if (cfg.tray.part_above_tray_m < 0.0)
@@ -778,6 +742,11 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
         return false;
     try {
         const auto directory=std::filesystem::path(path).parent_path();
+        candidate.conveyor.height_profile="conveyor";
+        candidate.conveyor2.height_profile="conveyor2";
+        const auto heights=directory/"conveyor_heights.yaml";
+        if(std::filesystem::is_regular_file(heights))
+            candidate.conveyor_heights=t170::config::load_conveyor_heights(heights.string());
         // Task-local catalog: never overwrite the four legacy/global image profiles,
         // which are also used by conveyor sessions.
         for(const std::string task:{"grasp","placement"}) for(int hand=0;hand<2;++hand) {
@@ -835,6 +804,8 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
 
 void print_move_box_config(const MoveBoxConfig &cfg)
 {
+    std::cout<<"[conveyor_height] enabled="<<cfg.conveyor_heights.enabled
+             <<" reference="<<cfg.conveyor_heights.reference_machine<<" machines="<<cfg.conveyor_heights.machines.size()<<'\n';
     std::cout<<"[arm_coordinates] sdk_mdh_model_rad pending_task_references="<<cfg.pending_model_calibrations.size()<<'\n';
     std::cout<<"[calibration] placement tilt families left="<<cfg.visual_servo.calibrated_placement[0].size()
              <<" right="<<cfg.visual_servo.calibrated_placement[1].size()<<"; tray grasp left="<<cfg.visual_servo.calibrated_tray_grasp[0].size()
@@ -855,8 +826,7 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << cfg.grasp_valid.left_y_max << "]；ArUco 列已分配时不再用盘心Y拒目标\n"
               << "[cfg] target select=同行最近、满排同时(3-6/2-5/1-4) front_row_tol="
               << cfg.grasp_zone.front_row_tolerance_m
-              << "m hand_match_xy_max=" << cfg.head_grasp.hand_match_xy_max_m
-              << "m hand_xy_refine_max=" << cfg.head_grasp.hand_xy_refine_max_m << "m\n"
+              << "m\n"
               << "[cfg] columns 分列=ArUco列号(1-3右/4-6左) yaml回退split_y="
               << cfg.grasp_zone.column_split_y
               << " pitch=" << cfg.grasp_zone.hole_pitch_m
@@ -898,7 +868,6 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << "m fuse_frames=" << cfg.tray.fuse_frames << "\n"
               << "[cfg] hand_z hover_above=" << cfg.head_grasp.hover_above_m
               << "m z_offset=" << cfg.head_grasp.grasp_z_offset_m
-              << "m use_hand_camera=" << (cfg.head_grasp.use_hand_camera ? "on" : "off")
               << "\n"
               << "[cfg] grasp offset left xyz=(" << cfg.head_grasp.goal_x_offset
               << "," << cfg.head_grasp.goal_y_offset << ","
@@ -906,10 +875,7 @@ void print_move_box_config(const MoveBoxConfig &cfg)
               << cfg.head_grasp.right_goal_x_offset << ","
               << cfg.head_grasp.right_goal_y_offset << ","
               << cfg.head_grasp.right_grasp_z_offset_m << ")"
-              << "m hand_xy left=(" << cfg.head_grasp.hand_left.offset_x << ","
-              << cfg.head_grasp.hand_left.offset_y << ") right=("
-              << cfg.head_grasp.hand_right.offset_x << ","
-              << cfg.head_grasp.hand_right.offset_y << ")\n"
+              << "m\n"
               << "[cfg] row_rpy left"
               << " ready1(row3/6)=(" << cfg.head_grasp.left_row_rpy_deg[0].rx << ","
               << cfg.head_grasp.left_row_rpy_deg[0].ry << ","

@@ -1,0 +1,17 @@
+{
+  "candidate_tag": "v1.0.0-rc.1",
+  "base_commit": "8f3b8bf0969a9379aed01ac1770a035d6dd65571",
+  "offline_platform": "darwin",
+  "quick_web_fields": 98,
+  "no124_cpp_effective_byte_identical": true,
+  "effective_cpp_sha256": "c263189a6c88f5963434073fd57013bbf6859c95a738a4ee3ac8cf742df6be00",
+  "no124_resource_sha256": {
+    "left_hand_to_base_result.yaml": "79b554e5d237654ae6d6c1f20435dafa6ebc3cccaeaea4a46861900b8884fa72",
+    "right_hand_to_base_result.yaml": "c679115c936b875ea90e8a0289325a1edd5361b64cebfdd21a0e7ed8fdcedffc",
+    "head/geometry.yaml": "e15a8d9e7421ebb1ec78ad1bb6e9973c787a56863ac4aff637ebfbdfd37ad1ab",
+    "head/extrinsics_urdf.yaml": "39c73e1c95d64301e204930805225d63b8833556ad824cba4346b444f96a8b82",
+    "Robot_Model.yaml": "30a4b409e61723736ff513690f7521d94db68634d51fbabef4e3f451bd3d1d79",
+    "arm_frames.yaml": "c878b4a223e695d65fc51d2bc49b7134993071d6e8259987dd36828c10c25b34"
+  },
+  "validation_scope": "Offline C++ loader, compile checks, HTTP integration and fake-process install/relocation. No physical robot or native Linux release binary."
+}

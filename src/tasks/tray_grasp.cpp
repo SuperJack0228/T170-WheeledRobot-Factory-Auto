@@ -76,11 +76,11 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
     if(!g_move_cfg.cameras.hand_descent_correct)
         return reject_configuration("料盘抓取要求开启 cameras.hand_descent_correct；尚未执行准备动作");
 
-    if(g_move_cfg.cameras.hand_descent_correct || g_move_cfg.head_grasp.use_hand_camera) {
+    if(g_move_cfg.cameras.hand_descent_correct) {
         for(bool right:{false,true}) {
             if((right && right_arm_motors_locked()) || !g_hw->g->hasSide(right?gripper::Side::Right:gripper::Side::Left))continue;
             const int hand=right?1:0;
-            if(!g_move_cfg.head_grasp.use_hand_camera && g_move_cfg.visual_servo.profiles[hand].mode!="geometry" &&
+            if(g_move_cfg.visual_servo.profiles[hand].mode!="geometry" &&
                g_move_cfg.visual_servo.calibrated_tray_grasp[hand].empty())continue;
             std::array<double,16> eye;std::string error;
             if(!load_cam2robot_matrix(right?default_right_hand_to_robot_yaml_path():default_left_hand_to_robot_yaml_path(),eye,error)) {

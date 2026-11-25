@@ -38,12 +38,25 @@
         find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs calib3d objdetect)
     endif()
     t170_add_configuration()
+    add_executable(conveyor_heights_test tests/conveyor_heights_test.cpp)
+    target_link_libraries(conveyor_heights_test PRIVATE t170::configuration)
+    add_test(NAME conveyor_heights_test COMMAND conveyor_heights_test ${PROJECT_SOURCE_DIR}/config/sites/current_factory/conveyor_heights.yaml)
+    add_test(NAME conveyor_identity_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/conveyor_identity_test.py)
     add_executable(config_reload_test tests/config_reload_test.cpp)
     target_link_libraries(config_reload_test PRIVATE t170::configuration)
     add_executable(extrinsics_test tests/extrinsics_test.cpp)
     target_link_libraries(extrinsics_test PRIVATE t170::configuration)
     add_test(NAME extrinsics_test COMMAND extrinsics_test ${T170_TEST_RUNTIME})
     add_test(NAME config_reload_test COMMAND config_reload_test ${T170_TEST_RUNTIME})
+    add_test(NAME config_workspace_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/config_workspace_test.py $<TARGET_FILE:t170_config_dump>)
+    add_test(NAME release_layout_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/release_layout_test.py $<TARGET_FILE:t170_config_dump>)
+    add_executable(image_orientation_test tests/image_orientation_test.cpp)
+    target_include_directories(image_orientation_test PRIVATE include)
+    add_test(NAME image_orientation_test COMMAND image_orientation_test)
+    add_test(NAME upgrade_workspace_test COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/upgrade_workspace_test.py $<TARGET_FILE:t170_config_dump>)
     t170_add_observation_support()
     # Compile real SDK-adapter/planner/player translation units against their public
     # declarations. No fake SDK implementation is linked; robot linking is a separate gate.
@@ -55,6 +68,11 @@
     add_library(t170_skills_compilecheck OBJECT ${T170_SKILLS_SOURCES})
     target_include_directories(t170_skills_compilecheck PRIVATE include ${T170_ARM_INCLUDE_DIR} ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(t170_skills_compilecheck PRIVATE t170::configuration t170::skill_contract)
+    add_executable(tray_descent_state_test tests/tray_descent_state_test.cpp src/skills/tray/descent_state.cpp)
+    target_include_directories(tray_descent_state_test PRIVATE include ${T170_ARM_INCLUDE_DIR}
+        ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(tray_descent_state_test PRIVATE t170::configuration t170::skill_contract)
+    add_test(NAME tray_descent_state_test COMMAND tray_descent_state_test)
     set(LOWER_BODY_BUILD_EXAMPLES ON CACHE BOOL "Offline lower-body validation")
     add_subdirectory(dependencies/sdk/lower_body)
     enable_testing()
@@ -84,13 +102,13 @@
     add_executable(visual_servo_config_test tests/visual_servo_config_test.cpp)
     target_link_libraries(visual_servo_config_test PRIVATE t170::configuration)
     add_test(NAME visual_servo_config_test COMMAND visual_servo_config_test
-        ${T170_TEST_RUNTIME}/config/move_box_params.yaml)
+        ${T170_TEST_RUNTIME}/config/effective_params.yaml)
     add_executable(tray_localizer_test tests/tray_localizer_test.cpp)
     add_executable(tray_acquisition_test tests/tray_acquisition_test.cpp)
     add_executable(tray_place_latency_test tests/tray_place_latency_test.cpp)
     target_link_libraries(tray_place_latency_test PRIVATE t170::configuration t170::servo_core)
     add_test(NAME tray_place_latency_test COMMAND tray_place_latency_test
-        ${T170_TEST_RUNTIME}/config/move_box_params.yaml
+        ${T170_TEST_RUNTIME}/config/effective_params.yaml
         ${PROJECT_SOURCE_DIR}/tests/fixtures/tray_place_latency_20261106.json)
     target_link_libraries(tray_acquisition_test PRIVATE t170::tray_geometry)
     add_test(NAME tray_acquisition_test COMMAND tray_acquisition_test)

@@ -92,7 +92,6 @@ struct HandMoveState
 {
     bool move_r = false;
     bool move_l = false;
-    bool steady_timed_out = false;
     bool have_object_z_r = false;
     bool have_object_z_l = false;
     double object_z_r = 0.0;
@@ -269,24 +268,8 @@ ArmLineMoveResult run_head_approach_selective(
     bool move_r,
     bool move_l);
 
-bool on_hand_steady_timeout_abort(
-    const HandMoveState &hs,
-    bool enable_r,
-    bool enable_l,
-    Arm &arm_r,
-    Arm &arm_l);
-
-HandMoveState run_hand_detect_and_validate(
-    Arm &arm_r,
-    Arm &arm_l,
-    RealSenseMultiCam &cameras,
-    SegPoseBridge &bridge,
-    HeadAssignState &st,
-    bool enable_r,
-    bool enable_l,
-    std::string &err,
-    SegEngineId engine_id = SegEngineId::Default,
-    bool hover_z_from_hand = true);
+/** Prepare descent state from the selected head target; no wrist-depth capture. */
+HandMoveState prepare_tray_descent(const HeadAssignState &st, bool enable_r, bool enable_l);
 
 ArmLineMoveResult run_hand_approach_and_grasp(
     gripper::Gripper &g,

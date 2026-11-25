@@ -105,3 +105,9 @@ Desktop.ini
 
 # Calibration tool history is local; canonical left/right YAML stays tracked.
 config/calibration/**/*_before_*.yaml
+
+# Unified persistent configuration transaction lock.
+.t170-config.lock
+
+# Release build and staging artifacts.
+build_release/

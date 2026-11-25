@@ -41,17 +41,11 @@ int dispatch_transfer(DispatchClient &client)
         g_move_cfg.chassis.out_station, true);
     if (pick_rc < 0)
         return pick_rc;
-    if (pick_rc == kDispatchNoPartStay)
+    if (pick_rc == kDispatchNoPartStay || pick_rc == kDispatchGripperStay)
         return pick_rc;
     const bool hold_r = g_hw->last_grasped_r;
     const bool hold_l = g_hw->last_grasped_l;
     ConveyorStationConfig transfer_place = g_move_cfg.conveyor2;
-    constexpr double kTransferPlaceZBiasM = -0.005;
-    transfer_place.place_base_z_bias_m = kTransferPlaceZBiasM;
-    if (hold_r || hold_l)
-        std::cout << std::fixed << std::setprecision(4)
-                  << "[dispatch] 转运放置松手高度在基座 Z 再低 "
-                  << -kTransferPlaceZBiasM << " m，左右手都加\n";
     const int place_rc = place_while_driving(
         client, [](DispatchClient &c, int timeout_ms) { return c.apply_place_half_done(timeout_ms); },
         dispatch_msg::APPLY_PLACE_HALF, dispatch_msg::PLACE,

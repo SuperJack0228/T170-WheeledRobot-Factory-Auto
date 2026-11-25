@@ -52,7 +52,7 @@ class WebLauncherTest(unittest.TestCase):
         self.runtime = self.base / 'live runtime'
         self.config = self.runtime / 'config'
         self.config.mkdir(parents=True)
-        (self.config / 'move_box_params.yaml').write_text('{}\n')
+        (self.config / 'effective_params.yaml').write_text('{}\n')
         self.env = dict(os.environ, T170_PYTHON=sys.executable)
         for name in ('T170_ROOT', 'T170_RUNTIME_DIR', 'T170_CONFIG_DIR', 'T170_DEPLOYMENT', 'MARKET_SIMPLE_ROOT'):
             self.env.pop(name, None)
@@ -79,7 +79,7 @@ class WebLauncherTest(unittest.TestCase):
     def test_custom_live_config_replaces_stale_config_environment(self):
         custom = self.base / 'custom config'
         custom.mkdir()
-        (custom / 'move_box_params.yaml').write_text('{}\n')
+        (custom / 'effective_params.yaml').write_text('{}\n')
         self.env['T170_CONFIG_DIR'] = str(self.base / 'stale')
         with factory_reply({'ok': True, 'runtime_root': str(self.runtime),
                             'config_dir': str(custom)}) as port:

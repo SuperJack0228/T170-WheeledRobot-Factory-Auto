@@ -60,12 +60,28 @@ using std::thread;
 
 namespace orch {
 void log_belt_used_box(const char *name,const char *role,int index,const BeltPartMark &part);
-void apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfig &c, const char *tag)
+bool apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfig &c, const char *tag)
 {
-    if (!c.use_fixed_origin_z || !det.in_robot || !std::isfinite(det.origin_z))
-        return;
+    const auto &catalog=g_move_cfg.conveyor_heights;
+    if (!catalog.enabled && !c.use_fixed_origin_z)return true;
+    if (!det.in_robot || !std::isfinite(det.origin_z))return false;
     const double cam_z = det.origin_z;
-    const double plane_z = c.fixed_plane_z();
+    double plane_z = c.fixed_plane_z();
+    if(catalog.enabled) {
+        t170::config::ConveyorHeightMatch match;std::string error;
+        if(!t170::config::match_conveyor_height(catalog,det.used_ids,c.height_profile,
+            c.fixed_origin_z_m,c.fixed_origin_ref_waist_z_m,c.waist_z,match,error)) {
+            det.ok=false;det.message=error;
+            if(g_hw){g_hw->last_belt_ok=false;g_hw->last_belt_message=error;}
+            std::cerr<<"[conveyor_height] reject task="<<tag<<" reason="<<error<<'\n';return false;
+        }
+        plane_z=match.plane_z_m;
+        std::cout<<std::fixed<<std::setprecision(4)<<"[conveyor_height] task="<<tag
+            <<" machine="<<match.machine.machine_id<<" business="<<match.machine.business_id
+            <<" info_id="<<match.machine.info_id<<" qr_plane_height_cm="<<match.machine.qr_plane_height_m*100
+            <<" reference="<<catalog.reference_machine<<" delta_m="<<match.delta_height_m
+            <<" waist_z_m="<<c.waist_z<<" plane_z_m="<<plane_z<<'\n';
+    }
     const double dz = plane_z - cam_z;
     det.origin_z = plane_z;
     if (det.have_grasp_l && std::isfinite(det.grasp_lz))
@@ -78,6 +94,7 @@ void apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfi
               << "m（标定腰 " << c.fixed_origin_ref_waist_z_m
               << "m 时 " << c.fixed_origin_z_m
               << "m，当前腰 " << c.waist_z << "m）ΔZ=" << dz << "m\n";
+    return true;
 }
 
 const char *belt_yolo_class_zh(int class_id)
@@ -502,7 +519,7 @@ static int count_fallen_near_place_points(
         std::cerr << "[orch] " << name << " 放置确认二维码失败\n";
         return kVisionQrFail;
     }
-    apply_fixed_belt_origin_z(perc.belt, c, name);
+    if(!apply_fixed_belt_origin_z(perc.belt, c, name))return kVisionQrFail;
     const BeltPartList parts = detect_belt_parts_full(
         bridge, perc.frame, c, perc.belt, name, perc.yolo_ran ? &perc.yolo : nullptr);
     if (!parts.ok)

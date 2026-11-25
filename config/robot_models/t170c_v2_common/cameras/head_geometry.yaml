@@ -1,0 +1,2 @@
+link_length_mm: 162.0
+camera_to_head_yaml: extrinsics_urdf.yaml

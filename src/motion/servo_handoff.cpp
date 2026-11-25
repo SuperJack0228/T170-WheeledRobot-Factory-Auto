@@ -12,6 +12,7 @@
 #include <sstream>
 #include <filesystem>
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <thread>
 #include <cctype>
@@ -102,7 +103,8 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
     const char *log_tag,
     const bool snap_reach,
     const bool correct_descent,
-    const int hand_target_class)
+    const int hand_target_class,
+    const std::function<void()> &on_return_started)
 {
     const bool visual = correct_descent && g_move_cfg.cameras.hand_descent_correct;
     if(move_r) wrist_servo::invalidate_result(1);
@@ -166,8 +168,21 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(
             if (visual)
                 ret = execute_descent_table(traj, hand, g_planned_descent_row[hand], arm, goal,
                                             vel_second_m_s, hand_target_class,log_tag);
-            else
-                ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt, use_prepared ? &arm : nullptr);
+            else {
+                int notify_row=-1;
+                if(on_return_started) {
+                    const int stitch=g_planned_descent_row[hand];
+                    const int last=static_cast<int>(traj.rows())-1;
+                    if(stitch>=0 && last>=stitch) {
+                        // Same point as a grasp return: 40% along the path back to ready,
+                        // after the vertical lift segment has already been commanded.
+                        notify_row=stitch+static_cast<int>(std::ceil(0.40*(last-stitch)));
+                        if(notify_row>last) notify_row=last;
+                    }
+                }
+                ret = execute_arm_trajectory(traj, hand, k_arm_traj_dt, use_prepared ? &arm : nullptr,
+                                            {}, on_return_started, notify_row);
+            }
         } catch(const std::exception &ex) {
             std::cerr << "[servo] hand=" << hand << " execution exception: " << ex.what() << std::endl;
             wrist_servo::ObservationContext context;

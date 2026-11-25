@@ -31,7 +31,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix='t170-parameter-index-') as temporary:
             runtime=Path(temporary)/'runtime'
             record=resolve(ROOT,manifest,runtime)
-            config=yaml.safe_load((runtime/'config/move_box_params.yaml').read_text())
+            config=yaml.safe_load((runtime/'config/effective_params.yaml').read_text())
             print(f"robot={record['robot_id']} model={record['robot_model']} deployment={manifest.resolve()}")
             selected=[key for key in sorted(record['parameter_sources']) if args.query.lower() in key.lower()]
             for key in selected:

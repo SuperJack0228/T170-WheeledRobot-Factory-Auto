@@ -12,7 +12,6 @@ template<class D> YAML::Node encode(const Eigen::MatrixBase<D> &v) {
  for(int i=0;i<v.rows();++i) {YAML::Node row(YAML::NodeType::Sequence);for(int j=0;j<v.cols();++j)row.push_back(v(i,j));n.push_back(row);}return n;
 }
 YAML::Node encode(const ArmPosePairConfig &);
-YAML::Node encode(const HandXyOffsetConfig &);
 YAML::Node encode(const GraspRpyDeg &);
 YAML::Node encode(const XyzOffsetM &);
 YAML::Node encode(const TrayHeightConfig &);
@@ -43,12 +42,6 @@ YAML::Node encode(const ArmPosePairConfig &v) {
  YAML::Node n;
  n["right"] = encode(v.right);
  n["left"] = encode(v.left);
- return n;
-}
-YAML::Node encode(const HandXyOffsetConfig &v) {
- YAML::Node n;
- n["offset_x"] = encode(v.offset_x);
- n["offset_y"] = encode(v.offset_y);
  return n;
 }
 YAML::Node encode(const GraspRpyDeg &v) {
@@ -102,11 +95,6 @@ YAML::Node encode(const HeadGraspConfig &v) {
  n["adaptive_approach_rpy_tol_deg"] = encode(v.adaptive_approach_rpy_tol_deg);
  n["head_approach_z_descend"] = encode(v.head_approach_z_descend);
  n["grasp_z_offset_m"] = encode(v.grasp_z_offset_m);
- n["use_hand_camera"] = encode(v.use_hand_camera);
- n["hand_match_xy_max_m"] = encode(v.hand_match_xy_max_m);
- n["hand_xy_refine_max_m"] = encode(v.hand_xy_refine_max_m);
- n["hand_right"] = encode(v.hand_right);
- n["hand_left"] = encode(v.hand_left);
  n["lift_after_grasp_z"] = encode(v.lift_after_grasp_z);
  n["bezier_endpoint_xyz_tol_m"] = encode(v.bezier_endpoint_xyz_tol_m);
  n["bezier_endpoint_rpy_tol_deg"] = encode(v.bezier_endpoint_rpy_tol_deg);
@@ -124,7 +112,6 @@ YAML::Node encode(const HeadGraspConfig &v) {
  n["retract_connector_jerk_rad_s3"] = encode(v.retract_connector_jerk_rad_s3);
  n["retract_connector_max_s"] = encode(v.retract_connector_max_s);
  n["pre_grasp_settle_sec"] = encode(v.pre_grasp_settle_sec);
- n["hand_detect_invalid_redo_max"] = encode(v.hand_detect_invalid_redo_max);
  return n;
 }
 YAML::Node encode(const GraspValidConfig &v) {
@@ -242,7 +229,6 @@ YAML::Node encode(const ConveyorStationConfig &v) {
  n["grasp_descend_vel_m_s"] = encode(v.grasp_descend_vel_m_s);
  n["next_hand_clearance_m"] = encode(v.next_hand_clearance_m);
  n["next_hand_clearance_timeout_s"] = encode(v.next_hand_clearance_timeout_s);
- n["place_base_z_bias_m"] = encode(v.place_base_z_bias_m);
  n["grasp_waist_yaw_deg"] = encode(v.grasp_waist_yaw_deg);
  n["grasp_ready_close_ratio"] = encode(v.grasp_ready_close_ratio);
  n["yolo_roi_enable"] = encode(v.yolo_roi_enable);
@@ -313,6 +299,15 @@ YAML::Node encode(const RetractMotionConfig &v) {
 }
 YAML::Node encode(const MoveBoxConfig &v) {
  YAML::Node n;
+ n["conveyor_heights"]["enabled"]=v.conveyor_heights.enabled;
+ n["conveyor_heights"]["reference_machine"]=v.conveyor_heights.reference_machine;
+ n["conveyor_heights"]["machines"]=YAML::Node(YAML::NodeType::Sequence);
+ for(const auto &entry:v.conveyor_heights.machines) {
+     YAML::Node row;row["machine_id"]=entry.machine_id;row["business_id"]=entry.business_id;
+     row["locate_id"]=entry.locate_id;row["info_id"]=entry.info_id;
+     row["operation_profile"]=entry.operation_profile;row["qr_plane_height_m"]=entry.qr_plane_height_m;
+     n["conveyor_heights"]["machines"].push_back(row);
+ }
  n["pending_model_calibrations"] = encode(v.pending_model_calibrations);
  n["standby"] = encode(v.standby);
  n["home_tcp"] = encode(v.home_tcp);

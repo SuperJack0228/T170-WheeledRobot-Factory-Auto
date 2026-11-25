@@ -46,8 +46,9 @@ public:
     /** 服务已打开相机后的那台对象。未启动时为空。 */
     static RealSenseMultiCam *live();
 
-    /** 右手相机：RGB/深度旋转 180° 并修正内参；头/左手原样返回 */
-    static CameraFrameData prepare_frame_for_slot(CameraFrameData frame, CameraSlot slot);
+    /** grab 系列统一返回已按本机配置定向的图像和内参。 */
+    CameraFrameData prepare_frame_for_slot(CameraFrameData frame, CameraSlot slot) const;
+    int image_rotation_deg(CameraSlot slot) const;
 
     /** 夹取抬起后保存手相机图：~/左右手夹取/右手|左手/时间戳.jpg（各 1 次） */
     void save_grasp_hand_camera_snapshots(bool save_right, bool save_left);

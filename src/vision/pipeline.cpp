@@ -136,8 +136,6 @@ HeadBeltPerception perceive_belt(
     }
     camera.flush(CameraSlot::Head);
     out.frame = camera.grab_wait(CameraSlot::Head);
-    out.frame =
-        RealSenseMultiCam::prepare_frame_for_slot(std::move(out.frame), CameraSlot::Head);
     if (!out.frame.ok)
     {
         out.belt.message = "取帧失败";
@@ -218,8 +216,6 @@ HeadBeltPerception perceive_belt_head(
         HeadBeltPerception out;
         cam.flush(CameraSlot::Head);
         out.frame = cam.grab_wait(CameraSlot::Head);
-        out.frame =
-            RealSenseMultiCam::prepare_frame_for_slot(std::move(out.frame), CameraSlot::Head);
         out.belt.message = "传送带引擎未就绪";
         return out;
     }

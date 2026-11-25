@@ -1,0 +1,44 @@
+name: right_rgb_rotated_180_in_wrist_flange
+camera_model: D405
+source: T170C_10/urdf/camera nominal.D405
+parent_frame: urdf_wrist
+transform_direction: parent_from_camera_optical
+parent_link: R_WRIST_R_S
+image_convention: rgb_rotated_180
+urdf_xyz_m:
+- 0.166152566551
+- -0.00911259333
+- 0.060686286254
+urdf_rpy_rad:
+- -2.070194970649
+- 0.002205594683
+- -1.569687505524
+a. matrix:
+- - 0.001108818347
+  - -0.478899564811
+  - 0.877868997827
+  - 166.152566551
+- - -0.999996952936
+  - 0.001405212346
+  - 0.002029654258
+  - -9.11259333
+- - -0.002205592895
+  - -0.877868573422
+  - -0.478896547448
+  - 60.686286254
+- - 0
+  - 0
+  - 0
+  - 1
+frame: rgb_from_camera_model
+urdf_joint: R_CAMERA_ROT180
+child_link: R_CAMERA_ROT180_S
+direct_joint_parent: R_CAMERA_S
+translation_xyz_mm:
+- 166.152566551
+- -9.11259333
+- 60.686286254
+euler_angles_xyz_deg:
+- -118.613434587413
+- 0.126371266666
+- -89.936469220925

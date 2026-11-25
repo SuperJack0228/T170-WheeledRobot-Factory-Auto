@@ -55,7 +55,9 @@ class ProfileStore:
         return path
 
     def selected(self) -> str:
-        selected = inside(self.selector.parent, str(read(self.selector)["manifest"]))
+        value=read(self.selector).get("manifest")
+        if not value:return ""
+        selected = inside(self.selector.parent, str(value))
         return str(selected.relative_to(self.root))
 
     def list(self) -> dict:
@@ -72,7 +74,8 @@ class ProfileStore:
                     "models": list(MODELS), "source_root": str(self.root)}
 
     def update(self, payload: dict) -> dict:
-        with _lock:
+        from t170_common.config_workspace import ConfigWorkspace
+        with _lock, ConfigWorkspace(self.root).locked():
             if payload.get("expected_manifest") != self.selected():
                 raise ValueError("档案选择已被其他页面修改，请刷新后重试")
             model = payload.get("robot_model")
@@ -116,19 +119,37 @@ class ProfileStore:
         host = str(payload.get("host", "")).strip()
         if not host or len(host) > 253 or not re.fullmatch(r"[a-zA-Z0-9.:-]+", host):
             raise ValueError("请填写底盘 IP 或主机名")
-        # Copy reusable IO/tool/pose settings only. Per-robot hand-eye and wrist
-        # calibration are deliberately absent until the engineer imports them.
+        # Copy reusable IO/tool/pose settings; camera geometry defaults to the
+        # common nominal model. Task image references remain robot-specific.
         try:
             shutil.copytree(inside(self.root, "config/robots/" + old_id), destination)
             identity = read(destination / "identity.yaml")
             identity["chassis"].update(sequence_number=robot_id, host=host)
             atomic_yaml(destination / "identity.yaml", identity)
+            camera_file=destination / 'cameras/realsense_cameras.yaml'
+            cameras=read(camera_file)
+            from t170_common.camera_nominal import image_rotations
+            from t170_common.installation import rotate_reference_pixels
+            previous=image_rotations(cameras)
+            changed=[side for side,rotation in previous.items() if rotation!=({'left':0,'right':180}[side])]
+            dimensions={'width':1280,'height':720}
+            for name in template['layers']:
+                layer=read(inside(self.root,name))
+                dimensions.update({key:value for key,value in layer.get('cameras',{}).items() if key in dimensions})
+            pixels=destination/'reference_pixels.yaml'
+            if changed and pixels.is_file():
+                atomic_yaml(pixels,rotate_reference_pixels(read(pixels),changed,dimensions['width'],dimensions['height']))
+            cameras['realsense']['left_hand']['image_rotation_deg']=0
+            cameras['realsense']['right_hand']['image_rotation_deg']=180
+            atomic_yaml(camera_file,cameras)
             calibration.mkdir(parents=True)
             (calibration / "tasks").mkdir()
             (calibration / "tasks/.gitkeep").touch()
             doc = json.loads(json.dumps(template).replace("config/robots/" + old_id + "/", "config/robots/" + robot_id + "/")
                              .replace("config/calibration/" + old_id + "/", "config/calibration/" + robot_id + "/"))
             doc.update(robot_id=robot_id, robot_model=payload["robot_model"])
+            from t170_common.camera_nominal import nominal_files
+            doc['files'].update(nominal_files())
             atomic_yaml(manifest, doc)
         except BaseException:
             shutil.rmtree(destination, ignore_errors=True)
@@ -136,4 +157,4 @@ class ProfileStore:
             manifest.unlink(missing_ok=True)
             raise
         return {"ok": True, "manifest": str(manifest.relative_to(self.root)), "restart_required": False,
-                "message": "档案已创建。先按列表路径导入本机标定文件，再选择为下次启动档案；未复制其他机器人的标定。"}
+                "message": "档案已创建，默认使用理论手眼。核对本机相机 SN，选择为下次启动档案后，通过向导建立本机抓放参考。"}

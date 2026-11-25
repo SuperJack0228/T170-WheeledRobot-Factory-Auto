@@ -48,11 +48,6 @@ bool head_move_allowed_right(
 bool head_move_allowed_left(
         const double left_hand_pos[3],
         const Eigen::Matrix<double, 1, 6> &goal_last_l);
-void apply_hand_hover_z_if_valid(
-        const Eigen::Matrix<double, 1, 6> &base_pos,
-        Eigen::Matrix<double, 1, 6> &goal_last);
-void record_hand_object_z(HandMoveState &hs, bool is_right, bool matched,
-                              const Eigen::Matrix<double, 1, 6> &base_pos);
 bool apply_final_grasp_z_from_hand(
         const char *hand,
         bool is_right,

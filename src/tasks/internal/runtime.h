@@ -32,6 +32,7 @@ inline constexpr double kBeltGraspWinYMaxM = 0.13;
 inline constexpr int kBeltGraspEmpty = 11;
 inline constexpr int kBeltNoPartVision = 12;
 inline constexpr int kBeltFallen = 13;
+inline constexpr int kBeltGripperNotReady = 15;
 inline constexpr int kBeltHandSkip = 14;
 inline constexpr int kEmptyRight = 1;
 inline constexpr int kEmptyLeft = 2;
@@ -39,6 +40,7 @@ inline constexpr int kDispatchApplyTimeoutMs = 20000;
 inline constexpr int kDispatchNextMissionWaitMs = 20000;
 inline constexpr int kDispatchHoldStay = 9;
 inline constexpr int kDispatchNoPartStay = 13;
+inline constexpr int kDispatchGripperStay = 17;
 inline constexpr int kDispatchPointsMissing = 7;
 extern HwSession *g_hw;
 extern int g_load_parts_seen;
@@ -156,7 +158,7 @@ enum class DispatchNote
     Mission
 };
 int waist_rotate_deg(double yaw_deg, double speed_deg_s);
-void apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfig &c, const char *tag);
+bool apply_fixed_belt_origin_z(BeltDetectResult &det, const ConveyorStationConfig &c, const char *tag);
 int conveyor_waist_and_head(const ConveyorStationConfig &c, const char *tag);
 const char *belt_yolo_class_zh(int class_id);
 void log_gripper_qs(const char *tag);

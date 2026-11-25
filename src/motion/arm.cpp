@@ -243,7 +243,7 @@ int Arm::Approach_Stroke(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
     std::sort(ranked.begin(),ranked.end(),[](const auto &a,const auto &b){return a.first<b.first;});
     std::clog<<"[arm_stroke] side="<<definition_.side<<" candidates="<<candidates.size()<<" feasible="<<ranked.size()<<'\n';
     for(const auto &[cost,q]:ranked) {
-        const int code=approach_to_joints(start,guide,q,out,speed,.03);
+        const int code=approach_to_joints(start,guide,q,out,speed,.15);
         double score=0;
         if(code==0 && preview(ArmJoints(out.bottomRows(1)),score)) {
             std::clog<<"[arm_stroke] side="<<definition_.side<<" score="<<cost<<" selected_model_deg="<<out.bottomRows(1)*180/M_PI<<'\n';return 0;
