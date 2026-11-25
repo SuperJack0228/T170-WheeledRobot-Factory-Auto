@@ -22,6 +22,7 @@ CHECKER = sys.argv.pop(1)
 from t170_common.config_workspace import ConfigWorkspace, atomic_write
 from t170_common.deployment import resolve
 from t170_common.camera_nominal import hand_eye_for_servo, SERVO_IMAGES
+from t170_common.arm_model import pose_matrix
 from web_debug.profiles import ProfileStore
 
 
@@ -156,16 +157,36 @@ class WorkspaceTest(unittest.TestCase):
                 'template': store.selected(), 'robot_id': robot, 'robot_model': 't170c_v2_'+model+'kg', 'host': '192.168.192.6'})
             run = self.base / robot; record = resolve(self.root, self.root / result['manifest'], run)
             self.assertEqual(len(record['missing_task_calibrations']), 4)
-            frames = yaml.safe_load((run / 'config/arm_frames.yaml').read_text())
+            sdk = yaml.safe_load((run / 'config/Robot_Model.yaml').read_text())['T7_170']
+            controls = yaml.safe_load((run / 'config/effective_params.yaml').read_text())
             for side in ('left', 'right'):
                 source = yaml.safe_load((self.root / ('config/robot_models/t170c_v2_common/cameras/'+side+'_nominal.yaml')).read_text())
                 actual = yaml.safe_load((run / ('config/'+side+'_hand_to_base_result.yaml')).read_text())
-                expected = np.array(frames[side]['sdk_flange_from_urdf_wrist']); expected[:3,3] *= 1000
-                expected = expected @ np.array(source['a. matrix'])
-                np.testing.assert_allclose(actual['a. matrix'], expected, atol=1e-10)
+                eye = np.array(actual['a. matrix'], dtype=float); eye[:3,3] *= .001
+                nominal = np.array(source['a. matrix'], dtype=float); nominal[:3,3] *= .001
+                # Independent physical invariant: model/frame selection must not
+                # change camera relative to TCP, just as for verified No.124.
+                expected = np.linalg.inv(np.array(pose_matrix([.26,0,0,0,0,0]))) @ nominal
+                tcp_camera = np.linalg.inv(np.array(pose_matrix(sdk[side]['tool']))) @ eye
+                np.testing.assert_allclose(tcp_camera, expected, rtol=0, atol=1e-12)
+                self.assertEqual(actual['source_parent_frame'], 'legacy_t7_flange')
                 self.assertEqual(actual['image_convention'], SERVO_IMAGES[side])
-                # Rotation changes only axes; camera centre stays in the same place.
-                np.testing.assert_allclose(np.array(actual['a. matrix'])[:3,3], expected[:3,3], atol=1e-10)
+                # All deployed grasp rows and placement attitudes must look down.
+                attitudes = controls['head_grasp']['row_grasp_rpy_deg'][side]
+                attitudes = attitudes + [controls['tray2_place']['rpy_deg'][side]]
+                for attitude in attitudes:
+                    rotation = np.array(pose_matrix([0,0,0,*np.deg2rad(attitude)]))[:3,:3]
+                    self.assertLess((rotation @ tcp_camera[:3,:3])[2,2], -.8)
+
+                # No.120 field reference: a valid ray in front of the camera.
+                if side == 'left':
+                    pose = [.48917521546373061,.093176383946879951,-.40726104702148724,
+                            .080424079262245304,.95963661157112246,-.87145646508166719]
+                    camera = np.array(pose_matrix(pose)) @ tcp_camera
+                    ray = np.array([(718.85862516212705-643.52227783203125)/656.799560546875,
+                                    (462.80770809185265-366.93551635742188)/656.2257080078125,1.])
+                    depth = (-.41645478616154102-camera[2,3])/(camera[:3,:3] @ ray)[2]
+                    self.assertAlmostEqual(depth, .11608143755036156, places=10)
 
 
 class PersistentHTTPTest(unittest.TestCase):

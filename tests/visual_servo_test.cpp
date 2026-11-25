@@ -54,6 +54,44 @@ void test_mapping() {
     check(!map_observation(p,o,s,0,origin,R).valid,"no table extrapolation");
 }
 
+void test_no120_nominal_camera_reference() {
+    // No.120 manual grasp reference from the 2026-11-25 field failure. The
+    // deployment regression separately checks this TCP-camera relation against
+    // BOTH model materializers and their actual nominal YAML files.
+    ImageProfile p; p.plane_relative_reference=true;
+    p.reference_tcp_above_plane_m=.0091937391400537805;
+    p.reference_px << 718.85862516212705,462.80770809185265;
+    State s=state_at(1,Vec3(.48917521546373061,.093176383946879951,-.40726104702148724));
+    s.rotation=(Eigen::AngleAxisd(-.87145646508166719,Vec3::UnitZ()) *
+                Eigen::AngleAxisd(.95963661157112246,Vec3::UnitY()) *
+                Eigen::AngleAxisd(.080424079262245304,Vec3::UnitX())).toRotationMatrix();
+    auto o=observation_at(1,1);o.fx=656.799560546875;o.fy=656.2257080078125;
+    o.cx=643.52227783203125;o.cy=366.93551635742188;o.pixel=p.reference_px;
+    Eigen::Matrix3d camera_rotation;
+    camera_rotation << -.000307009783,-.499210220488,.866480848897,
+                       -.999922068052,-.010660888656,-.006496404902,
+                       .012480527576,-.866415316816,-.499168043065;
+    const Vec3 camera_offset(-.092341777575,.009609872479,.056442580002);
+    const Eigen::Matrix3d R=s.rotation*camera_rotation;
+    const Vec3 origin=s.position+s.rotation*camera_offset;
+    const double final_z=-.41645478616154102;
+    auto m=map_observation(p,o,s,final_z,origin,R);
+    check(m.valid,"No120 nominal reference must intersect the plane in front of the camera");
+    near(m.depth_m,.11608143755036156,1e-9,"No120 corrected reference depth");
+    near(m.remaining_m.norm(),0,1e-10,"No120 taught reference is aligned");
+    const Vec3 ray((o.pixel.x()-o.cx)/o.fx,(o.pixel.y()-o.cy)/o.fy,1);
+    const Vec3 feature=origin+R*(m.depth_m*ray);
+    for(double above:{.12,.06,.02,p.reference_tcp_above_plane_m}) {
+        s.position.z()=final_z+above;
+        const Vec3 now=s.position+s.rotation*camera_offset;
+        const Vec3 point=R.transpose()*(feature-now);
+        o.pixel << o.cx+o.fx*point.x()/point.z(),o.cy+o.fy*point.y()/point.z();
+        m=map_observation(p,o,s,final_z,now,R);
+        check(m.valid,"No120 corrected geometry stays valid throughout descent");
+        near(m.remaining_m.norm(),0,1e-9,"height compensation must not invent XY correction");
+    }
+}
+
 void test_history_and_delay() {
     StateHistory history;
     history.push(state_at(1,Vec3(0,0,.1)));
@@ -453,7 +491,8 @@ void test_baseline_conveyor_sample_limit() {
 
 int main() {
     try {
-        test_mapping(); test_tilted_geometry(); test_history_and_delay(); test_braking_and_loss();
+        test_mapping(); test_no120_nominal_camera_reference(); test_tilted_geometry();
+        test_history_and_delay(); test_braking_and_loss();
         test_continuous_grasp_observations(); test_baseline_conveyor_sample_limit();
         test_commit_evidence(); test_local_pose_solver();
         test_delayed_dual_arm_simulation(); test_trace_and_config();

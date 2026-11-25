@@ -2,6 +2,53 @@
 
 版本 1.0.0。程序和持久配置同目录，日志及运行快照独立保存。已交付的 rc.3 使用旧工作区布局；本次源码调整需要重新构建新版运行包后生效。`move_box_params.yaml` 已退出当前运行链路。首次发布和全新机器人部署见 [V1.0.0 发布与首次部署](V1_RELEASE_AND_FIRST_DEPLOYMENT.md)，已有机器人升级见 [运行包升级说明](PACKAGE_UPGRADE.md)，十台机床高度配置见 [信息码与高度绑定](CONVEYOR_HEIGHT_BINDINGS.md)。
 
+## 现场开发迭代
+
+尚在调试的机器人采用源码模式。Mac 修改并推送当前开发分支，测试机器人直接拉取、增量编译并启动，不经过 124 中转，不生成 TGZ，不修改版本号或建立标签。正式验收通过后再统一打包发布。
+
+### No.120 一次性切换到源码模式
+
+停止旧包主程序和网页，在 No.120 已配置 SDK、编译依赖和视觉环境的 Linux 主机执行：
+
+```bash
+git clone --branch deployment1117 \
+  git@github.com:SuperJack0228/T170-WheeledRobot-Factory-Auto.git "$HOME/T170-dev"
+cd "$HOME/T170-dev"
+conda activate human_interaction_env
+```
+
+将下方变量改为 No.120 当前实际运行包的绝对路径，只迁入本机档案、相机信息、快捷参数和标定；共享代码与理论配置使用新源码中的版本。
+
+```bash
+T170_PREVIOUS_PACKAGE=/home/ti5robot/实际运行包目录
+cp -a "$T170_PREVIOUS_PACKAGE/config/robots/TH-T170C-0120" config/robots/
+cp -a "$T170_PREVIOUS_PACKAGE/config/calibration/TH-T170C-0120" config/calibration/
+cp -a "$T170_PREVIOUS_PACKAGE/config/deployments/TH-T170C-0120.yaml" config/deployments/
+unset T170_WORKSPACE T170_ROOT T170_RUNTIME_DIR T170_CONFIG_DIR T170_DEPLOYMENT T170_BINARY_ROOT
+./deploy/setup_robot.sh TH-T170C-0120 --model 3
+```
+
+已有档案会被选择，不重新生成相机 SN 和快捷参数。旧包保留作为回退目录。手眼或模型实际变化时，仍需完成对应参考记录的兼容处理；切换更新方式不自动消除标定指纹失配，当前理论手眼修复见下文。
+
+### 每次更新测试
+
+Mac 提交并推送后，在 No.120 退出主程序和网页，再执行：
+
+```bash
+cd "$HOME/T170-dev"
+conda activate human_interaction_env
+./deploy/update_dev.sh
+./deploy/run_maintenance.sh
+```
+
+另开终端，在同一源码目录和视觉环境执行 `./deploy/run_web.sh`。源码改动通过增量编译生成 `build_robot/t170_factory`，无需再次建档或迁入旧包。反馈问题时同时提供更新脚本打印的提交号和本次日志，以提交号区分测试批次。
+
+`update_dev.sh` 仅执行当前分支的 `git pull --ff-only`、CMake 配置及增量构建，不自动切换分支、提交、清理参数或发布。Git 检测到本地修改冲突时会停止，不执行强制覆盖。No.120 本机参数继续保存在源码目录的 `config/robots/TH-T170C-0120/`，标定在 `config/calibration/TH-T170C-0120/`；共享配置随代码正常更新。
+
+仅修改 Python、网页或 YAML 时通常无需编译 C++，重启对应服务或执行 `./deploy/apply_config.sh` 即可；不确定改动类型时统一执行开发更新入口。CMake 会复用已有构建结果，只编译受影响的 C++ 部分。
+
+稳定后再更新版本号、冻结提交、建立标签并执行 `packaging/build_release.sh`，将经过验收的运行包交付其他机器人。
+
 ## 日常调参
 
 维护网页顶部可选择当前调试的机床组，并显示料盘一、传送带一、传送带二、料盘二的生效站点。切换只保存和应用配置，不立即导航；例如第 2 组的“传送带二 · 抓取”导航至 AP8。选择成功后重启仍保留。动作或标定中切换会被拒绝，维持原组。
@@ -43,7 +90,32 @@
 ./deploy/run_web.sh
 ```
 
-新档案默认使用头、左右手相机的理论值，来源在 `config/robot_models/t170c_v2_common/cameras/`。理论值从 URDF 腕部转换到所选 SDK 法兰。标准图像方向为左手原图、右手旋转 180°；本机 `cameras/realsense_cameras.yaml` 的 `image_rotation_deg` 为统一来源。No.124 装反，明确保留左 180°／右 0° 的独立配置。新机器人仍需建立自己的左/右抓取、左/右放置四份图像参考。
+新档案默认使用头、左右手相机的理论值，来源在 `config/robot_models/t170c_v2_common/cameras/`。左右手理论矩阵以已验证 No.124 的旧法兰链路为兼容基准，声明 `parent_frame: legacy_t7_flange`，生成运行配置时转换到所选 SDK 法兰；文件中的 `parent_link` 只标识物理安装位置，不代表当前 3/5 kg URDF 的同名腕部坐标基底。标准图像方向为左手原图、右手旋转 180°；本机 `cameras/realsense_cameras.yaml` 的 `image_rotation_deg` 为统一来源。No.124 装反，明确保留左 180°／右 0° 的独立配置。新机器人仍需建立自己的左/右抓取、左/右放置四份图像参考。
+
+### 已部署默认理论值的坐标适配修复
+
+2026-11-25 的 No.120 抓取参考暴露出默认手眼父坐标声明错误。原 `urdf_wrist` 路径在该参考姿态下将光轴算成朝上，参考距离为 −0.595 m，持续触发 `reference_depth_outside_range`。改用旧法兰兼容路径后为 +0.116 m。修复保留理论矩阵数值和图像方向，不复制 No.124 的实测误差。该结果已通过离线几何和 C++ 映射回归，实际抓放精度需要真机复测。
+
+已部署机器只需更新下面两份持久源文件，随后重新启动；运行逻辑未改变，无需为此重新编译 C++：
+
+```text
+config/robot_models/t170c_v2_common/cameras/left_nominal.yaml
+config/robot_models/t170c_v2_common/cameras/right_nominal.yaml
+```
+
+若通过 `upgrade_robot.sh --from-workspace` 导入旧包，旧包的整个 `config/` 会被保留；导入后也要将这两份文件更新为修复版，不能只依赖新包初始模板。
+
+手眼变化会使原任务参考的 `eye_fingerprint` 不匹配。对使用旧默认理论值完成过示教的 No.120，停止服务后，在实际持久配置所在目录执行一次：
+
+```bash
+mv config/calibration/TH-T170C-0120/tasks \
+   "config/calibration/TH-T170C-0120/tasks_before_eye_frame_$(date +%Y%m%d_%H%M%S)"
+mkdir -p config/calibration/TH-T170C-0120/tasks/grasp \
+         config/calibration/TH-T170C-0120/tasks/placement
+./deploy/run_maintenance.sh
+```
+
+随后启动网页，通过标定向导重新建立左/右抓取、左/右放置参考。备份目录保留原始数据供核对；不手工改写指纹。新建机器人无需此迁移。No.124 的档案仍引用自身实测手眼文件，不受这两份默认值修复影响，也不需要执行上述备份命令。
 
 完成维护验证后，停止维护服务：
 
