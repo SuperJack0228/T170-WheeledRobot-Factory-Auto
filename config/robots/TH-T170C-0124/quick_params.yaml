@@ -1,13 +1,9 @@
 # Frequent operator parameters. Values are owned here, not duplicated in defaults.
 chassis:
-  belt_station: AP2
   charge_done_percent: 95
   charge_station: CP11
   charge_wait_station: AP12
   dispatch_wait_station: AP14
-  out_station: AP3
-  tray2_station: AP4
-  tray_station: AP1
 conveyor:
   fixed_origin_ref_waist_z_m: 0.63
   fixed_origin_z_m: -0.29
@@ -15,11 +11,11 @@ conveyor:
   grasp_hover_above_m: 0.1
   grasp_offset:
     left:
-      x: 0.083
-      y: 0.11
-      z: 0.01
+      x: 0.05
+      y: 0.12
+      z: 0.0
     right:
-      x: 0.0
+      x: -0.03
       y: 0.12
       z: 0.0
   grasp_photo_settle_sec: 1
@@ -28,13 +24,13 @@ conveyor:
   head_pitch_deg: 38
   offset:
     left:
-      x: -0.06
+      x: -0.07
       y: -0.015
-      z: 0.01
+      z: 0.0
     right:
       x: 0.0
-      y: 0.01
-      z: 0.01
+      y: -0.015
+      z: 0.0
   photo_after_arrival_sec: 2.0
   place_approach_vel_m_s: 0.35
   place_hover_above_m: 0.06
@@ -48,25 +44,25 @@ conveyor2:
   grasp_hover_above_m: 0.09
   grasp_offset:
     left:
-      x: 0.072
-      y: 0.109
-      z: -0.01
+      x: 0.05
+      y: 0.12
+      z: 0.0
     right:
       x: -0.03
-      y: 0.135
-      z: -0.016
+      y: 0.12
+      z: 0.0
   grasp_photo_settle_sec: 1.0
   grasp_retract_vel_m_s: 0.6
   head_pitch_deg: 38
   offset:
     left:
-      x: -0.06
+      x: -0.07
       y: -0.015
-      z: -0.005
+      z: 0.0
     right:
       x: 0.0
-      y: 0.008
-      z: -0.005
+      y: -0.015
+      z: 0.0
   photo_after_arrival_sec: 2.0
   place_approach_vel_m_s: 0.3
   place_hover_above_m: 0.06
@@ -85,17 +81,17 @@ head_grasp:
   approach_vel_m_s: 0.4
   bezier_endpoint_xyz_tol_m: 0.008
   descend_vel_m_s: 0.1
-  goal_x_offset: 0.04
+  goal_x_offset: 0.0
   goal_y_offset: 0.0
-  grasp_z_offset_m: -0.01
+  grasp_z_offset_m: 0.0
   hover_above_m: 0.12
   lift_after_grasp_z: 0.08
   lift_vel_m_s: 0.25
   pre_grasp_settle_sec: 0.15
   return_vel_m_s: 0.4
-  right_goal_x_offset: 0.04
-  right_goal_y_offset: 0.01
-  right_grasp_z_offset_m: -0.005
+  right_goal_x_offset: 0.0
+  right_goal_y_offset: 0.0
+  right_grasp_z_offset_m: 0.0
   row1_rpy_deg:
     left:
     - 0
@@ -106,18 +102,18 @@ head_grasp:
     - 40
     - 30
 tray:
-  z_ref_m: -0.618
+  z_ref_m: -0.623
 tray2_place:
   far_row_forward_m: 0.22
   offset:
     left:
-      x: 0.04
-      y: 0.01
-      z: -0.008
+      x: 0.0
+      y: 0.0
+      z: 0.0
     right:
-      x: 0.04
-      y: 0.01
-      z: -0.008
+      x: 0.0
+      y: 0.0
+      z: 0.0
 waist:
   far_row_forward_m: 0.2
   layer3_home:

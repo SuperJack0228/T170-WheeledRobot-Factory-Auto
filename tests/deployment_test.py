@@ -13,7 +13,7 @@ class DeploymentTest(unittest.TestCase):
  def tearDown(self):self.tmp.cleanup()
  def manifest(self):
   p=self.base/'deployment.yaml';p.write_text(yaml.safe_dump(self.doc));return p
- def test_real_loader_equivalence(self):
+ def test_real_loader_preserves_unmodified_controls(self):
   out=self.base/'run';record=resolve(ROOT,self.manifest(),out)
   self.assertEqual(record['task_assignment'],'dispatch')
   # Compare effective controls after explicitly normalizing the old device-angle
@@ -23,6 +23,17 @@ class DeploymentTest(unittest.TestCase):
   current=yaml.safe_load((out/'config/effective_params.yaml').read_text())
   for key in ['ready_right_deg','ready_left_deg','joint_coordinates']:
    baseline['retract_motion'][key]=current['retract_motion'][key]
+  # Explicitly approved offset changes; all other parsed controls must still
+  # match the field baseline. The C++ snapshot no longer contains retired fields.
+  baseline['tray']['z_ref_m']=-.623
+  for key in ('goal_x_offset','goal_y_offset','grasp_z_offset_m',
+              'right_goal_x_offset','right_goal_y_offset','right_grasp_z_offset_m'):
+   baseline['head_grasp'][key]=0.
+  for side in ('left','right'):baseline['tray2_place']['offset'][side]=dict(x=0.,y=0.,z=0.)
+  for belt in ('conveyor','conveyor2'):
+   baseline[belt]['grasp_offset']={'left':dict(x=.050,y=.120,z=0.),'right':dict(x=-.030,y=.120,z=0.)}
+   baseline[belt]['offset']={'left':dict(x=-.070,y=-.015,z=0.),'right':dict(x=0.,y=-.015,z=0.)}
+  baseline['conveyor2']['prefer_belt']='belt1'
   (out/'config/baseline.yaml').write_text(yaml.safe_dump(baseline))
   for alias in json.loads((out/'web_compat_paths.json').read_text()):
    self.assertTrue((out/alias).exists(),alias)

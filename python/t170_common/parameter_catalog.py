@@ -119,10 +119,6 @@ FIELD_GROUPS = {
             ("gripper_check.max_empty_retry", "同一只手空抓后最多重抓几次", "次"),
         ]),
         ("站点", [
-            ("chassis.tray_station", "料盘一", ""),
-            ("chassis.belt_station", "传送带一", ""),
-            ("chassis.out_station", "传送带二", ""),
-            ("chassis.tray2_station", "料盘二", ""),
             ("chassis.dispatch_wait_station", "调度未下发待命点时，失败/无任务回这里", ""),
             ("chassis.charge_station", "调试充电点（charge 指令；调度仍用系统下发点）", ""),
             ("chassis.charge_wait_station", "充完电后待命点", ""),

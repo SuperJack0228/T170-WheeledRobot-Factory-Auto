@@ -75,6 +75,10 @@ int main(int argc,char **argv) {
         Cleanup clean_candidate{candidate};
         std::filesystem::copy(directory,candidate,std::filesystem::copy_options::recursive);
         auto candidate_params=YAML::Clone(original);candidate_params["visual_servo"]["kp"]=before+.6;
+        candidate_params["chassis"]["tray_station"]="AP6";
+        candidate_params["chassis"]["belt_station"]="AP9";
+        candidate_params["chassis"]["out_station"]="AP8";
+        candidate_params["chassis"]["tray2_station"]="AP10";
         const auto candidate_path=candidate/"effective_params.yaml";
         {std::ofstream out(candidate_path);out<<candidate_params;}
         auto candidate_heights=YAML::LoadFile((candidate/"conveyor_heights.yaml").string());
@@ -88,6 +92,9 @@ int main(int argc,char **argv) {
                 "height snapshot changed before all files were staged");
         std::filesystem::remove_all(path.string()+".reload.tmp");
         require(apply().ok && current.visual_servo.kp==before+.6,"candidate configuration was not applied");
+        require(current.chassis.tray_station=="AP6" && current.chassis.belt_station=="AP9" &&
+                current.chassis.out_station=="AP8" && current.chassis.tray2_station=="AP10",
+                "group 2 stations were not committed to the live chassis configuration");
         require(YAML::LoadFile(path.string())["visual_servo"]["kp"].as<double>()==before+.6,"accepted snapshot was not published");
         require(std::abs(YAML::LoadFile(height_path.string())["machines"][0]["qr_plane_height_cm"].as<double>()-original_cm-.2)<1e-12,
                 "hot height catalog missing from canonical runtime snapshot");

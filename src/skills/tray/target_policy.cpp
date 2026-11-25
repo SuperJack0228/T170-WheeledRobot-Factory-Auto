@@ -266,13 +266,6 @@ double refined_object_top_z(double camera_z, bool have_camera_z, const char *sou
         return expected;
     }
 
-double hover_z_from_object(double object_z)
-    {
-        const auto &hg = g_move_cfg.head_grasp;
-        return refined_object_top_z(object_z, std::isfinite(object_z), "hover") +
-               hg.hover_above_m;
-    }
-
 void fill_goal_last_from_head_assign(
         const double right_hand_pos[3],
         const double left_hand_pos[3],
@@ -450,29 +443,6 @@ bool head_move_allowed_left(
         const Eigen::Matrix<double, 1, 6> &goal_last_l)
     {
         return goal_pos_valid_left(goal_last_l(0), goal_last_l(1), left_hand_pos[2]);
-    }
-
-void apply_hand_hover_z_if_valid(
-        const Eigen::Matrix<double, 1, 6> &base_pos,
-        Eigen::Matrix<double, 1, 6> &goal_last)
-    {
-        goal_last(2) = hover_z_from_object(base_pos(2));
-        clamp_cart_goal_z(goal_last, "手相机物体上方");
-    }
-
-void record_hand_object_z(HandMoveState &hs, bool is_right, bool matched,
-                              const Eigen::Matrix<double, 1, 6> &base_pos)
-    {
-        if (is_right)
-        {
-            hs.have_object_z_r = matched && std::isfinite(base_pos(2));
-            hs.object_z_r = hs.have_object_z_r ? base_pos(2) : 0.0;
-        }
-        else
-        {
-            hs.have_object_z_l = matched && std::isfinite(base_pos(2));
-            hs.object_z_l = hs.have_object_z_l ? base_pos(2) : 0.0;
-        }
     }
 
 void log_hand_grasp_heights(const char *hand, bool is_right, int row, double object_z,

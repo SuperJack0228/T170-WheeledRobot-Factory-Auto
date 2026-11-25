@@ -96,8 +96,7 @@ ArmLineMoveResult run_hand_approach_and_grasp(
             return {};
 
         // 自适应姿态在直线规划前确定，下降过程中不再改写终点。
-        if (!g_move_cfg.head_grasp.use_hand_camera)
-            apply_adaptive_grasp_rpy_selective(arm_r, arm_l, st, hs.move_r, hs.move_l);
+        apply_adaptive_grasp_rpy_selective(arm_r, arm_l, st, hs.move_r, hs.move_l);
 
         Eigen::Matrix<double, 1, 6> hover_r_arm = arm_goal_in_real_waist_frame(hover_r);
         Eigen::Matrix<double, 1, 6> hover_l_arm = arm_goal_in_real_waist_frame(hover_l);

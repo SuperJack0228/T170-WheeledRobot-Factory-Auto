@@ -60,6 +60,19 @@ def resolve(root, manifest, output):
             else:valid=False
             if not valid:raise ValueError('Invalid robot identity/calibration ownership; never bind workcells/stations to a robot')
         merge(merged,layer,'',name)
+    # Manual task station defaults come from one site-owned group table.
+    # Dispatch still supplies and scopes the actual production task points.
+    from .maintenance_workcells import RUNTIME_FILE, STATION_FIELDS, load_catalog, selected_stations
+    maintenance_name=doc['files'].get(RUNTIME_FILE)
+    if not maintenance_name:raise ValueError('档案缺少 maintenance_workcells.yaml；请先运行升级迁移')
+    maintenance=load_catalog(source(maintenance_name))
+    inputs[maintenance_name]=sha(source(maintenance_name))
+    stations=selected_stations(maintenance)
+    for key in STATION_FIELDS:
+        if key in merged.get('chassis',{}):
+            raise ValueError('维护站点已归机床组配置管理，请从旧参数层移除 chassis.'+key)
+        merged.setdefault('chassis',{})[key]=stations[key]
+        provenance['chassis.'+key]=maintenance_name
     if merged.get('chassis',{}).get('sequence_number')!=doc['robot_id']:raise ValueError('Robot identity mismatch')
     arm_resources, arm_inputs, selected_arm_model = prepare_arm_model(root,doc['robot_model'],doc['robot_id'],merged.get('retract_motion'))
     inputs.update(arm_inputs)
@@ -138,6 +151,7 @@ def resolve(root, manifest, output):
             alias.symlink_to(os.path.relpath(target, alias.parent), target_is_directory=target.is_dir())
         (temp/"web_compat_paths.json").write_text(json.dumps(web_aliases,indent=2)+"\n")
         record={'schema_version':1,'manifest':str(manifest),'robot_id':doc['robot_id'],'robot_model':doc['robot_model'],'site_id':doc['site_id'],'task_assignment':'dispatch','parameter_sources':provenance,'input_sha256':inputs,'resource_root':str(root),'runtime_root':str(output),'mode':'source-tree-overlay','missing_task_calibrations':missing_task_calibrations}
+        record['maintenance_workcells']=maintenance
         if selected_arm_model is not None:record['selected_arm_model']=selected_arm_model
         (temp/'deployment_resolved.json').write_text(json.dumps(record,ensure_ascii=False,indent=2)+'\n')
         temp.rename(output)

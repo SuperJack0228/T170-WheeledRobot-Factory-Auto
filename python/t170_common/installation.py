@@ -1,4 +1,4 @@
-"""Installed resource links; persistent configuration is never overwritten."""
+"""Package-local configuration, with explicit external workspace compatibility."""
 from pathlib import Path
 import shutil
 from .config_workspace import atomic_write
@@ -6,15 +6,26 @@ from .config_workspace import atomic_write
 RESOURCE_NAMES = ('bin','lib','assets','python','web_debug','tools','deploy','release.json','environment.lock.json')
 
 
+def template_config(package):
+    """Prefer the visible config directory; accept older package layouts."""
+    package = Path(package)
+    for directory in (package / 'config', package / 'share/config'):
+        if directory.is_dir():
+            return directory
+    raise ValueError('运行包缺少 config 目录: ' + str(package))
+
+
 def initialize(package, workspace):
+    package, workspace = Path(package).resolve(), Path(workspace).resolve()
     if not (package / 'release.json').is_file(): return
     workspace.mkdir(parents=True, exist_ok=True)
     if not (workspace / 'config').exists():
-        shutil.copytree(package / 'share/config', workspace / 'config')
+        shutil.copytree(template_config(package), workspace / 'config')
         atomic_write(workspace / 'config/deployment.yaml', 'manifest: null\n')
     for name in RESOURCE_NAMES:
         source = package / name; target = workspace / name
         if not source.exists(): continue
+        if source.resolve() == target.resolve(): continue
         if target.is_symlink():
             if target.resolve() == source.resolve(): continue
             target.unlink()

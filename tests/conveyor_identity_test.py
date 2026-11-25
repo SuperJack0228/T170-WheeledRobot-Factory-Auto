@@ -31,6 +31,16 @@ class ConveyorIdentityTest(unittest.TestCase):
         self.assertIsNone(api.select_belt([half,dict(half,name='YF-0005',machine_id='3.2')],'belt0',True)[0])
         self.assertEqual(api.select_belt([half,finish],'YF-0004',True)[0],finish)
 
+    def test_deployed_workcell_preferences_select_the_correct_machine_type(self):
+        workcells=yaml.safe_load((ROOT/'config/sites/current_factory/workcell_profiles.yaml').read_text())
+        for group in range(1,6):
+            found=[{'name':'half','machine_id':str(group)+'.2','operation_profile':'conveyor'},
+                   {'name':'finish','machine_id':str(group)+'.1','operation_profile':'conveyor2'}]
+            for role in ('conveyor','conveyor2'):
+                chosen,message=api.select_belt(found,workcells[role]['prefer_belt'],True)
+                self.assertIsNotNone(chosen,message)
+                self.assertEqual(chosen['operation_profile'],role)
+
     def test_real_aruco_image_maps_to_machine(self):
         api.init(ROOT/'config/sites/current_factory/vision/belt.yaml')
         dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_1000)

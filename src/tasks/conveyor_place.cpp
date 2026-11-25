@@ -240,14 +240,6 @@ int go_belt_station(
     const auto &off_l = c.offset_left;
     Eigen::Matrix<double, 1, 6> goal_r = move_box::make_belt_goal_right(det, c);
     Eigen::Matrix<double, 1, 6> goal_l = move_box::make_belt_goal_left(det, c);
-    if (std::abs(c.place_base_z_bias_m) > 1e-9)
-    {
-        goal_r(2) += c.place_base_z_bias_m;
-        goal_l(2) += c.place_base_z_bias_m;
-        std::cout << std::fixed << std::setprecision(4)
-                  << "[orch] belt 放置松手在基座 Z 再偏 " << c.place_base_z_bias_m
-                  << " m，左右手都加\n";
-    }
     std::cout << std::fixed << std::setprecision(4)
               << "[orch] belt 放置 原点=(" << det.origin_x << "," << det.origin_y << ","
               << det.origin_z << ") offset_识别系 右=(" << off_r.x << "," << off_r.y << ","

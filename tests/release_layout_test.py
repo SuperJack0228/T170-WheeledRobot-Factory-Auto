@@ -36,6 +36,12 @@ class NativeDependencyPolicyTest(unittest.TestCase):
 
 class InstalledLayoutTest(unittest.TestCase):
     def test_relocated_package_has_persistent_robot_configuration(self):
+        self.check_relocated_package(external=False)
+
+    def test_explicit_external_workspace_remains_supported(self):
+        self.check_relocated_package(external=True)
+
+    def check_relocated_package(self, external):
         with tempfile.TemporaryDirectory(prefix='t170-installed-') as temporary:
             base = Path(temporary); fixture = base / 'fixture'; fixture.mkdir()
             fake = fixture / 't170_factory'
@@ -65,9 +71,18 @@ include(CPack)
             self.assertTrue((package / 'assets/models/best1103.pt').is_file())
             self.assertTrue((package / 'tools/upgrade_robot.py').is_file())
             self.assertTrue((package / 'deploy/upgrade_robot.sh').is_file())
-            workspace = base / 'persistent workspace'
-            env = dict(os.environ, T170_WORKSPACE=str(workspace), T170_PYTHON=sys.executable,
+            self.assertTrue((package / 'docs/V1_RELEASE_AND_FIRST_DEPLOYMENT.md').is_file())
+            self.assertTrue((package / 'docs/RELEASE_NOTES_1.0.0.md').is_file())
+            self.assertTrue((package / 'config').is_dir())
+            self.assertFalse((package / 'config').is_symlink())
+            self.assertFalse((package / 'share/config').exists())
+            self.assertIsNone(yaml.safe_load((package / 'config/deployment.yaml').read_text())['manifest'])
+            self.assertFalse(list((package / 'config/calibration').glob('*/tasks')))
+            workspace = base / 'persistent workspace' if external else package
+            env = dict(os.environ, T170_PYTHON=sys.executable,
                        T170_STATE_DIR=str(base/'state'), T170_LOG_DIR=str(base/'logs'))
+            env.pop('T170_WORKSPACE',None)
+            if external: env['T170_WORKSPACE']=str(workspace)
             for key in ('T170_ROOT','T170_RUNTIME_DIR','T170_CONFIG_DIR','T170_DEPLOYMENT','T170_BINARY_ROOT'):
                 env.pop(key,None)
             subprocess.run([sys.executable,str(package/'tools/setup_robot.py'),'TH-T170C-0125','--model','3',
@@ -76,9 +91,11 @@ include(CPack)
             self.assertEqual(camera['left_hand']['image_rotation_deg'],0)
             self.assertEqual(camera['right_hand']['image_rotation_deg'],180)
             launch = ['bash',str(package/'deploy/run_maintenance.sh')]
-            subprocess.run(launch,env=env,check=True,capture_output=True)
+            launched=subprocess.run(launch,env=env,capture_output=True,text=True)
+            self.assertEqual(launched.returncode,0,launched.stderr+launched.stdout)
             run = next((base/'state').glob('session.*/runtime'))
             self.assertEqual(json.loads((run/'deployment_resolved.json').read_text())['robot_id'],'TH-T170C-0125')
+            self.assertEqual(json.loads((run/'deployment_resolved.json').read_text())['resource_root'],str(workspace.resolve()))
             quick = workspace/'config/robots/TH-T170C-0125/quick_params.yaml'
             data = yaml.safe_load(quick.read_text());data['head_grasp']['grasp_z_offset_m']=-.017;quick.write_text(yaml.safe_dump(data))
             subprocess.run([sys.executable,str(package/'tools/apply_config.py'),'--validate-only'],env=env,check=True,capture_output=True)

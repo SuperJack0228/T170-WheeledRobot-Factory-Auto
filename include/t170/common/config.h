@@ -12,12 +12,6 @@ struct ArmPosePairConfig
     Eigen::Matrix<double, 1, 6> left = Eigen::Matrix<double, 1, 6>::Zero();
 };
 
-struct HandXyOffsetConfig
-{
-    double offset_x = 0.0;
-    double offset_y = 0.0;
-};
-
 /** 抓取末端姿态，yaml 单位 deg。 */
 struct GraspRpyDeg
 {
@@ -37,7 +31,7 @@ struct XyzOffsetM
 struct TrayHeightConfig
 {
     /** 基座系盘面 Z（卷尺/示教，向上为正）。对应量的时候那一档腰高。 */
-    double z_ref_m = -0.72;
+    double z_ref_m = -0.623;
     /** 量 z_ref_m 时的腰 layer3.z（应与当时 home 一致）。腰升降时按差值改盘面参考。 */
     double z_ref_waist_z_m = 0.55;
     /** 毛坯相对盘面的典型露出高度。 */
@@ -52,13 +46,13 @@ struct HeadGraspConfig
 {
     double hover_above_m = 0.08;
     double goal_z_base = -0.30;
-    double goal_x_offset = 0.01;
+    double goal_x_offset = 0.0;
     /** 左手示教：夹取点相对孔位（基座系）。右手用 right_goal_*，不取反。 */
     double goal_y_offset = 0.0;
     double goal_z_extra = 0.26;
-    double right_goal_x_offset = 0.01;
+    double right_goal_x_offset = 0.0;
     double right_goal_y_offset = 0.0;
-    double right_grasp_z_offset_m = 0.02;
+    double right_grasp_z_offset_m = 0.0;
     double right_rx_deg = 0.0, right_ry_deg = 60.0, right_rz_deg = 45.0;
     double left_rx_deg = 0.0, left_ry_deg = 60.0, left_rz_deg = -45.0;
     /** 三组抓取 RPY，ready1/2/3。近远三排共用：0=row3/6，1=row2/5，2=row4。最远 row1 用 left_row6 存储的专用姿态。 */
@@ -76,16 +70,7 @@ struct HeadGraspConfig
     double adaptive_approach_rpy_tol_deg = 12.0;
     double head_approach_z_descend = 0.05;
     /** 最终夹取 Z 修正，向上为正。偏深则加大，偏高则减小/改负。 */
-    double grasp_z_offset_m = 0.02;
-    /** 仅 from_robot=6（离机器人最近一排）额外 Z，叠在左右手 z_offset 上。向上为正。 */
-    /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
-    /** false：跳过手相机，XY/Z 都用孔位+盘面参考。 */
-    bool use_hand_camera = true;
-    double hand_match_xy_max_m = 0.05;
-    /** 手相机相对孔位 XY 的限幅微调；0 关闭。不覆盖 goal_x_offset。 */
-    double hand_xy_refine_max_m = 0.03;
-    HandXyOffsetConfig hand_right;
-    HandXyOffsetConfig hand_left;
+    double grasp_z_offset_m = 0.0;
     double lift_after_grasp_z = 0.08;
     /** 直线下降到位后，FK 实测位置/姿态超过阈值则禁止合爪。 */
     double bezier_endpoint_xyz_tol_m = 0.003;
@@ -108,7 +93,6 @@ struct HeadGraspConfig
     double retract_connector_max_s = 0.40;
     /** 下压到位后、合爪前等待（秒），避免还在晃就夹。 */
     double pre_grasp_settle_sec = 0.5;
-    int hand_detect_invalid_redo_max = 10;
 };
 
 struct GraspValidConfig
@@ -208,14 +192,12 @@ struct Tray2PlaceConfig
     GraspRpyDeg left_row6_rpy_deg;
     GraspRpyDeg right_row6_rpy_deg;
     /** 相对孔位的放置偏置（基座系）。左右分开，不共用 head_grasp。 */
-    double goal_x_offset = 0.015;
-    double goal_y_offset = -0.01;
-    double grasp_z_offset_m = 0.02;
-    double right_goal_x_offset = 0.01;
-    double right_goal_y_offset = -0.01;
-    double right_grasp_z_offset_m = 0.04;
-    /** 仅 from_robot=6，叠在该手 z 上。 */
-    /** false：不使用下面按行的 XYZ。数值仍保留，整盘 offset 和每行姿态照常。 */
+    double goal_x_offset = 0.0;
+    double goal_y_offset = 0.0;
+    double grasp_z_offset_m = 0.0;
+    double right_goal_x_offset = 0.0;
+    double right_goal_y_offset = 0.0;
+    double right_grasp_z_offset_m = 0.0;
     /** 远三排腰前伸，相对 layer3_home.x。不使用 waist.far_row_forward_m。 */
     double far_row_forward_m = 0.20;
 };
@@ -263,8 +245,6 @@ struct ConveyorStationConfig
     double grasp_descend_vel_m_s = 0.18;
     double next_hand_clearance_m = 0.050;
     double next_hand_clearance_timeout_s = 4.0;
-    /** 叠在放置目标的基座 Z 上（米，向上为正）。0=不改。转运松手再降用负值。 */
-    double place_base_z_bias_m = 0.0;
     /** 传送带抓取转腰（deg）。0=不转。站点更新后默认不转。 */
     double grasp_waist_yaw_deg = 0.0;
     /** 准备姿态夹爪闭合比例，0=全开 1=全合。减小开距，避免下探时磕皮带边。 */

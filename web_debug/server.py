@@ -34,8 +34,8 @@ import yaml
 
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
-WEB_API_VERSION = 8
-UI_VERSION = "2.1.0"
+WEB_API_VERSION = 9
+UI_VERSION = "2.2.0"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -43,6 +43,7 @@ from t170_common.paths import load_paths
 from t170_common.config_workspace import ConfigWorkspace, workspace_root
 from web_debug.profiles import ProfileStore
 from web_debug.actions import catalog as action_catalog
+from t170_common.maintenance_workcells import load_catalog as load_workcells, validate_catalog, STATION_FIELDS
 
 RUNTIME_PATHS = load_paths()
 PROJECT_ROOT = RUNTIME_PATHS.root
@@ -80,6 +81,65 @@ def apply_persistent(state, file_id=None, content=None, render=None):
     if file_id is None: return WORKSPACE.apply(request)
     if render is not None: return WORKSPACE.edit(file_id, render, request)
     return WORKSPACE.save(file_id, content, request)
+
+
+def maintenance_workcells_view(state):
+    path = WORKSPACE.source_file('maintenance_workcells')
+    catalog = load_workcells(path)
+    result = dict(ok=True, path=str(path), selected_group=catalog['selected_group'],
+                  groups=catalog['groups'], active_group=None, editable=False)
+    try:
+        live = state.robot_request({'cmd': 'ping'}, timeout=3)
+        result['editable'] = live.get('ok') is True and live.get('mode') == 'maintenance'
+        directory = Path(str(live.get('config_dir', '')))
+        if directory.is_absolute():
+            # C++ publishes this snapshot atomically with its in-memory commit.
+            # Do not present a saved-but-rejected selection as active.
+            params = yaml.safe_load((directory/'effective_params.yaml').read_text())
+            actual = params.get('chassis', {})
+            result['active_stations'] = {key: actual.get(key) for key in STATION_FIELDS}
+            result['active_group'] = next((row['group'] for row in catalog['groups']
+                if all(actual.get(key) == row[key] for key in STATION_FIELDS)), None)
+    except (RobotClientError, OSError):
+        pass
+    return result
+
+
+def select_maintenance_workcell(state, group):
+    if type(group) is not int:
+        raise ValueError('请选择有效的机床组编号')
+
+    def request(payload, timeout=30):
+        try:
+            reply = state.robot_request(payload, timeout=timeout)
+        except RobotClientError as error:
+            if payload['cmd'] == 'ping':
+                raise ValueError('请先启动维护服务，再切换机床组') from error
+            # An uncertain reload may already have committed: never blindly
+            # roll back its source; preserve the existing unconfirmed outcome.
+            raise ConnectionError(str(error)) from error
+        if payload['cmd'] == 'ping':
+            if not reply.get('ok') or reply.get('mode') != 'maintenance':
+                raise ValueError('机床组选择仅用于维护模式，生产任务使用调度站点')
+        elif not reply.get('ok'):
+            # _save restores the source under its config lock on rejection.
+            raise ValueError(reply.get('error') or '机床组尚未切换，请等待动作或标定结束')
+        return reply
+
+    request({'cmd': 'ping'}, timeout=3)
+    calibration = state.robot_request({'cmd': 'calibration_status'}, timeout=3)
+    if not calibration.get('ok') or calibration.get('active'):
+        raise ValueError('请先结束标定，再切换机床组')
+
+    def render(text):
+        catalog = yaml.safe_load(text)
+        catalog['selected_group'] = group
+        validate_catalog(catalog)
+        return yaml.safe_dump(catalog, sort_keys=False, allow_unicode=True)
+
+    result = WORKSPACE.edit('maintenance_workcells', render, request)
+    result['workcells'] = maintenance_workcells_view(state)
+    return result
 MANUAL_TASKS = {
     "load": ["vision_grasp_once", "belt"],
     "transfer": ["belt_grasp", "belt2"],
@@ -578,6 +638,9 @@ class DebugHandler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/api/") and not self._require_auth(parsed):
             return
         try:
+            if parsed.path == '/api/maintenance-workcells':
+                self._json(HTTPStatus.OK, maintenance_workcells_view(self.state))
+                return
             if parsed.path == "/api/calibration":
                 self._json(HTTPStatus.OK, self.state.robot_request({"cmd": "calibration_status"}, timeout=3.0))
                 return
@@ -833,6 +896,21 @@ class DebugHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = self._parse_json()
+            if parsed.path == '/api/maintenance-workcells':
+                if not self.state.begin_action('切换维护机床组'):
+                    self._json(HTTPStatus.CONFLICT, {'ok': False, 'error': '请等待当前动作完成再切换机床组'})
+                    return
+                action_error = ''
+                try:
+                    result = select_maintenance_workcell(self.state, payload.get('group'))
+                    self.state.log('维护机床组: '+json.dumps(result, ensure_ascii=False), 'config')
+                except Exception as error:
+                    action_error = str(error)
+                    raise
+                finally:
+                    self.state.end_action(action_error)
+                self._json(HTTPStatus.OK, result)
+                return
             if parsed.path == "/api/profiles":
                 if not self.state.begin_action("保存机器人档案"):
                     self._json(HTTPStatus.CONFLICT, {"ok": False, "error": "请等待当前网页动作完成"})

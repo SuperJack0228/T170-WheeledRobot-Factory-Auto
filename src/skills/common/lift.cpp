@@ -82,8 +82,6 @@ void lift_grasped_selective(
                 arm_r, lift_pos_r, lift_r, arm_l, lift_pos_l, lift_l,
                 lift_mps);
         }
-        if (g_move_cfg.head_grasp.use_hand_camera)
-            cameras.save_grasp_hand_camera_snapshots(lift_r, lift_l);
     }
 
 void lift_grasped_after_pick(

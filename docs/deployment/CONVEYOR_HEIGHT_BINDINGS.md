@@ -51,12 +51,12 @@
 
 本功能属于 `1.0.0-rc.3`，包含 rc.2 的相机方向、网页保存和标定微调修复。需要在兼容 Linux 环境重新构建运行包，可从 rc.1 或 rc.2 直接升级至 rc.3。
 
-从解压后的 rc.3 目录执行 `./deploy/upgrade_robot.sh`，脚本会备份配置，为已有机器人补充站点高度表和 manifest 映射，并保留已有二维码尺寸、间距、本机参数和标定。已有高度表不会被包内模板覆盖。
+从 rc.3 及旧版导入新版运行包时，在新版目录执行 `./deploy/upgrade_robot.sh --from-workspace "$HOME/.config/t170-factory/workspace"`；后续包间升级则传入旧包目录。脚本会备份配置，为已有机器人补充站点高度表和 manifest 映射，并保留已有二维码尺寸、间距、本机参数和标定。已有高度表不会被包内模板覆盖。完整步骤见 [升级说明](PACKAGE_UPGRADE.md)。
 
-安装模式修改的是持久工作区中的：
+新版安装模式直接修改包内：
 
 ```text
-~/.config/t170-factory/workspace/config/sites/current_factory/conveyor_heights.yaml
+config/sites/current_factory/conveyor_heights.yaml
 ```
 
 修改 `qr_plane_height_cm` 后执行 `./deploy/apply_config.sh`，空闲时可热更新。修改信息码、业务编号、机床类型或启用状态时，命令会提示重启，保证视觉引擎与 C++ 使用同一套身份映射。参考机床及本机参考 Z 应保持同一标定基准。

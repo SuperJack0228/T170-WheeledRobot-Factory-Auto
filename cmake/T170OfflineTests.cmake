@@ -68,6 +68,11 @@
     add_library(t170_skills_compilecheck OBJECT ${T170_SKILLS_SOURCES})
     target_include_directories(t170_skills_compilecheck PRIVATE include ${T170_ARM_INCLUDE_DIR} ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(t170_skills_compilecheck PRIVATE t170::configuration t170::skill_contract)
+    add_executable(tray_descent_state_test tests/tray_descent_state_test.cpp src/skills/tray/descent_state.cpp)
+    target_include_directories(tray_descent_state_test PRIVATE include ${T170_ARM_INCLUDE_DIR}
+        ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(tray_descent_state_test PRIVATE t170::configuration t170::skill_contract)
+    add_test(NAME tray_descent_state_test COMMAND tray_descent_state_test)
     set(LOWER_BODY_BUILD_EXAMPLES ON CACHE BOOL "Offline lower-body validation")
     add_subdirectory(dependencies/sdk/lower_body)
     enable_testing()

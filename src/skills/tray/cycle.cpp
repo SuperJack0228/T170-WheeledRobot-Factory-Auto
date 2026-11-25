@@ -487,10 +487,8 @@ GraspToStandbyResult run_tray_cycle_impl(
             head_approach(arm_r, arm_l, st, false, true);
         if (aborted_now())
             return out;
-        HandMoveState hs_l = run_hand_detect_and_validate(
-            arm_r, arm_l, cameras, bridge, st, false, enable_l_hand, err, engine_id);
-        if (on_hand_steady_timeout_abort(hs_l, false, enable_l_hand, arm_r, arm_l) ||
-            aborted_now())
+        HandMoveState hs_l = prepare_tray_descent(st, false, enable_l_hand);
+        if (aborted_now())
             return out;
         if (!hs_l.move_l || head_tr_l.ret_l != 0)
         {
@@ -535,9 +533,8 @@ GraspToStandbyResult run_tray_cycle_impl(
             head_approach(arm_r, arm_l, st, true, false);
         if (aborted_now())
             return out;
-        HandMoveState hs_r = run_hand_detect_and_validate(
-            arm_r, arm_l, cameras, bridge, st, true, false, err, engine_id);
-        if (on_hand_steady_timeout_abort(hs_r, true, false, arm_r, arm_l) || aborted_now())
+        HandMoveState hs_r = prepare_tray_descent(st, true, false);
+        if (aborted_now())
             return out;
         if (hs_r.move_r && head_tr_r.ret_r == 0)
         {
@@ -571,10 +568,8 @@ GraspToStandbyResult run_tray_cycle_impl(
             head_approach(arm_r, arm_l, st, true, false);
         if (aborted_now())
             return out;
-        HandMoveState hs_r = run_hand_detect_and_validate(
-            arm_r, arm_l, cameras, bridge, st, enable_r_hand, false, err, engine_id);
-        if (on_hand_steady_timeout_abort(hs_r, enable_r_hand, false, arm_r, arm_l) ||
-            aborted_now())
+        HandMoveState hs_r = prepare_tray_descent(st, enable_r_hand, false);
+        if (aborted_now())
             return out;
         if (!hs_r.move_r || head_tr_r.ret_r != 0)
         {
@@ -621,9 +616,8 @@ GraspToStandbyResult run_tray_cycle_impl(
             head_approach(arm_r, arm_l, st, false, true);
         if (aborted_now())
             return out;
-        HandMoveState hs_l = run_hand_detect_and_validate(
-            arm_r, arm_l, cameras, bridge, st, false, true, err, engine_id);
-        if (on_hand_steady_timeout_abort(hs_l, false, true, arm_r, arm_l) || aborted_now())
+        HandMoveState hs_l = prepare_tray_descent(st, false, true);
+        if (aborted_now())
             return out;
         if (hs_l.move_l && head_tr_l.ret_l == 0)
         {
@@ -722,11 +716,9 @@ GraspToStandbyResult run_tray_cycle_impl(
         if (aborted_now())
             return out;
 
-        HandMoveState hs = run_hand_detect_and_validate(
-            arm_r, arm_l, cameras, bridge, st, enable_r_hand, enable_l_hand, err, engine_id);
+        HandMoveState hs = prepare_tray_descent(st, enable_r_hand, enable_l_hand);
 
-        if (on_hand_steady_timeout_abort(hs, enable_r_hand, enable_l_hand, arm_r, arm_l) ||
-            aborted_now())
+        if (aborted_now())
             return out;
 
         hs.move_r = hs.move_r && enable_r_hand && (!st.move_r || head_tr.ret_r == 0);
@@ -759,9 +751,8 @@ GraspToStandbyResult run_tray_cycle_impl(
                 head_approach(arm_r, arm_l, st, true, false);
             if (aborted_now())
                 return out;
-            HandMoveState hs_r = run_hand_detect_and_validate(
-                arm_r, arm_l, cameras, bridge, st, true, false, err, engine_id);
-            if (on_hand_steady_timeout_abort(hs_r, true, false, arm_r, arm_l) || aborted_now())
+            HandMoveState hs_r = prepare_tray_descent(st, true, false);
+            if (aborted_now())
                 return out;
             if (hs_r.move_r && head_tr_r.ret_r == 0)
             {
@@ -790,9 +781,8 @@ GraspToStandbyResult run_tray_cycle_impl(
                 head_approach(arm_r, arm_l, st, false, true);
             if (aborted_now())
                 return out;
-            HandMoveState hs_l = run_hand_detect_and_validate(
-                arm_r, arm_l, cameras, bridge, st, false, true, err, engine_id);
-            if (on_hand_steady_timeout_abort(hs_l, false, true, arm_r, arm_l) || aborted_now())
+            HandMoveState hs_l = prepare_tray_descent(st, false, true);
+            if (aborted_now())
                 return out;
             if (hs_l.move_l && head_tr_l.ret_l == 0)
             {

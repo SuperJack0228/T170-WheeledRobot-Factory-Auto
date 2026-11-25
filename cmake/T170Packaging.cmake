@@ -4,8 +4,13 @@ function(t170_install_resources root)
         PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
     install(DIRECTORY "${root}/web_debug/" DESTINATION web_debug
         PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
-    install(DIRECTORY "${root}/config/" DESTINATION share/config
+    install(DIRECTORY "${root}/config/" DESTINATION config
         PATTERN "tasks" EXCLUDE PATTERN "*_before_*" EXCLUDE)
+    # A fresh package contains editable configuration beside the application,
+    # but must not select the development robot before setup or config import.
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/package_deployment.yaml" "manifest: null\n")
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/package_deployment.yaml"
+        DESTINATION config RENAME deployment.yaml)
     install(DIRECTORY "${root}/assets/" DESTINATION assets
         PATTERN "archive" EXCLUDE PATTERN "legacy" EXCLUDE)
     install(FILES "${root}/assets/models/runtime_manifest.json" DESTINATION assets/models RENAME manifest.json)
@@ -13,7 +18,10 @@ function(t170_install_resources root)
     install(PROGRAMS "${root}/tools/resolve_deployment.py" "${root}/tools/active_runtime.py"
         "${root}/tools/apply_config.py" "${root}/tools/setup_robot.py" "${root}/tools/upgrade_robot.py" DESTINATION tools)
     install(FILES "${root}/docs/deployment/V1_QUICK_START.md" "${root}/docs/deployment/PACKAGE_UPGRADE.md"
-        "${root}/docs/deployment/CONVEYOR_HEIGHT_BINDINGS.md" DESTINATION docs)
+        "${root}/docs/deployment/CONVEYOR_HEIGHT_BINDINGS.md"
+        "${root}/docs/deployment/OFFSET_AUDIT_20261125.md"
+        "${root}/docs/deployment/V1_RELEASE_AND_FIRST_DEPLOYMENT.md"
+        "${root}/packaging/RELEASE_NOTES_1.0.0.md" DESTINATION docs)
 endfunction()
 
 if(T170_PACKAGING_RESOURCES_ONLY)

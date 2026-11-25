@@ -58,6 +58,26 @@ class WorkspaceTest(unittest.TestCase):
         self.assertFalse((next_run / 'config/move_box_params.yaml').exists())
         self.assertFalse(list(self.runtime.glob('.config-apply-*')))
 
+    def test_all_five_groups_resolve_to_the_measured_station_table(self):
+        expected={1:['AP1','AP2','AP3','AP4'],2:['AP6','AP9','AP8','AP10'],
+                  3:['AP407','AP408','AP409','AP410'],4:['AP413','AP414','AP415','AP416'],
+                  5:['AP418','AP419','AP420','AP421']}
+        path=self.workspace.source_file('maintenance_workcells')
+        data=yaml.safe_load(path.read_text())
+        fields=('tray_station','belt_station','out_station','tray2_station')
+        for group,stations in expected.items():
+            data['selected_group']=group
+            result=self.workspace.save('maintenance_workcells',yaml.safe_dump(data),self.request)
+            self.assertTrue(result['applied'])
+            effective=yaml.safe_load((self.runtime/'config/effective_params.yaml').read_text())
+            self.assertEqual([effective['chassis'][key] for key in fields],stations)
+            record=json.loads((self.runtime/'deployment_resolved.json').read_text())
+            self.assertEqual(record['task_assignment'],'dispatch')
+            for key in fields:self.assertEqual(record['parameter_sources']['chassis.'+key],
+                'config/sites/current_factory/maintenance_workcells.yaml')
+        quick=yaml.safe_load(self.workspace.source_file('motion').read_text())
+        self.assertTrue(set(fields).isdisjoint(quick['chassis']))
+
     def test_invalid_quick_file_rolls_back_persistent_and_live_files(self):
         path = self.workspace.source_file('motion'); previous = path.read_bytes()
         snapshot = (self.runtime / 'config/effective_params.yaml').read_bytes()
@@ -157,13 +177,58 @@ class PersistentHTTPTest(unittest.TestCase):
         self.web.WORKSPACE=fixture.workspace
         class State:
             token='test'
+            mode='maintenance'
+            running=False
+            def begin_action(self, title):
+                if self.running:return False
+                self.running=True;return True
+            def end_action(self, error=''):self.running=False
             def robot_request(_,payload,timeout=30):
                 if payload['cmd']=='calibration_status':return {'ok':True,'active':False}
-                return fixture.request(payload,timeout)
+                result=fixture.request(payload,timeout)
+                if payload['cmd']=='ping':result.update(mode=_.mode,config_dir=str(fixture.runtime/'config'))
+                return result
             def log(_, *args):pass
         self.server=self.web.DebugHTTPServer(('127.0.0.1',0),State())
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
         self.addCleanup(self.close_server)
+
+    def workcell_request(self, group=None):
+        url=f'http://127.0.0.1:{self.server.server_port}/api/maintenance-workcells'
+        data=None if group is None else json.dumps({'group':group}).encode()
+        request=urllib.request.Request(url,data=data,headers={'X-T170-Token':'test','Content-Type':'application/json'})
+        try:
+            with urllib.request.urlopen(request,timeout=10) as reply:return reply.status,json.load(reply)
+        except urllib.error.HTTPError as error:return error.code,json.load(error)
+
+    def test_workcell_selection_updates_live_and_persistent_station_defaults(self):
+        status,before=self.workcell_request()
+        self.assertEqual(status,200);self.assertEqual(before['active_group'],1)
+        status,result=self.workcell_request(2)
+        self.assertEqual(status,200,result);self.assertTrue(result['applied'])
+        self.assertEqual(result['workcells']['active_group'],2)
+        actual=yaml.safe_load((self.fixture.runtime/'config/effective_params.yaml').read_text())['chassis']
+        self.assertEqual([actual[key] for key in ('tray_station','belt_station','out_station','tray2_station')],
+                         ['AP6','AP9','AP8','AP10'])
+        run=self.fixture.base/'next-session';resolve(self.fixture.root,self.fixture.manifest,run)
+        self.assertEqual(yaml.safe_load((run/'config/effective_params.yaml').read_text())['chassis']['out_station'],'AP8')
+        self.assertFalse(any(item['cmd'] not in ('ping','reload_config') for item in self.fixture.requests))
+
+    def test_workcell_change_is_rejected_and_rolled_back_while_busy(self):
+        self.fixture.code='busy'
+        path=self.fixture.workspace.source_file('maintenance_workcells');before=path.read_bytes()
+        status,result=self.workcell_request(2)
+        self.assertEqual(status,400,result);self.assertEqual(path.read_bytes(),before)
+        self.assertEqual(self.workcell_request()[1]['active_group'],1)
+
+    def test_workcell_change_is_rejected_in_production_and_for_unknown_groups(self):
+        path=self.fixture.workspace.source_file('maintenance_workcells');before=path.read_bytes()
+        self.server.app_state.mode='production'
+        self.assertEqual(self.workcell_request(2)[0],400)
+        self.assertEqual(path.read_bytes(),before)
+        self.server.app_state.mode='maintenance'
+        self.assertEqual(self.workcell_request(99)[0],400)
+        self.assertEqual(path.read_bytes(),before)
 
     def close_server(self):
         self.server.shutdown();self.server.server_close();self.thread.join()
@@ -181,9 +246,9 @@ class PersistentHTTPTest(unittest.TestCase):
         self.assertEqual(status,200);self.assertTrue(result['applied'])
         self.assertEqual(yaml.safe_load(self.fixture.workspace.source_file('motion').read_text())['head_grasp']['grasp_z_offset_m'],-.021)
 
-    def test_save_all_98_fields_with_block_arrays_and_restart(self):
+    def test_save_all_quick_fields_with_block_arrays_and_restart(self):
         fields={field['key']:str(field['value']) for group in self.web.read_field_groups('motion') for field in group['fields']}
-        self.assertEqual(len(fields),98)
+        self.assertEqual(len(fields),94)
         fields['waist.layer3_home.2']='0.61'
         fields['head_grasp.row1_rpy_deg.left.1']='42'
         status,result=self.save_fields(fields)

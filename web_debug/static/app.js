@@ -8,8 +8,8 @@ if (queryToken && history.replaceState) history.replaceState(null, "", location.
 
 const $ = (id) => document.getElementById(id);
 /** 与 server.py 的 WEB_API_VERSION 对齐；小改页面时同时 bump UI_VERSION。 */
-const WEB_API = 8;
-const UI_VERSION = "2.1.0";
+const WEB_API = 9;
+const UI_VERSION = "2.2.0";
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const files = [
@@ -31,10 +31,20 @@ let statusRefreshing = false;
 let motionPending = false;
 let remoteBusy = false;
 let readyGroup = "1";
+let workcellData = null;
+let workcellPending = false;
+const stationCommands = new Set(["vision_grasp", "vision_grasp_once", "vision_servo_dual_once",
+  "tray2_auto", "belt_ready", "belt2_ready", "belt_grasp", "belt2_grasp", "belt", "belt2"]);
+function workcellConfirmed() {
+  return workcellData?.editable === true && workcellData.active_group === workcellData.selected_group;
+}
 function updateCommandAvailability() {
   document.querySelectorAll(".cmd[data-command]").forEach((button) => {
-    button.disabled = motionPending || remoteBusy || !commandPermitted(button.dataset.command);
+    button.disabled = motionPending || remoteBusy || workcellPending || !commandPermitted(button.dataset.command)
+      || (stationCommands.has(button.dataset.command) && !workcellConfirmed());
   });
+  $("workcellGroup").disabled = motionPending || remoteBusy || workcellPending || !workcellData?.editable;
+  $("runPlan").disabled = commandCapabilities?.mode !== "maintenance" || motionPending || remoteBusy || workcellPending || !workcellConfirmed();
 }
 function commandPermitted(cmd) {
   if (!commandCapabilities) return false;
@@ -49,13 +59,13 @@ async function refreshCapabilities() {
     commandCapabilities = data;
     const production = data.mode === "production";
     applyMode(data.mode);
+    if (data.mode === "maintenance" && !workcellPending) await refreshWorkcells();
     const notice = $("modeNotice");
     notice.hidden = false;
     notice.textContent = production
       ? "生产模式：开放调度运行控制和状态查询。手动动作、单步与标定请使用维护入口。"
       : "维护模式：不会开机自动进入调度，可执行标定、单步和诊断。";
     updateCommandAvailability();
-    if ($("runPlan")) $("runPlan").disabled = production;
     const signature = JSON.stringify([data.mode, data.commands]);
     if (actionsMode !== signature) {
       const catalog = await api("/api/actions");
@@ -77,12 +87,51 @@ function applyMode(mode) {
   $("dispatchMonitor").hidden = !production;
   $("automaticTaskCard").hidden = !production;
   $("manualTaskCard").hidden = !maintenance;
+  $("maintenanceWorkcells").hidden = !maintenance;
   document.querySelector('[data-page="motion"]').hidden = !maintenance;
   $("calibrationLink").hidden = !maintenance;
   if (production && $("page-motion").classList.contains("active")) showPage("status");
   $("applyProfile").disabled = !maintenance;
   $("createProfile").disabled = !maintenance;
 }
+
+function renderWorkcells(data) {
+  workcellData = data;
+  $("workcellGroup").innerHTML = data.groups.map((row) =>
+    `<option value="${row.group}" ${row.group === data.selected_group ? "selected" : ""}>第 ${row.group} 组</option>`).join("");
+  const active = data.groups.find((row) => row.group === data.active_group);
+  const row = active || data.groups.find((entry) => entry.group === data.selected_group);
+  $("workcellStations").textContent = row
+    ? `${active ? "当前生效" : "配置站点"} · 料盘一 ${row.tray_station}　传送带一 ${row.belt_station}　传送带二 ${row.out_station}　料盘二 ${row.tray2_station}` : "没有可用站点";
+  $("workcellNote").textContent = data.active_group === data.selected_group
+    ? `第 ${data.active_group} 组已生效。切换组别只应用配置，执行单步动作时才导航。`
+    : `配置选择第 ${data.selected_group} 组，${data.active_group ? `当前仍生效第 ${data.active_group} 组` : "尚未确认生效站点"}。请重新选择并等待切换成功。`;
+  updateCommandAvailability();
+}
+
+async function refreshWorkcells() {
+  try { renderWorkcells(await api("/api/maintenance-workcells")); }
+  catch (error) {
+    workcellData = null;
+    $("workcellStations").textContent = "机床组配置未加载";
+    $("workcellNote").textContent = error.message;
+    updateCommandAvailability();
+  }
+}
+
+$("workcellGroup").addEventListener("change", async (event) => {
+  const group = Number(event.target.value);
+  workcellPending = true; updateCommandAvailability();
+  $("workcellNote").textContent = `正在切换至第 ${group} 组…`;
+  try {
+    const result = await api("/api/maintenance-workcells", {method: "POST", body: {group}});
+    renderWorkcells(result.workcells);
+    toast(result.applied === true ? `第 ${group} 组已生效` : result.message || "尚未确认切换结果");
+  } catch (error) {
+    toast(error.message); await refreshWorkcells();
+    $("workcellNote").textContent = `切换失败：${error.message}`;
+  } finally { workcellPending = false; updateCommandAvailability(); }
+});
 
 function renderActions(catalog) {
   $("actionGroups").innerHTML = catalog.groups.map((group) => {
@@ -239,6 +288,8 @@ function renderPlan() {
 
 async function sendCommand(cmd) {
   if (!commandPermitted(cmd)) throw new Error("该命令仅在维护模式开放");
+  if (workcellPending) throw new Error("请等待机床组切换完成");
+  if (stationCommands.has(cmd) && !workcellConfirmed()) throw new Error("请先选择并应用维护机床组");
   showActionOutcome("running", `正在执行 ${cmd}，等待机器人返回实际结果…`);
   const result = await api("/api/command", { method: "POST", body: { cmd, confirm: cmd } });
   $("motionResult").textContent = JSON.stringify(result, null, 2);

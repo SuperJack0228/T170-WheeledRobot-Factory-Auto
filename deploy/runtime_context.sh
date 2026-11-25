@@ -4,7 +4,7 @@ set -euo pipefail
 T170_PACKAGE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -z "${T170_WORKSPACE:-}" ]]; then
   if [[ -f "$T170_PACKAGE_ROOT/release.json" ]]; then
-    T170_WORKSPACE="${XDG_CONFIG_HOME:-$HOME/.config}/t170-factory/workspace"
+    T170_WORKSPACE="$T170_PACKAGE_ROOT"
   else
     T170_WORKSPACE="${T170_ROOT:-$T170_PACKAGE_ROOT}"
     if [[ -n "${T170_RUNTIME_DIR:-}" && -f "$T170_RUNTIME_DIR/deployment_resolved.json" ]]; then
@@ -14,6 +14,7 @@ if [[ -z "${T170_WORKSPACE:-}" ]]; then
 fi
 export T170_WORKSPACE
 T170_SOURCE_ROOT="$(cd -- "$T170_WORKSPACE" && pwd)"
+echo "[deployment] T170_WORKSPACE=$T170_SOURCE_ROOT (config: $T170_SOURCE_ROOT/config)" >&2
 T170_BINARY_ROOT="${T170_BINARY_ROOT:-}"
 if [[ -z "$T170_BINARY_ROOT" ]]; then
   for candidate in "$T170_PACKAGE_ROOT/bin" "$T170_PACKAGE_ROOT/build_robot" "$T170_PACKAGE_ROOT/build_release" "$T170_SOURCE_ROOT/bin" "$T170_SOURCE_ROOT/build_robot"; do

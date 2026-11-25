@@ -28,8 +28,6 @@ def main():
     errors = []
     if not config.get("cameras", {}).get("hand_descent_correct"):
         errors.append("cameras.hand_descent_correct 未开启")
-    if config.get("head_grasp", {}).get("use_hand_camera"):
-        errors.append("旧 use_hand_camera 必须关闭，新伺服通过 hand_descent_correct 开启")
     if config.get("head_grasp", {}).get("descend_vel_m_s", 0) <= 0:
         errors.append("下降速度必须为正数")
     arch='aarch64' if platform.machine() in ['aarch64','arm64'] else 'x86_64'

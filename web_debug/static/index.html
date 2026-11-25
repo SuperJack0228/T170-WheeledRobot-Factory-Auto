@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>T170C工厂自动上下料控制器</title>
-  <link rel="stylesheet" href="/styles.css?v=21">
+  <link rel="stylesheet" href="/styles.css?v=22">
 </head>
 <body>
   <header class="nav">
@@ -32,6 +32,11 @@
   <div id="versionBanner" class="banner" hidden></div>
   <p id="modeNotice" class="hint" role="status" hidden></p>
   <div id="actionNotice" class="action-notice" role="status" hidden></div>
+  <section id="maintenanceWorkcells" class="workcell-toolbar" aria-label="维护机床组" hidden>
+    <label>当前调试机床组<select id="workcellGroup" disabled><option>读取中…</option></select></label>
+    <div><p id="workcellStations" class="workcell-stations">读取站点配置…</p>
+      <p id="workcellNote" class="hint" role="status">切换组别只应用站点配置；执行单步动作时才导航。</p></div>
+  </section>
 
   <section class="hand-live" aria-label="手相机实时画面" hidden>
     <figure>
@@ -173,6 +178,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=21"></script>
+  <script src="/app.js?v=22"></script>
 </body>
 </html>

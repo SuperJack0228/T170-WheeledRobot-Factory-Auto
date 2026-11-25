@@ -46,7 +46,7 @@ cmake --build build_robot --parallel 3
 ./deploy/run_web.sh
 ```
 
-网页地址为启动打印的 `http://机器人IP:8080/?token=...`。通过向导建立本机左/右抓取、左/右放置四份参考，结果进入 `config/calibration/本机编号/tasks/`。安装模式的持久目录默认是 `~/.config/t170-factory/workspace`，源码模式为仓库根目录。
+网页地址为启动打印的 `http://机器人IP:8080/?token=...`。通过向导建立本机左/右抓取、左/右放置四份参考，结果进入 `config/calibration/本机编号/tasks/`。新版安装模式直接在运行包内保存 `config/`，源码模式为仓库根目录。rc.3 的隐藏工作区迁移见 [升级说明](PACKAGE_UPGRADE.md)。
 
 理论手眼不等于免除抓取点/放置点图像参考。四份参考中的像素、相机内参、实际姿态及几何指纹属于本机，不复制另一台机器的任务结果。
 

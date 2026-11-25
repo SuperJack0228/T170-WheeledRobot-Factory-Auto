@@ -30,17 +30,7 @@ head_grasp:
     - - 0
       - 55
       - 40
-  use_hand_camera: false
   approach_nostop: false
-  hand_match_xy_max_m: 0.05
-  hand_xy_refine_max_m: 0.03
-  hand_grasp:
-    right:
-      offset_x: 0.0
-      offset_y: 0.0
-    left:
-      offset_x: 0.0
-      offset_y: 0.0
   bezier_endpoint_rpy_tol_deg: 3.0
   retract_lift_vel_m_s: 0.4
   rise_waist_with_lift: true
@@ -51,7 +41,6 @@ head_grasp:
   retract_connector_accel_rad_s2: 6.0
   retract_connector_jerk_rad_s3: 80.0
   retract_connector_max_s: 0.5
-  hand_detect_invalid_redo_max: 10
 tray2_place:
   retract_lift_m: 0.08
   retract_lift_vel_m_s: 0.4

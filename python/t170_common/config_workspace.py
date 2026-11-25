@@ -33,8 +33,6 @@ def workspace_root(runtime=None):
     if record.is_file():
         return Path(json.loads(record.read_text())["resource_root"]).resolve()
     package = Path(__file__).resolve().parents[2]
-    if (package / 'release.json').is_file():
-        return Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config'))) / 't170-factory/workspace'
     return package
 
 
@@ -64,7 +62,8 @@ class ConfigWorkspace:
             name = "config/robots/" + doc["robot_id"] + "/quick_params.yaml"
             if name not in doc["layers"]: raise ValueError("机器人档案缺少 quick_params.yaml")
         else:
-            target = {"tray_code": "config/vision/tray.yaml", "belt_code": "config/vision/belt.yaml",
+            target = {"maintenance_workcells": "config/maintenance_workcells.yaml",
+                      "tray_code": "config/vision/tray.yaml", "belt_code": "config/vision/belt.yaml",
                       "head_geom": "config/head/geometry.yaml", "hand_eye_fallback": "config/camera_to_base_result.yaml"}
             if file_id == "hand_eye":
                 geometry = self.source_file("head_geom")

@@ -1,56 +1,52 @@
-# 运行包升级与 No.120 迁移
+# 运行包升级与配置迁移
 
-当前候选版本为 `1.0.0-rc.3`。源码提交到 GitHub 与运行包交付是两个环节：更新源码后，需要在匹配机器人的 Linux 环境重新构建，机器人使用新的运行包。GitHub Release 用于保存和分发包，不承担编译。
+rc.3 已交付，使用隐藏的持久工作区。V1.0.0 将默认配置位置改为运行包根目录的实际 `config/`，需在兼容机器人的 Linux 环境构建新包后生效。旧 rc.3 压缩包和标签不变。首次发布和新机完整步骤见 [V1.0.0 发布与首次部署](V1_RELEASE_AND_FIRST_DEPLOYMENT.md)。
 
-## 本次修复
+## 新版目录
 
-rc.3 包含原 rc.2 修复，并新增五组十台机床的信息码与高度绑定。
-
-- 新增公共站点高度表，以机床 1.2 为参考，由实际信息码匹配传送带高度，升级时为旧档案补入映射，保留已调几何参数。
-- 标准相机方向统一为左手 0°、右手 180°。伺服、标定、预览、存图使用同一本机配置；No.124 保留左 180°／右 0° 的例外。
-- 网页保存支持 YAML 行内和竖排数组，按语法树定位标量，保留其他字段与注释。
-- 标定 XY 微调保持当前实测姿态和 Z。2 mm 微调的位置允许误差为 0.8 mm，反馈停稳判断适度放宽；无运动、反向、反馈缺失、通信故障和停止请求仍不会报告成功。日志及向导返回包含目标、实际位置、残差、容差和执行码。
-
-## 构建新版
-
-源码修改、验证、提交后，建立与 `packaging/VERSION` 一致的新标签，并将分支和标签推送到 GitHub。不要移动旧标签，也不要覆盖旧包。
-
-在已具备环境的 Linux 构建目录执行：
-
-```bash
-git fetch origin --tags
-git switch --detach v1.0.0-rc.3
-conda activate human_interaction_env
-./packaging/build_release.sh
+```text
+t170-factory-版本-Linux-aarch64/
+├── bin/
+├── lib/
+├── config/                 实际生效的参数和本机标定
+│   ├── deployment.yaml    选择当前机器人
+│   ├── robots/机器人编号/quick_params.yaml
+│   ├── calibration/机器人编号/tasks/
+│   ├── sites/current_factory/
+│   └── robot_models/
+├── deploy/
+└── release.json
 ```
 
-输出在 `build_release/packages/`。本次修改包含 C++ 取图和运动逻辑，需要重新编译；把源码复制到旧压缩包里不会更新旧二进制。Mac 可以改源码、跑离线检查，ARM64 交付包仍由兼容 Linux 环境生成。
+网页保存、手工修改和启动使用同一个 `config/`。首次解压的包包含模板，但未选择 No.124；新机执行建档，已有机器人导入旧配置。日志及运行快照仍在 `~/.local/state/t170/`，不要修改其中临时生成的 `effective_params.yaml`。
 
-## 更新已经建档的 No.120
+## No.120 从 rc.3 迁移
 
-1. 结束任务和标定，正常停止机器人主程序和网页。若使用 systemd，执行 `sudo systemctl stop t170-factory`；终端启动则在对应终端正常退出。
-2. 将新版 TGZ 和校验文件复制到 No.120。保留旧版本目录，解压到新的版本目录。
-3. 从新版目录运行升级命令，不必重新填写机器人编号或相机 SN。
+先结束任务和标定，停止机器人主程序和网页。systemd 部署先停止相应服务；终端启动则正常退出。保留旧包，将新版解压到独立目录，进入新版目录并激活原视觉环境。
+
+rc.3 原来使用默认配置位置时，执行：
 
 ```bash
-mkdir -p ~/t170/releases
-tar -xzf ~/Downloads/t170-factory-1.0.0-rc.3-Linux-aarch64.tar.gz -C ~/t170/releases
-cd ~/t170/releases/t170-factory-1.0.0-rc.3-Linux-aarch64
 conda activate human_interaction_env
-./deploy/upgrade_robot.sh
+unset T170_WORKSPACE T170_ROOT T170_RUNTIME_DIR T170_CONFIG_DIR T170_DEPLOYMENT T170_BINARY_ROOT
+./deploy/upgrade_robot.sh --from-workspace "$HOME/.config/t170-factory/workspace"
 ```
 
-脚本读取已经选中的机器人档案，自动执行：
+`--from-workspace` 指向包含旧 `config/` 和 `release.json` 的目录，不指向 `config/` 本身。若原来显式设置了外部工作区，填写那个实际目录。
 
-- 备份完整持久配置，默认目录为 `~/.local/state/t170/config_backups/时间戳/`，输出实际路径。
-- 保留机器人编号、3/5 kg 型号、相机 SN、底盘地址及已调好的 `quick_params.yaml`。
-- 补入本机图像方向。No.124 采用安装例外，其余旧档案缺少方向字段时采用标准方向。
-- 将原始像素参考转换到新画面坐标。由于 No.120 从旧的左 180°／右 0° 改成左 0°／右 180°，旧任务参考中的像素、K 和手眼指纹不再匹配，归档到 `tasks/orientation_before_时间戳/`，不作为当前标定继续加载。
-- 将程序资源链接切换到新版，调用真实 C++ 加载器校验；失败则恢复原配置和旧资源链接。不启动硬件。
+升级脚本执行以下操作：
 
-从 rc.1 升级的 No.120 需通过向导重新建立左/右抓取、左/右放置参考；如果已经升级 rc.2 并完成参考，rc.2 → rc.3 不再次改变图像方向，不因新增机床高度表而清空料盘标定。No.124 方向没有变化，原任务参考保留。以后图像方向及几何未变的常规修复升级，不因升级操作本身清空标定。
+1. 锁定源、目标配置，备份旧配置到 `~/.local/state/t170/config_backups/时间戳/`。
+2. 将旧机器人档案、本机快捷参数、相机 SN、标定等完整复制到新版包的 `config/`，旧目录保持原样。
+3. 按原版本执行已有相机方向及机床高度表迁移。rc.3 已采用标准方向时，不再次改变图像方向或清空标定；已有机床高度表不被模板覆盖。
+4. 对尚无 `20261125_task_offsets` 迁移记录的机器人，执行已确认的偏置清理：料盘参考改为 −0.623 m、料盘人工 XYZ 清零、两套传送带抓取及放置采用统一偏移；移除旧三维修正字段，修正传送带二的 `belt0` 类型配置。具体数值见下文。
+5. 使用新版 C++ 配置加载器校验。失败则恢复目标目录原配置和迁移记录；成功则打印实际配置路径、来源、备份位置和 `task_offsets_migrated`。不启动机器人。
 
-启动维护和网页，在不同终端执行：
+本批还补入 `maintenance_workcells.yaml` 的五组站点表及 manifest 映射，将旧快捷文件中的四个抓放站点迁出。已有机床组表和选择保留，新建表默认第 1 组。右手传送带放置 Y 已更正为 −15 mm；若已完成先前偏置迁移，额外的一次性修正仅修改两套传送带右手放置 Y，不重置其他已调参数。
+
+这次升级会有意修改上述已确认的参数，不能再理解成所有旧参数原样保留。两套传送带抓取左 `[50,120,0]`、右 `[-30,120,0]` mm；放置左 `[-70,-15,0]`、右 `[0,-15,0]` mm。迁移完成后在本机 `parameter_migrations.yaml` 记录一次，后续升级保留新的现场调参，不会重复下移 5 mm 或再次清零。相机 SN、工具、任务标定、速度等其他参数保留。转运额外 −5 mm 已从 C++ 删除，需要使用重新编译的二进制。完整高度联动见 [偏置清理记录](OFFSET_AUDIT_20261125.md#10-本次清理结果)。
+
+在两个终端分别启动：
 
 ```bash
 ./deploy/run_maintenance.sh
@@ -60,16 +56,32 @@ conda activate human_interaction_env
 ./deploy/run_web.sh
 ```
 
-核对图像方向、网页保存、2 mm 微调和双手任务。完成后停止维护主程序，再执行 `./deploy/run_production.sh`。
+此时 No.120 常调参数直接位于当前包的 `config/robots/TH-T170C-0120/quick_params.yaml`。手工修改后执行 `./deploy/apply_config.sh`；网页保存写入同一份文件。完成维护验证后，停止维护主程序，再执行 `./deploy/run_production.sh`。
 
-## 配置位置与回退
+## 后续升级
 
-持久参数仍在 `~/.config/t170-factory/workspace/config/`，无需复制 No.124 的配置覆盖 No.120，也不要修改包内模板代替本机配置。自定义工作区使用 `./deploy/upgrade_robot.sh --workspace /实际工作区`。
+每次将新版解压到新目录，从新目录导入上一次实际使用的旧包配置：
 
-如需回到旧版，先停止主程序和网页，再保留当前配置副本，将升级输出的备份中 `config/` 完整恢复到工作区；从旧包目录执行 `./deploy/setup_robot.sh 实际机器人编号 --model 3`，切回旧资源。程序和相机配置、任务参考应一起恢复，不能只换旧二进制却继续使用新方向的参考。
+```bash
+./deploy/upgrade_robot.sh --from-workspace /旧运行包的绝对路径
+```
 
-systemd 环境文件若使用固定版本路径，还需将 `/etc/t170-factory/runtime.env` 的 `T170_INSTALL_ROOT` 改为实际启用的版本目录。升级脚本不会修改系统级服务配置。
+不要继续指向已经停用的隐藏工作区，否则会导入旧参数。已有配置的同目录校验及迁移仍可执行 `./deploy/upgrade_robot.sh`，但新版本应使用独立目录，避免直接覆盖旧二进制。
 
-## 后续版本
+显式外部配置模式仍兼容：`--workspace /目标工作区` 决定写到哪里，`--from-workspace /旧目录` 决定从哪里读取。不指定 `--workspace` 且未设置 `T170_WORKSPACE` 时，目标就是当前运行包。
 
-固定使用“修改源码 → 离线验证 → 新提交和新标签 → Linux 构建 → 发布 TGZ/SHA256 → 停服务 → 解压新版 → 升级脚本 → 维护验证 → 生产运行”。经常调整的现场参数只需保存和应用，不需要重新打包。Python/网页修复可单独替换资源，但为保持版本可追溯，默认仍使用完整新包交付。
+回退时停止主程序与网页，从保留的旧目录启动原版本；原 rc.3 若使用隐藏工作区，该工作区仍保留。常规升级保留原相机方向和标定；涉及方向变更的旧版迁移需要程序、配置、任务参考配套回退。
+
+systemd 部署还需将 `/etc/t170-factory/runtime.env` 的 `T170_INSTALL_ROOT` 切换到新包目录。如果以前写了指向隐藏工作区的 `T170_WORKSPACE`，删除该项或改成新包目录，否则显式设置仍优先生效。升级脚本不修改系统服务配置。
+
+## 构建和发布
+
+源码修改和检查完成后，确定新的 `packaging/VERSION`、提交和标签，在匹配机器人环境的 Linux 上运行：
+
+```bash
+./packaging/build_release.sh
+```
+
+输出位于 `build_release/packages/`，包含 TGZ 和 SHA256。新提交、新标签、新包一一对应，不覆盖旧包或移动旧标签。GitHub 保存源码；Release 分发构建包，不负责自动将源码改动变成二进制。Mac 的离线检查不能生成现场使用的 Linux ARM64 二进制。
+
+以后常调参数只需保存、应用，无需重新打包；代码、网页或依赖修复则交付新版本包，导入本机配置后使用。
