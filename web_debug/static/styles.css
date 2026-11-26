@@ -54,6 +54,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important
 .tab.active { background: #e8e8ed; color: var(--ink); }
 .tab.active:hover { background: #dedee3; }
 .nav-side { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.fleet-picker { display:flex; align-items:center; gap:6px; font-size:12px; white-space:nowrap; }
+.fleet-picker select { width:auto; min-width:110px; margin:0; padding:6px 8px; }
 .pill {
   font-size: 12px; color: var(--sub);
   border: 1px solid var(--line); border-radius: 980px; padding: 4px 10px;

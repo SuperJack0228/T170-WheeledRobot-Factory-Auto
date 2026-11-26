@@ -37,6 +37,8 @@ std::unique_ptr<WaistRobot> waist;
 std::unique_ptr<PosePipeline> pipeline;
 Eigen::Matrix<double, 1, 6> layer3;
     Mode mode=Mode::Maintenance;
+    // Immutable after initialization; safe to identify this process while busy.
+    std::string robot_id,robot_model;
     std::unique_ptr<t170::hardware::Chassis> chassis;
     std::unique_ptr<t170::integration::dispatch::Gateway> gateway;
     std::unique_ptr<t170::tasks::Services> services;

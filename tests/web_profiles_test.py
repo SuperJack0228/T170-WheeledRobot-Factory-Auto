@@ -41,6 +41,9 @@ class ProfileTest(unittest.TestCase):
         self.assertFalse(profile['missing_files']) # New profiles use complete nominal camera resources.
         self.assertEqual(profile['host'],'192.168.192.6')
         self.assertFalse((self.root/'config/calibration/TH-T170C-0125/hand_eye').exists())
+        connection=read(self.root/'config/robots/TH-T170C-0125/connection.yaml')
+        self.assertEqual(connection['host'],'192.168.113.125')
+        self.assertEqual(connection['port'],8080)
         self.assertFalse(list((self.root/'config/calibration/TH-T170C-0125/tasks').glob('**/*.yaml')))
         choose=self.payload();choose['manifest']=result['manifest']
         self.store.update(choose)

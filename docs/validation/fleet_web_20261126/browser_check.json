@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "local robot identity",
+    "dropdown switch to remote robot",
+    "remote model display",
+    "maintenance dispatch entry",
+    "manual/calibration locked while dispatching",
+    "dispatch exit restores maintenance",
+    "no dispatch on the portal robot"
+  ],
+  "javascript_exceptions": [],
+  "base_commit": "162ecf0",
+  "hardware_connected": false,
+  "offline_tests_passed": 55
+}

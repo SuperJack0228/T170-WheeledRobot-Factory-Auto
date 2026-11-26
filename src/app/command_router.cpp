@@ -12,6 +12,8 @@
 namespace t170::app::detail {
 Json::Value capabilities_json() {
     Json::Value out=reply(true);out["mode"]=mode_name(state().mode);
+    out["robot_id"]=state().robot_id;out["robot_model"]=state().robot_model;
+    out["dispatch_active"]=orch::dispatch_board_snapshot().active;
     Json::Value commands(Json::arrayValue);
     for(const auto &spec:command_catalog()) {
         Json::Value item(Json::objectValue);item["name"]=std::string(spec.name);
@@ -20,6 +22,9 @@ Json::Value capabilities_json() {
     }out["commands"]=commands;return out;
 }
 Json::Value dispatch(const Json::Value &request) {
+    const std::string expected=request.get("expected_robot_id","").asString();
+    if(!expected.empty() && expected!=state().robot_id)
+        return reply(false,"机器人身份不匹配：请求 "+expected+"，当前服务 "+state().robot_id);
     const std::string cmd=request.get("cmd","").asString();
     if(!find_command(cmd)) return reply(false,"未知命令: "+cmd);
     if(find_command(cmd)->group==CommandGroup::Retired) return reply(false,"该实验命令已退役，请使用保留的单步抓放或调度入口");
@@ -28,6 +33,8 @@ Json::Value dispatch(const Json::Value &request) {
     if(cmd=="ping") {
         auto out=reply(true);
         out["mode"]=mode_name(state().mode);
+        out["robot_id"]=state().robot_id;out["robot_model"]=state().robot_model;
+        out["dispatch_active"]=orch::dispatch_board_snapshot().active;
         // Available while a task owns the motion mutex; launcher discovery must
         // use the live process, never guess a recent configuration directory.
         out["runtime_root"]=t170::paths::resource_root().string();

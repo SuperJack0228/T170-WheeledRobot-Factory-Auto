@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hmac
+import http.client
 import json
 import mimetypes
 import os
@@ -27,14 +28,14 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, unquote
 
 import yaml
 
 
 # 前端 app.js 里有同一个数，对不上时页面提示重启 server.py 并强制刷新。
-WEB_API_VERSION = 9
-UI_VERSION = "2.2.0"
+WEB_API_VERSION = 10
+UI_VERSION = "2.3.0"
 LIVE_SHM = Path("/dev/shm/t170-hand-live")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -43,6 +44,7 @@ from t170_common.config_workspace import ConfigWorkspace, workspace_root
 from web_debug.profiles import ProfileStore
 from web_debug.actions import catalog as action_catalog
 from t170_common.web_access import persistent_token
+from t170_common.fleet import FleetStore
 from t170_common.maintenance_workcells import load_catalog as load_workcells, validate_catalog, STATION_FIELDS
 
 RUNTIME_PATHS = load_paths()
@@ -50,6 +52,7 @@ PROJECT_ROOT = RUNTIME_PATHS.root
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
 WORKSPACE = ConfigWorkspace(workspace_root(PROJECT_ROOT))
 PROFILE_STORE = ProfileStore(WORKSPACE.root)
+FLEET = FleetStore(WORKSPACE.root)
 CONFIG_FILES = {
     "motion": RUNTIME_PATHS.config_dir / "effective_params.yaml",
     "tray_code": PROJECT_ROOT / "board_yf100_aruco" / "config.yaml",
@@ -340,6 +343,12 @@ class AppState:
         self.last_snapshot: dict[str, Any] = {}
         RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
 
+    def identity(self):
+        result = self.robot_request({'cmd': 'ping'}, timeout=3.0)
+        if result.get('ok') is not True:
+            raise RobotClientError(result.get('error', '无法读取机器人身份'))
+        return result
+
     def log(self, text: str, source: str = "web") -> None:
         text = text.rstrip("\r\n")
         if not text:
@@ -627,17 +636,129 @@ class DebugHandler(BaseHTTPRequestHandler):
             supplied = parse_qs(parsed.query).get("token", [""])[0]
         return bool(supplied) and hmac.compare_digest(supplied, self.state.token)
 
-    def _require_auth(self, parsed: Any) -> bool:
+    def _require_auth(self, parsed: Any, check_identity=True) -> bool:
         if self._authorized(parsed):
+            expected = self.headers.get('X-T170-Expected-Robot', '')
+            if check_identity and expected:
+                try:
+                    actual = self.state.identity().get('robot_id')
+                except RobotClientError as error:
+                    self._json(HTTPStatus.CONFLICT, {'ok': False, 'error': str(error)})
+                    return False
+                if actual != expected:
+                    self._json(HTTPStatus.CONFLICT, {'ok': False,
+                        'error': f'机器人身份不匹配：请求 {expected}，当前服务 {actual}；请重新连接'})
+                    return False
             return True
         self._json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "访问令牌无效"})
         return False
 
+    def _proxy_robot(self, parsed):
+        match = re.fullmatch(r'/robots/(TH-T170C-\d{4,8})(/.*)', parsed.path)
+        if not match:
+            self._json(HTTPStatus.NOT_FOUND, {'ok': False, 'error': '机器人连接地址无效'})
+            return
+        robot_id, path = match.groups()
+        if '..' in unquote(path).split('/'):
+            self._json(HTTPStatus.BAD_REQUEST, {'ok': False, 'error': '无效路径'})
+            return
+        if (path.startswith('/api/') or self.command != 'GET') and not self._require_auth(parsed, False):
+            return
+        connection = None
+        sent_headers = False
+        try:
+            endpoint = FLEET.connections().get(robot_id)
+            if not endpoint:
+                raise ValueError('请先在连接设置中登记该机器人')
+            try:
+                local_id = self.state.identity().get('robot_id')
+            except RobotClientError:
+                local_id = None
+            target = path + ('?' + parsed.query if parsed.query else '')
+            if local_id == robot_id:
+                # Same machine: keep the original local API and its auth checks.
+                self.path = target
+                (self.do_POST if self.command == 'POST' else self.do_GET)()
+                return
+            remote_token = FLEET.token(robot_id)
+            if not remote_token:
+                raise ValueError('请先在连接设置中保存该机器人访问令牌；只需设置一次')
+            headers = {'X-T170-Token': remote_token, 'X-T170-Expected-Robot': robot_id}
+            connection = http.client.HTTPConnection(endpoint['host'], endpoint['port'], timeout=3)
+            connection.request('GET', '/api/identity', headers=headers)
+            identity_response = connection.getresponse()
+            identity = json.loads(identity_response.read(65536))
+            connection.close()
+            if identity_response.status != 200 or identity.get('ok') is not True:
+                raise ValueError(identity.get('error', '无法核对远程身份；请更新远程主程序和网页服务'))
+            if identity.get('robot_id') != robot_id:
+                raise ValueError(f'机器人身份不匹配：期望 {robot_id}，实际 {identity.get("robot_id")}')
+            body = None
+            if self.command == 'POST':
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 512 * 1024:
+                    raise ValueError('请求大小不正确')
+                body = self.rfile.read(length)
+                payload = json.loads(body)
+                if not isinstance(payload, dict):
+                    raise ValueError('请求必须是 JSON 对象')
+                if payload.get('expected_robot_id', robot_id) != robot_id:
+                    raise ValueError('请求正文与目标机器人编号不匹配')
+                payload['expected_robot_id'] = robot_id
+                body = json.dumps(payload).encode('utf-8')
+                headers['Content-Type'] = self.headers.get('Content-Type', 'application/json')
+            connection = http.client.HTTPConnection(endpoint['host'], endpoint['port'], timeout=3)
+            connection.connect()
+            # Dispatch is an existing long-lived command. A browser disconnect
+            # never turns it into a retry or cancels robot-owned execution.
+            connection.sock.settimeout(None if path in ('/api/command', '/api/calibration') or
+                                       path.startswith('/api/stream/') else 30)
+            connection.request(self.command, target, body=body, headers=headers)
+            response = connection.getresponse()
+            self.send_response(response.status)
+            for name in ('Content-Type', 'Content-Length', 'Cache-Control'):
+                value = response.getheader(name)
+                if value is not None:
+                    self.send_header(name, value)
+            self.end_headers()
+            sent_headers = True
+            while True:
+                chunk = response.read1(65536)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                self.wfile.flush()
+        except (ValueError, OSError, http.client.HTTPException) as error:
+            if not sent_headers:
+                self._json(HTTPStatus.BAD_GATEWAY, {'ok': False, 'error': str(error)})
+        finally:
+            if connection:
+                connection.close()
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path.endswith('/calibration/'):
+            self.send_response(HTTPStatus.TEMPORARY_REDIRECT)
+            self.send_header('Location', parsed.path[:-1] + ('?' + parsed.query if parsed.query else ''))
+            self.end_headers()
+            return
+        if parsed.path.startswith('/robots/'):
+            self._proxy_robot(parsed)
+            return
         if parsed.path.startswith("/api/") and not self._require_auth(parsed):
             return
         try:
+            if parsed.path == '/api/fleet':
+                try:
+                    local = self.state.identity()
+                except RobotClientError:
+                    local = {}
+                self._json(HTTPStatus.OK, {'ok': True, 'robots': FLEET.public_list(),
+                    'local_robot_id': local.get('robot_id'), 'local_robot_model': local.get('robot_model')})
+                return
+            if parsed.path == '/api/identity':
+                self._json(HTTPStatus.OK, self.state.identity())
+                return
             if parsed.path == '/api/maintenance-workcells':
                 self._json(HTTPStatus.OK, maintenance_workcells_view(self.state))
                 return
@@ -676,12 +797,13 @@ class DebugHandler(BaseHTTPRequestHandler):
                 result = PROFILE_STORE.list()
                 try:
                     live = self.state.robot_request({"cmd": "ping"}, timeout=3.0)
-                    result["active"] = {key: live.get(key) for key in ("mode", "runtime_root", "config_dir")}
+                    result["active"] = {key: live.get(key) for key in ("mode", "runtime_root", "config_dir", "robot_id", "robot_model")}
                     runtime = Path(str(live.get("runtime_root", "")))
                     record = runtime / "deployment_resolved.json"
                     if runtime.is_absolute() and record.is_file():
                         record_data = json.loads(record.read_text(encoding="utf-8"))
-                        result["active"].update({key: record_data.get(key) for key in ("robot_id", "robot_model", "manifest")})
+                        result["active"].update({key: record_data.get(key) for key in ("robot_id", "robot_model", "manifest")
+                                                if not result["active"].get(key)})
                 except RobotClientError:
                     result["active"] = None
                 self._json(HTTPStatus.OK, result)
@@ -892,10 +1014,17 @@ class DebugHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path.startswith('/robots/'):
+            self._proxy_robot(parsed)
+            return
         if not self._require_auth(parsed):
             return
         try:
             payload = self._parse_json()
+            if parsed.path == '/api/fleet':
+                connection = FLEET.save(payload)
+                self._json(HTTPStatus.OK, {'ok': True, 'connection': connection})
+                return
             if parsed.path == '/api/maintenance-workcells':
                 if not self.state.begin_action('切换维护机床组'):
                     self._json(HTTPStatus.CONFLICT, {'ok': False, 'error': '请等待当前动作完成再切换机床组'})
@@ -982,7 +1111,9 @@ class DebugHandler(BaseHTTPRequestHandler):
                     # 调度模式一直跑到退出/停止，不能被 30 分钟超时断开后又放开网页的动作锁。
                     result = apply_persistent(self.state) if cmd == "reload_config" else command_result(cmd, self.state.robot_request(
                         payload, timeout=None if cmd == "dispatch" else 1800.0))
-                    if not result["ok"]:
+                    if cmd == 'dispatch' and result.get('code') == -4:
+                        result['status'] = 'stopped'
+                    if not result["ok"] and result.get('status') != 'stopped':
                         action_error = result["error"]
                 except Exception as exc:
                     action_error = str(exc)

@@ -5,24 +5,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>T170C工厂自动上下料控制器</title>
-  <link rel="stylesheet" href="/styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body>
   <header class="nav">
-    <a class="brand" href="/" title="T170C工厂自动上下料控制器">
+    <a class="brand" href="./" title="T170C工厂自动上下料控制器">
       <span class="brand-text">T170C工厂自动上下料控制器</span>
     </a>
     <nav class="tabs">
       <button class="tab active" data-page="status">状态</button>
       <button class="tab" data-page="motion">动作</button>
       <button class="tab" data-page="dispatch" id="taskTab">任务联调</button>
-      <a class="tab" id="calibrationLink" href="/calibration">标定向导</a>
+      <a class="tab" id="calibrationLink" href="calibration">标定向导</a>
       <button class="tab" data-page="config">参数</button>
       <button class="tab" data-page="profiles">机器人档案</button>
       <button class="tab" data-page="vision">视觉</button>
       <button class="tab" data-page="logs">日志</button>
     </nav>
     <div class="nav-side">
+      <label class="fleet-picker">连接机器人<select id="fleetRobot"><option>读取中…</option></select></label>
+      <span id="connectedRobot" class="pill">身份待核对</span>
       <span id="modeChip" class="pill">模式未知</span>
       <span id="serviceChip" class="pill">连接中</span>
       <button id="stopButton" class="stop">停止</button>
@@ -56,7 +58,7 @@
     <section id="page-status" class="page active">
       <p class="kicker">Status</p>
       <h1>实时状态</h1>
-      <p class="robot-context"><strong id="activeRobot">等待机器人服务</strong> <span id="activeModel"></span> <button id="openProfiles" class="quiet">切换机器人</button></p>
+      <p class="robot-context"><strong id="activeRobot">等待机器人服务</strong> <span id="activeModel"></span> <button id="openProfiles" class="quiet">本机部署档案</button></p>
       <p class="lead" id="statusLead">空闲时每秒读取双臂 TCP、腰高、持件和底盘站位。动作进行中不打断电机，沿用上一次读数。</p>
       <div class="stats">
         <article><span>服务</span><strong id="metricService">—</strong></article>
@@ -120,7 +122,7 @@
           </div>
           <p class="hint" id="jobLine">当前没有编排在跑。</p>
         </article>
-        <article class="card" id="automaticTaskCard"><h2>自动调度</h2><p class="hint">进入后由工厂调度分配任务。退出调度会中止当前流程并离开调度模式。</p>
+        <article class="card" id="automaticTaskCard"><h2>自动调度</h2><p class="hint">进入后连接调度、核图并原地回 Home，随后由工厂调度分配任务。退出调度会中止当前流程。</p>
           <button class="cmd fill dispatch-enter" data-command="dispatch">进入调度</button>
           <button type="button" id="exitDispatch" class="dispatch-exit">退出调度</button>
           <p class="hint">退出调度会中止动作、断开与调度系统的等待，并结束调度模式；监控里「调度中」应变为未进入。</p>
@@ -159,10 +161,11 @@
 
     <section id="page-profiles" class="page">
       <p class="kicker">Robot profiles</p><h1>机器人档案</h1>
-      <p class="lead">选择机器人编号与臂型。保存后在下次启动主服务时生效。</p>
+      <p class="lead">此处修改当前连接机器人的下次启动档案；连接其他实体机器人请使用顶部选择框。</p>
+      <details class="card" id="fleetSettings"><summary>连接设置：添加机器人／保存访问令牌</summary><p class="hint">默认上位机 IP 为 192.168.113.编号，与底盘地址不同。远程访问令牌只需保存一次，可在该机器人终端读取 config/.web-token；不会显示或提交 Git。</p><div class="profile-fields"><label>机器人编号<input id="fleetId" placeholder="120"></label><label>上位机 IP<input id="fleetHost" placeholder="留空按编号生成"></label><label>网页访问令牌<input id="fleetToken" type="password" autocomplete="off" placeholder="留空保留已保存的令牌"></label></div><button id="saveFleet" class="quiet">保存连接</button><p id="fleetMessage" class="hint" role="status"></p></details>
       <div class="profile-summary card"><div><span class="workspace-label">正在运行</span><strong id="profileActive">—</strong></div><div><span class="workspace-label">下次启动</span><strong id="profileSelected">—</strong></div></div>
       <article class="card"><h2>选择部署档案</h2><div class="profile-fields"><label>机器人编号<select id="profileSelect"></select></label><label>机械臂型号<select id="profileModel"><option value="t170c_v2_3kg">T170C V2 · 3 kg</option><option value="t170c_v2_5kg">T170C V2 · 5 kg</option></select></label></div><p id="profileDetail" class="hint"></p><button id="applyProfile" class="fill">保存为下次启动档案</button><p id="profileMessage" class="hint" role="status"></p></article>
-      <details class="card"><summary>新增机器人档案</summary><p class="hint">复用选中档案的接口、工具和示教配置，默认使用理论手眼。核对本机相机 SN 后，通过向导建立本机抓放参考。</p><div class="profile-fields"><label>新机器人编号<input id="newRobotId" placeholder="TH-T170C-0125" pattern="TH-T170C-[0-9]{4,8}"></label><label>底盘地址<input id="newRobotHost" placeholder="192.168.192.5"></label></div><button id="createProfile" class="quiet">创建档案</button></details>
+      <details class="card"><summary>新增机器人档案</summary><p class="hint">复用选中档案的接口、工具和示教配置，默认使用理论手眼。核对本机相机 SN 后，通过向导建立本机抓放参考。</p><div class="profile-fields"><label>新机器人编号<input id="newRobotId" placeholder="TH-T170C-0125" pattern="TH-T170C-[0-9]{4,8}"></label><label>底盘地址<input id="newRobotHost" placeholder="192.168.192.5"></label><label>上位机 IP<input id="newRobotWebHost" placeholder="默认 192.168.113.编号"></label></div><button id="createProfile" class="quiet">创建档案</button></details>
     </section>
 
     <section id="page-logs" class="page">
@@ -178,6 +181,6 @@
   </footer>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/app.js?v=22"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>

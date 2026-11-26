@@ -3,6 +3,10 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search), supplied = params.get("token");
 if (supplied) {localStorage.setItem("t170_token", supplied);history.replaceState(null,"",location.pathname);}
 const token = supplied || localStorage.getItem("t170_token") || "";
+const robotRoute = location.pathname.match(/^\/robots\/(TH-T170C-\d{4,8})(?=\/)/);
+const apiPrefix = robotRoute?.[0] || "";
+let identityRobot = robotRoute?.[1] || "";
+const authHeaders = () => ({"X-T170-Token":token,...(robotRoute ? {"X-T170-Expected-Robot":robotRoute[1]} : {})});
 const labels = ["选择任务与准备", "识别固定空孔 · 去D点", "D点XY对准", "保持手臂 · 准备参考物", "点击视觉参考点", "保存与完成"];
 let maintenance=false,uiConnected=false;
 let state={active:false,step:0,phase:"idle"},busy=false,viewStep=null,selected=null,jogSize="0.2",taskChoice="grasp",handChoice="1";
@@ -11,7 +15,8 @@ const fmt=(n,d=2)=>n!==null&&n!==undefined&&n!==""&&Number.isFinite(Number(n))?N
 const grasp=()=> (state.active?state.task:taskChoice)==="grasp";
 const taskName=()=>grasp()?"料盘抓取":"料盘放置";
 async function api(path,body) {
- const r=await fetch(path,{method:body?"POST":"GET",headers:{"X-T170-Token":token,...(body?{"Content-Type":"application/json"}:{})},body:body?JSON.stringify(body):undefined,cache:"no-store"});
+ if(body && identityRobot)body={...body,expected_robot_id:identityRobot};
+ const r=await fetch(apiPrefix+path,{method:body?"POST":"GET",headers:{...authHeaders(),...(body?{"Content-Type":"application/json"}:{})},body:body?JSON.stringify(body):undefined,cache:"no-store"});
  const data=await r.json();if(!r.ok)throw Error(data.error||`HTTP ${r.status}`);return data;
 }
 function error(message="") {$("error").hidden=!message;$("error").textContent=message;}
@@ -93,7 +98,7 @@ async function run(action,extra={}) {
 }
 async function refresh() {
  const previousMaintenance=maintenance;
- try {const [next,caps]=await Promise.all([api("/api/calibration"),api("/api/capabilities")]);maintenance=caps.mode==="maintenance";if(!next.ok)throw Error(next.error||"请重新编译并启动支持料盘标定的机器人程序");
+ try {const [next,caps]=await Promise.all([api("/api/calibration"),api("/api/capabilities")]);identityRobot=caps.robot_id||robotRoute?.[1]||"";maintenance=caps.mode==="maintenance"&&!caps.dispatch_active;$("calibrationRobot").textContent=identityRobot;if(!next.ok)throw Error(next.error||"请重新编译并启动支持料盘标定的机器人程序");
   $("connection").textContent=maintenance?`维护模式 · ${next.active?"标定会话有效":"空闲"}`:"生产模式：请使用维护入口进行标定";$("connection").className="connection";
   if(!busy){const changed=maintenance!==previousMaintenance||next.head_image_revision!==state.head_image_revision||next.image_revision!==state.image_revision||next.phase!==state.phase||next.session!==state.session||next.interrupted!==state.interrupted||next.software_stopped!==state.software_stopped;state=next;if(changed||!uiConnected){selected=null;uiConnected=true;render();}}
  }catch(e){maintenance=false;uiConnected=false;$("connection").textContent=e.message;$("connection").className="connection bad";if(previousMaintenance)render();}
@@ -109,7 +114,7 @@ async function loadFrozenImage(img,kind) {
  const session=state.session,revision=kind==="head"?state.head_image_revision:state.image_revision;
  const url=`/api/calibration/image?kind=${kind}&session=${encodeURIComponent(session)}&revision=${revision}`;
  try {
-  const response=await fetch(url,{headers:{"X-T170-Token":token},cache:"no-store"});
+ const response=await fetch(apiPrefix+url,{headers:authHeaders(),cache:"no-store"});
   if(!response.ok){const result=await response.json();throw Error(result.error||`图像读取失败 HTTP ${response.status}`);}
   const blob=await response.blob();
   if(!img.isConnected||state.session!==session||(kind==="head"?state.head_image_revision:state.image_revision)!==revision)return;

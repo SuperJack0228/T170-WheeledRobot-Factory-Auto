@@ -146,6 +146,7 @@
     add_test(NAME placement_calibration_math_test COMMAND placement_calibration_math_test ${T170_TEST_RUNTIME})
     add_test(NAME placement_calibration_web_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/placement_calibration_web_test.py)
     add_test(NAME web_profiles_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/web_profiles_test.py)
+    add_test(NAME fleet_web_test COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/fleet_web_test.py)
 
     find_package(jsoncpp CONFIG REQUIRED)
     add_executable(task_result_test tests/task_result_test.cpp src/app/task_result.cpp)
