@@ -198,7 +198,7 @@ int withdraw(ConveyorContext &context,const ConveyorRetreatRequest &request,deta
                 (is_right?m.ready_right:m.ready_left);
             run.stage(Stage::Return,{!is_right,is_right});
         if(aborted()) return -4;
-            code=arm_return_after_lift(arm,ready,on_return,on_return?0.40:-1.0,1.8);
+            code=arm_return_after_lift(arm,ready,on_return,on_return?0.40:-1.0,1.0,speed);
         }
         if(code!=0) {
             std::cerr<<"[orch] "<<name<<' '<<hand<<" 收手失败 code="<<code<<"，保留夹爪状态\n";

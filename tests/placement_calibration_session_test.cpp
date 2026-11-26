@@ -45,7 +45,7 @@ Matrix<double,1,7> arm_get_joint_pos(Arm &){no_hardware();return Matrix<double,1
 int arm_line_move(Arm &,Matrix<double,1,6>&,double,bool){no_hardware();return -1;}
 bool record_arm_cartesian_arrival(Arm &,const Matrix<double,1,6>&,const char*,double){no_hardware();return false;}
 int arm_vertical_lift(Arm &,double,double,const std::function<void(double)>&){no_hardware();return -1;}
-int arm_return_after_lift(Arm &,const Matrix<double,1,7>&,const std::function<void()>&,double,double){no_hardware();return -1;}
+int arm_return_after_lift(Arm &,const Matrix<double,1,7>&,const std::function<void()>&,double,double,double){no_hardware();return -1;}
 ArmLineMoveResult arm_dual_line_then_line_nostop(Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,
  Arm &,const Matrix<double,1,6>&,const Matrix<double,1,6>&,bool,double,double,const std::function<void()>&,bool,const char*,bool,bool,int,const std::function<void()>&){no_hardware();return {-1,-1};}
 int enable_head_calib_pose(){no_hardware();return -1;}

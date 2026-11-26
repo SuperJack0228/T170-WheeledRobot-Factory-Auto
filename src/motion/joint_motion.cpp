@@ -8,6 +8,14 @@ namespace t170::motion {
 namespace {
 bool positive(double x) { return std::isfinite(x) && x > 0; }
 }
+const char *timing_limit_name(const JointMotionLimits &peak,const JointMotionLimits &limits,
+                             double tcp,double requested) {
+    if(requested>0 && tcp>=requested*.97)return "tcp_speed";
+    const double v=peak.velocity/limits.velocity,a=peak.acceleration/limits.acceleration,
+                 j=peak.jerk/limits.jerk;
+    if(std::max({v,a,j})<.8)return "short_move_or_path";
+    return v>=a && v>=j ? "joint_velocity" : a>=j ? "joint_acceleration" : "joint_jerk";
+}
 JointMotionLimits joint_path_peaks(const Eigen::MatrixXd &path,double dt) {
     JointMotionLimits peak{0,0,0};
     if(path.rows()<1 || path.cols()!=7 || !path.allFinite() || !positive(dt))return {INFINITY,INFINITY,INFINITY};
@@ -38,6 +46,39 @@ Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &points, double dt,
     }
     if(q.size()==1) return Eigen::MatrixXd::Constant(2,7,0).rowwise()+q.front();
     const int n=static_cast<int>(q.size());
+    if(n==2) {
+        // A straight joint transit needs a cruise phase, rather than stretching
+        // a single quintic over the entire move. Cosine velocity ramps have
+        // continuous acceleration and analytically bounded velocity/a/jerk.
+        const double travel=(q.back()-q.front()).cwiseAbs().maxCoeff();
+        const double v_limit=limit.velocity/travel, a_limit=limit.acceleration/travel,
+                     j_limit=limit.jerk/travel;
+        const double pi=std::acos(-1.);
+        auto ramp_time=[&](double v) {
+            return std::max(pi*v/(2*a_limit),std::sqrt(pi*pi*v/(2*j_limit)));
+        };
+        double velocity=v_limit;
+        if(velocity*ramp_time(velocity)>1) {
+            double lo=0,hi=velocity;
+            for(int i=0;i<70;++i) {const double mid=(lo+hi)*.5;
+                if(mid*ramp_time(mid)>1)hi=mid;else lo=mid;}
+            velocity=(lo+hi)*.5;
+        }
+        const double ramp=ramp_time(velocity), base_duration=1/velocity+ramp;
+        const double duration=std::max(base_duration,minimum_duration);
+        if(!std::isfinite(duration) || duration>60 || duration/dt>200000)return {};
+        const int ticks=std::max(2,static_cast<int>(std::ceil(duration/dt)));
+        Eigen::MatrixXd out(ticks+1,7);
+        auto accelerate=[&](double t) {return .5*velocity*(t-ramp/pi*std::sin(pi*t/ramp));};
+        for(int k=0;k<=ticks;++k) {
+            const double t=base_duration*k/ticks;
+            const double u=t<ramp ? accelerate(t) : t>base_duration-ramp ?
+                1-accelerate(base_duration-t) : velocity*(t-.5*ramp);
+            out.row(k)=q.front()+std::clamp(u,0.,1.)*(q.back()-q.front());
+        }
+        out.row(0)=q.front();out.bottomRows(1)=q.back();
+        return out;
+    }
     const double length=s.back();
     for(auto &value:s) value/=length;
     // Natural spline second derivatives. Positive tridiagonal system.

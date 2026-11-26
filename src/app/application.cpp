@@ -7,6 +7,9 @@
 #include <iostream>
 #include <thread>
 #include "t170/vision/python_runtime.h"
+#include "t170/common/paths.h"
+#include <ifaddrs.h>
+#include <sstream>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -16,6 +19,35 @@
 
 namespace t170::app {
 using namespace detail;
+namespace {
+void startup_summary(const Options &options) {
+    std::string ip="127.0.0.1";
+    ifaddrs *interfaces=nullptr;
+    if(getifaddrs(&interfaces)==0) {
+        for(auto *p=interfaces;p;p=p->ifa_next) {
+            if(!p->ifa_addr || p->ifa_addr->sa_family!=AF_INET)continue;
+            const auto *a=reinterpret_cast<const sockaddr_in *>(p->ifa_addr);
+            if((ntohl(a->sin_addr.s_addr)>>24)==127)continue;
+            char address[INET_ADDRSTRLEN]{};
+            if(inet_ntop(AF_INET,&a->sin_addr,address,sizeof(address))) {ip=address;break;}
+        }
+        freeifaddrs(interfaces);
+    }
+    const auto *workspace=std::getenv("T170_WORKSPACE");
+    const std::string model=g_arm_l?g_arm_l->definition().model_id:
+        g_arm_r?g_arm_r->definition().model_id:"unknown";
+    std::ostringstream out;
+    out<<"\n[启动就绪] 机器人="<<g_move_cfg.chassis.sequence_number<<" 型号="<<model
+       <<" 模式="<<(options.mode==Mode::Maintenance?"维护":"调度")
+       <<" 手相机修正="<<(g_move_cfg.cameras.hand_descent_correct?"开启":"关闭（使用示教XY）")
+       <<" 底盘="<<g_move_cfg.chassis.host<<"\n"
+       <<"[快捷信息] 参数="<<(workspace?workspace:project_root_dir())<<"/config"
+       <<" 日志="<<t170::paths::log_directory().string()
+       <<" 网页默认入口=http://"<<ip<<":8080/"
+       <<" 本机命令=127.0.0.1:"<<options.port<<"\n";
+    std::cerr<<out.str()<<std::flush;
+}
+}
 int run(int argc, char **argv)
 {
     try
@@ -65,6 +97,7 @@ int run(int argc, char **argv)
                   << (boot_dispatch ? " dispatch=boot\n" : "\n");
         if (boot_dispatch)
             start_boot_dispatch();
+        startup_summary(options);
         with_python_gil_released([&] {
             while (!app_stop_requested())
             {

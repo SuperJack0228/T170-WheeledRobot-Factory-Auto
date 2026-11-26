@@ -10,8 +10,11 @@ struct JointMotionLimits {
 };
 // Sampled joint derivatives, including the stationary tails.
 JointMotionLimits joint_path_peaks(const Eigen::MatrixXd &path, double dt);
+const char *timing_limit_name(const JointMotionLimits &peak,const JointMotionLimits &limits,
+                             double peak_tcp_speed,double requested_tcp_speed);
 // Natural cubic path, or a convex-hull-preserving C2 clamped B-spline when
-// preserve_knot_bounds is requested; one rest-to-rest quintic clock in both cases.
+// preserve_knot_bounds is requested. Two-knot transits use cosine velocity
+// ramps with an optional cruise phase; curved paths use a quintic clock.
 // Limits apply to the sampled position stream, including the stationary tails.
 Eigen::MatrixXd time_joint_path(const Eigen::MatrixXd &waypoints, double dt,
                                const JointMotionLimits &limits, double minimum_duration = 0.0,

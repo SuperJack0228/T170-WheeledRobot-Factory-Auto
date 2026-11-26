@@ -31,6 +31,10 @@ class WorkspaceTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix='t170-workspace-'); self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name); self.root = self.base / 'source'
         shutil.copytree(ROOT / 'config', self.root / 'config')
+        # A fixture starts in group 1, regardless of the last field selection.
+        catalog=self.root/'config/sites/current_factory/maintenance_workcells.yaml'
+        data=yaml.safe_load(catalog.read_text());data['selected_group']=1
+        catalog.write_text(yaml.safe_dump(data,sort_keys=False))
         self.workspace = ConfigWorkspace(self.root, CHECKER)
         self.manifest = self.workspace.manifest()[0]
         self.runtime = self.base / 'live'; resolve(self.root, self.manifest, self.runtime)

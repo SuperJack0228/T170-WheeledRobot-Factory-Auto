@@ -108,6 +108,7 @@ config/calibration/**/*_before_*.yaml
 
 # Unified persistent configuration transaction lock.
 .t170-config.lock
+/config/.web-token
 
 # Release build and staging artifacts.
 build_release/

@@ -73,9 +73,6 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
         g_hw->last_skill_result=t170::tasks::configuration_failure(t170::skills::Skill::TrayGrasp,error);
         g_hw->last_task_error=error;std::cerr<<"[grasp_preflight] "<<error<<'\n';return -30;
     };
-    if(!g_move_cfg.cameras.hand_descent_correct)
-        return reject_configuration("料盘抓取要求开启 cameras.hand_descent_correct；尚未执行准备动作");
-
     if(g_move_cfg.cameras.hand_descent_correct) {
         for(bool right:{false,true}) {
             if((right && right_arm_motors_locked()) || !g_hw->g->hasSide(right?gripper::Side::Right:gripper::Side::Left))continue;

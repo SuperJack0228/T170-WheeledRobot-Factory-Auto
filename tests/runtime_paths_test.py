@@ -12,9 +12,22 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from t170_common.paths import load_paths
+from t170_common.web_access import persistent_token
 
 
 class RuntimePathsTest(unittest.TestCase):
+    def test_web_token_survives_restart_and_configuration_copy(self):
+        import shutil
+        with tempfile.TemporaryDirectory(prefix='t170-token-') as directory:
+            root=Path(directory)/'one';root.mkdir()
+            token=persistent_token(root)
+            self.assertTrue(token)
+            self.assertEqual(persistent_token(root),token)
+            self.assertEqual((root/'config/.web-token').stat().st_mode & 0o777,0o600)
+            other=Path(directory)/'two';other.mkdir()
+            shutil.copytree(root/'config',other/'config')
+            self.assertEqual(persistent_token(other),token)
+
     def test_default_paths(self):
         with patch.dict(os.environ, {}, clear=True):
             root = Path(__file__).resolve().parents[1]

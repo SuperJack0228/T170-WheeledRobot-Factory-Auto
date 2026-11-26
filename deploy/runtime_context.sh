@@ -54,7 +54,11 @@ PY
 fi
 export T170_RUNTIME_DIR="$T170_ROOT"
 if [[ -z "${T170_LOG_DIR:-}" && -f "${T170_CONFIG_DIR:-$T170_ROOT/config}/effective_params.yaml" ]]; then
-  export T170_LOG_DIR="$state_root/logs/$(date +%Y%m%d)"
+  if [[ -f "$T170_PACKAGE_ROOT/release.json" ]]; then
+    export T170_LOG_DIR="$state_root/logs/$(date +%Y%m%d)"
+  else
+    export T170_LOG_DIR="$T170_SOURCE_ROOT/field_logs/$(date +%Y%m%d)"
+  fi
 fi
 if [[ -n "${T170_LOG_DIR:-}" ]]; then
   mkdir -p -- "$T170_LOG_DIR"

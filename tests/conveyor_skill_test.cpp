@@ -31,7 +31,7 @@ ArmLineMoveResult arm_dual_line_then_line_nostop(Arm &,const Eigen::Matrix<doubl
 int arm_vertical_lift(Arm &,double height,double,const std::function<void(double)> &progress){
     ++moves;if(progress)progress(height);return lift_code;
 }
-int arm_return_after_lift(Arm &,const Eigen::Matrix<double,1,7> &ready,const std::function<void()> &on_return,double,double){
+int arm_return_after_lift(Arm &,const Eigen::Matrix<double,1,7> &ready,const std::function<void()> &on_return,double,double,double){
     ++moves;returned_joints=ready;if(on_return)on_return();return return_code;
 }
 namespace wrist_servo {

@@ -197,6 +197,8 @@ int Arm::approach_to_joints(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,
         const auto peak=t170::motion::joint_path_peaks(out,definition_.period);
         std::clog<<"[arm_plan] side="<<definition_.side<<" type=joint_approach nominal_s="
             <<(out.rows()-1)*definition_.period<<" peak_tcp_m_s="<<peak_speed
+            <<" requested_tcp_m_s="<<speed<<" limited_by="<<t170::motion::timing_limit_name(
+                peak,{definition_.velocity,definition_.acceleration,definition_.jerk},peak_speed,speed)
             <<" xy_margin_m="<<lateral_margin_m
             <<" peak_v="<<peak.velocity<<" peak_a="<<peak.acceleration<<" peak_j="<<peak.jerk<<'\n';
         return 0;
@@ -250,6 +252,44 @@ int Arm::Approach_Stroke(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
         }
     }
     out.resize(0,7);return -4;
+}
+int Arm::Lift_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> goal,
+                         Eigen::MatrixXd &out,double speed) {
+    Cart_Linear_Velocity=speed;
+    const int result=Line_Trajectory(start,goal,out);
+    if(result!=0 || out.rows()<2)return result?result:-16;
+    const auto begin=Forward_Kinematics(start.row(0)),end=t170::motion::arm_pose_transform(goal);
+    if(end(2,3)<=begin(2,3) || (end.topRightCorner<3,1>().head<2>()-begin.topRightCorner<3,1>().head<2>()).norm()>1e-5 ||
+       Eigen::AngleAxisd(begin.topLeftCorner<3,3>()*end.topLeftCorner<3,3>().transpose()).angle()>1e-4)return 0;
+    Eigen::MatrixXd knots(2,7);knots.row(0)=out.row(0);knots.row(1)=out.bottomRows(1);
+    const t170::motion::JointMotionLimits limits{definition_.velocity,definition_.acceleration,definition_.jerk};
+    double minimum=0;
+    for(int attempt=0;attempt<4;++attempt) {
+        auto fast=t170::motion::time_joint_path(knots,definition_.period,limits,minimum);
+        if(fast.rows()<2 || fast.rows()>=out.rows())break;
+        Eigen::Vector3d previous=begin.topRightCorner<3,1>();double peak_tcp=0;
+        bool valid=true;
+        for(int k=0;k<fast.rows();++k) {
+            const auto transform=Forward_Kinematics(fast.row(k));
+            const Eigen::Vector3d position=transform.topRightCorner<3,1>();
+            if(Check_Joint_Limit(fast.row(k)) || !transform.allFinite() ||
+               position.z()<begin(2,3)-.002 || position.z()>end(2,3)+.002 ||
+               position.z()<previous.z()-.0005 ||
+               (position.head<2>()-begin.topRightCorner<3,1>().head<2>()).norm()>.008 ||
+               Eigen::AngleAxisd(begin.topLeftCorner<3,3>()*transform.topLeftCorner<3,3>().transpose()).angle()>.08) {
+                valid=false;break;
+            }
+            peak_tcp=std::max(peak_tcp,(position-previous).norm()/definition_.period);previous=position;
+        }
+        if(!valid)break;
+        if(peak_tcp>speed*1.0001) {minimum=(fast.rows()-1)*definition_.period*peak_tcp/speed*1.005;continue;}
+        std::clog<<"[arm_lift] side="<<definition_.side<<" path=checked_joint requested_tcp_m_s="<<speed
+            <<" peak_tcp_m_s="<<peak_tcp<<" strict_line_s="<<(out.rows()-1)*definition_.period
+            <<" nominal_s="<<(fast.rows()-1)*definition_.period<<" lateral_corridor_m=0.008\n";
+        out=std::move(fast);return 0;
+    }
+    std::clog<<"[arm_lift] side="<<definition_.side<<" path=strict_line_fallback nominal_s="
+        <<(out.rows()-1)*definition_.period<<'\n';return 0;
 }
 int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> &p,Eigen::MatrixXd &out,std::optional<double> j2,std::optional<ArmJoints> selected_endpoint) {
     struct PlanLog {
@@ -317,7 +357,9 @@ int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
         knots.row(i)=q;
     }
     const Eigen::Vector3d delta=b.topRightCorner<3,1>()-a.topRightCorner<3,1>();
-    const double minimum_time=1.875*std::max(distance,.2*angle)/Cart_Linear_Velocity;
+    // Bound the requested average first; the sampled TCP peak is checked below.
+    // The old quintic factor also slowed cruise-capable paths unnecessarily.
+    const double minimum_time=std::max(distance,.2*angle)/Cart_Linear_Velocity;
     int selected_stride=0;
     // A convex C2 approximation removes high-frequency IK noise. Coarsening is
     // adaptive: every output sample must stay within 0.5 mm / 5 mrad of the
@@ -368,7 +410,15 @@ int Arm::Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> 
     }
     if(out.rows()<2)return -4;
     const auto peaks=t170::motion::joint_path_peaks(out,definition_.period);
+    double peak_tcp_speed=0;Eigen::Vector3d last=a.topRightCorner<3,1>();
+    for(int k=1;k<out.rows();++k) {
+        const Eigen::Vector3d position=Forward_Kinematics(out.row(k)).topRightCorner<3,1>();
+        peak_tcp_speed=std::max(peak_tcp_speed,(position-last).norm()/definition_.period);last=position;
+    }
     std::clog<<"[arm_path] side="<<definition_.side<<" reference=continuous stride="<<selected_stride
+        <<" requested_tcp_m_s="<<Cart_Linear_Velocity<<" peak_tcp_m_s="<<peak_tcp_speed
+        <<" limited_by="<<t170::motion::timing_limit_name(peaks,
+            {definition_.velocity,definition_.acceleration,definition_.jerk},peak_tcp_speed,Cart_Linear_Velocity)
         <<" peak_v="<<peaks.velocity<<" peak_a="<<peaks.acceleration<<" peak_j="<<peaks.jerk<<'\n';
     // Time interpolation is checked against the same SDK FK, not just knots.
     const Eigen::Vector3d line=b.topRightCorner<3,1>()-a.topRightCorner<3,1>();

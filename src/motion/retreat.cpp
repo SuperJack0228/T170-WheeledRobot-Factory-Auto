@@ -50,7 +50,7 @@ int plan_seeded_vertical_lift(Arm &arm, const wrist_servo::Joints &grasp, double
     {
         std::lock_guard<std::mutex> lock(g_arm_kin_mu[hand]);
         arm.Cart_Linear_Velocity=speed;
-        code=arm.Line_Trajectory(Eigen::MatrixXd(grasp),goal,trajectory);
+        code=arm.Lift_Trajectory(Eigen::MatrixXd(grasp),goal,trajectory,speed);
     }
     detail="shared_cartesian_lift code="+std::to_string(code);
     if(code!=0 || trajectory.rows()<2)return code?code:-16;
@@ -72,9 +72,12 @@ int plan_seeded_vertical_lift(Arm &arm, const wrist_servo::Joints &grasp, double
         if(trajectory.rows()<2)return -16;
     }
     // Check the interpolated path as well as IK knots near the loaded tray.
+    double peak_tcp=0;Eigen::Vector3d previous=start_T.block<3,1>(0,3);
     for(int i=0;i<trajectory.rows();++i) {
         std::lock_guard<std::mutex> lock(g_arm_kin_mu[hand]);
         const auto T=arm.Forward_Kinematics(Eigen::RowVectorXd(trajectory.row(i)));
+        const Eigen::Vector3d position=T.block<3,1>(0,3);
+        peak_tcp=std::max(peak_tcp,(position-previous).norm()/k_arm_traj_dt);previous=position;
         const double angle=Eigen::AngleAxisd(rotation*T.block<3,3>(0,0).transpose()).angle();
         if(arm.Check_Joint_Limit(trajectory.row(i)) || !T.allFinite() || T(2,3)<start_T(2,3)-.002 ||
            T(2,3)>z_goal+.002 ||
@@ -82,6 +85,11 @@ int plan_seeded_vertical_lift(Arm &arm, const wrist_servo::Joints &grasp, double
             detail="interpolated_geometry row="+std::to_string(i);return -16;
         }
     }
+    const auto final_peaks=t170::motion::joint_path_peaks(trajectory,k_arm_traj_dt);
+    std::cout<<"[motion_timing] hand="<<hand<<" stage=lift requested_tcp_m_s="<<speed
+        <<" planned_peak_tcp_m_s="<<peak_tcp<<" nominal_s="<<(trajectory.rows()-1)*k_arm_traj_dt
+        <<" limited_by="<<t170::motion::timing_limit_name(final_peaks,
+            {c.max_joint_velocity_rad_s,c.max_joint_acceleration_rad_s2,c.max_joint_jerk_rad_s3},peak_tcp,speed)<<'\n';
     detail="continuous_ik_timed";
     return 0;
 }
@@ -112,7 +120,8 @@ int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage
     std::cout<<"[retract] hand="<<hand<<" stage="<<stage<<" duration_s="<<(path.rows()-1)*k_arm_traj_dt
              <<" joint_limits="<<cfg.max_joint_velocity_rad_s<<","<<cfg.max_joint_acceleration_rad_s2
              <<","<<cfg.max_joint_jerk_rad_s3<<" ready_tolerance_rad="<<cfg.arrival_joint_tolerance_rad<<'\n';
-    double last_print=-1;
+    double last_print=-1,last_actual_s=0,measured_peak_tcp=0;
+    Eigen::Vector3d last_actual=Eigen::Vector3d::Zero();
     bool notified=false;
     t170::motion::MotionIO io;
     io.read=[&](auto &q){return wrist_servo::read_joint_feedback(hand,q);};
@@ -147,6 +156,11 @@ int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage
         row.measured.joints.setConstant(NAN);row.measured.position.setConstant(NAN);
         if(actual) {
             row.measured.joints=*actual;row.measured.position=arm_tcp_from_joints(arm,*actual).head<3>().transpose();
+            if(last_actual_s>0 && now>last_actual_s) {
+                row.measured.velocity=(row.measured.position-last_actual)/(now-last_actual_s);
+                measured_peak_tcp=std::max(measured_peak_tcp,row.measured.velocity.norm());
+            }
+            last_actual=row.measured.position;last_actual_s=now;
             if(progress) progress(*actual);
         }
         wrist_servo::trace_writer().push(std::move(row));
@@ -166,6 +180,9 @@ int execute_staged_motion(Arm &arm,const Eigen::MatrixXd &path,const char *stage
     };
     const int result=t170::motion::run_joint_motion(path,k_arm_traj_dt,
         {cfg.arrival_joint_tolerance_rad,cfg.settle_timeout_s,cfg.feedback_timeout_s,cfg.stable_samples},io);
+    std::cout<<"[motion_timing] hand="<<hand<<" stage="<<stage<<" nominal_s="<<(path.rows()-1)*k_arm_traj_dt
+        <<" actual_s="<<wrist_servo::monotonic_seconds()-execution_began
+        <<" measured_peak_tcp_m_s="<<measured_peak_tcp<<" result="<<result<<'\n';
     // On arrival keep the terminal reference alive. On failure keep measured
     // position instead of continuing to push a distant target; STOP/CAN never writes.
     if(hardware_abort_requested() || can_io_faulted()) return result;
@@ -213,7 +230,7 @@ int play_seeded_vertical_lift(Arm &arm,double lift_m,double speed,
 namespace {
 int play_joint_return(Arm &arm,const wrist_servo::Joints &ready,
                       const std::function<void()> &on_started = {},
-                      double notify_at = -1,double limit_scale = 1,const char *stage="return")
+                      double notify_at = -1,double limit_scale = 1,const char *stage="return",double tcp_speed=0)
 {
     const int hand=arm_hand_side(arm);
     wrist_servo::Joints start;
@@ -221,11 +238,29 @@ int play_joint_return(Arm &arm,const wrist_servo::Joints &ready,
     wrist_servo::peek_final_hold(hand,start);
     Eigen::MatrixXd knots(2,7);knots.row(0)=start;knots.row(1)=ready;
     const auto &c=g_move_cfg.retract_motion;
-    const double scale=std::isfinite(limit_scale) && limit_scale>1 ? limit_scale : 1;
-    const auto path=t170::motion::time_joint_path(knots,k_arm_traj_dt,
-        {c.max_joint_velocity_rad_s*scale,c.max_joint_acceleration_rad_s2*scale,
-         c.max_joint_jerk_rad_s3*scale});
+    // This configuration is the common cap; callers may slow down, never hide
+    // a 1.8x/2x increase beyond it. TCP speed is independently honoured below.
+    const double scale=std::isfinite(limit_scale) && limit_scale>0 ? std::min(limit_scale,1.) : 1.;
+    const t170::motion::JointMotionLimits limits{c.max_joint_velocity_rad_s*scale,
+        c.max_joint_acceleration_rad_s2*scale,c.max_joint_jerk_rad_s3*scale};
+    auto path=t170::motion::time_joint_path(knots,k_arm_traj_dt,limits);
     if(path.rows()<2) return -16;
+    double peak_tcp=0;
+    for(int attempt=0;attempt<4;++attempt) {
+        peak_tcp=0;Eigen::Vector3d previous=arm_tcp_from_joints(arm,start).head<3>().transpose();
+        for(int k=1;k<path.rows();++k) {
+            const Eigen::Vector3d position=arm_tcp_from_joints(arm,wrist_servo::Joints(path.row(k))).head<3>().transpose();
+            peak_tcp=std::max(peak_tcp,(position-previous).norm()/k_arm_traj_dt);previous=position;
+        }
+        if(!(tcp_speed>0) || peak_tcp<=tcp_speed*1.0001)break;
+        path=t170::motion::time_joint_path(knots,k_arm_traj_dt,limits,
+            (path.rows()-1)*k_arm_traj_dt*peak_tcp/tcp_speed*1.005);
+        if(path.rows()<2)return -16;
+    }
+    if(tcp_speed>0 && peak_tcp>tcp_speed*1.0001)return -16;
+    std::cout<<"[motion_timing] hand="<<hand<<" stage="<<stage<<" requested_tcp_m_s="<<tcp_speed
+        <<" planned_peak_tcp_m_s="<<peak_tcp<<" limited_by="<<t170::motion::timing_limit_name(
+            t170::motion::joint_path_peaks(path,k_arm_traj_dt),limits,peak_tcp,tcp_speed)<<'\n';
     std::cout<<"[retract] hand="<<hand<<" stage="<<stage<<" target_model_rad="<<ready
              <<" duration_s="<<(path.rows()-1)*k_arm_traj_dt
              <<" limit_scale="<<scale<<'\n';
@@ -251,12 +286,12 @@ int arm_vertical_lift(Arm &arm,double lift_m,double speed,
 
 int arm_return_after_lift(Arm &arm,const Eigen::Matrix<double,1,7> &ready,
                           const std::function<void()> &on_started,
-                          double notify_at,double limit_scale) {
+                          double notify_at,double limit_scale,double tcp_speed) {
     if(arm_hand_side(arm)==1 && right_arm_motors_locked()) return 0;
-    if(!ready.allFinite()) return -10;
+    if(!ready.allFinite() || !std::isfinite(tcp_speed) || tcp_speed<0) return -10;
     arm_discard_line_then_line_plan(arm_hand_side(arm));
     std::lock_guard<std::mutex> owner(g_staged_motion_mu[arm_hand_side(arm)]);
-    orch::TimingSpan timer("arm_return");const int code=play_joint_return(arm,ready,on_started,notify_at,limit_scale);timer.set_ok(code==0);return code;
+    orch::TimingSpan timer("arm_return");const int code=play_joint_return(arm,ready,on_started,notify_at,limit_scale,"return",tcp_speed);timer.set_ok(code==0);return code;
 }
 int arm_joint_home(Arm &arm) {
     const int hand=arm_hand_side(arm);

@@ -1,0 +1,91 @@
+{
+  "source_commit": "5f149a6",
+  "coordinates": "sdk_mdh_model_rad",
+  "note": "Recorded commanded lift starts and durations; rise derived from recorded goal and model FK. Replay speeds are test requests (tray 0.4, belt 0.6 m/s), not measured field speeds. Planning replay does not validate hardware tracking.",
+  "cases": [
+    {
+      "case": "no120_belt_lift",
+      "hand": "right",
+      "source": "field_logs/20261125/visual_servo/servo_1795600769575694_63701.csv",
+      "source_session": 1,
+      "source_steady_s": 16049.302284149,
+      "start_model_rad": [
+        1.06907559,
+        -0.553849871,
+        -1.260179063,
+        1.600176672,
+        1.269140612,
+        -0.903998326,
+        -0.162612025
+      ],
+      "rise_m": 0.09999999994947525,
+      "requested_speed_m_s": 0.6,
+      "field_nominal_s": 1.465,
+      "field_command_elapsed_s": 1.4872055129999353,
+      "source_target_z_m": -0.200612394
+    },
+    {
+      "case": "no120_belt_lift",
+      "hand": "left",
+      "source": "field_logs/20261125/visual_servo/servo_1795600769575694_63701.csv",
+      "source_session": 2,
+      "source_steady_s": 16504.4579175,
+      "start_model_rad": [
+        1.047109667,
+        0.37587323,
+        1.119566291,
+        1.289358789,
+        -1.359106978,
+        -0.893951273,
+        0.431719718
+      ],
+      "rise_m": 0.09999999964732204,
+      "requested_speed_m_s": 0.6,
+      "field_nominal_s": 1.495,
+      "field_command_elapsed_s": 1.5192192879985669,
+      "source_target_z_m": -0.205766695
+    },
+    {
+      "case": "no120_tray_lift",
+      "hand": "left",
+      "source": "field_logs/20261125/visual_servo/servo_1795597269587738_46595.csv",
+      "source_session": 1,
+      "source_steady_s": 12525.181955288,
+      "start_model_rad": [
+        0.732794727,
+        0.587227243,
+        0.934783761,
+        1.238403465,
+        -0.37027718,
+        -0.684025902,
+        -0.604527124
+      ],
+      "rise_m": 0.08000000010878422,
+      "requested_speed_m_s": 0.4,
+      "field_nominal_s": 1.1300000000000001,
+      "field_command_elapsed_s": 1.1465207989986084,
+      "source_target_z_m": -0.336163478
+    },
+    {
+      "case": "no120_tray_lift",
+      "hand": "right",
+      "source": "field_logs/20261125/visual_servo/servo_1795597269587738_46595.csv",
+      "source_session": 4,
+      "source_steady_s": 12889.915305391,
+      "start_model_rad": [
+        0.722261765,
+        -0.577817393,
+        -0.891516336,
+        1.272129716,
+        0.542574024,
+        -0.820218733,
+        0.477500496
+      ],
+      "rise_m": 0.11040666248584713,
+      "requested_speed_m_s": 0.4,
+      "field_nominal_s": 2.59,
+      "field_command_elapsed_s": 2.640276606000043,
+      "source_target_z_m": -0.296548973
+    }
+  ]
+}

@@ -85,6 +85,10 @@ public:
                             Eigen::MatrixXd &out,double tcp_speed);
     int Approach_Stroke(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> guide,
                         const Eigen::Matrix<double,1,6> &finish,Eigen::MatrixXd &out,double speed);
+    // Post-grasp/release lift only: checked 8 mm lateral / 0.08 rad corridor,
+    // with the precision Cartesian line as a fallback.
+    int Lift_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> target,
+                        Eigen::MatrixXd &trajectory,double speed);
     int Line_Trajectory(const Eigen::MatrixXd &start,Eigen::Matrix<double,1,6> &target,
                         Eigen::MatrixXd &out,std::optional<double> j2=std::nullopt,
                         std::optional<t170::motion::ArmJoints> endpoint=std::nullopt);

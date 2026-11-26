@@ -13,7 +13,6 @@ import json
 import mimetypes
 import os
 import re
-import secrets
 import shlex
 import shutil
 import signal
@@ -43,6 +42,7 @@ from t170_common.paths import load_paths
 from t170_common.config_workspace import ConfigWorkspace, workspace_root
 from web_debug.profiles import ProfileStore
 from web_debug.actions import catalog as action_catalog
+from t170_common.web_access import persistent_token
 from t170_common.maintenance_workcells import load_catalog as load_workcells, validate_catalog, STATION_FIELDS
 
 RUNTIME_PATHS = load_paths()
@@ -328,8 +328,8 @@ class AppState:
         self.robot_host = args.robot_host
         self.robot_port = args.robot_port
         self.robot_command = args.robot_command
-        self.token = args.token or secrets.token_urlsafe(18)
-        self.token_generated = not bool(args.token)
+        self.token = args.token or persistent_token(WORKSPACE.root)
+        self.token_generated = False
         self.robot_process: subprocess.Popen[str] | None = None
         self.log_lines: deque[dict[str, Any]] = deque(maxlen=3000)
         self.log_seq = 0
@@ -1099,8 +1099,7 @@ def main() -> int:
     print("\nT170C Web 调试台已启动")
     print(f"  本机: http://127.0.0.1:{args.port}/?token={state.token}")
     print(f"  局域网: http://<机器人IP>:{args.port}/?token={state.token}")
-    if state.token_generated:
-        print("  访问令牌为本次随机生成；重启后会变化。可用 T170_WEB_TOKEN 固定。")
+    print("  访问令牌固定保存；重启沿用。首次通过上面的链接进入后，可直接收藏不带 token 的网址。")
     print("  实体急停必须保持可用；网页 STOP 不能替代实体急停。\n")
 
     def shutdown(_signum: int, _frame: Any) -> None:

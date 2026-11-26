@@ -165,13 +165,12 @@ ArmLineMoveResult run_hand_approach_and_grasp(
             return {-34,-34};
         }
         // 料盘抓取：hand_descent_correct 即可进伺服。
-        // Both tray routes require wrist correction; disabled configuration is rejected.
+        // Manual XY teaching remains active through target_policy in either mode.
         const bool use_visual_descent =
             g_move_cfg.cameras.hand_descent_correct &&
             (!place || g_move_cfg.visual_servo.tray_place.enabled);
         if (!use_visual_descent) {
-            std::cerr << "[tray] Open-loop tray fallback retired: enable wrist correction before grasp/place\n";
-            return {hs.move_r ? -30 : 0, hs.move_l ? -30 : 0};
+            std::cout << "[tray] 手相机修正关闭：使用本机示教 XY 补偿执行直线抓放，不使用像素参考点\n";
         }
         ArmLineMoveResult out;
         if (straight_descent)

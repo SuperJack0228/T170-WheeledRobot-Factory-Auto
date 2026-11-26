@@ -14,7 +14,8 @@ int arm_vertical_lift(Arm &arm, double lift_m, double speed_m_s,
 
 int arm_return_after_lift(Arm &arm, const Eigen::Matrix<double,1,7> &ready,
                           const std::function<void()> &on_started = {},
-                          double notify_at = -1.0, double limit_scale = 1.0);
+                          double notify_at = -1.0, double limit_scale = 1.0,
+                          double tcp_speed_m_s = 0.0);
 
 // Executes the already checked path without replanning; optional measured TCP gate.
 int arm_execute_joint_path(Arm &arm,const Eigen::MatrixXd &path,const char *stage,

@@ -1,0 +1,159 @@
+{
+  "base_commit": "5f149a6",
+  "validation": "offline planner/FK and mock IO only; hardware not connected",
+  "field_command_clock": {
+    "samples": 38,
+    "median_elapsed_over_nominal": 1.0159585046957336
+  },
+  "same_input_planner_comparisons": [
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "right",
+      "case": "home_to_ready",
+      "before_nominal_s": 2.415,
+      "after_nominal_s": 1.49,
+      "after_peak_tcp_m_s": 0.391182892154
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "right",
+      "case": "ready_lift",
+      "before_nominal_s": 1.61,
+      "after_nominal_s": 1.26,
+      "after_peak_tcp_m_s": 0.0532319280829
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "right",
+      "case": "calibration_approach",
+      "before_nominal_s": 3.025,
+      "after_nominal_s": 1.365,
+      "after_peak_tcp_m_s": 0.305986768448
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "right",
+      "case": "field_approach_strict_line",
+      "before_nominal_s": 2.995,
+      "after_nominal_s": 1.99,
+      "after_peak_tcp_m_s": 0.23290871813
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "left",
+      "case": "home_to_ready",
+      "before_nominal_s": 2.42,
+      "after_nominal_s": 1.49,
+      "after_peak_tcp_m_s": 0.391787161692
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "left",
+      "case": "ready_lift",
+      "before_nominal_s": 1.605,
+      "after_nominal_s": 1.26,
+      "after_peak_tcp_m_s": 0.0532328899525
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "left",
+      "case": "field_approach_strict_line",
+      "before_nominal_s": 1.515,
+      "after_nominal_s": 1.18,
+      "after_peak_tcp_m_s": 0.170491630377
+    },
+    {
+      "model": "t170c_v2_5kg",
+      "hand": "right",
+      "case": "home_to_ready",
+      "before_nominal_s": 2.6,
+      "after_nominal_s": 1.665,
+      "after_peak_tcp_m_s": 0.39211079225
+    },
+    {
+      "model": "t170c_v2_5kg",
+      "hand": "right",
+      "case": "ready_lift",
+      "before_nominal_s": 1.805,
+      "after_nominal_s": 1.4,
+      "after_peak_tcp_m_s": 0.0478389652083
+    },
+    {
+      "model": "t170c_v2_5kg",
+      "hand": "left",
+      "case": "home_to_ready",
+      "before_nominal_s": 2.6,
+      "after_nominal_s": 1.665,
+      "after_peak_tcp_m_s": 0.39211079225
+    },
+    {
+      "model": "t170c_v2_5kg",
+      "hand": "left",
+      "case": "ready_lift",
+      "before_nominal_s": 1.805,
+      "after_nominal_s": 1.4,
+      "after_peak_tcp_m_s": 0.0478389652083
+    }
+  ],
+  "no120_lift_replays": [
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "right",
+      "case": "no120_belt_lift",
+      "nominal_s": "0.76",
+      "peak_v_rad_s": "1.16868044485",
+      "peak_a_rad_s2": "4.83094458558",
+      "peak_j_rad_s3": "39.9277321215",
+      "peak_tcp_m_s": "0.264355223628",
+      "line_deviation_m": "0.00469085574892",
+      "endpoint_error_m": "7.02676457236e-14"
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "right",
+      "case": "no120_tray_lift",
+      "nominal_s": "1.425",
+      "peak_v_rad_s": "0.791614909428",
+      "peak_a_rad_s2": "3.03855885627",
+      "peak_j_rad_s3": "37.8025871823",
+      "peak_tcp_m_s": "0.124443002272",
+      "line_deviation_m": "0.000183895303627",
+      "endpoint_error_m": "3.04363648166e-16"
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "left",
+      "case": "no120_belt_lift",
+      "nominal_s": "0.775",
+      "peak_v_rad_s": "1.2076697521",
+      "peak_a_rad_s2": "4.89473803952",
+      "peak_j_rad_s3": "39.6826060793",
+      "peak_tcp_m_s": "0.259299597151",
+      "line_deviation_m": "0.00470051804643",
+      "endpoint_error_m": "6.6104681567e-14"
+    },
+    {
+      "model": "t170c_v2_3kg",
+      "hand": "left",
+      "case": "no120_tray_lift",
+      "nominal_s": "0.595",
+      "peak_v_rad_s": "0.714511427349",
+      "peak_a_rad_s2": "3.77162560693",
+      "peak_j_rad_s3": "39.8271166766",
+      "peak_tcp_m_s": "0.270110461196",
+      "line_deviation_m": "0.00326498124311",
+      "endpoint_error_m": "3.72380122987e-16"
+    }
+  ],
+  "joint_limits": {
+    "velocity_rad_s": 1.8,
+    "acceleration_rad_s2": 5.0,
+    "jerk_rad_s3": 40.0
+  },
+  "field_replay_provenance": "tests/fixtures/motion_timing_no120_20261125.json",
+  "tests": {
+    "passed": 54,
+    "failed": 0,
+    "scope": "Mac offline, real-source compile checks, model FK replay and mock IO; no robot connected"
+  }
+}

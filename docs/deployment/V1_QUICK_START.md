@@ -69,6 +69,26 @@ conda activate human_interaction_env
 
 源码模式配置工作区是仓库根目录。新版安装模式默认为解压后的运行包根目录，实际生效的持久文件直接放在包内 `config/`；这是真实目录，不是隐藏工作区的链接。日志和运行快照默认为 `~/.local/state/t170`。`T170_WORKSPACE` 仍可显式指定外部配置位置。rc.3 及更早安装的配置默认在 `~/.config/t170-factory/workspace/config/`，升级时需要导入。
 
+源码启动的日志默认写入 `field_logs/YYYYMMDD/`，包含追加的 `startup.log`、`visual_servo/` CSV 及参数快照，便于提交现场记录。正式运行包继续将日志保存在 `~/.local/state/t170/logs/YYYYMMDD/`；临时运行配置仍在 state 目录。显式 `T170_LOG_DIR` 优先于上述默认位置。
+
+网页访问令牌首次生成后保存在本机 `config/.web-token`，后续启动沿用。该文件不提交 Git、不进入通用发布模板；导入本机配置时保留。首次从终端打印的含 token 链接打开后，浏览器会记住令牌，此后可收藏 `http://机器人IP:8080/`。`T170_WEB_TOKEN` 或 `--token` 仍可显式指定令牌。
+
+维护或调度初始化完成后，终端打印机器人编号、运动学型号、运行模式、手相机修正开关、参数目录、日志目录及默认网页入口。
+
+### 示教补偿与手相机开关
+
+`cameras.hand_descent_correct: false` 时，料盘抓放继续读取本机 `config/calibration/机器人编号/tasks/grasp/left.yaml` 等四份任务参考中的 `compensation_xy_upright_m`。手臂按该补偿执行接近、下降和夹爪动作，不使用参考像素或手眼图像映射。记录仍须属于本机、当前模型和对应任务，XY 为有限值且在 0.10 m 内。开启闭环后恢复相机身份、分辨率、手眼指纹及图像参考校验。
+
+### 伸手与收手速度
+
+快捷参数中的速度单位为 m/s，作为 TCP 目标峰值。通用关节上限在 `config/defaults/factory_baseline.yaml` 的 `retract_motion` 中统一设置：速度 1.8 rad/s、加速度 5 rad/s²、jerk 40 rad/s³。该组合与此前料盘抓取返回阶段乘 2 后使用的上限相同；新实现去除调用处的隐藏加倍，并使伸手、抬升和返回使用统一上限。视觉下降控制器保留自身的在线约束。
+
+两点关节中转使用平滑加减速及可用的匀速段。抓取/放置结束后的抬升优先尝试较快的关节路径，逐点检查限位、向上高度、8 mm 横向走廊和 0.08 rad 姿态误差；不合格则使用原精密直线路径。此走廊仅用于操作完成后的抬升，视觉对准和下降仍使用各自的精度要求。
+
+料盘放置的返回速度由 `tray2_place.retract_return_vel_m_s` 控制；料盘抓取返回沿用 `head_grasp.retract_lift_vel_m_s`；传送带抓取的抬升和返回均使用对应 `grasp_retract_vel_m_s`。实际可达到的峰值还取决于行程、构型及关节约束，短行程可能在达到设置值前进入减速。
+
+`[arm_plan]`、`[arm_path]`、`[motion_timing]` 打印请求 TCP 速度、规划峰值、限制来源、计划时间及实际时间。`limited_by` 区分 `tcp_speed`、`joint_velocity`、`joint_acceleration`、`joint_jerk` 和短行程/路径限制；`measured_peak_tcp_m_s` 来自关节反馈 FK 的差分估计，仅用于诊断。
+
 ## 新机器人
 
 安装包解压后，进入包目录，使用与构建时匹配的 Python 和设备/调度 SDK 环境：
