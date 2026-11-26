@@ -1,0 +1,4 @@
+# Applied once; later operator tuning is retained during upgrades.
+applied:
+- 20261125_task_offsets
+- 20261125_right_place_y_negative

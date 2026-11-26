@@ -1,9 +1,28 @@
-# Maintenance actions only. Production tasks use dispatch-assigned stations.
 schema_version: 1
-selected_group: 1
+selected_group: 2
 groups:
-  - {group: 1, tray_station: AP1,   belt_station: AP2,   out_station: AP3,   tray2_station: AP4}
-  - {group: 2, tray_station: AP6,   belt_station: AP9,   out_station: AP8,   tray2_station: AP10}
-  - {group: 3, tray_station: AP407, belt_station: AP408, out_station: AP409, tray2_station: AP410}
-  - {group: 4, tray_station: AP413, belt_station: AP414, out_station: AP415, tray2_station: AP416}
-  - {group: 5, tray_station: AP418, belt_station: AP419, out_station: AP420, tray2_station: AP421}
+- group: 1
+  tray_station: AP1
+  belt_station: AP2
+  out_station: AP3
+  tray2_station: AP4
+- group: 2
+  tray_station: AP6
+  belt_station: AP9
+  out_station: AP8
+  tray2_station: AP10
+- group: 3
+  tray_station: AP407
+  belt_station: AP408
+  out_station: AP409
+  tray2_station: AP410
+- group: 4
+  tray_station: AP413
+  belt_station: AP414
+  out_station: AP415
+  tray2_station: AP416
+- group: 5
+  tray_station: AP418
+  belt_station: AP419
+  out_station: AP420
+  tray2_station: AP421

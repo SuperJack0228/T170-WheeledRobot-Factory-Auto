@@ -24,7 +24,7 @@ gripper_check:
   hold_q_max_rad: 3.0
 visual_servo:
   belt_place_enabled: false
-  belt_grasp_enabled: true
+  belt_grasp_enabled: false
   period_s: 0.01
   kp: 1.5
   kd: 0.2
