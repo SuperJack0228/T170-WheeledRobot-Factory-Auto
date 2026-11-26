@@ -74,7 +74,7 @@ bool begin_session(Arm &arm, const Eigen::Matrix<double,1,6> &goal, int cls,cons
             dst.reference_height_m=taught->image.reference_height_m;
             profile=dst;
             std::cout<<"[servo] 传送带抓取共用料盘参考点 ("<<dst.reference_px.x()<<","
-                     <<dst.reference_px.y()<<")，不使用料盘XY补偿\n";
+                     <<dst.reference_px.y()<<")，名义目标已含示教XY，伺服只修正残差\n";
         } else std::cerr<<"[servo] 传送带抓取没有该手的料盘参考点，沿用夹爪像素\n";
     }
     if(tray_placement) {

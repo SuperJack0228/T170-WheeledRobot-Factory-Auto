@@ -7,17 +7,17 @@ chassis:
 conveyor:
   fixed_origin_ref_waist_z_m: 0.63
   fixed_origin_z_m: -0.29
-  grasp_approach_vel_m_s: 0.3
+  grasp_approach_vel_m_s: 0.4
   grasp_hover_above_m: 0.1
   grasp_offset:
     left:
       x: 0.05
       y: 0.12
-      z: 0.0
+      z: 0.01
     right:
       x: -0.03
       y: 0.12
-      z: 0.0
+      z: -0.01
   grasp_photo_settle_sec: 1
   grasp_ready_close_ratio: 0.4
   grasp_retract_vel_m_s: 0.6
@@ -26,11 +26,11 @@ conveyor:
     left:
       x: -0.07
       y: -0.015
-      z: 0.0
+      z: 0.005
     right:
       x: 0.0
       y: -0.015
-      z: 0.0
+      z: -0.005
   photo_after_arrival_sec: 2.0
   place_approach_vel_m_s: 0.35
   place_hover_above_m: 0.06
@@ -40,17 +40,17 @@ conveyor:
 conveyor2:
   fixed_origin_ref_waist_z_m: 0.63
   fixed_origin_z_m: -0.29
-  grasp_approach_vel_m_s: 0.3
+  grasp_approach_vel_m_s: 0.4
   grasp_hover_above_m: 0.09
   grasp_offset:
     left:
-      x: 0.05
-      y: 0.12
-      z: 0.0
+      x: 0.04
+      y: 0.11
+      z: 0.005
     right:
-      x: -0.03
-      y: 0.12
-      z: 0.0
+      x: -0.04
+      y: 0.11
+      z: -0.015
   grasp_photo_settle_sec: 1.0
   grasp_retract_vel_m_s: 0.6
   head_pitch_deg: 38
@@ -58,11 +58,11 @@ conveyor2:
     left:
       x: -0.07
       y: -0.015
-      z: 0.0
+      z: 0.005
     right:
       x: 0.0
       y: -0.015
-      z: 0.0
+      z: -0.005
   photo_after_arrival_sec: 2.0
   place_approach_vel_m_s: 0.3
   place_hover_above_m: 0.06
@@ -91,7 +91,7 @@ head_grasp:
   return_vel_m_s: 0.4
   right_goal_x_offset: 0.0
   right_goal_y_offset: 0.0
-  right_grasp_z_offset_m: 0.0
+  right_grasp_z_offset_m: -0.02
   row1_rpy_deg:
     left:
     - 0

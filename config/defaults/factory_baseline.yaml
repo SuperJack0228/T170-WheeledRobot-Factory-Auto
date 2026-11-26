@@ -24,11 +24,11 @@ gripper_check:
   hold_q_max_rad: 3.0
 visual_servo:
   belt_place_enabled: false
-  belt_grasp_enabled: false
+  belt_grasp_enabled: true
   period_s: 0.01
   kp: 1.5
   kd: 0.2
-  max_xy_speed_m_s: 0.04
+  max_xy_speed_m_s: 0.08
   max_xy_accel_m_s2: 0.2
   max_z_accel_m_s2: 0.25
   brake_delay_s: 0.08

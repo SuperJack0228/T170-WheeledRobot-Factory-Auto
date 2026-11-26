@@ -36,7 +36,7 @@ conveyor:
     left:
     - 0
     - 50
-    - -30
+    - -40
     right:
     - 0
     - 50
@@ -108,7 +108,7 @@ conveyor2:
     right:
     - -2
     - 50
-    - 60
+    - 55
   grasp_tcp:
     right:
     - 0.55
