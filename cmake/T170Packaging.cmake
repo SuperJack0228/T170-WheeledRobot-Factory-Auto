@@ -5,7 +5,8 @@ function(t170_install_resources root)
     install(DIRECTORY "${root}/web_debug/" DESTINATION web_debug
         PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
     install(DIRECTORY "${root}/config/" DESTINATION config
-        PATTERN "tasks" EXCLUDE PATTERN "*_before_*" EXCLUDE)
+        PATTERN "tasks" EXCLUDE PATTERN "*_before_*" EXCLUDE PATTERN ".web-token" EXCLUDE
+        PATTERN ".fleet-tokens.yaml" EXCLUDE)
     # A fresh package contains editable configuration beside the application,
     # but must not select the development robot before setup or config import.
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/package_deployment.yaml" "manifest: null\n")

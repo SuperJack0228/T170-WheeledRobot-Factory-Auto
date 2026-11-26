@@ -25,9 +25,10 @@ void field_limits(ArmDefinition &d) {
     d.limits->bounds={d.minimum.cwiseMax(ArmJoints(low*M_PI/180)),d.maximum.cwiseMin(ArmJoints(high*M_PI/180)),true};
 }
 std::ofstream summary,trace;
-void check_path(Arm &arm,const std::string &name,ArmJoints q,Pose target,bool transit,double speed,double budget) {
+void check_path(Arm &arm,const std::string &name,ArmJoints q,Pose target,bool transit,double speed,double budget,bool lift=false) {
     Eigen::MatrixXd path;arm.Cart_Linear_Velocity=speed;
-    int code=transit?arm.Approach_Trajectory(Eigen::MatrixXd(q),target,path,speed):arm.Line_Trajectory(Eigen::MatrixXd(q),target,path);
+    int code=lift?arm.Lift_Trajectory(Eigen::MatrixXd(q),target,path,speed):
+        transit?arm.Approach_Trajectory(Eigen::MatrixXd(q),target,path,speed):arm.Line_Trajectory(Eigen::MatrixXd(q),target,path);
     const auto &d=arm.definition();
     require(code==0 && path.rows()>1,name+" planning failed code="+std::to_string(code));
     const double seconds=(path.rows()-1)*d.period;
@@ -42,6 +43,11 @@ void check_path(Arm &arm,const std::string &name,ArmJoints q,Pose target,bool tr
     for(int k=0;k<path.rows();++k) {
         require(!arm.Check_Joint_Limit(path.row(k)),name+" effective limit");
         const auto t=arm.Forward_Kinematics(path.row(k));const Eigen::Vector3d p=t.topRightCorner<3,1>();
+        if(lift) {
+            require(p.z()>=start(2,3)-.002 && p.z()<=goal(2,3)+.002,"lift height corridor");
+            require((p.head<2>()-start.topRightCorner<3,1>().head<2>()).norm()<=.008,"lift lateral corridor");
+            require(Eigen::AngleAxisd(start.topLeftCorner<3,3>()*t.topLeftCorner<3,3>().transpose()).angle()<=.08,"lift orientation corridor");
+        }
         peak_tcp=std::max(peak_tcp,(p-previous).norm()/d.period);previous=p;
         if(!transit) {
             const double u=delta.squaredNorm()>1e-14?std::clamp((p-start.topRightCorner<3,1>()).dot(delta)/delta.squaredNorm(),0.,1.):0;
@@ -53,7 +59,7 @@ void check_path(Arm &arm,const std::string &name,ArmJoints q,Pose target,bool tr
             trace<<','<<p.x()<<','<<p.y()<<','<<p.z()<<'\n';}
     }
     require(peak_tcp<=speed*1.0002,name+" Cartesian speed exceeded");
-    require(transit || (deviation<=.001 && orientation<=.01),name+" Cartesian path error");
+    require(transit || lift || (deviation<=.001 && orientation<=.01),name+" Cartesian path error");
     const auto final=arm.Forward_Kinematics(path.bottomRows(1));
     const double error=(final.topRightCorner<3,1>()-goal.topRightCorner<3,1>()).norm();
     require(error<=.0005 && Eigen::AngleAxisd(goal.topLeftCorner<3,3>()*final.topLeftCorner<3,3>().transpose()).angle()<=.005,name+" endpoint");
@@ -140,11 +146,20 @@ int main(int argc,char **argv) {try {
             feedback_arrival_test(arm,q);
             Pose lift=pose(arm.Forward_Kinematics(q));lift(2)+=.05;
             check_path(arm,"ready_lift",q,lift,false,.2,6);
+            check_path(arm,"ready_fast_lift",q,lift,false,.4,6,true);
             for(double mm:{.2,2.,5.}) for(int axis:{0,1}) {
                 Pose jog=pose(arm.Forward_Kinematics(q));jog(axis)+=mm*.001;
                 check_path(arm,"jog_"+std::to_string(mm)+"_axis"+std::to_string(axis),q,jog,false,.04,3);
             }
             if(id=="t170c_v2_3kg") {
+                const auto replay=YAML::LoadFile((root/"tests/fixtures/motion_timing_no120_20261125.json").string());
+                for(const auto &entry:replay["cases"]) if(entry["hand"].as<std::string>()==d.side) {
+                    ArmJoints measured;
+                    for(int j=0;j<7;++j)measured(j)=entry["start_model_rad"][j].as<double>();
+                    auto finish=pose(arm.Forward_Kinematics(measured));finish(2)+=entry["rise_m"].as<double>();
+                    check_path(arm,entry["case"].as<std::string>(),measured,finish,false,
+                        entry["requested_speed_m_s"].as<double>(),entry["field_nominal_s"].as<double>()+.1,true);
+                }
                 // Rounded MODEL-angle snapshots and TCP goals from startup.log,
                 // session.3xwUhf8C; no motor/device angles are used as IK seeds.
                 ArmJoints start;Pose goal;

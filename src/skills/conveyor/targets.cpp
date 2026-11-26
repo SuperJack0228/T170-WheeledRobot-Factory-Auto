@@ -38,6 +38,30 @@ using std::thread;
 
 
 namespace move_box {
+// Taught tray XY is in the upright arm base, the same frame as the belt goal
+// before the waist correction. It is part of the nominal target for every belt
+// grasp and place, including when the hand camera then trims the residual.
+static void add_taught_xy(bool is_right, bool grasp, Eigen::Matrix<double, 1, 6> &p)
+{
+    const int hand = is_right ? 1 : 0;
+    const auto *taught = grasp
+        ? wrist_servo::calibrated_tray_grasp_for(g_move_cfg.visual_servo, hand)
+        : wrist_servo::calibrated_placement_for(g_move_cfg.visual_servo, hand, p(3), p(4));
+    const char *task = grasp ? "抓取" : "放置";
+    const char *side = is_right ? "右手" : "左手";
+    if (!taught)
+    {
+        std::cerr << "[belt] 没有" << side << task << "示教 XY，沿用码偏移\n";
+        return;
+    }
+    p(0) += taught->head_xy_bias.x();
+    p(1) += taught->head_xy_bias.y();
+    std::cout << std::fixed << std::setprecision(4)
+              << "[belt] 叠加本机示教 XY " << side << task
+              << " dx=" << taught->head_xy_bias.x()
+              << " dy=" << taught->head_xy_bias.y() << "\n";
+}
+
 static Eigen::Matrix<double, 1, 6> apply_belt_place_offset(
         bool is_right,
         double origin_x,
@@ -60,6 +84,7 @@ static Eigen::Matrix<double, 1, 6> apply_belt_place_offset(
             p(1) = origin_y + off.y;
             p(2) = origin_z + off.z;
         }
+        add_taught_xy(is_right, false, p);
         return arm_goal_in_real_waist_frame(p);
     }
 
@@ -110,6 +135,7 @@ Eigen::Matrix<double, 1, 6> make_belt_grasp_goal(
         p(3) = rpy.rx * rad;
         p(4) = rpy.ry * rad;
         p(5) = rpy.rz * rad;
+        add_taught_xy(is_right, true, p);
         return arm_goal_in_real_waist_frame(p);
     }
 

@@ -1,7 +1,10 @@
 name: right_rgb_rotated_180_in_wrist_flange
 camera_model: D405
 source: T170C_10/urdf/camera nominal.D405
-parent_frame: urdf_wrist
+# Compatibility basis shared with the verified No.124 hand-eye and grasp TCP.
+# These supplied CAD matrices are not expressed in the current 3/5 kg URDF
+# wrist basis. parent_link below identifies the physical mount only.
+parent_frame: legacy_t7_flange
 transform_direction: parent_from_camera_optical
 parent_link: R_WRIST_R_S
 image_convention: rgb_rotated_180

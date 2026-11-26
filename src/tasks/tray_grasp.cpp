@@ -60,6 +60,78 @@ using std::thread;
 
 
 namespace orch {
+namespace {
+constexpr int kTrayGripperNotReady = -39;
+constexpr double kTrayReadyCloseRatio = 0.2;
+constexpr double kTrayReadyToleranceRad = 0.15;
+
+// 下发准备开度后核对编码器。已持件的手保持合爪，不在这里松开。
+bool settle_tray_grasp_ready(bool want_right, bool want_left)
+{
+    if (!want_right && !want_left)
+        return true;
+    if (g_hw == nullptr || g_hw->g == nullptr)
+        return false;
+    const double grip_r = std::clamp(kTrayReadyCloseRatio, 0.0, 1.0);
+    std::cout << std::fixed << std::setprecision(2)
+              << "[grasp] 准备姿态夹爪收到 " << grip_r
+              << "（0全开 1全合），下发后核对编码器\n";
+    log_gripper_qs("料盘抓取准备夹爪前");
+    bool ready = true;
+    auto settle = [&](bool is_right) {
+        if (is_right && (right_arm_motors_locked() || !want_right))
+            return;
+        if (!is_right && !want_left)
+            return;
+        const auto side = is_right ? gripper::Side::Right : gripper::Side::Left;
+        const char *which = is_right ? "右手" : "左手";
+        const auto &cfg = g_hw->g->config();
+        const double target = cfg.open_position_rad +
+                              grip_r * (cfg.close_position_rad - cfg.open_position_rad);
+        if (!g_hw->g->hasSide(side))
+        {
+            std::cerr << "[gripper] " << which << "未配对，准备开度未到位\n";
+            ready = false;
+            return;
+        }
+        const bool waited = g_hw->g->closeAndWait(
+            side, grip_r, kTrayReadyToleranceRad, std::chrono::milliseconds(3000));
+        const auto fb = g_hw->g->feedback(side);
+        const bool at = waited && fb.have_feedback && fb.io_ok && fb.merror == 0 &&
+                        std::isfinite(fb.position_rad) &&
+                        std::fabs(fb.position_rad - target) <= kTrayReadyToleranceRad;
+        std::cout << std::fixed << std::setprecision(3)
+                  << "[gripper] " << which << "准备开度 目标q=" << target
+                  << " 实际q=" << fb.position_rad
+                  << (at ? " 到位\n" : " 未到位\n");
+        if (!at)
+        {
+            ready = false;
+            return;
+        }
+        clear_last_grasped(is_right, !is_right);
+    };
+    settle(false);
+    settle(true);
+    log_gripper_qs("料盘抓取准备夹爪后");
+    if (!ready)
+        std::cerr << "[grasp] 夹爪未到准备开度，不伸手\n";
+    return ready;
+}
+
+int refuse_unready_gripper()
+{
+    const std::string msg = "料盘抓取夹爪未到准备开度，不伸手";
+    if (g_hw != nullptr)
+    {
+        g_hw->last_task_error = msg;
+        g_hw->last_grasp_status = kTrayGripperNotReady;
+    }
+    board_error(msg);
+    return kTrayGripperNotReady;
+}
+} // namespace
+
 int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
                             bool depart_after_grasp, bool clear_tray_when_stay)
 {
@@ -73,9 +145,6 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
         g_hw->last_skill_result=t170::tasks::configuration_failure(t170::skills::Skill::TrayGrasp,error);
         g_hw->last_task_error=error;std::cerr<<"[grasp_preflight] "<<error<<'\n';return -30;
     };
-    if(!g_move_cfg.cameras.hand_descent_correct)
-        return reject_configuration("料盘抓取要求开启 cameras.hand_descent_correct；尚未执行准备动作");
-
     if(g_move_cfg.cameras.hand_descent_correct) {
         for(bool right:{false,true}) {
             if((right && right_arm_motors_locked()) || !g_hw->g->hasSide(right?gripper::Side::Right:gripper::Side::Left))continue;
@@ -179,10 +248,8 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
             }
             if (should_abort())
                 return -4;
-            g_hw->g->closeAndWait(
-                gripper::Side::Right, 0.2, 0.2, std::chrono::milliseconds(800));
-            g_hw->g->closeAndWait(
-                gripper::Side::Left, 0.2, 0.2, std::chrono::milliseconds(800));
+            if (!settle_tray_grasp_ready(!right_arm_motors_locked(), true))
+                return refuse_unready_gripper();
             if (should_abort())
                 return -4;
             if (!do_waist)
@@ -354,6 +421,19 @@ int vision_grasp_with_engine(SegEngineId engine_id, bool adaptive_approach_rpy,
         std::cout << "\n======== [grasp] 第 " << round << " 轮 持件 右="
                   << (holding_r ? 1 : 0) << " 左=" << (holding_l ? 1 : 0)
                   << " ========\n";
+        const bool open_r = !right_arm_motors_locked() && (clear_tray || !holding_r);
+        const bool open_l = clear_tray || !holding_l;
+        if (!settle_tray_grasp_ready(open_r, open_l))
+        {
+            g_hw->last_grasp_count = grasped_count;
+            return refuse_unready_gripper();
+        }
+        if (should_abort())
+        {
+            g_hw->last_grasp_count = grasped_count;
+            g_hw->last_grasp_status = -4;
+            return -4;
+        }
         board_activity("料盘一第 " + std::to_string(round) + " 轮：拍照识别并抓取");
         move_box::GraspToStandbyResult r = move_box::run_grasp_to_standby(
             *g_hw->g,

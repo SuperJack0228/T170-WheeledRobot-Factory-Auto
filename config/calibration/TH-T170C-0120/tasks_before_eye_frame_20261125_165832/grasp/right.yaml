@@ -1,0 +1,86 @@
+{
+	"K" : 
+	[
+		652.9515380859375,
+		0.0,
+		636.2845458984375,
+		0.0,
+		652.7283935546875,
+		366.06375122070312,
+		0.0,
+		0.0,
+		1.0
+	],
+	"aligned_tcp" : 
+	[
+		0.47499417360768148,
+		-0.10808227726015147,
+		-0.40711824029626342,
+		0.085791921943786362,
+		0.96000262986891127,
+		0.87424034073547652
+	],
+	"arm_model_id" : "t170c_v2_3kg",
+	"arm_sdk_version" : "20261109",
+	"camera_serial" : "261922272699",
+	"coarse_xy_upright_m" : 
+	[
+		-0.0023036177881953779,
+		-0.0057725348821146731
+	],
+	"col" : 5,
+	"compensation_xy_upright_m" : 
+	[
+		-0.0023036177881953779,
+		-0.0057725348821146731
+	],
+	"d_clearance_m" : 0.01,
+	"dist" : 
+	[
+		-0.049564562737941742,
+		0.052485857158899307,
+		-0.00070923881139606237,
+		-0.00053530436707660556,
+		-0.017927151173353195
+	],
+	"eye_fingerprint" : "7e554d581f2a326f",
+	"feature_plane_z_m" : -0.41814904969326788,
+	"field_verified" : false,
+	"from_left_col" : 5,
+	"hand" : 1,
+	"height" : 720,
+	"image_rotation_deg" : 180,
+	"joint_coordinates" : "sdk_mdh_model_rad",
+	"log_directory" : "/home/ti5robot/.local/state/t170/session.MjWduVPj/runtime/debug_picture/calibration/4083833292",
+	"model_fingerprint" : "c7ac576fad421eea",
+	"pixel_coordinates" : "rgb_rotated_180",
+	"plane_z_m" : -0.4331490405072283,
+	"reference_coverage_bins" : 0,
+	"reference_fit_residual_rectified_px" : 0.0,
+	"reference_method" : "manual_part_top_center",
+	"reference_pose_tcp" : 
+	[
+		0.47504485505167893,
+		-0.10807564881634218,
+		-0.40709293327536067,
+		0.085624698213605924,
+		0.95994619075274557,
+		0.87415618973372866
+	],
+	"reference_px" : 
+	[
+		596.00518806744492,
+		467.78830050321807
+	],
+	"reference_tcp_above_plane_m" : 0.011056116417907214,
+	"robot_id" : "TH-T170C-0120",
+	"robot_row" : 5,
+	"row" : 2,
+	"schema_version" : 2,
+	"scope" : "tray_only",
+	"session" : "4083833292",
+	"task" : "grasp",
+	"validated" : true,
+	"validation_kind" : "manual_at_D",
+	"width" : 1280
+}

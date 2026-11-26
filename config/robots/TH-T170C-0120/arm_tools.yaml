@@ -1,0 +1,7 @@
+schema_version: 1
+coordinates: legacy_t7_flange_xyz_rpy_m_rad
+# Inherited from the running deployment. Confirm the actual grasp TCP and the
+# materializer rotates these into the selected V2 flange frame; not URDF lengths.
+validation: legacy_tcp_not_revalidated_for_v2
+left: [0.260, 0, 0, 0, 0, 0]
+right: [0.260, 0, 0, 0, 0, 0]

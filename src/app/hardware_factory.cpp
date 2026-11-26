@@ -24,6 +24,7 @@ bool init_hardware(std::string &err)
     // Pure algorithm construction/readback before enabling grippers or motion.
     const std::string arm_yaml=t170::paths::config_file("Robot_Model.yaml").string();
     const auto arm_model=YAML::LoadFile(t170::paths::config_file("arm_model_metadata.yaml").string())["model_id"].as<std::string>();
+    state().robot_id=g_move_cfg.chassis.sequence_number;state().robot_model=arm_model;
     g_arm_r=std::make_unique<Arm>("T7_170",arm_model,"right",arm_yaml);
     g_arm_l=std::make_unique<Arm>("T7_170",arm_model,"left",arm_yaml);
     vision_debug_init_from_env();

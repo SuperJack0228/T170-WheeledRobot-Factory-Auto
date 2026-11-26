@@ -56,6 +56,18 @@ int main() {
         Eigen::MatrixXd direct(2,7);direct.row(0)=knots.row(0);direct.row(1)=knots.row(3);
         const auto line=time_joint_path(direct,dt,limits);
         check_limits(line,dt,limits);
+        auto long_move=direct;long_move.row(1)*=5;
+        const auto cruise=time_joint_path(long_move,dt,limits);
+        check_limits(cruise,dt,limits);
+        const double max_travel=(long_move.row(1)-long_move.row(0)).cwiseAbs().maxCoeff();
+        require((cruise.rows()-1)*dt<1.875*max_travel/limits.velocity,
+                "long transit still stretched a full quintic without cruise");
+        const auto slow=time_joint_path(long_move,dt,limits,(cruise.rows()-1)*dt*2);
+        check_limits(slow,dt,limits);
+        require(joint_path_peaks(slow,dt).velocity<joint_path_peaks(cruise,dt).velocity*.51,
+                "explicit minimum duration did not slow the transit");
+        auto micro=direct;micro.row(1)*=.0001;
+        check_limits(time_joint_path(micro,dt,limits),dt,limits);
         for(int i=0;i<line.rows();++i)
             require((line.row(i)-line(i,0)/.4*direct.row(1)).norm()<1e-10,"joint return changed path");
         require(time_joint_path(direct,dt,{0,1,1}).rows()==0,"invalid limits accepted");

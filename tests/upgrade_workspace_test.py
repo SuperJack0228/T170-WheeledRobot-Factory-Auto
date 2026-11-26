@@ -23,6 +23,12 @@ class UpgradeTest(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(prefix='t170-upgrade-');self.addCleanup(self.temp.cleanup)
         self.base=Path(self.temp.name);self.root=self.base/'workspace';self.root.mkdir()
         shutil.copytree(ROOT/'config',self.root/'config')
+        # These migration scenarios start with No.124 only, then create No.120.
+        # Field uploads may contain a real No.120; isolate the temporary fixture.
+        (self.root/'config/deployment.yaml').write_text('manifest: deployments/TH-T170C-0124.yaml\n')
+        (self.root/'config/deployments/TH-T170C-0120.yaml').unlink(missing_ok=True)
+        for folder in ('robots','calibration'):
+            shutil.rmtree(self.root/'config'/folder/'TH-T170C-0120',ignore_errors=True)
         self.old=self.package('old','1.0.0-rc.1');self.new=self.package('new','1.0.0-rc.2')
         initialize(self.old,self.root)
 

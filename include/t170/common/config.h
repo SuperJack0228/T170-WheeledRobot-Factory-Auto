@@ -331,9 +331,9 @@ struct HeadMotorConfig
 struct RetractMotionConfig
 {
     Eigen::Matrix<double,1,7> ready_right, ready_left;
-    double max_joint_velocity_rad_s = 0.9;
-    double max_joint_acceleration_rad_s2 = 2.5;
-    double max_joint_jerk_rad_s3 = 20.0;
+    double max_joint_velocity_rad_s = 1.8;
+    double max_joint_acceleration_rad_s2 = 5.0;
+    double max_joint_jerk_rad_s3 = 40.0;
     double arrival_joint_tolerance_rad = 0.12;
     double settle_timeout_s = 4.0;
     double feedback_timeout_s = 0.5;

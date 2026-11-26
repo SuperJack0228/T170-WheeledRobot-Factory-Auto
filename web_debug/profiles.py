@@ -10,6 +10,7 @@ import tempfile
 import threading
 
 import yaml
+from t170_common.fleet import connection_settings
 
 MODELS = ("t170c_v2_3kg", "t170c_v2_5kg")
 _lock = threading.RLock()
@@ -67,8 +68,11 @@ class ProfileStore:
                 doc = read(self.manifest(str(path.relative_to(self.root))))
                 missing = [name for name in doc["files"].values() if not inside(self.root, name).is_file()]
                 identity = read(inside(self.root, "config/robots/" + doc["robot_id"] + "/identity.yaml"))
+                connection_file=self.root/'config/robots'/doc['robot_id']/'connection.yaml'
+                connection=read(connection_file) if connection_file.is_file() else connection_settings(doc['robot_id'])
                 profiles.append({"manifest": str(path.relative_to(self.root)), "robot_id": doc["robot_id"],
                                  "robot_model": doc["robot_model"], "host": identity["chassis"]["host"],
+                                 "web_host": connection['host'], "web_port": connection.get('port',8080),
                                  "calibration_directory": doc["calibration_directory"], "missing_files": missing})
             return {"ok": True, "selected_manifest": self.selected(), "profiles": profiles,
                     "models": list(MODELS), "source_root": str(self.root)}
@@ -117,6 +121,7 @@ class ProfileStore:
         if any(path.exists() for path in (destination, calibration, manifest)):
             raise ValueError("该机器人编号已存在，不会覆盖")
         host = str(payload.get("host", "")).strip()
+        connection=connection_settings(robot_id,payload.get('web_host',''),payload.get('web_port',8080))
         if not host or len(host) > 253 or not re.fullmatch(r"[a-zA-Z0-9.:-]+", host):
             raise ValueError("请填写底盘 IP 或主机名")
         # Copy reusable IO/tool/pose settings; camera geometry defaults to the
@@ -126,6 +131,7 @@ class ProfileStore:
             identity = read(destination / "identity.yaml")
             identity["chassis"].update(sequence_number=robot_id, host=host)
             atomic_yaml(destination / "identity.yaml", identity)
+            atomic_yaml(destination / "connection.yaml", connection)
             camera_file=destination / 'cameras/realsense_cameras.yaml'
             cameras=read(camera_file)
             from t170_common.camera_nominal import image_rotations
@@ -157,4 +163,5 @@ class ProfileStore:
             manifest.unlink(missing_ok=True)
             raise
         return {"ok": True, "manifest": str(manifest.relative_to(self.root)), "restart_required": False,
+                "robot_id":robot_id,"web_host":connection['host'],"web_port":connection['port'],
                 "message": "档案已创建，默认使用理论手眼。核对本机相机 SN，选择为下次启动档案后，通过向导建立本机抓放参考。"}

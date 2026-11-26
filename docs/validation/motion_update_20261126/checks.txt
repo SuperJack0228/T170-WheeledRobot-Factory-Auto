@@ -1,0 +1,117 @@
+Base: 5f149a6 + local changes
+C++ build: offline targets and factory/motion/skills translation-unit checks passed.
+Test project /tmp/t170-v1-audit-20261124/build
+      Start  1: arm_model_test
+ 1/54 Test  #1: arm_model_test .......................   Passed    0.66 sec
+      Start  2: arm_motion_policy_test
+ 2/54 Test  #2: arm_motion_policy_test ...............   Passed    0.74 sec
+      Start  3: arm_motion_timing_test
+ 3/54 Test  #3: arm_motion_timing_test ...............   Passed    0.48 sec
+      Start  4: differential_ik_test
+ 4/54 Test  #4: differential_ik_test .................   Passed    0.02 sec
+      Start  5: arm_stroke_test
+ 5/54 Test  #5: arm_stroke_test ......................   Passed    0.65 sec
+      Start  6: arm_io_test
+ 6/54 Test  #6: arm_io_test ..........................   Passed    0.42 sec
+      Start  7: conveyor_heights_test
+ 7/54 Test  #7: conveyor_heights_test ................   Passed    0.01 sec
+      Start  8: conveyor_identity_test
+ 8/54 Test  #8: conveyor_identity_test ...............   Passed    0.57 sec
+      Start  9: extrinsics_test
+ 9/54 Test  #9: extrinsics_test ......................   Passed    0.01 sec
+      Start 10: config_reload_test
+10/54 Test #10: config_reload_test ...................   Passed    0.08 sec
+      Start 11: config_workspace_test
+11/54 Test #11: config_workspace_test ................   Passed    7.97 sec
+      Start 12: release_layout_test
+12/54 Test #12: release_layout_test ..................   Passed    5.00 sec
+      Start 13: image_orientation_test
+13/54 Test #13: image_orientation_test ...............   Passed    0.00 sec
+      Start 14: upgrade_workspace_test
+14/54 Test #14: upgrade_workspace_test ...............   Passed    2.96 sec
+      Start 15: tray_descent_state_test
+15/54 Test #15: tray_descent_state_test ..............   Passed    0.39 sec
+      Start 16: common_paths_test
+16/54 Test #16: common_paths_test ....................   Passed    0.01 sec
+      Start 17: visual_servo_test
+17/54 Test #17: visual_servo_test ....................   Passed    0.01 sec
+      Start 18: visual_servo_runtime_test
+18/54 Test #18: visual_servo_runtime_test ............   Passed   10.76 sec
+      Start 19: retract_trajectory_test
+19/54 Test #19: retract_trajectory_test ..............   Passed    0.01 sec
+      Start 20: retreat_gate_test
+20/54 Test #20: retreat_gate_test ....................   Passed    0.05 sec
+      Start 21: grasp_execution_test
+21/54 Test #21: grasp_execution_test .................   Passed    0.40 sec
+      Start 22: visual_servo_config_test
+22/54 Test #22: visual_servo_config_test .............   Passed    0.05 sec
+      Start 23: tray_place_latency_test
+23/54 Test #23: tray_place_latency_test ..............   Passed    0.01 sec
+      Start 24: tray_acquisition_test
+24/54 Test #24: tray_acquisition_test ................   Passed    0.21 sec
+      Start 25: tray_localizer_test
+25/54 Test #25: tray_localizer_test ..................   Passed    0.25 sec
+      Start 26: python_runtime_paths_test
+26/54 Test #26: python_runtime_paths_test ............   Passed    0.52 sec
+      Start 27: lower_body_self_test
+27/54 Test #27: lower_body_self_test .................   Passed    0.00 sec
+      Start 28: public_module_headers_test
+28/54 Test #28: public_module_headers_test ...........   Passed    0.00 sec
+      Start 29: model_registry_test
+29/54 Test #29: model_registry_test ..................   Passed    0.00 sec
+      Start 30: python_vision_package_test
+30/54 Test #30: python_vision_package_test ...........   Passed    0.39 sec
+      Start 31: module_boundaries_test
+31/54 Test #31: module_boundaries_test ...............   Passed    0.06 sec
+      Start 32: joint_motion_test
+32/54 Test #32: joint_motion_test ....................   Passed    0.00 sec
+      Start 33: pose_math_test
+33/54 Test #33: pose_math_test .......................   Passed    0.00 sec
+      Start 34: placement_calibration_math_test
+34/54 Test #34: placement_calibration_math_test ......   Passed    0.03 sec
+      Start 35: placement_calibration_web_test
+35/54 Test #35: placement_calibration_web_test .......   Passed    0.63 sec
+      Start 36: web_profiles_test
+36/54 Test #36: web_profiles_test ....................   Passed    0.27 sec
+      Start 37: task_result_test
+37/54 Test #37: task_result_test .....................   Passed    0.00 sec
+      Start 38: web_command_result_test
+38/54 Test #38: web_command_result_test ..............   Passed    0.61 sec
+      Start 39: placement_calibration_session_test
+39/54 Test #39: placement_calibration_session_test ...   Passed    0.50 sec
+      Start 40: calibration_hole_test
+40/54 Test #40: calibration_hole_test ................   Passed    0.07 sec
+      Start 41: dispatch_metrics_test
+41/54 Test #41: dispatch_metrics_test ................   Passed    0.03 sec
+      Start 42: dispatch_report_test
+42/54 Test #42: dispatch_report_test .................   Passed    0.04 sec
+      Start 43: deployment_test
+43/54 Test #43: deployment_test ......................   Passed    1.98 sec
+      Start 44: web_launcher_test
+44/54 Test #44: web_launcher_test ....................   Passed    0.50 sec
+      Start 45: arm_model_geometry_test
+45/54 Test #45: arm_model_geometry_test ..............   Passed    0.18 sec
+      Start 46: skills_contract_test
+46/54 Test #46: skills_contract_test .................   Passed    0.00 sec
+      Start 47: skills_contract_json_test
+47/54 Test #47: skills_contract_json_test ............   Passed    0.02 sec
+      Start 48: conveyor_skill_test
+48/54 Test #48: conveyor_skill_test ..................   Passed    0.39 sec
+      Start 49: tray_skill_service_test
+49/54 Test #49: tray_skill_service_test ..............   Passed    0.40 sec
+      Start 50: app_policy_test
+50/54 Test #50: app_policy_test ......................   Passed    0.01 sec
+      Start 51: factory_entrypoints_test
+51/54 Test #51: factory_entrypoints_test .............   Passed    0.52 sec
+      Start 52: factory_navigation_test
+52/54 Test #52: factory_navigation_test ..............   Passed    0.39 sec
+      Start 53: factory_assignment_test
+53/54 Test #53: factory_assignment_test ..............   Passed    0.39 sec
+      Start 54: dispatch_adapter_test
+54/54 Test #54: dispatch_adapter_test ................   Passed    0.00 sec
+
+100% tests passed out of 54
+
+Total Test time (real) =  39.69 sec
+
+Shell syntax / Python compile / git diff --check: passed.

@@ -1,0 +1,4 @@
+chassis:
+  host: 192.168.192.5
+  robot_type: T170C2.0
+  sequence_number: TH-T170C-0120

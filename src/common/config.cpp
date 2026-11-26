@@ -758,11 +758,13 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
             for(const auto &file:files) {
                 const auto n=YAML::LoadFile(file.string());
                 const int schema=n["schema_version"].as<int>();
+                const bool need_image=candidate.cameras.hand_descent_correct &&
+                    (task!="placement" || candidate.visual_servo.tray_place.enabled);
                 const auto cameras=YAML::LoadFile((directory/"realsense_cameras.yaml").string());
                 if((schema!=1 && schema!=2) || (schema==1 && task!="placement") || !n["validated"].as<bool>() ||
                    n["hand"].as<int>()!=hand || n["robot_id"].as<std::string>()!=candidate.chassis.sequence_number ||
-                   n["camera_serial"].as<std::string>()!=cameras["realsense"][side+"_hand"]["serial"].as<std::string>() ||
-                   n["width"].as<int>()!=candidate.cameras.width || n["height"].as<int>()!=candidate.cameras.height ||
+                   (need_image && (n["camera_serial"].as<std::string>()!=cameras["realsense"][side+"_hand"]["serial"].as<std::string>() ||
+                   n["width"].as<int>()!=candidate.cameras.width || n["height"].as<int>()!=candidate.cameras.height)) ||
                    (schema==2 && (n["task"].as<std::string>()!=task || n["scope"].as<std::string>()!="tray_only" ||
                                   n["validation_kind"].as<std::string>()!="manual_at_D")))
                     throw std::runtime_error("料盘标定与任务/机器人/相机/工具模型不匹配: "+file.string());
@@ -771,10 +773,22 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
                     std::cerr<<"[calibration_pending] model changed; ignored old geometry-dependent reference: "<<file<<'\n';
                     continue;
                 }
-                if(n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")))
+                if(need_image && n["eye_fingerprint"].as<std::string>()!=t170::calibration::fingerprint(directory/(side+"_hand_to_base_result.yaml")))
                     throw std::runtime_error("手眼标定指纹不匹配: "+file.string());
                 wrist_servo::PlacementCalibrationProfile entry;
                 entry.universal=schema==2;
+                const double x=n["compensation_xy_upright_m"][0].as<double>();
+                const double y=n["compensation_xy_upright_m"][1].as<double>();
+                if(!std::isfinite(x) || !std::isfinite(y) || std::hypot(x,y)>.10)
+                    throw std::runtime_error("料盘示教XY补偿越界/非有限值: "+file.string());
+                entry.head_xy_bias<<x,y;
+                if(!need_image && schema==2) {
+                    auto &entries=task=="placement"?candidate.visual_servo.calibrated_placement[hand]:candidate.visual_servo.calibrated_tray_grasp[hand];
+                    entries.push_back(entry);
+                    std::cout<<"[tray_calibration] task="<<task<<" hand="<<hand<<" mode=xy_only xy_m="
+                        <<x<<','<<y<<" source="<<file<<'\n';
+                    continue;
+                }
                 entry.image=candidate.visual_servo.profiles[(task=="placement"?2:0)+hand];
                 auto &profile=entry.image;profile.knots.clear();
                 profile.mode="geometry";profile.plane_relative_reference=true;
@@ -783,8 +797,6 @@ bool load_move_box_config(const std::string &path, MoveBoxConfig &cfg, std::stri
                 profile.constrain_reference_tilt=schema==1;
                 profile.reference_roll_rad=n["reference_pose_tcp"][3].as<double>();
                 profile.reference_pitch_rad=n["reference_pose_tcp"][4].as<double>();
-                const double x=n["compensation_xy_upright_m"][0].as<double>();
-                const double y=n["compensation_xy_upright_m"][1].as<double>();
                 if(!std::isfinite(x) || !std::isfinite(y) || std::hypot(x,y)>.10 ||
                    !profile.reference_px.allFinite() || profile.reference_px.x()<0 || profile.reference_px.y()<0 ||
                    profile.reference_px.x()>=candidate.cameras.width || profile.reference_px.y()>=candidate.cameras.height ||

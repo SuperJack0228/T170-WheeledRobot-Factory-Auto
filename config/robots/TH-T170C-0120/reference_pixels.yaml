@@ -1,0 +1,14 @@
+cameras:
+  left_gripper_u: 691
+  left_gripper_v: 261
+  right_gripper_u: 567
+  right_gripper_v: 261
+visual_servo:
+  left_place:
+    reference_px:
+    - 691
+    - 261
+  right_place:
+    reference_px:
+    - 491
+    - 221

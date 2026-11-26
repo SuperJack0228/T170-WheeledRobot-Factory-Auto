@@ -97,6 +97,23 @@ int main(int argc,char **argv) {
     check(calibrated_tray_grasp_for(loaded.visual_servo,1)->head_xy_bias.x()==-.004,"rejected reload lost last valid grasp");
     grasp["scope"]="tray_only";grasp["task"]="placement";write_grasp();
     check(!load_move_box_config((root/"effective_params.yaml").string(),loaded,error),"placement file accepted in grasp catalog");
+    // XY teaching is also useful with the wrist loop OFF. Invalid/absent image
+    // references must not prevent using a validated, matching-model XY record.
+    grasp["task"]="grasp";grasp["eye_fingerprint"]="changed_eye";
+    grasp.remove("reference_px");grasp.remove("reference_pose_tcp");
+    grasp.remove("reference_tcp_above_plane_m");write_grasp();
+    auto open_loop=YAML::LoadFile((root/"effective_params.yaml").string());
+    open_loop["cameras"]["hand_descent_correct"]=false;
+    {std::ofstream f(root/"effective_params.yaml");f<<open_loop;}
+    check(load_move_box_config((root/"effective_params.yaml").string(),loaded,error),error.c_str());
+    check(calibrated_tray_grasp_for(loaded.visual_servo,1)->head_xy_bias.x()==-.004,
+          "disabled wrist loop discarded taught grasp XY");
+    check(calibrated_placement_for(loaded.visual_servo,1,0,.7)->head_xy_bias.x()==
+          record["compensation_xy_upright_m"][0].as<double>(),"disabled wrist loop discarded taught placement XY");
+    open_loop["cameras"]["hand_descent_correct"]=true;
+    {std::ofstream f(root/"effective_params.yaml");f<<open_loop;}
+    check(!load_move_box_config((root/"effective_params.yaml").string(),loaded,error),
+          "wrist loop accepted missing image reference or changed eye");
     g_move_cfg=base;
     const auto expected_r=base.tray2_place.right_row_rpy_deg[1],expected_l=base.tray2_place.left_row_rpy_deg[1];
     const auto far_r=base.tray2_place.right_row6_rpy_deg,far_l=base.tray2_place.left_row6_rpy_deg;

@@ -1,0 +1,128 @@
+# Frequent operator parameters. Values are owned here, not duplicated in defaults.
+chassis:
+  charge_done_percent: 95
+  charge_station: CP11
+  charge_wait_station: AP12
+  dispatch_wait_station: AP14
+conveyor:
+  fixed_origin_ref_waist_z_m: 0.63
+  fixed_origin_z_m: -0.29
+  grasp_approach_vel_m_s: 0.4
+  grasp_hover_above_m: 0.1
+  grasp_offset:
+    left:
+      x: 0.05
+      y: 0.12
+      z: 0.01
+    right:
+      x: -0.03
+      y: 0.12
+      z: -0.01
+  grasp_photo_settle_sec: 1
+  grasp_ready_close_ratio: 0.4
+  grasp_retract_vel_m_s: 0.6
+  head_pitch_deg: 38
+  offset:
+    left:
+      x: -0.07
+      y: -0.015
+      z: 0.005
+    right:
+      x: 0.0
+      y: -0.015
+      z: -0.005
+  photo_after_arrival_sec: 2.0
+  place_approach_vel_m_s: 0.35
+  place_hover_above_m: 0.06
+  place_retract_vel_m_s: 0.4
+  waist_x: 0.15
+  waist_z: 0.63
+conveyor2:
+  fixed_origin_ref_waist_z_m: 0.63
+  fixed_origin_z_m: -0.29
+  grasp_approach_vel_m_s: 0.4
+  grasp_hover_above_m: 0.09
+  grasp_offset:
+    left:
+      x: 0.04
+      y: 0.11
+      z: 0.005
+    right:
+      x: -0.04
+      y: 0.11
+      z: -0.015
+  grasp_photo_settle_sec: 1.0
+  grasp_retract_vel_m_s: 0.6
+  head_pitch_deg: 38
+  offset:
+    left:
+      x: -0.07
+      y: -0.015
+      z: 0.005
+    right:
+      x: 0.0
+      y: -0.015
+      z: -0.005
+  photo_after_arrival_sec: 2.0
+  place_approach_vel_m_s: 0.3
+  place_hover_above_m: 0.06
+  place_retract_vel_m_s: 0.4
+  waist_x: 0.15
+  waist_z: 0.63
+gripper_check:
+  empty_q_rad: 0.5
+  enable: true
+  max_empty_retry: 2
+head:
+  far_pitch_deg: 47
+  pitch_deg: 40
+  speed_deg_s: 25
+head_grasp:
+  approach_vel_m_s: 0.4
+  bezier_endpoint_xyz_tol_m: 0.008
+  descend_vel_m_s: 0.1
+  goal_x_offset: 0.0
+  goal_y_offset: 0.0
+  grasp_z_offset_m: 0.0
+  hover_above_m: 0.12
+  lift_after_grasp_z: 0.08
+  lift_vel_m_s: 0.25
+  pre_grasp_settle_sec: 0.15
+  return_vel_m_s: 0.4
+  right_goal_x_offset: 0.0
+  right_goal_y_offset: 0.0
+  right_grasp_z_offset_m: -0.02
+  row1_rpy_deg:
+    left:
+    - 0
+    - 40
+    - -30
+    right:
+    - 0
+    - 40
+    - 30
+tray:
+  z_ref_m: -0.623
+tray2_place:
+  far_row_forward_m: 0.22
+  offset:
+    left:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    right:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+waist:
+  far_row_forward_m: 0.2
+  layer3_home:
+  - 0
+  - 0
+  - 0.6
+  - 0
+  - 0
+  - 0
+  move_settle_sec: 0.5
+  ready_forward_m: 0.03
+  ready_z_m: 0.36

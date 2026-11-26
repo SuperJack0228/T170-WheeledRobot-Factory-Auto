@@ -1,7 +1,7 @@
 retract_motion:
-  max_joint_velocity_rad_s: 0.9
-  max_joint_acceleration_rad_s2: 2.5
-  max_joint_jerk_rad_s3: 20.0
+  max_joint_velocity_rad_s: 1.8
+  max_joint_acceleration_rad_s2: 5.0
+  max_joint_jerk_rad_s3: 40.0
   arrival_joint_tolerance_rad: 0.12
   settle_timeout_s: 4.0
   feedback_timeout_s: 0.5
@@ -28,7 +28,7 @@ visual_servo:
   period_s: 0.01
   kp: 1.5
   kd: 0.2
-  max_xy_speed_m_s: 0.04
+  max_xy_speed_m_s: 0.08
   max_xy_accel_m_s2: 0.2
   max_z_accel_m_s2: 0.25
   brake_delay_s: 0.08

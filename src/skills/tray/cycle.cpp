@@ -366,13 +366,14 @@ GraspToStandbyResult run_tray_cycle_impl(
         if(waist_started && on_waist_up) on_waist_up();
         if(!want_r && !want_l) return true;
         if(on_place_retract) on_place_retract(grasped_r,grasped_l);
-        // Joint return can overlap chassis departure. Place keeps the old joint limits.
+        // Joint return can overlap chassis departure under the common limits.
         t170::skills::detail::report(t170::skills::Stage::Return,want_r,want_l);
         auto back = [&](bool right,int &rc) {
             try {
                 const auto &motion=g_move_cfg.retract_motion;
                 rc=arm_return_after_lift(right?arm_r:arm_l,right?motion.ready_right:motion.ready_left,
-                                         {},-1,place?1.0:2.0);
+                                         {},-1,1.0,place?g_move_cfg.tray2_place.retract_return_vel_m_s:
+                                             g_move_cfg.head_grasp.retract_lift_vel_m_s);
             } catch(const std::exception &ex) {std::cerr<<"[retract] 返回异常: "<<ex.what()<<'\n';rc=-32;}
         };
         std::thread right_return;

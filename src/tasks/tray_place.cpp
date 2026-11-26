@@ -67,10 +67,7 @@ int vision_place_tray2(bool allow_right, bool allow_left, bool return_to_tray)
         g_hw->last_skill_result=t170::tasks::configuration_failure(t170::skills::Skill::TrayPlace,error);
         g_hw->last_task_error=error;std::cerr<<"[place_preflight] "<<error<<'\n';return -30;
     };
-    if(!g_move_cfg.cameras.hand_descent_correct || !g_move_cfg.visual_servo.tray_place.enabled)
-        return reject_configuration("料盘放置要求开启手相机下降修正及 tray_place；尚未执行准备动作");
-
-    if(g_move_cfg.cameras.hand_descent_correct) {
+    if(g_move_cfg.cameras.hand_descent_correct && g_move_cfg.visual_servo.tray_place.enabled) {
         for(bool right:{false,true}) {
             if(!(right?allow_right:allow_left) || (right && right_arm_motors_locked()))continue;
             std::array<double,16> eye;std::string error;

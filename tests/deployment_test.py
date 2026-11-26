@@ -26,6 +26,8 @@ class DeploymentTest(unittest.TestCase):
   # Explicitly approved offset changes; all other parsed controls must still
   # match the field baseline. The C++ snapshot no longer contains retired fields.
   baseline['tray']['z_ref_m']=-.623
+  baseline['retract_motion'].update(max_joint_velocity_rad_s=1.8,
+    max_joint_acceleration_rad_s2=5.,max_joint_jerk_rad_s3=40.)
   for key in ('goal_x_offset','goal_y_offset','grasp_z_offset_m',
               'right_goal_x_offset','right_goal_y_offset','right_grasp_z_offset_m'):
    baseline['head_grasp'][key]=0.
@@ -34,6 +36,9 @@ class DeploymentTest(unittest.TestCase):
    baseline[belt]['grasp_offset']={'left':dict(x=.050,y=.120,z=0.),'right':dict(x=-.030,y=.120,z=0.)}
    baseline[belt]['offset']={'left':dict(x=-.070,y=-.015,z=0.),'right':dict(x=0.,y=-.015,z=0.)}
   baseline['conveyor2']['prefer_belt']='belt1'
+  baseline['visual_servo']['belt_grasp_enabled']=False # Explicit field selection.
+  for key in ('tray_station','belt_station','out_station','tray2_station'):
+   baseline['chassis'][key]=current['chassis'][key] # Workcell selector tested separately.
   (out/'config/baseline.yaml').write_text(yaml.safe_dump(baseline))
   for alias in json.loads((out/'web_compat_paths.json').read_text()):
    self.assertTrue((out/alias).exists(),alias)
@@ -48,6 +53,7 @@ class DeploymentTest(unittest.TestCase):
  def test_source_launcher_materializes_selected_profile(self):
   fake=self.base/'source';fake.mkdir()
   shutil.copytree(ROOT/'config',fake/'config')
+  (fake/'config/deployment.yaml').write_text('manifest: deployments/TH-T170C-0124.yaml\n')
   (fake/'python').symlink_to(ROOT/'python',target_is_directory=True)
   for folder in ['deploy','tools','build_robot']:(fake/folder).mkdir()
   for name in ['run_factory.sh','runtime_context.sh']:
@@ -64,6 +70,8 @@ class DeploymentTest(unittest.TestCase):
   self.assertTrue((runtime/'effective_config.yaml').is_file())
   self.assertEqual((runtime/'launch_record.txt').read_text().splitlines(),[str(runtime),str(runtime/'config'),'--maintenance'])
   self.assertEqual(json.loads((runtime/'deployment_resolved.json').read_text())['robot_id'],'TH-T170C-0124')
+  self.assertTrue(list((fake/'field_logs').glob('*/startup.log')),
+    'source-mode startup log must be in the source checkout')
  def test_wrong_robot_rejected(self):
   self.doc['robot_id']='another-robot'
   with self.assertRaisesRegex(ValueError,'identity'):resolve(ROOT,self.manifest(),self.base/'run')
