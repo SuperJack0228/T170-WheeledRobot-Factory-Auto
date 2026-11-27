@@ -155,15 +155,17 @@ bool read_pose_before_dispatch(double &x, double &y, double &angle)
 }
 
 namespace {
-void report_dispatch_map_fault(DispatchClient &client, const char *what)
+int report_dispatch_map_fault(DispatchClient &client, const char *what)
 {
-    std::cerr << "[dispatch] " << what << "，向调度上报 1401，等待处理\n";
-    board_error(std::string(what) + "，上报 1401，等待调度处理");
-    const bool resolved = client.report_exception(dispatch_gateway().exception_code(DispatchFault::InitFailed));
-    const std::string done = resolved ? "1401 调度已解决，本次仍不进入调度"
-                                      : "1401 调度未解决，不进入调度";
+    std::cerr << "[dispatch] " << what << "，向调度上报并等待处理\n";
+    board_error(std::string(what) + "，等待调度处理");
+    const int choice = dispatch_report_ex(client, what);
+    const bool retry = choice == 0;
+    const std::string done = retry ? std::string(what) + "，选择重试"
+                                   : std::string(what) + "，不进入调度";
     std::cout << "[dispatch] " << done << "\n";
-    board_note(resolved ? "info" : "warn", done);
+    board_note(retry ? "info" : "warn", done);
+    return choice;
 }
 }
 
@@ -179,7 +181,8 @@ bool finish_dispatch_map(DispatchClient &client, double x, double y, double angl
     board_note("info", "地图检查：调度下发了新地图，开始载入");
     if (!load_dispatch_map_if_updated())
     {
-        report_dispatch_map_fault(client, "地图更新失败");
+        if (report_dispatch_map_fault(client, "地图更新失败") == 0)
+            return finish_dispatch_map(client, x, y, angle);
         return false;
     }
     std::ostringstream pose;
@@ -192,7 +195,8 @@ bool finish_dispatch_map(DispatchClient &client, double x, double y, double angl
     {
         std::cerr << "[dispatch] 新地图重定位失败 code=" << rc << " "
                   << chassis_seer().LastMessage() << "，不进入调度\n";
-        report_dispatch_map_fault(client, "重定位失败");
+        if (report_dispatch_map_fault(client, "重定位失败") == 0)
+            return finish_dispatch_map(client, x, y, angle);
         return false;
     }
     dispatch_gateway().mark_map_current();

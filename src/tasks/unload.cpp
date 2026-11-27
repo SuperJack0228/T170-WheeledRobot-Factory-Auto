@@ -38,9 +38,7 @@ int dispatch_unload(DispatchClient &client)
         g_move_cfg.conveyor2, g_move_cfg.chassis.out_station, "belt2_grasp",
         true, true, "下料左手抓取", "下料右手抓取",
         g_move_cfg.chassis.tray2_station, true);
-    if (pick_rc < 0)
-        return pick_rc;
-    if (pick_rc == kDispatchNoPartStay || pick_rc == kDispatchGripperStay)
+    if (pick_rc != 0)
         return pick_rc;
     const bool hold_r = g_hw->last_grasped_r;
     const bool hold_l = g_hw->last_grasped_l;
@@ -52,10 +50,11 @@ int dispatch_unload(DispatchClient &client)
             place_rc = vision_place_tray2(hold_r, hold_l, false);
             if (place_rc != kVisionQrFail)
                 break;
-            std::cerr << "[dispatch] 下料放置 料盘二维码解算失败，上报 1201\n";
-            if (!dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::QrUnrecognized), "二维码识别错误"))
-                return kDispatchHoldStay;
-            board_activity("调度已解决，再拍一次料盘");
+            std::cerr << "[dispatch] 下料放置 料盘二维码解算失败\n";
+            const int choice = dispatch_report_ex(client, "二维码识别错误");
+            if (choice != 0)
+                return choice;
+            board_activity("选择重试，再拍一次料盘");
         }
         if (place_rc < 0)
             return place_rc;

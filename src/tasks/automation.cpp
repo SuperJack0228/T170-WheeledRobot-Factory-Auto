@@ -111,10 +111,11 @@ static int run_dispatch_mode_body()
         wait_station = dispatch_idle_station();
         std::cout << "[dispatch] " << reason << " → home → " << wait_station << " 待命\n";
         board_activity(reason + "，回 home");
-        if (g_body_disabled_for_charge)
+        while (g_body_disabled_for_charge && set_body_motors(true) != 0)
         {
-            if (set_body_motors(true) != 0)
-                return dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            const int motor = dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            if (motor != 0)
+                return motor;
         }
         if (!box.running)
             inbox_start(box, client);
@@ -150,10 +151,11 @@ static int run_dispatch_mode_body()
         std::cout << "[dispatch] 充电完成 → 手臂 home_tcp（腰高不变）→ " << wait_station
                   << " 等指令（不回 AP14）\n";
         board_activity("充电完成，手臂回 home_tcp（腰高不变）");
-        if (g_body_disabled_for_charge)
+        while (g_body_disabled_for_charge && set_body_motors(true) != 0)
         {
-            if (set_body_motors(true) != 0)
-                return dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            const int motor = dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            if (motor != 0)
+                return motor;
         }
         if (!box.running)
             inbox_start(box, client);
@@ -196,12 +198,13 @@ static int run_dispatch_mode_body()
         std::cout << "[dispatch] 调度启动 → 原地 home，底盘留在 " << wait_station
                   << "，不去待命点\n";
         board_activity("调度启动，原地回 home");
-        if (g_body_disabled_for_charge)
+        while (g_body_disabled_for_charge && set_body_motors(true) != 0)
         {
-            if (set_body_motors(true) != 0)
+            const int motor = dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            if (motor != 0)
             {
                 boot_announce("failure");
-                return dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+                return motor;
             }
         }
         if (!box.running)
@@ -231,11 +234,56 @@ static int run_dispatch_mode_body()
         take_cached_or_standby();
         return 0;
     };
+    int operator_exit = 0;
+    // 1：跳过，继续等下一条。0：下线或上报失败，调用方返回 operator_exit。-1：不是这三个结果。
+    auto consume_operator = [&](int code) -> int {
+        if (code == kDispatchTaskSkip)
+        {
+            g_dispatch_stay_at_tray2 = false;
+            if (g_hw != nullptr && !g_hw->last_chassis_station.empty())
+                wait_station = g_hw->last_chassis_station;
+            mission.clear();
+            board_clear_command();
+            board_mission_end(false, "跳过此次任务");
+            dispatch_note_state(dispatch_msg::STANDBY);
+            std::cout << "[dispatch] 跳过此次任务，不汇报完成，在 " << wait_station
+                      << " 等下一条\n";
+            board_activity("跳过此次任务，等待下一条");
+            if (!box.running)
+                inbox_start(box, client);
+            return 1;
+        }
+        if (code == kDispatchOffline)
+        {
+            board_mission_end(false, "下线");
+            std::cout << "[dispatch] 下线，退出调度，不再申请任务\n";
+            board_activity("下线，退出调度");
+            operator_exit = 0;
+            return 0;
+        }
+        if (code == kDispatchReportFailed)
+        {
+            board_mission_end(false, "异常上报失败，原地停下");
+            std::cout << "[dispatch] 异常没有发出去，停在原地，不再申请任务\n";
+            board_activity("异常上报失败，原地停下");
+            while (!hardware_abort_requested())
+                hardware_abort_sleep_ms(500);
+            operator_exit = -4;
+            return 0;
+        }
+        return -1;
+    };
     dispatch_note_state(dispatch_msg::STANDBY);
     {
         const int boot_rc = boot_home_here();
         if (boot_rc != 0)
-            return boot_rc;
+        {
+            const int op = consume_operator(boot_rc);
+            if (op == 0)
+                return operator_exit;
+            if (op != 1)
+                return boot_rc;
+        }
     }
     while (!hardware_abort_requested())
     {
@@ -307,7 +355,14 @@ static int run_dispatch_mode_body()
             board_link("断线，回 AP14 待命");
             const int r = recover_home_ap14("调度断线或无任务");
             if (r != 0)
+            {
+                const int op = consume_operator(r);
+                if (op == 1)
+                    continue;
+                if (op == 0)
+                    return operator_exit;
                 return r;
+            }
             continue;
         }
         std::cout << "[dispatch] 收到任务 " << mission << "\n";
@@ -322,7 +377,14 @@ static int run_dispatch_mode_body()
             board_note("warn", "未知指令 " + current + "，回 AP14 待命");
             const int r = recover_home_ap14("未知指令 " + current);
             if (r != 0)
+            {
+                const int op = consume_operator(r);
+                if (op == 1)
+                    continue;
+                if (op == 0)
+                    return operator_exit;
                 return r;
+            }
             continue;
         }
         board_mission_begin(current);
@@ -335,10 +397,23 @@ static int run_dispatch_mode_body()
             os << std::fixed << std::setprecision(1) << s << " s";
             return os.str();
         };
-        if (current != dispatch_msg::TASK_CHARGE && g_body_disabled_for_charge)
+        int motor = 0;
+        while (current != dispatch_msg::TASK_CHARGE && g_body_disabled_for_charge &&
+               set_body_motors(true) != 0)
         {
-            if (set_body_motors(true) != 0)
-                return dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            motor = dispatch_wait_system(client, dispatch_msg::ERR_MOTOR_DISABLE);
+            if (motor == 0)
+                continue;
+            break;
+        }
+        if (motor != 0)
+        {
+            const int op = consume_operator(motor);
+            if (op == 1)
+                continue;
+            if (op == 0)
+                return operator_exit;
+            return motor;
         }
         g_hw->last_belt_message.clear();
         g_hw->last_tray_message.clear();
@@ -367,7 +442,14 @@ static int run_dispatch_mode_body()
                 board_mission_end(false, "充电点未下发，未执行");
                 const int r = recover_home_ap14("充电点未下发");
                 if (r != 0)
+                {
+                    const int op = consume_operator(r);
+                    if (op == 1)
+                        continue;
+                    if (op == 0)
+                        return operator_exit;
                     return r;
+                }
                 continue;
             }
             // 已达阈值并 mission_done 后，停充失败（-6）或汇报失败（-7）仍去 AP12 等指令。
@@ -379,13 +461,27 @@ static int run_dispatch_mode_body()
                                                   "，仍去 " + charge_wait_name() + " 等指令"));
                 const int r = recover_after_charge();
                 if (r != 0)
+                {
+                    const int op = consume_operator(r);
+                    if (op == 1)
+                        continue;
+                    if (op == 0)
+                        return operator_exit;
                     return r;
+                }
                 continue;
             }
             board_mission_end(false, "充电未完成 code=" + std::to_string(rc));
             const int r = recover_home_ap14("充电未完成 code=" + std::to_string(rc));
             if (r != 0)
+            {
+                const int op = consume_operator(r);
+                if (op == 1)
+                    continue;
+                if (op == 0)
+                    return operator_exit;
                 return r;
+            }
             continue;
         }
         if (rc == kDispatchPointsMissing)
@@ -393,14 +489,42 @@ static int run_dispatch_mode_body()
             board_mission_end(false, "点位未下发齐，未执行");
             const int r = recover_home_ap14("点位未下发齐");
             if (r != 0)
+            {
+                const int op = consume_operator(r);
+                if (op == 1)
+                    continue;
+                if (op == 0)
+                    return operator_exit;
                 return r;
+            }
             continue;
+        }
+        if (rc == kDispatchTaskSkip || rc == kDispatchOffline || rc == kDispatchReportFailed)
+        {
+            const int op = consume_operator(rc);
+            if (op == 1)
+                continue;
+            return operator_exit;
+        }
+        if (rc == kVisionQrFail)
+        {
+            const int choice = dispatch_report_ex(client, "二维码识别错误");
+            if (choice == 0)
+            {
+                std::cout << "[dispatch] 选择重试，重新执行 " << current << "\n";
+                mission = current;
+                continue;
+            }
+            const int op = consume_operator(choice);
+            if (op == 1)
+                continue;
+            if (op == 0)
+                return operator_exit;
+            rc = choice;
         }
         if (rc == kDispatchNoPartStay || rc == kDispatchHoldStay || rc == kVisionQrFail ||
             rc == kDispatchGripperStay)
         {
-            if (rc == kVisionQrFail)
-                dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::QrUnrecognized), "二维码识别错误");
             g_dispatch_stay_at_tray2 = false;
             const std::string why = rc == kDispatchNoPartStay ? "抓取点没有料"
                                    : rc == kDispatchGripperStay ? "夹爪未到准备开度"
@@ -448,8 +572,20 @@ static int run_dispatch_mode_body()
                 (fault == dispatch_msg::ERR_MOTOR_LOST || fault == dispatch_msg::ERR_MOTOR_DISABLE ||
                  fault == dispatch_msg::ERR_CAMERA || fault == dispatch_msg::ERR_GRIPPER_LOST))
             {
-                board_mission_end(false, "异常 " + fault + "，等待系统处理");
-                return dispatch_wait_system(client, fault);
+                board_mission_end(false, "异常 " + fault + "，等待处理");
+                const int choice = dispatch_wait_system(client, fault);
+                if (choice == 0)
+                {
+                    std::cout << "[dispatch] 选择重试，重新执行 " << current << "\n";
+                    mission = current;
+                    continue;
+                }
+                const int op = consume_operator(choice);
+                if (op == 1)
+                    continue;
+                if (op == 0)
+                    return operator_exit;
+                return choice;
             }
             const bool holding = g_hw != nullptr && (g_hw->last_grasped_r || g_hw->last_grasped_l);
             const std::string why =
@@ -462,7 +598,14 @@ static int run_dispatch_mode_body()
             board_mission_end(false, why + "，回 AP14");
             const int r = recover_home_ap14(why);
             if (r != 0)
+            {
+                const int op = consume_operator(r);
+                if (op == 1)
+                    continue;
+                if (op == 0)
+                    return operator_exit;
                 return r;
+            }
             continue;
         }
 
@@ -495,7 +638,14 @@ static int run_dispatch_mode_body()
             std::cerr << "[dispatch] 等待期间调度断线，home → AP14\n";
             const int r = recover_home_ap14("等待下一条时断线");
             if (r != 0)
+            {
+                const int op = consume_operator(r);
+                if (op == 1)
+                    continue;
+                if (op == 0)
+                    return operator_exit;
                 return r;
+            }
             continue;
         }
         if (hardware_abort_requested())
@@ -504,7 +654,14 @@ static int run_dispatch_mode_body()
         const int r = recover_home_ap14(std::to_string(kDispatchNextMissionWaitMs / 1000) +
                                         "s 内无新任务");
         if (r != 0)
+        {
+            const int op = consume_operator(r);
+            if (op == 1)
+                continue;
+            if (op == 0)
+                return operator_exit;
             return r;
+        }
     }
     return hardware_abort_requested() ? -4 : 0;
 }

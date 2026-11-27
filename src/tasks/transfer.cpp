@@ -39,9 +39,7 @@ int dispatch_transfer(DispatchClient &client)
         transfer_grasp, g_move_cfg.chassis.belt_station, "belt_grasp",
         true, true, "转运左手抓取", "转运右手抓取",
         g_move_cfg.chassis.out_station, true);
-    if (pick_rc < 0)
-        return pick_rc;
-    if (pick_rc == kDispatchNoPartStay || pick_rc == kDispatchGripperStay)
+    if (pick_rc != 0)
         return pick_rc;
     const bool hold_r = g_hw->last_grasped_r;
     const bool hold_l = g_hw->last_grasped_l;

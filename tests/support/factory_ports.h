@@ -32,7 +32,7 @@ public:
     bool place_done() override{return true;}
     bool raw_material_empty() override{return true;}
     bool well_done_material_full() override{return true;}
-    bool report_exception(int) override{return true;}
+    std::string report_exception(const std::string &) override{return "RETRY";}
     void close() noexcept override{}
 };
 class Gateway : public t170::integration::dispatch::Gateway {
@@ -40,7 +40,6 @@ public:
     t170::integration::dispatch::Snapshot state;
     std::unique_ptr<t170::integration::dispatch::Client> connect(const std::string &,const std::string &) override{return std::make_unique<Client>();}
     t170::integration::dispatch::Snapshot snapshot() const override{return state;}
-    int exception_code(t170::integration::dispatch::Fault) const override{return 0;}
     void update_pose(double,double,double,const std::string &) override{}
     void update_battery(int) override{}
     void mark_map_current() override{state.is_map_updated=false;}

@@ -61,13 +61,13 @@ int dispatch_pick_pair(
             {
                 const bool fallen = rc == kBeltFallen;
                 std::cout << "[dispatch] "
-                          << (fallen ? "空抓后再拍是倒件，上报 1301\n"
-                                     : "抓取窗口内没有料，上报 1102\n");
-                const bool solved = fallen
-                                        ? dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::WorkpieceFallen), "工件倒了")
-                                        : dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::UnloadPointEmpty), "下料点没有料可以抓");
-                if (!solved)
-                    return kDispatchNoPartStay;
+                          << (fallen ? "空抓后再拍是倒件\n"
+                                     : "抓取窗口内没有料\n");
+                const int choice = fallen
+                                       ? dispatch_report_ex(client, "工件倒了")
+                                       : dispatch_report_ex(client, "下料点没有料可以抓");
+                if (choice != 0)
+                    return choice;
                 const bool right_held = g_hw != nullptr && g_hw->last_grasped_r;
                 const bool left_held = g_hw != nullptr && g_hw->last_grasped_l;
                 if (right_held && !left_held)
@@ -90,19 +90,18 @@ int dispatch_pick_pair(
             }
             if (rc == kBeltGripperNotReady)
             {
-                std::cout << "[dispatch] 夹爪未到准备开度，上报 1404\n";
-                const bool solved = dispatch_report_ex(
-                    client, dispatch_gateway().exception_code(DispatchFault::GripperNotReady),
-                    "夹爪未到准备开度");
-                if (!solved)
-                    return kDispatchGripperStay;
-                std::cout << "[dispatch] 夹爪异常已解决，重新下发准备开度并再抓\n";
+                std::cout << "[dispatch] 夹爪未到准备开度\n";
+                const int choice = dispatch_report_ex(client, "夹爪未到准备开度");
+                if (choice != 0)
+                    return choice;
+                std::cout << "[dispatch] 选择重试，重新下发准备开度并再抓\n";
                 continue;
             }
             if (rc == kVisionQrFail)
             {
-                if (!dispatch_belt_vision_again(client, vision_retry, right_what))
-                    return kDispatchHoldStay;
+                const int again = dispatch_belt_vision_again(client, vision_retry, right_what);
+                if (again != 0)
+                    return again;
                 continue;
             }
             break;

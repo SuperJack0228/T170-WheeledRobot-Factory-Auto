@@ -19,7 +19,9 @@ public:
     bool place_done() override{auto *p=sdk();return p && p->place_done();}
     bool raw_material_empty() override{auto *p=sdk();return p && p->raw_material_empty();}
     bool well_done_material_full() override{auto *p=sdk();return p && p->well_done_material_full();}
-    bool report_exception(int code) override{auto *p=sdk();return p && p->report_exception(code);}
+    std::string report_exception(const std::string &message) override{
+        auto *p=sdk();return p ? p->report_exception(message) : std::string();
+    }
     void close() noexcept override {
         // Retain the field SDK's destruction-before-join unblock order. The
         // adapter stays alive until the receiving thread has returned.
@@ -40,18 +42,6 @@ public:
         s.sequence_one_port_one=RobotClient::sequence_one_port_one;s.sequence_one_port_two=RobotClient::sequence_one_port_two;
         s.sequence_two_port_one=RobotClient::sequence_two_port_one;s.sequence_two_port_two=RobotClient::sequence_two_port_two;
         return s;
-    }
-    int exception_code(Fault f) const override {
-        switch(f) {
-        case Fault::CameraDisconnected:return RobotClient::CameraDisconnected;
-        case Fault::InitFailed:return RobotClient::InitFailed;
-        case Fault::LoadPortBlocked:return RobotClient::LoadPortBlocked;
-        case Fault::MotorDisconnected:return RobotClient::MotorDisconnected;
-        case Fault::QrUnrecognized:return RobotClient::QrUnrecognized;
-        case Fault::UnloadPointEmpty:return RobotClient::UnloadPointEmpty;
-        case Fault::WorkpieceFallen:return RobotClient::WorkpieceFallen;
-        case Fault::GripperNotReady:return kGripperNotReadyCode;
-        }return 0;
     }
     void update_pose(double x,double y,double yaw,const std::string &station) override{
         RobotClient::x=static_cast<float>(x);RobotClient::y=static_cast<float>(y);RobotClient::angle=static_cast<float>(yaw);

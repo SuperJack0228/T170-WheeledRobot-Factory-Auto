@@ -583,16 +583,18 @@ int confirm_belt_place_not_fallen(
             return -4;
         if (fallen == kVisionQrFail)
         {
-            if (!dispatch_belt_vision_again(client, vision_retry, place_what))
-                return kDispatchHoldStay;
+            const int again = dispatch_belt_vision_again(client, vision_retry, place_what);
+            if (again != 0)
+                return again;
             continue;
         }
         if (fallen > 0)
         {
             std::cout << "[dispatch] " << place_what << " 放置点 ±6cm 内倒件 " << fallen
-                      << " 个，上报 1301\n";
-            if (!dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::WorkpieceFallen), "工件倒了"))
-                return kDispatchHoldStay;
+                      << " 个\n";
+            const int choice = dispatch_report_ex(client, "工件倒了");
+            if (choice != 0)
+                return choice;
             std::cout << "[dispatch] " << place_what << " 倒件已解决，再拍一张确认\n";
             continue;
         }

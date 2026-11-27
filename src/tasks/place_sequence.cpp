@@ -53,17 +53,19 @@ int dispatch_place_belt(
             attempt == 0 ? skip_ready : true);
         if (place_rc == kBeltPlaceOccupied)
         {
-            std::cout << "[dispatch] " << place_what << " 放置点有零件，上报 1101\n";
-            if (!dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::LoadPortBlocked), "上料口有料，无法放置"))
-                return kDispatchHoldStay;
+            std::cout << "[dispatch] " << place_what << " 放置点有零件\n";
+            const int choice = dispatch_report_ex(client, "上料口有料，无法放置");
+            if (choice != 0)
+                return choice;
             skip_ready = true;
             need_apply = false;
             continue;
         }
         if (place_rc == kVisionQrFail)
         {
-            if (!dispatch_belt_vision_again(client, vision_retry, place_what))
-                return kDispatchHoldStay;
+            const int again = dispatch_belt_vision_again(client, vision_retry, place_what);
+            if (again != 0)
+                return again;
             skip_ready = true;
             need_apply = false;
             continue;
@@ -147,15 +149,17 @@ int place_while_driving(
         const int place_rc = go_belt_station(c, tag, {}, hold_right, hold_left, true);
         if (place_rc == kBeltPlaceOccupied)
         {
-            std::cout << "[dispatch] " << place_what << " 放置点有零件，上报 1101\n";
-            if (!dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::LoadPortBlocked), "上料口有料，无法放置"))
-                return kDispatchHoldStay;
+            std::cout << "[dispatch] " << place_what << " 放置点有零件\n";
+            const int choice = dispatch_report_ex(client, "上料口有料，无法放置");
+            if (choice != 0)
+                return choice;
             continue;
         }
         if (place_rc == kVisionQrFail)
         {
-            if (!dispatch_belt_vision_again(client, vision_retry, place_what))
-                return kDispatchHoldStay;
+            const int again = dispatch_belt_vision_again(client, vision_retry, place_what);
+            if (again != 0)
+                return again;
             continue;
         }
         if (place_rc != 0)

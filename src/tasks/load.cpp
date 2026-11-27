@@ -56,19 +56,19 @@ int dispatch_load(DispatchClient &client)
         grasp_rc = vision_grasp_existing_pipeline();
         if (grasp_rc != kVisionQrFail)
             break;
-        std::cerr << "[dispatch] 上料抓取 料盘二维码解算失败，上报 1201\n";
-        if (!dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::QrUnrecognized), "二维码识别错误"))
+        std::cerr << "[dispatch] 上料抓取 料盘二维码解算失败\n";
+        const int choice = dispatch_report_ex(client, "二维码识别错误");
+        if (choice != 0)
         {
-            grasp_rc = kVisionQrFail;
+            grasp_rc = choice;
             break;
         }
-        board_activity("调度已解决，再拍一次料盘");
+        board_activity("选择重试，再拍一次料盘");
     }
     g_on_grasp_depart = nullptr;
-    if (grasp_rc < 0)
+    if (grasp_rc < 0 || grasp_rc == kDispatchTaskSkip || grasp_rc == kDispatchOffline ||
+        grasp_rc == kDispatchReportFailed)
         return grasp_rc;
-    if (grasp_rc == kVisionQrFail)
-        return kDispatchHoldStay;
     const bool hold_r = g_hw != nullptr && g_hw->last_grasped_r;
     const bool hold_l = g_hw != nullptr && g_hw->last_grasped_l;
     const int took = (hold_r ? 1 : 0) + (hold_l ? 1 : 0);

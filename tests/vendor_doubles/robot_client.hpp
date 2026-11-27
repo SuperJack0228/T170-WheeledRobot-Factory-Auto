@@ -6,13 +6,12 @@
 #include <string>
 class RobotClient {
 public:
-    enum {CameraDisconnected=101,InitFailed=205,LoadPortBlocked=307,MotorDisconnected=409,
-          QrUnrecognized=511,UnloadPointEmpty=613,WorkpieceFallen=715};
     inline static bool is_map_updated=false;
     inline static std::string raw_material_point,well_done_point,standby_point,charge_point,
         sequence_one_port_one,sequence_one_port_two,sequence_two_port_one,sequence_two_port_two,current_point;
     inline static float x=0,y=0,angle=0;
-    inline static int power_percent=0,last_timeout=0,last_exception=0,acks=0;
+    inline static int power_percent=0,last_timeout=0,acks=0;
+    inline static std::string last_exception_message,next_exception_result="RETRY";
     inline static std::string last_type,last_serial;
     struct ReceiveState {std::mutex mutex;std::condition_variable ready;bool entered=false,closed=false,returned=false;};
     inline static std::shared_ptr<ReceiveState> last_receive;
@@ -33,5 +32,5 @@ public:
     bool place_done(){++acks;return true;}
     bool raw_material_empty(){++acks;return true;}
     bool well_done_material_full(){++acks;return true;}
-    bool report_exception(int code){last_exception=code;return true;}
+    std::string report_exception(const std::string &message){last_exception_message=message;return next_exception_result;}
 };

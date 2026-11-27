@@ -113,18 +113,40 @@ void dispatch_send(DispatchClient &client, const char *name, bool sent)
         std::cout << "[dispatch] 已发送 " << name << "\n";
 }
 
-bool dispatch_report_ex(DispatchClient &client, int code, const char *zh)
+int dispatch_report_ex(DispatchClient &client, const char *zh)
 {
-    const bool retry = client.report_exception(code);
-    timing_event("recovery","dispatch_resolution",retry?"resolved":"unresolved",zh?zh:"",{{"code",double(code)}});
-    std::cout << "[dispatch] 上报异常 " << code << " " << (zh ? zh : "")
-              << (retry ? "，调度已解决，不再申请，再拍一次\n" : "，调度未解决，原地待命\n");
-    board_error(zh ? zh : "");
-    board_report(std::to_string(code), zh ? zh : "", retry);
-    return retry;
+    using t170::integration::dispatch::kReportOffline;
+    using t170::integration::dispatch::kReportRetry;
+    using t170::integration::dispatch::kReportSkip;
+    const std::string message = zh ? zh : "";
+    const std::string decision = message.empty() ? std::string() : client.report_exception(message);
+    const char *label = "发送失败";
+    int code = kDispatchReportFailed;
+    if (decision == kReportRetry)
+    {
+        label = "重试";
+        code = 0;
+    }
+    else if (decision == kReportSkip)
+    {
+        label = "跳过此次任务";
+        code = kDispatchTaskSkip;
+    }
+    else if (decision == kReportOffline)
+    {
+        label = "下线";
+        code = kDispatchOffline;
+    }
+    timing_event("recovery", "dispatch_resolution", decision.empty() ? "unsent" : decision, message);
+    std::cout << "[dispatch] 上报「" << message << "」，结果="
+              << (decision.empty() ? "空" : decision) << "（" << label << "）\n";
+    if (!message.empty())
+        board_error(message);
+    board_report(decision.empty() ? "上报失败" : decision, message, !decision.empty());
+    return code;
 }
 
-bool dispatch_belt_vision_again(DispatchClient &client, int &vision_retry, const char *what)
+int dispatch_belt_vision_again(DispatchClient &client, int &vision_retry, const char *what)
 {
     const char *name = (what && what[0]) ? what : "传送带";
     if (vision_retry > 0)
@@ -134,13 +156,13 @@ bool dispatch_belt_vision_again(DispatchClient &client, int &vision_retry, const
         std::cerr << "[dispatch] " << name << " 视觉失败，再拍一次\n";
         board_note("warn", std::string(name) + " 视觉失败，再拍一次");
         board_activity(std::string(name) + "：再拍一次");
-        return true;
+        return 0;
     }
-    std::cerr << "[dispatch] " << name << " 再拍仍失败，上报 1201\n";
-    if (!dispatch_report_ex(client, dispatch_gateway().exception_code(DispatchFault::QrUnrecognized), "传送带视觉识别错误"))
-        return false;
-    vision_retry = 1;
-    return true;
+    std::cerr << "[dispatch] " << name << " 再拍仍失败，上报传送带视觉识别错误\n";
+    const int choice = dispatch_report_ex(client, "传送带视觉识别错误");
+    if (choice == 0)
+        vision_retry = 1;
+    return choice;
 }
 
 bool apply_pick_half(DispatchClient &client, int timeout_ms)

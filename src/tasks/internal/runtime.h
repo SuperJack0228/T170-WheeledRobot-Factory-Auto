@@ -19,7 +19,6 @@
 #include <functional>
 namespace orch {
 using Chassis=t170::hardware::Chassis;
-using DispatchFault=t170::integration::dispatch::Fault;
 inline t170::integration::dispatch::Gateway &dispatch_gateway(){return t170::tasks::services().dispatch;}
 inline constexpr int kVisionQrFail = 10;
 inline constexpr int kBeltPlaceOccupied = 16;
@@ -41,6 +40,9 @@ inline constexpr int kDispatchNextMissionWaitMs = 20000;
 inline constexpr int kDispatchHoldStay = 9;
 inline constexpr int kDispatchNoPartStay = 13;
 inline constexpr int kDispatchGripperStay = 17;
+inline constexpr int kDispatchTaskSkip = 18;
+inline constexpr int kDispatchOffline = 19;
+inline constexpr int kDispatchReportFailed = 20;
 inline constexpr int kDispatchPointsMissing = 7;
 extern HwSession *g_hw;
 extern int g_load_parts_seen;
@@ -208,8 +210,10 @@ void dispatch_send(DispatchClient &client, const char *name, bool sent);
 int confirm_belt_place_not_fallen(
     DispatchClient &client, const ConveyorStationConfig &c, const char *tag,
     bool do_right, bool do_left, const char *place_what);
-bool dispatch_report_ex(DispatchClient &client, int code, const char *zh);
-bool dispatch_belt_vision_again(DispatchClient &client, int &vision_retry, const char *what);
+// 0：操作员选了重试。跳过、下线、发送失败分别返回上面三个码。
+int dispatch_report_ex(DispatchClient &client, const char *zh);
+// 0：再拍一次。否则把跳过、下线或发送失败原样交回去。
+int dispatch_belt_vision_again(DispatchClient &client, int &vision_retry, const char *what);
 int dispatch_place_belt(
     DispatchClient &client, bool (*apply_place)(DispatchClient &, int),
     const char *request_state, const char *grant_state,

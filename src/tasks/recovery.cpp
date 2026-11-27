@@ -21,20 +21,13 @@ int dispatch_wait_system(DispatchClient &client, const std::string &state)
     board_error("异常 " + state + "（" + dispatch_state_zh(state) + "），停止动作，等待系统处理");
     board_activity("异常停机，等待系统处理");
     dispatch_note_state(state);
-    int code = 0;
     const char *zh = nullptr;
     if (state == dispatch_msg::ERR_MOTOR_LOST || state == dispatch_msg::ERR_MOTOR_DISABLE)
-    {
-        code = dispatch_gateway().exception_code(DispatchFault::MotorDisconnected);
         zh = "电机连接掉线";
-    }
     else if (state == dispatch_msg::ERR_CAMERA)
-    {
-        code = dispatch_gateway().exception_code(DispatchFault::CameraDisconnected);
         zh = "相机连接掉线";
-    }
-    if (code != 0)
-        dispatch_report_ex(client, code, zh);
+    if (zh != nullptr)
+        return dispatch_report_ex(client, zh);
     while (!hardware_abort_requested())
         hardware_abort_sleep_ms(500);
     return -4;
