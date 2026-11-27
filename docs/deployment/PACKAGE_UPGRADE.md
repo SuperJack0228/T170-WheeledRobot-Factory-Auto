@@ -1,5 +1,9 @@
 # 运行包升级与配置迁移
 
+当前版本为 V1.1.0，完整操作见 [V1.1.0 发布部署](V1_1_RELEASE.md)。现支持从旧运行包、持久工作区或正在测试的完整源码目录导入，例如在新包内执行 `./deploy/upgrade_robot.sh --from-workspace "$HOME/T170-dev"`。源码无需 release.json，版本及来源会单独记录。旧目录、本机快捷参数、任务标定和令牌保留。
+
+V1.1.0 还会识别两份原始 CAD 手眼矩阵的旧 urdf_wrist 声明，并仅修正为 legacy_t7_flange。实测或已修改矩阵不被替换，任务标定指纹不被重写，校验失败回滚目标配置。下文 rc.3 的偏置迁移属于历史迁移，仅在本机尚无对应记录时执行；已经完成迁移的 No.120 现场调参不会再次清零。
+
 rc.3 已交付，使用隐藏的持久工作区。V1.0.0 将默认配置位置改为运行包根目录的实际 `config/`，需在兼容机器人的 Linux 环境构建新包后生效。旧 rc.3 压缩包和标签不变。首次发布和新机完整步骤见 [V1.0.0 发布与首次部署](V1_RELEASE_AND_FIRST_DEPLOYMENT.md)。
 
 ## 新版目录
@@ -32,7 +36,7 @@ unset T170_WORKSPACE T170_ROOT T170_RUNTIME_DIR T170_CONFIG_DIR T170_DEPLOYMENT 
 ./deploy/upgrade_robot.sh --from-workspace "$HOME/.config/t170-factory/workspace"
 ```
 
-`--from-workspace` 指向包含旧 `config/` 和 `release.json` 的目录，不指向 `config/` 本身。若原来显式设置了外部工作区，填写那个实际目录。
+`--from-workspace` 指向包含旧 `config/` 的根目录，不指向 `config/` 本身。旧包和工作区有 release.json，源码通过 packaging/VERSION 及源码结构识别。若原来显式设置了外部工作区，填写那个实际目录。
 
 升级脚本执行以下操作：
 

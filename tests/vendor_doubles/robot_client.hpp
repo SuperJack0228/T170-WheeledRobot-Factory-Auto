@@ -32,5 +32,5 @@ public:
     bool place_done(){++acks;return true;}
     bool raw_material_empty(){++acks;return true;}
     bool well_done_material_full(){++acks;return true;}
-    std::string report_exception(const std::string &message){last_exception_message=message;return next_exception_result;}
+    std::string report_exception(const std::string &message){last_exception_message=message;return message.empty()?std::string():next_exception_result;}
 };

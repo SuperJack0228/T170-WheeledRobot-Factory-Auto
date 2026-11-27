@@ -46,13 +46,30 @@ static int run_dispatch_mode_body()
     // board_end 迟迟不跑，网页一直显示「调度中」。
     auto client_holder = dispatch_gateway().connect(ch.robot_type, ch.sequence_number);
     DispatchClient &client = *client_holder;
-    if (!finish_dispatch_map(client, map_x, map_y, map_angle))
-        return -1;
+    const int map_rc = finish_dispatch_map(client, map_x, map_y, map_angle);
+    if (map_rc != 0)
+    {
+        // No task may run against an unprepared map. SKIP here cancels entry.
+        if (map_rc == kDispatchTaskSkip || map_rc == kDispatchOffline)
+        {
+            board_activity("取消本次进入调度，地图尚未就绪");
+            return 0;
+        }
+        if (map_rc == kDispatchReportFailed)
+        {
+            board_activity("地图异常上报失败，原地停下");
+            while (!hardware_abort_requested())
+                hardware_abort_sleep_ms(500);
+            return -4;
+        }
+        return map_rc;
+    }
     struct BodyMotorRestore
     {
+        bool enabled = true;
         ~BodyMotorRestore()
         {
-            if (g_body_disabled_for_charge)
+            if (enabled && !hardware_abort_requested() && g_body_disabled_for_charge)
                 set_body_motors(true);
         }
     } body_restore;
@@ -255,6 +272,7 @@ static int run_dispatch_mode_body()
         }
         if (code == kDispatchOffline)
         {
+            body_restore.enabled = false;
             board_mission_end(false, "下线");
             std::cout << "[dispatch] 下线，退出调度，不再申请任务\n";
             board_activity("下线，退出调度");
@@ -263,6 +281,7 @@ static int run_dispatch_mode_body()
         }
         if (code == kDispatchReportFailed)
         {
+            body_restore.enabled = false;
             board_mission_end(false, "异常上报失败，原地停下");
             std::cout << "[dispatch] 异常没有发出去，停在原地，不再申请任务\n";
             board_activity("异常上报失败，原地停下");
@@ -289,7 +308,7 @@ static int run_dispatch_mode_body()
     {
         if (mission.empty())
         {
-            std::cout << "[dispatch] 在 " << wait_station << " 以 home 姿态等待任务\n";
+            std::cout << "[dispatch] 在 " << wait_station << " 保持当前姿态等待任务\n";
             board_link("等待任务");
             board_clear_command();
             board_activity("在 " + wait_station + " 等待任务");
@@ -430,10 +449,36 @@ static int run_dispatch_mode_body()
         else
             rc = dispatch_unload(client);
         timing_event("mission_execution",current,rc==0?"success":"failed","algorithm return code",{{"code",double(rc)}});
-        if (rc == -4 || hardware_abort_requested())
+        if ((rc == -4 && !can_io_faulted()) || hardware_abort_requested())
         {
             board_mission_end(false, "已中止");
             return -4;
+        }
+        // Motion also returns -4 when its stop predicate sees a latched CAN
+        // fault. That is a hardware exception, not an operator cancellation.
+        if (rc == -4 && can_io_faulted())
+        {
+            const int choice = dispatch_wait_system(client, dispatch_exception_state());
+            if (choice == 0)
+            {
+                mission = current;
+                continue;
+            }
+            const int op = consume_operator(choice);
+            if (op == 1)
+                continue;
+            if (op == 0)
+                return operator_exit;
+            return choice;
+        }
+        // Operator choices take precedence over task-specific recovery,
+        // including charging. OFFLINE must never trigger home/navigation.
+        if (rc == kDispatchTaskSkip || rc == kDispatchOffline || rc == kDispatchReportFailed)
+        {
+            const int op = consume_operator(rc);
+            if (op == 1)
+                continue;
+            return operator_exit;
         }
         if (current == dispatch_msg::TASK_CHARGE)
         {
@@ -499,13 +544,6 @@ static int run_dispatch_mode_body()
             }
             continue;
         }
-        if (rc == kDispatchTaskSkip || rc == kDispatchOffline || rc == kDispatchReportFailed)
-        {
-            const int op = consume_operator(rc);
-            if (op == 1)
-                continue;
-            return operator_exit;
-        }
         if (rc == kVisionQrFail)
         {
             const int choice = dispatch_report_ex(client, "二维码识别错误");
@@ -546,7 +584,6 @@ static int run_dispatch_mode_body()
                 std::string soon;
                 if (!inbox_wait(box, kDispatchNextMissionWaitMs, soon))
                 {
-                    inbox_join(box);
                     if (hardware_abort_requested())
                         return -4;
                     std::cout << "[dispatch] 仍在 " << wait_station << " 待命\n";

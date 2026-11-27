@@ -1,0 +1,15 @@
+T170 dispatch SDK 1.12 integration — 2026-11-27
+Baseline: deployment1117 / 9014d22, plus local integration and v1.1 preparation fixes.
+Previous local changes were saved, remote fast-forwarded, then reapplied and merged.
+No merge conflicts remain. No source freeze, tag, commit, push or release was performed.
+Release offline C++ compile-check targets: passed.
+Final CTest: 58/58 passed in 39.73 s; see ctest.txt.
+Coverage includes real dispatch orchestration, SDK string replies, empty/invalid responses,
+operator prompt visibility, CAN failure classification, stop priority, map preparation,
+charge decision precedence, no false DONE, config imports and extracted package layout.
+Native SDK replaced with contract doubles; no actual robot or dispatch server was contacted.
+No changes to config/, motion/, vision/, skills/, tray_grasp.cpp or tray_place.cpp.
+Previous packaging/config-migration/inbox/DONE fixes retained.
+Shell syntax and git diff --check: passed.
+No.120 source test is next. Native SDK headers and library must support the 1.12 interface.
+SDK blocking report cancellation and held-part cleanup after SKIP remain explicit integration limits.

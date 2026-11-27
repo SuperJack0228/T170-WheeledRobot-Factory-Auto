@@ -1,0 +1,104 @@
+[  0%] Built target t170_skill_contract
+[  1%] Built target t170_app_policy
+[  2%] Built target t170_pose_math
+[  4%] Built target t170_common
+[  5%] Built target t170_lifecycle
+[  7%] Built target image_orientation_test
+[  7%] Built target t170_dispatch_inbox
+[  8%] Built target retract_trajectory_test
+[  8%] Built target retreat_gate_test
+[  9%] Built target pose_math_test
+[ 10%] Built target skills_contract_test
+[ 11%] Built target grasp_execution_test
+[ 11%] Built target lower_body
+[ 11%] Built target app_policy_test
+[ 12%] Built target skills_examples_compilecheck
+[ 14%] Built target conveyor_skill_test
+[ 15%] Built target dispatch_adapter_test
+[ 17%] Built target lower_body_self_test
+[ 17%] Built target lower_body_traj_print
+[ 19%] Built target t170_telemetry
+[ 20%] Built target t170_model_registry
+[ 22%] Built target t170_control
+[ 22%] Built target t170_arm_configuration
+[ 23%] Built target t170_servo_trace
+[ 24%] Built target common_paths_test
+[ 25%] Built target public_module_headers_test
+[ 26%] Built target t170_tray_geometry
+[ 27%] Built target model_registry_test
+[ 28%] Built target dispatch_metrics_emitter
+[ 29%] Built target tray_skill_service_test
+[ 31%] Built target arm_io_test
+[ 33%] Built target t170_motion_math
+[ 34%] Built target tray_localizer_test
+[ 34%] Built target tray_acquisition_test
+[ 35%] Built target calibration_hole_test
+[ 38%] Built target t170_configuration
+[ 38%] Built target t170_arm_core
+[ 39%] Built target differential_ik_test
+[ 40%] Built target visual_servo_test
+[ 41%] Built target visual_servo_config_test
+[ 42%] Built target tray_place_latency_test
+[ 42%] Built target tray_localizer_replay
+[ 46%] Built target visual_servo_runtime_test
+[ 47%] Built target joint_motion_test
+[ 50%] Built target placement_calibration_math_test
+[ 50%] Built target task_result_test
+[ 52%] Built target placement_calibration_session_test
+[ 53%] Building CXX object CMakeFiles/factory_navigation_test.dir/tests/factory_navigation_test.cpp.o
+[ 54%] Building CXX object CMakeFiles/factory_assignment_test.dir/tests/factory_assignment_test.cpp.o
+[ 54%] Building CXX object CMakeFiles/dispatch_unload_test.dir/tests/dispatch_unload_test.cpp.o
+[ 54%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/assignment.cpp.o
+[ 54%] Building CXX object CMakeFiles/factory_assignment_test.dir/src/tasks/assignment.cpp.o
+[ 54%] Building CXX object CMakeFiles/factory_navigation_test.dir/src/tasks/navigation.cpp.o
+[ 55%] Building CXX object CMakeFiles/dispatch_unload_test.dir/src/tasks/unload.cpp.o
+[ 56%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/automation.cpp.o
+[ 57%] Building CXX object CMakeFiles/factory_assignment_test.dir/src/tasks/runtime_state.cpp.o
+[ 57%] Building CXX object CMakeFiles/dispatch_unload_test.dir/src/tasks/assignment.cpp.o
+[ 58%] Linking CXX executable factory_navigation_test
+[ 58%] Built target factory_navigation_test
+[ 58%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/charging.cpp.o
+[ 59%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/conveyor_grasp.cpp.o
+[ 59%] Linking CXX executable factory_assignment_test
+[ 60%] Building CXX object CMakeFiles/dispatch_unload_test.dir/src/tasks/context.cpp.o
+[ 60%] Built target factory_assignment_test
+[ 60%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/conveyor_perception.cpp.o
+[ 61%] Built target t170_arm_vendor_compilecheck
+[ 62%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/conveyor_place.cpp.o
+[ 62%] Building CXX object CMakeFiles/dispatch_unload_test.dir/src/tasks/runtime_state.cpp.o
+[ 62%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/conveyor_routing.cpp.o
+[ 62%] Built target arm_model_test
+[ 62%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/dispatch_feedback.cpp.o
+[ 62%] Linking CXX executable dispatch_unload_test
+[ 62%] Built target dispatch_unload_test
+[ 63%] Built target arm_motion_policy_test
+[ 64%] Built target arm_motion_timing_test
+[ 65%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/holding_state.cpp.o
+[ 66%] Built target arm_stroke_test
+[ 66%] Built target arm_sdk_check_compilecheck
+[ 66%] Built target t170_config_dump
+[ 66%] Built target conveyor_heights_test
+[ 67%] Built target config_reload_test
+[ 67%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/load.cpp.o
+[ 68%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/map_sync.cpp.o
+[ 69%] Built target extrinsics_test
+[ 73%] Built target t170_motion_compilecheck
+[ 73%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/navigation.cpp.o
+[ 81%] Built target t170_skills_compilecheck
+[ 83%] Built target tray_descent_state_test
+[ 84%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/overlap.cpp.o
+[ 84%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/pick_sequence.cpp.o
+[ 84%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/place_sequence.cpp.o
+[ 85%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/preparation.cpp.o
+[ 85%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/recovery.cpp.o
+[ 86%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/runtime_state.cpp.o
+[ 86%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/status_reporter.cpp.o
+[ 86%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/transfer.cpp.o
+[ 87%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/tray_grasp.cpp.o
+[ 87%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/tray_place.cpp.o
+[ 88%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/tasks/unload.cpp.o
+[ 88%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/app/maintenance/body_diagnostics.cpp.o
+[ 88%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/app/maintenance/charge.cpp.o
+[ 89%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/app/maintenance/tray_commands.cpp.o
+[ 89%] Building CXX object CMakeFiles/t170_factory_compilecheck.dir/src/app/maintenance/vision_inspection.cpp.o
+[100%] Built target t170_factory_compilecheck

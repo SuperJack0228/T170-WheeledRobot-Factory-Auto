@@ -29,6 +29,13 @@ bool inbox_poll(DispatchInbox &box, std::string &out)
 }
 void inbox_join(DispatchInbox &box)
 {
+    // A wait timeout is not a completed receive. Joining that worker here
+    // would block mode exit before close_dispatch_inbox can close the SDK.
+    {
+        std::lock_guard<std::mutex> lk(box.mu);
+        if (!box.finished)
+            return;
+    }
     box.join_worker();
 }
 bool inbox_wait(DispatchInbox &box, int timeout_ms, std::string &out)

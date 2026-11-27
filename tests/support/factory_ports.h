@@ -32,7 +32,7 @@ public:
     bool place_done() override{return true;}
     bool raw_material_empty() override{return true;}
     bool well_done_material_full() override{return true;}
-    std::string report_exception(const std::string &) override{return "RETRY";}
+    std::string report_exception(const std::string &message) override{return message.empty()?std::string():"RETRY";}
     void close() noexcept override{}
 };
 class Gateway : public t170::integration::dispatch::Gateway {

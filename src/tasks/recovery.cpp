@@ -26,11 +26,13 @@ int dispatch_wait_system(DispatchClient &client, const std::string &state)
         zh = "电机连接掉线";
     else if (state == dispatch_msg::ERR_CAMERA)
         zh = "相机连接掉线";
-    if (zh != nullptr)
-        return dispatch_report_ex(client, zh);
-    while (!hardware_abort_requested())
-        hardware_abort_sleep_ms(500);
-    return -4;
+    else if (state == dispatch_msg::ERR_GRIPPER_LOST)
+        zh = "夹爪连接掉线";
+    const std::string message = zh ? zh : ("机器人异常：" + dispatch_state_zh(state));
+    const int choice = dispatch_report_ex(client, message.c_str());
+    if (choice == 0 && (state == dispatch_msg::ERR_MOTOR_LOST || state == dispatch_msg::ERR_MOTOR_DISABLE))
+        can_io_fault_clear(); // Allow fresh IO checks after the operator requests RETRY.
+    return choice;
 }
 
 std::string dispatch_exception_state()

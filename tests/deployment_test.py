@@ -36,7 +36,10 @@ class DeploymentTest(unittest.TestCase):
    baseline[belt]['grasp_offset']={'left':dict(x=.050,y=.120,z=0.),'right':dict(x=-.030,y=.120,z=0.)}
    baseline[belt]['offset']={'left':dict(x=-.070,y=-.015,z=0.),'right':dict(x=0.,y=-.015,z=0.)}
   baseline['conveyor2']['prefer_belt']='belt1'
-  baseline['visual_servo']['belt_grasp_enabled']=False # Explicit field selection.
+  # Shared controls explicitly changed in the 2026-11-26 field upload.
+  baseline['visual_servo'].update(belt_grasp_enabled=True,max_xy_speed_m_s=.08)
+  baseline['conveyor']['grasp_rpy_deg']['left'][2]=-40
+  baseline['conveyor2']['grasp_rpy_deg']['right'][2]=55
   for key in ('tray_station','belt_station','out_station','tray2_station'):
    baseline['chassis'][key]=current['chassis'][key] # Workcell selector tested separately.
   (out/'config/baseline.yaml').write_text(yaml.safe_dump(baseline))

@@ -595,7 +595,7 @@ int confirm_belt_place_not_fallen(
             const int choice = dispatch_report_ex(client, "工件倒了");
             if (choice != 0)
                 return choice;
-            std::cout << "[dispatch] " << place_what << " 倒件已解决，再拍一张确认\n";
+            std::cout << "[dispatch] " << place_what << " 选择重试，再拍一张确认\n";
             continue;
         }
         std::cout << "[dispatch] " << place_what << " 放置点没有倒件，继续\n";

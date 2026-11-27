@@ -1,0 +1,217 @@
+{
+  "source": "field_logs/20261126/startup.log",
+  "source_sha256": "b5d1c3f1255ba2dd74ba95451d2ba3601613fc82d61566e56ee59144dde7a0bb",
+  "baseline_commit": "9b33c8478b41d48480aa9fae6dcd683b570de641",
+  "total_records": 130,
+  "status_counts": {
+    "failed": 6,
+    "succeeded": 112,
+    "cancelled": 9,
+    "partial": 1,
+    "no_target": 2
+  },
+  "by_skill": [
+    {
+      "skill": "conveyor.grasp_contact",
+      "status": "cancelled",
+      "count": 6
+    },
+    {
+      "skill": "conveyor.grasp_contact",
+      "status": "failed",
+      "count": 6
+    },
+    {
+      "skill": "conveyor.grasp_contact",
+      "status": "succeeded",
+      "count": 27
+    },
+    {
+      "skill": "conveyor.place_contact",
+      "status": "cancelled",
+      "count": 1
+    },
+    {
+      "skill": "conveyor.place_contact",
+      "status": "succeeded",
+      "count": 33
+    },
+    {
+      "skill": "conveyor.retreat",
+      "status": "cancelled",
+      "count": 1
+    },
+    {
+      "skill": "conveyor.retreat",
+      "status": "succeeded",
+      "count": 50
+    },
+    {
+      "skill": "tray.grasp",
+      "status": "cancelled",
+      "count": 1
+    },
+    {
+      "skill": "tray.grasp",
+      "status": "no_target",
+      "count": 2
+    },
+    {
+      "skill": "tray.grasp",
+      "status": "partial",
+      "count": 1
+    },
+    {
+      "skill": "tray.grasp",
+      "status": "succeeded",
+      "count": 2
+    }
+  ],
+  "non_success": [
+    {
+      "line": 331,
+      "skill": "conveyor.grasp_contact",
+      "status": "failed",
+      "native_code": 11,
+      "stage": "gripper",
+      "elapsed_s": 4.827060179
+    },
+    {
+      "line": 934,
+      "skill": "conveyor.retreat",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "return",
+      "elapsed_s": 1.253408522
+    },
+    {
+      "line": 1570,
+      "skill": "conveyor.grasp_contact",
+      "status": "failed",
+      "native_code": 11,
+      "stage": "gripper",
+      "elapsed_s": 5.309054804
+    },
+    {
+      "line": 2686,
+      "skill": "conveyor.grasp_contact",
+      "status": "failed",
+      "native_code": -31,
+      "stage": "align_descend",
+      "elapsed_s": 3.270887752
+    },
+    {
+      "line": 3340,
+      "skill": "tray.grasp",
+      "status": "partial",
+      "native_code": null,
+      "stage": "return",
+      "elapsed_s": 14.55789668
+    },
+    {
+      "line": 3550,
+      "skill": "tray.grasp",
+      "status": "no_target",
+      "native_code": null,
+      "stage": "lift",
+      "elapsed_s": 9.731307249
+    },
+    {
+      "line": 3665,
+      "skill": "tray.grasp",
+      "status": "no_target",
+      "native_code": null,
+      "stage": "lift",
+      "elapsed_s": 9.599356447
+    },
+    {
+      "line": 3889,
+      "skill": "tray.grasp",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 4.375683245
+    },
+    {
+      "line": 4314,
+      "skill": "conveyor.place_contact",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 0.010878025
+    },
+    {
+      "line": 5973,
+      "skill": "conveyor.grasp_contact",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 0.02675986
+    },
+    {
+      "line": 6054,
+      "skill": "conveyor.grasp_contact",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 0.023914329
+    },
+    {
+      "line": 6252,
+      "skill": "conveyor.grasp_contact",
+      "status": "failed",
+      "native_code": 11,
+      "stage": "gripper",
+      "elapsed_s": 5.207652035
+    },
+    {
+      "line": 6385,
+      "skill": "conveyor.grasp_contact",
+      "status": "failed",
+      "native_code": -31,
+      "stage": "align_descend",
+      "elapsed_s": 3.738888325
+    },
+    {
+      "line": 6499,
+      "skill": "conveyor.grasp_contact",
+      "status": "failed",
+      "native_code": 11,
+      "stage": "gripper",
+      "elapsed_s": 4.995281676
+    },
+    {
+      "line": 7290,
+      "skill": "conveyor.grasp_contact",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 11.149605816
+    },
+    {
+      "line": 9173,
+      "skill": "conveyor.grasp_contact",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 9.882588938
+    },
+    {
+      "line": 9281,
+      "skill": "conveyor.grasp_contact",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 9.943626634
+    },
+    {
+      "line": 9467,
+      "skill": "conveyor.grasp_contact",
+      "status": "cancelled",
+      "native_code": -4,
+      "stage": "align_descend",
+      "elapsed_s": 0.02819204
+    }
+  ],
+  "note": "Mixed tuning and single-phase logs; not an unattended task success rate."
+}

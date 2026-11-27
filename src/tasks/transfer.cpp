@@ -20,7 +20,7 @@ int dispatch_transfer(DispatchClient &client)
     g_move_cfg.chassis.belt_station = points.load;
     g_move_cfg.chassis.out_station = points.unload;
     std::cout << "[dispatch] 转运：" << points.load
-              << " 不申请，按码系抓取窗口抓；窗口内没料报 1102，倒件报 1301；抓完发 "
+              << " 不申请，按码系抓取窗口抓；窗口内没料或工件倒放时上报文字说明并等待选择；抓完发 "
               << dispatch_msg::PICK_UP_DONE
               << "。有件才去 " << points.unload << " 放\n";
     board_step("去传送带一");

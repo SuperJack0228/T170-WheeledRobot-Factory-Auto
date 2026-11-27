@@ -22,7 +22,7 @@ int dispatch_unload(DispatchClient &client)
     std::cout << "[dispatch] 下料：" << points.unload
               << " 不申请，到站拍一次按抓取窗口抓，然后去 " << points.well
               << " 放置。放完再发 " << dispatch_msg::DONE
-              << "。空抓后再拍：倒件上报 1301 并等待；立件再抓一次；没有空孔再报满盘\n";
+              << "。空抓后再拍：倒件上报文字说明并等待选择；立件再抓一次；没有空孔再报满盘\n";
     board_step("去传送带二");
     if (!belt_ready_to_pick(g_move_cfg.chassis.out_station, g_move_cfg.conveyor2, "下料"))
     {
@@ -42,9 +42,9 @@ int dispatch_unload(DispatchClient &client)
         return pick_rc;
     const bool hold_r = g_hw->last_grasped_r;
     const bool hold_l = g_hw->last_grasped_l;
+    int place_rc = 0;
     if (hold_r || hold_l)
     {
-        int place_rc = 0;
         for (int attempt = 0;; ++attempt)
         {
             place_rc = vision_place_tray2(hold_r, hold_l, false);
@@ -68,7 +68,17 @@ int dispatch_unload(DispatchClient &client)
         }
     }
     else
-        std::cout << "[dispatch] 这次没有抓到成品，不去 AP9 放\n";
+        std::cout << "[dispatch] 这次没有抓到成品，不去 " << points.well << " 放\n";
+    // Positive native values mean no hole / partial placement, not success.
+    // Require release confirmation for every part held before placement.
+    if (place_rc != 0 || (!hold_l && !hold_r) ||
+        (hold_l && !g_hw->last_placed_l) || (hold_r && !g_hw->last_placed_r) ||
+        g_hw->last_grasped_l || g_hw->last_grasped_r)
+    {
+        std::cerr << "[dispatch] 下料未确认全部放下，不发送 DONE，原地待命\n";
+        board_note("warn", "下料未全部放置，未上报任务完成");
+        return kDispatchHoldStay;
+    }
     const int done_rc = dispatch_report(client, DispatchNote::Mission, "下料");
     if (done_rc != 0)
         return done_rc;

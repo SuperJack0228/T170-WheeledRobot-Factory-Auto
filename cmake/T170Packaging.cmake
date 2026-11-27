@@ -1,5 +1,6 @@
 # Installation rules are shared with the relocation test fixture.
 function(t170_install_resources root)
+    file(STRINGS "${root}/packaging/VERSION" resource_version LIMIT_COUNT 1)
     install(DIRECTORY "${root}/python/" DESTINATION python
         PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
     install(DIRECTORY "${root}/web_debug/" DESTINATION web_debug
@@ -22,7 +23,10 @@ function(t170_install_resources root)
         "${root}/docs/deployment/CONVEYOR_HEIGHT_BINDINGS.md"
         "${root}/docs/deployment/OFFSET_AUDIT_20261125.md"
         "${root}/docs/deployment/V1_RELEASE_AND_FIRST_DEPLOYMENT.md"
-        "${root}/packaging/RELEASE_NOTES_1.0.0.md" DESTINATION docs)
+        "${root}/docs/deployment/V1_1_RELEASE.md"
+        "${root}/docs/deployment/V1_1_PRE_RELEASE_REVIEW.md"
+        "${root}/docs/deployment/DISPATCH_SDK_1_12_REVIEW.md"
+        "${root}/packaging/RELEASE_NOTES_${resource_version}.md" DESTINATION docs)
 endfunction()
 
 if(T170_PACKAGING_RESOURCES_ONLY)

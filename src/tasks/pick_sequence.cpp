@@ -73,18 +73,18 @@ int dispatch_pick_pair(
                 if (right_held && !left_held)
                 {
                     next_hand = 0;
-                    std::cout << "[dispatch] 已解决，右手保持夹持不动，只让左手再抓\n";
+                    std::cout << "[dispatch] 选择重试，右手保持夹持不动，只让左手再抓\n";
                 }
                 else if (left_held && !right_held)
                 {
                     next_hand = 1;
-                    std::cout << "[dispatch] 已解决，左手保持夹持不动，只让右手再抓\n";
+                    std::cout << "[dispatch] 选择重试，左手保持夹持不动，只让右手再抓\n";
                 }
                 else
                 {
                     next_hand = -1;
                     if (rc == kBeltFallen)
-                        std::cout << "[dispatch] 倒件已解决，再拍照，按窗口决定伸哪只手\n";
+                        std::cout << "[dispatch] 选择重试，再拍照，按窗口决定伸哪只手\n";
                 }
                 continue;
             }

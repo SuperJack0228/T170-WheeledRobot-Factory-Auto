@@ -4,7 +4,9 @@ import argparse
 from contextlib import ExitStack
 from datetime import datetime
 import json
+import math
 import os
+import re
 from pathlib import Path
 import shutil
 import socket
@@ -20,6 +22,64 @@ from t170_common.config_workspace import ConfigWorkspace, atomic_write, workspac
 from t170_common.installation import initialize, RESOURCE_NAMES, rotate_reference_pixels, template_config
 from t170_common.task_offset_migration import migrate_task_offsets
 from t170_common.maintenance_workcells import migrate_catalog
+
+
+def source_identity(source):
+    """Recognize either an installed release or a complete development tree."""
+    release = source / 'release.json'
+    if release.is_file():
+        identity = json.loads(release.read_text())
+        identity['source_kind'] = 'release_package'
+    elif all((source / name).is_file() for name in (
+            'packaging/VERSION', 'CMakeLists.txt', 'python/t170_common/deployment.py')):
+        version = (source / 'packaging/VERSION').read_text().strip()
+        if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', version):
+            raise ValueError('源码目录的 packaging/VERSION 无效')
+        identity = dict(version=version, source_kind='source_checkout')
+        if (source / '.git').exists():
+            commit = subprocess.run(['git', '-C', str(source), 'rev-parse', 'HEAD'],
+                                    check=True, capture_output=True, text=True)
+            status = subprocess.run(['git', '-C', str(source), 'status', '--porcelain'],
+                                    check=True, capture_output=True, text=True)
+            identity.update(git_commit=commit.stdout.strip(), dirty=bool(status.stdout.strip()))
+    else:
+        raise ValueError('找不到旧配置版本；--from-workspace 应指向旧运行包、工作区或完整源码目录')
+    if not identity.get('version') or identity['version'] == 'unknown':
+        raise ValueError('无法识别原安装版本；请确认 release.json 或 packaging/VERSION')
+    return identity
+
+
+def migrate_nominal_parent(root, templates):
+    """Repair only the supplied CAD matrices with the known old frame label.
+
+    Never replace a measured/custom hand-eye or rewrite task fingerprints.
+    The C++ checker must still reject incompatible saved image references.
+    """
+    root, templates = Path(root).resolve(), Path(templates).resolve()
+    changed = []
+    for side in ('left', 'right'):
+        relative = Path('robot_models/t170c_v2_common/cameras') / (side + '_nominal.yaml')
+        path, template = root / 'config' / relative, templates / relative
+        if not path.is_file() or not template.is_file():
+            continue
+        if not path.resolve().is_relative_to(root):
+            raise ValueError('理论手眼配置路径超出工作区')
+        old, new = yaml.safe_load(path.read_text()), yaml.safe_load(template.read_text())
+        if old.get('parent_frame') != 'urdf_wrist' or new.get('parent_frame') != 'legacy_t7_flange':
+            continue
+        a, b = old.get('a. matrix'), new.get('a. matrix')
+        if (not isinstance(a, list) or not isinstance(b, list) or len(a) != 4 or len(b) != 4
+                or any(not isinstance(row, list) or len(row) != 4 for row in a + b)
+                or old.get('image_convention') != new.get('image_convention')):
+            continue
+        if not all(isinstance(x, (int, float)) and isinstance(y, (int, float))
+                   and math.isclose(x, y, rel_tol=0, abs_tol=1e-11)
+                   for row_a, row_b in zip(a, b) for x, y in zip(row_a, row_b)):
+            continue
+        old['parent_frame'] = 'legacy_t7_flange'
+        atomic_write(path, yaml.safe_dump(old, sort_keys=False, allow_unicode=True))
+        changed.append(str(Path('config') / relative))
+    return changed
 
 
 def migrate(root, templates, old_version, stamp):
@@ -84,8 +144,8 @@ def upgrade(package, root, backup_parent, source=None):
     new = json.loads((package / 'release.json').read_text())
     if root != source and (root.is_relative_to(source) or source.is_relative_to(root)):
         raise ValueError('新版目录与旧配置目录不能互相包含')
-    if not (source / 'release.json').is_file() or not (source / 'config/deployment.yaml').is_file():
-        raise ValueError('找不到旧配置；请使用 --from-workspace /旧运行包或旧工作区目录')
+    if not (source / 'config/deployment.yaml').is_file():
+        raise ValueError('找不到旧配置；请使用 --from-workspace /旧运行包或源码目录')
     root.mkdir(parents=True, exist_ok=True)
     with ExitStack() as locks:
         # Lock source and destination in a deterministic order; imports must not
@@ -97,10 +157,8 @@ def upgrade(package, root, backup_parent, source=None):
         except ValueError as error:
             raise ValueError('旧配置未选择机器人档案；首次升级请使用 '
                              '--from-workspace /旧运行包或旧工作区目录') from error
-        old = json.loads((source / 'release.json').read_text())
-        old_version = old.get('version', 'unknown')
-        if old_version == 'unknown':
-            raise ValueError('无法识别原安装版本；请确认旧目录的 release.json')
+        old = source_identity(source)
+        old_version = old['version']
         stamp = datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6]
         backup = Path(backup_parent) / stamp
         backup.mkdir(parents=True)
@@ -120,6 +178,7 @@ def upgrade(package, root, backup_parent, source=None):
                         shutil.rmtree(root / 'config')
                     shutil.copytree(source / 'config', root / 'config', symlinks=True)
                 changed_robots, retired, offset_robots = migrate(root, templates, old_version, stamp)
+                nominal_changed = migrate_nominal_parent(root, templates)
                 initialize(package, root)
                 result = ConfigWorkspace(root)._apply(None)
             except BaseException:
@@ -136,6 +195,7 @@ def upgrade(package, root, backup_parent, source=None):
                 raise
         result.update(version=new['version'], previous_version=old_version, backup=str(backup),
                       workspace=str(root), config=str(root / 'config'), source_workspace=str(source),
+                      source_kind=old['source_kind'], nominal_parent_corrected=nominal_changed,
                       camera_orientation_changed=changed_robots, retired_task_references=retired,
                       task_offsets_migrated=offset_robots,
                       message='升级完成，未启动硬件。图像方向改变的机器人需通过向导重新建立抓放参考。')
@@ -149,7 +209,7 @@ def upgrade(package, root, backup_parent, source=None):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--workspace',type=Path,help='目标配置目录，默认是当前运行包根目录')
-    parser.add_argument('--from-workspace',type=Path,help='导入旧运行包或旧持久工作区，原目录保持不变')
+    parser.add_argument('--from-workspace',type=Path,help='导入旧运行包、持久工作区或源码目录，原目录保持不变')
     parser.add_argument('--robot-port',type=int,default=8099)
     parser.add_argument('--web-port',type=int,default=8080)
     args=parser.parse_args()

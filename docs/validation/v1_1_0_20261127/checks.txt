@@ -1,0 +1,16 @@
+T170 Factory V1.1.0 release preparation — 2026-11-27
+Baseline: deployment1117 / 9b33c84, plus local uncommitted release fixes.
+Source: /Users/superjack/Ti5/T170-field-review-20261111
+Build: /tmp/t170-v1-audit-20261124/build
+CMAKE_BUILD_TYPE=Release; T170_SERVO_TESTS_ONLY=ON.
+Configure/build: passed (real application/task/motion compile-check targets included).
+CTest: 56/56 passed, 41.55 seconds. See ctest.txt.
+Shell: bash -n packaging/build_release.sh deploy/update_dev.sh deploy/upgrade_robot.sh passed.
+Python: ast.parse upgrade/config migration/layout/deployment test sources passed.
+Whitespace: git diff --check passed.
+Preservation: no diff in config/, src/motion/, src/skills/, tray_grasp.cpp or tray_place.cpp.
+Packaging tests: installed and extracted CPack TGZ resources with fake executable;
+validated relocation, new robot setup and existing/source configuration imports.
+No actual robot executable/package was generated on macOS.
+No tag, commit, GitHub Release, robot connection or hardware command was created/executed.
+Native Linux build/ldd check and real dispatch integration remain to be performed.

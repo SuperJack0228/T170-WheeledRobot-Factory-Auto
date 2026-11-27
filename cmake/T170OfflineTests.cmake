@@ -217,6 +217,11 @@
     target_include_directories(factory_assignment_test PRIVATE include ${T170_ARM_INCLUDE_DIR} ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(factory_assignment_test PRIVATE t170::configuration t170::telemetry)
     add_test(NAME factory_assignment_test COMMAND factory_assignment_test)
+    add_executable(dispatch_unload_test tests/dispatch_unload_test.cpp
+        src/tasks/unload.cpp src/tasks/assignment.cpp src/tasks/context.cpp src/tasks/runtime_state.cpp)
+    target_include_directories(dispatch_unload_test PRIVATE include ${T170_ARM_INCLUDE_DIR} ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(dispatch_unload_test PRIVATE t170::configuration t170::telemetry)
+    add_test(NAME dispatch_unload_test COMMAND dispatch_unload_test)
     add_executable(dispatch_adapter_test tests/dispatch_adapter_test.cpp
         src/integration/dispatch/robot_client_adapter.cpp)
     # The test double MUST NOT leak into t170_dispatch_adapter/robot_platform.
@@ -224,3 +229,15 @@
     target_link_libraries(dispatch_adapter_test PRIVATE t170::dispatch_inbox)
     add_test(NAME dispatch_adapter_test COMMAND dispatch_adapter_test)
     set_tests_properties(dispatch_adapter_test PROPERTIES TIMEOUT 5)
+    add_executable(dispatch_exception_test tests/dispatch_exception_test.cpp
+        src/tasks/dispatch_feedback.cpp src/tasks/recovery.cpp src/tasks/map_sync.cpp
+        src/tasks/context.cpp src/tasks/runtime_state.cpp)
+    target_include_directories(dispatch_exception_test PRIVATE include ${T170_ARM_INCLUDE_DIR} ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(dispatch_exception_test PRIVATE t170::configuration t170::telemetry)
+    add_test(NAME dispatch_exception_test COMMAND dispatch_exception_test)
+    add_executable(dispatch_decision_flow_test tests/dispatch_decision_flow_test.cpp
+        src/tasks/automation.cpp src/tasks/dispatch_feedback.cpp src/tasks/context.cpp src/tasks/runtime_state.cpp)
+    target_include_directories(dispatch_decision_flow_test PRIVATE include ${T170_ARM_INCLUDE_DIR} ${T170_EIGEN_INCLUDE_DIR} ${T170_LOWER_BODY_ROOT}/include ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(dispatch_decision_flow_test PRIVATE t170::configuration t170::telemetry t170::dispatch_inbox t170_arm_core)
+    add_test(NAME dispatch_decision_flow_test COMMAND dispatch_decision_flow_test)
+    set_tests_properties(dispatch_exception_test dispatch_decision_flow_test PROPERTIES TIMEOUT 10)

@@ -10,7 +10,10 @@ if [[ "$tag" != "v$version" ]]; then echo "请在当前提交建立版本标签 
 build="${T170_RELEASE_BUILD_DIR:-$root/build_release}"
 cmake -S "$root" -B "$build" -DCMAKE_BUILD_TYPE=Release -DT170_SERVO_TESTS_ONLY=OFF -DT170_ARM_SDK_CHECK_ONLY=OFF "$@"
 cmake --build "$build" --parallel "${T170_BUILD_JOBS:-3}"
-stage="$build/install-check"
+mkdir -p -- "$build"
+# Check exactly this install, never libraries left over from a previous release.
+stage="$(mktemp -d "$build/install-check.XXXXXX")"
+trap 'rm -rf -- "$stage"' EXIT
 cmake --install "$build" --prefix "$stage"
 "${T170_PYTHON:-python3}" "$root/packaging/check_runtime.py" "$stage" "$root" "$build/environment.lock.json"
 cpack --config "$build/CPackConfig.cmake" -G TGZ -C Release -B "$build/packages"

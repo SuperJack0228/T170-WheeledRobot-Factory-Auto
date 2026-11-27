@@ -169,7 +169,7 @@ Chassis &chassis_seer();
 bool ensure_chassis();
 bool stage_dispatch_map_name();
 bool read_pose_before_dispatch(double &x, double &y, double &angle);
-bool finish_dispatch_map(DispatchClient &client, double x, double y, double angle);
+int finish_dispatch_map(DispatchClient &client, double x, double y, double angle);
 std::string chassis_location_station();
 void publish_dispatch_pose(double x, double y, double angle, const std::string &station = {});
 void publish_dispatch_battery(double level);

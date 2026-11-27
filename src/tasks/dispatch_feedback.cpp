@@ -118,8 +118,36 @@ int dispatch_report_ex(DispatchClient &client, const char *zh)
     using t170::integration::dispatch::kReportOffline;
     using t170::integration::dispatch::kReportRetry;
     using t170::integration::dispatch::kReportSkip;
-    const std::string message = zh ? zh : "";
-    const std::string decision = message.empty() ? std::string() : client.report_exception(message);
+    if (hardware_abort_requested())
+        return -4;
+    std::string message = zh ? zh : "";
+    const auto first = message.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos)
+        message.clear();
+    else
+        message = message.substr(first, message.find_last_not_of(" \t\r\n") - first + 1);
+    // Publish before entering the SDK's blocking operator prompt.
+    board_error(message.empty() ? "异常说明为空，未发送" : message);
+    board_activity("异常等待处理：" + message);
+    board_report_pending("异常处理", message);
+    TimingSpan wait("exception_wait");
+    std::string decision;
+    try
+    {
+        if (!message.empty())
+            decision = client.report_exception(message);
+    }
+    catch (const std::exception &ex)
+    {
+        std::cerr << "[dispatch] 异常上报调用失败: " << ex.what() << '\n';
+    }
+    if (hardware_abort_requested())
+    {
+        wait.fail();
+        timing_event("recovery", "dispatch_resolution", "cancelled", message);
+        board_report("已中止", message, false);
+        return -4;
+    }
     const char *label = "发送失败";
     int code = kDispatchReportFailed;
     if (decision == kReportRetry)
@@ -137,12 +165,13 @@ int dispatch_report_ex(DispatchClient &client, const char *zh)
         label = "下线";
         code = kDispatchOffline;
     }
-    timing_event("recovery", "dispatch_resolution", decision.empty() ? "unsent" : decision, message);
+    const bool recognized = code != kDispatchReportFailed;
+    wait.set_ok(recognized);
+    timing_event("recovery", "dispatch_resolution", decision.empty() ? "unsent" :
+                 (recognized ? decision : "invalid_response"), message);
     std::cout << "[dispatch] 上报「" << message << "」，结果="
               << (decision.empty() ? "空" : decision) << "（" << label << "）\n";
-    if (!message.empty())
-        board_error(message);
-    board_report(decision.empty() ? "上报失败" : decision, message, !decision.empty());
+    board_report(recognized ? decision : "上报失败", message, recognized);
     return code;
 }
 

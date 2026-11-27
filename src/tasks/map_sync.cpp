@@ -169,39 +169,48 @@ int report_dispatch_map_fault(DispatchClient &client, const char *what)
 }
 }
 
-bool finish_dispatch_map(DispatchClient &client, double x, double y, double angle)
+int finish_dispatch_map(DispatchClient &client, double x, double y, double angle)
 {
-    if (!dispatch_gateway().snapshot().is_map_updated)
+    // RETRY may be chosen repeatedly; retain its decision without recursion.
+    while (!hardware_abort_requested())
     {
-        std::cout << "[dispatch] 地图已是最新，本次不重定位\n";
-        board_note("info", "地图检查：已是最新，本次不重定位");
-        return true;
+        if (!dispatch_gateway().snapshot().is_map_updated)
+        {
+            std::cout << "[dispatch] 地图已是最新，本次不重定位\n";
+            board_note("info", "地图检查：已是最新，本次不重定位");
+            return 0;
+        }
+        std::cout << "[dispatch] 地图检查：调度下发了新地图，开始载入\n";
+        board_note("info", "地图检查：调度下发了新地图，开始载入");
+        if (!load_dispatch_map_if_updated())
+        {
+            const int choice = report_dispatch_map_fault(client, "地图更新失败");
+            if (choice != 0)
+                return choice;
+            continue;
+        }
+        if (hardware_abort_requested())
+            return -4;
+        std::ostringstream pose;
+        pose << std::fixed << std::setprecision(4)
+             << "重定位：用更新前坐标 x=" << x << " y=" << y << " angle=" << angle;
+        std::cout << "[dispatch] " << pose.str() << "\n";
+        board_note("info", pose.str());
+        const int rc = chassis_seer().DoRelocate(x, y, angle);
+        if (rc != 0)
+        {
+            std::cerr << "[dispatch] 新地图重定位失败 code=" << rc << " "
+                      << chassis_seer().LastMessage() << "，不进入调度\n";
+            const int choice = report_dispatch_map_fault(client, "重定位失败");
+            if (choice != 0)
+                return choice;
+            continue;
+        }
+        dispatch_gateway().mark_map_current();
+        std::cout << "[dispatch] 新地图重定位成功，进入调度\n";
+        board_note("info", "重定位成功，进入调度");
+        return 0;
     }
-    std::cout << "[dispatch] 地图检查：调度下发了新地图，开始载入\n";
-    board_note("info", "地图检查：调度下发了新地图，开始载入");
-    if (!load_dispatch_map_if_updated())
-    {
-        if (report_dispatch_map_fault(client, "地图更新失败") == 0)
-            return finish_dispatch_map(client, x, y, angle);
-        return false;
-    }
-    std::ostringstream pose;
-    pose << std::fixed << std::setprecision(4)
-         << "重定位：用更新前坐标 x=" << x << " y=" << y << " angle=" << angle;
-    std::cout << "[dispatch] " << pose.str() << "\n";
-    board_note("info", pose.str());
-    const int rc = chassis_seer().DoRelocate(x, y, angle);
-    if (rc != 0)
-    {
-        std::cerr << "[dispatch] 新地图重定位失败 code=" << rc << " "
-                  << chassis_seer().LastMessage() << "，不进入调度\n";
-        if (report_dispatch_map_fault(client, "重定位失败") == 0)
-            return finish_dispatch_map(client, x, y, angle);
-        return false;
-    }
-    dispatch_gateway().mark_map_current();
-    std::cout << "[dispatch] 新地图重定位成功，进入调度\n";
-    board_note("info", "重定位成功，进入调度");
-    return true;
+    return -4;
 }
 }

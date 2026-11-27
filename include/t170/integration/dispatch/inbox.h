@@ -26,6 +26,8 @@ struct DispatchInbox
 };
 void inbox_start(DispatchInbox &box, DispatchClient &client);
 bool inbox_poll(DispatchInbox &box, std::string &out);
+// Reap a completed receive only; timeout leaves the same worker listening.
+// Shutdown must use close_dispatch_inbox to unblock and join pending receives.
 void inbox_join(DispatchInbox &box);
 bool inbox_wait(DispatchInbox &box, int timeout_ms, std::string &out);
 void close_dispatch_inbox(std::unique_ptr<DispatchClient> &,DispatchInbox &) noexcept;

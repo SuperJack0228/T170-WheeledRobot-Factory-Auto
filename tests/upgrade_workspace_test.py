@@ -158,6 +158,69 @@ class UpgradeTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'--from-workspace'):
             upgrade_module.upgrade(self.new,self.new,self.base/'backups')
 
+    def test_import_field_source_preserves_no120_tuning_references_and_tokens(self):
+        self.prepare_local_package(self.new)
+        source=self.base/'T170-dev';source.mkdir()
+        shutil.copytree(ROOT/'config',source/'config')
+        (source/'config/deployment.yaml').write_text('manifest: deployments/TH-T170C-0120.yaml\n')
+        for name in ('CMakeLists.txt','packaging/VERSION','python/t170_common/deployment.py'):
+            path=source/name;path.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(ROOT/name,path)
+        (source/'config/.web-token').write_text('test-local-secret\n')
+        (source/'config/.fleet-tokens.yaml').write_text('tokens: {TH-T170C-0124: test-peer-secret}\n')
+        before={str(p.relative_to(source/'config')):p.read_bytes()
+                for p in (source/'config').rglob('*') if p.is_file()}
+        result=upgrade_module.upgrade(self.new,self.new,self.base/'backups',source=source)
+        self.assertEqual(result['source_kind'],'source_checkout')
+        self.assertFalse((source/'release.json').exists())
+        self.assertFalse(result['camera_orientation_changed'])
+        self.assertFalse(result['nominal_parent_corrected'])
+        self.assertFalse(result['task_offsets_migrated'])
+        for name in ('robots/TH-T170C-0120/quick_params.yaml', '.web-token', '.fleet-tokens.yaml'):
+            self.assertEqual((self.new/'config'/name).read_bytes(),before[name])
+        for name,data in before.items():
+            if name.startswith('calibration/TH-T170C-0120/tasks/'):
+                self.assertEqual((self.new/'config'/name).read_bytes(),data)
+        self.assertEqual(before,{str(p.relative_to(source/'config')):p.read_bytes()
+                                for p in (source/'config').rglob('*') if p.is_file()})
+
+    def test_config_only_folder_is_not_misidentified_as_source_checkout(self):
+        source=self.base/'config-only';source.mkdir()
+        shutil.copytree(self.root/'config',source/'config')
+        with self.assertRaisesRegex(ValueError,'完整源码目录'):
+            upgrade_module.upgrade(self.new,self.root,self.base/'backups',source=source)
+
+    def test_import_repairs_only_known_nominal_parent_and_backs_up_original(self):
+        self.prepare_local_package(self.new)
+        paths=[Path('config/robot_models/t170c_v2_common/cameras')/(side+'_nominal.yaml')
+               for side in ('left','right')]
+        for relative in paths:
+            path=self.root/relative;data=yaml.safe_load(path.read_text())
+            data['parent_frame']='urdf_wrist';path.write_text(yaml.safe_dump(data))
+        quick=(self.root/'config/robots/TH-T170C-0124/quick_params.yaml').read_bytes()
+        result=upgrade_module.upgrade(self.new,self.new,self.base/'backups',source=self.root)
+        self.assertEqual(set(result['nominal_parent_corrected']),set(map(str,paths)))
+        for relative in paths:
+            new=yaml.safe_load((self.new/relative).read_text())
+            old=yaml.safe_load((self.root/relative).read_text())
+            self.assertEqual(new['parent_frame'],'legacy_t7_flange')
+            self.assertEqual(new['a. matrix'],old['a. matrix'])
+            self.assertEqual(old['parent_frame'],'urdf_wrist')
+            self.assertEqual(yaml.safe_load((Path(result['backup'])/relative).read_text()),old)
+        self.assertEqual((self.new/'config/robots/TH-T170C-0124/quick_params.yaml').read_bytes(),quick)
+
+    def test_measured_or_edited_eye_is_never_replaced_by_nominal_migration(self):
+        self.prepare_local_package(self.new)
+        paths=[]
+        for side in ('left','right'):
+            path=self.root/f'config/robot_models/t170c_v2_common/cameras/{side}_nominal.yaml'
+            data=yaml.safe_load(path.read_text());data['parent_frame']='urdf_wrist'
+            data['a. matrix'][0][3]+=.5
+            path.write_text(yaml.safe_dump(data));paths.append(path)
+        before=[p.read_bytes() for p in paths]
+        self.assertEqual(upgrade_module.migrate_nominal_parent(self.root,self.new/'config'),[])
+        self.assertEqual([p.read_bytes() for p in paths],before)
+
     def test_rc3_no120_offsets_migrate_once_without_losing_other_settings(self):
         store=ProfileStore(self.root)
         created=store.update({'action':'create','expected_manifest':store.selected(),'template':store.selected(),
